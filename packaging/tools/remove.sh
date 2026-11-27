@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Script to stop and uninstall the service, but retain the config, data and log files.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 
@@ -8,6 +21,8 @@ set -e
 verMode=edge
 osType=$(uname)
 entMode=full
+packageRole=full
+packageRoleExplicit=0
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
@@ -39,13 +54,14 @@ function usage() {
   echo "  yes: remove the data, log, and configuration files."
   echo "  no:  don't remove the data, log, and configuration files."
   echo "-d: (optional) custom install directory, e.g. /usr/local/${PREFIX} (only needed if auto-detect fails)"
+  echo "-m: package role (full, core or extension)"
 }
 
 # main
 interactive_remove="yes"
 remove_flag="false"
 customDir=""
-while getopts "e:d:h" opt; do
+while getopts "e:d:hm:" opt; do
   case $opt in
     e)
       interactive_remove="no"
@@ -63,6 +79,15 @@ while getopts "e:d:h" opt; do
       ;;
     d)
       customDir="$OPTARG"
+      ;;
+    m)
+      packageRole=$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')
+      packageRoleExplicit=1
+      if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+        echo "Invalid package role: $OPTARG"
+        usage
+        exit 1
+      fi
       ;;
     h | *)
       usage
@@ -105,6 +130,9 @@ else
     exit 1
   fi
 fi
+
+# An installed extension records its role in the installation directory.
+# Explicit -m remains the override for recovery and compatibility cases.
 
 
 validate_safe_path() {
@@ -153,6 +181,18 @@ else
   sysctl_cmd="systemctl --user"
 fi
 
+if [ "$packageRoleExplicit" -eq 0 ]; then
+  if [ -f "${installDir}/.package-role" ]; then
+    packageRole=$(tr '[:upper:]' '[:lower:]' < "${installDir}/.package-role")
+  elif [ -f "${installDir}/.extension-files" ] && [ ! -f "${installDir}/uninstall.sh" ]; then
+    packageRole=extension
+  fi
+fi
+if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+  echo "Invalid installed package role: $packageRole"
+  exit 1
+fi
+
 # 4. All other path variables are based on installDir
 install_main_dir="${installDir}"
 data_link_dir="${installDir}/data"
@@ -169,13 +209,14 @@ share_dir="${installDir}/share"
 
 if [ "${verMode}" == "cluster" ]; then
   services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
+  tools=("taos-fq-client" "${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
 else
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
+  tools=("taos-fq-client" "${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
 fi
 
 initd_mod=0
+tools+=("reconcile-tsdb-nodes.sh")
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
@@ -200,13 +241,13 @@ fi
 
 kill_service_of() {
   local svc=$1
-  # grep -v -x "$$" : exclude the current script's own PID
-  # ps -o pid=,comm= -p ... : get pid and command name
-  # awk '$2 != "${uninstallScript}" && $2 != "uninstall.sh" {print $1}' : exclude ${uninstallScript} and uninstall.sh processes
-  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" '$2 == svc {print $1}' || true)
+  local self_pid="${BASHPID:-$$}"
+  # Exclude the current uninstall script by PID first. Process names for shell
+  # scripts vary between direct execution, symlink execution and sudo wrappers.
+  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" -v self="$self_pid" '$2 == svc && $1 != self {print $1}' || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
-      | awk -v us="${uninstallScript}" '$2 != us && $2 != "uninstall.sh" {print $1}' \
+      | awk -v us="${uninstallScript}" -v self="$self_pid" '$1 != self && $2 != us && $2 != "uninstall.sh" {print $1}' \
       | xargs -r kill -9 2>/dev/null || true
   fi
 }
@@ -430,7 +471,26 @@ function remove_data_and_config() {
   fi
 }
 
+function clean_private_oracle_links() {
+  local directory link target oracle_dir
+  oracle_dir=$(readlink -m "${install_main_dir}/driver/oracle")
+  for directory in "${install_main_dir}/driver" "${install_main_dir}/lib"; do
+    [ -d "$directory" ] || continue
+    for link in "$directory"/*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m "$link")
+      case "$target" in
+        "$oracle_dir/19c/"*|"$oracle_dir/23ai/"*) rm -f -- "$link" ;;
+      esac
+    done
+  done
+  rmdir "${install_main_dir}/lib" 2>/dev/null || true
+}
+
 function remove_install_dir() {
+  if [ "$osType" != Darwin ]; then
+    clean_private_oracle_links
+  fi
   for dir in \
     "${bin_dir}" \
     "${connector_dir}" \
@@ -444,6 +504,15 @@ function remove_install_dir() {
       rm -rf "${dir:?}"
     fi
   done
+  # Remove a misplaced plugin tree created by older extension installers.
+  # The supported install location is ${installDir}/plugins.
+  if [ -d "${install_main_dir:?}/taosx/plugins" ]; then
+    rm -rf "${install_main_dir:?}/taosx/plugins"
+    rmdir "${install_main_dir:?}/taosx" 2>/dev/null || :
+  fi
+  rm -f "${install_main_dir:?}/.extension-files" \
+        "${install_main_dir:?}/.package-role.extension" \
+        "${install_main_dir:?}/.package-info"
   if [ -f "${install_main_dir:?}/README.md" ]; then
     rm -f "${install_main_dir:?}/README.md"
   fi
@@ -456,11 +525,92 @@ function remove_install_dir() {
   if [ -f "${install_main_dir:?}/.install_path" ]; then
     rm -f "${install_main_dir:?}/.install_path"
   fi
+  if [ -f "${install_main_dir:?}/.package-role" ]; then
+    rm -f "${install_main_dir:?}/.package-role"
+  fi
   if [ -d "${install_main_dir:?}" ] && [ -z "$(ls -A "${install_main_dir:?}")" ]; then
     rm -rf "${install_main_dir:?}" || :
   fi
 }
+
+function remove_extension_files() {
+  local manifest="${install_main_dir}/.extension-files"
+  if [ ! -f "$manifest" ]; then
+    echo "Extension ownership manifest not found: $manifest"
+    echo "No files were removed."
+    exit 1
+  fi
+  if [ "$osType" != Darwin ]; then
+    clean_private_oracle_links
+  fi
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == /* || "$path" == *".."* ]] && {
+      echo "Invalid path in extension manifest: $path" >&2
+      exit 1
+    }
+    case "$path" in
+      cfg|cfg/*) continue ;;
+    esac
+    rm -f -- "${install_main_dir}/${path}"
+  done < "$manifest"
+  clean_fq_runtime_links
+  rm -f "$manifest"
+  rm -f "${install_main_dir}/.package-role.extension"
+  find "${install_main_dir}" -depth -type d -empty -delete
+  echo "TDengine extension package is removed successfully!"
+}
+
+function clean_fq_runtime_links() {
+  local dir name target link_name target_name
+  for dir in "$lib_link_dir" "$lib64_link_dir"; do
+    [ -d "$dir" ] || continue
+    for name in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libsqora*.so* "$dir"/libclntsh*.so* "$dir"/libclntshcore*.so* \
+                "$dir"/libnnz*.so* "$dir"/libociei*.so* "$dir"/libons*.so* \
+                "$dir"/libnfsodm*.so* "$dir"/liborazt*.so* "$dir"/legacy.so* "$dir"/fips*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so*; do
+      [ -L "$name" ] || continue
+      target=$(readlink "$name")
+      case "$target" in
+        "${dir}/"*) target=$(readlink "$target" 2>/dev/null || :) ;;
+      esac
+      case "$target" in
+        "${install_main_dir}/driver/"*) rm -f "$name" ;;
+      esac
+    done
+  done
+  while read -r link_name target_name; do
+    name="${install_main_dir}/driver/${link_name}"
+    if [ -L "$name" ] && [ "$(readlink "$name")" = "$target_name" ]; then
+      rm -f "$name"
+    fi
+  done <<'LINKS'
+libarrow.so libarrow.so.1900
+libarrow_flight.so libarrow_flight.so.1900
+libarrow_flight_sql.so libarrow_flight_sql.so.1900
+libparquet.so libparquet.so.1900
+libmariadb.so libmariadb.so.3
+libpq.so.5 libpq.so.5.16
+libpq.so libpq.so.5
+libodbc.so libodbc.so.2
+libclntsh.so libclntsh.so.23.1
+libclntshcore.so libclntshcore.so.23.1
+libssl.so libssl.so.3
+libcrypto.so libcrypto.so.3
+libz.so libz.so.1
+LINKS
+  [ "$(id -u)" -eq 0 ] && ldconfig 2>/dev/null || :
+}
+
 # ====== main logic starts here ======
+if [ "$packageRole" == "extension" ]; then
+  remove_extension_files
+  exit 0
+fi
+
 if [ "$interactive_remove" == "yes" ]; then
   echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
   read answer
@@ -486,6 +636,7 @@ remove_bin
 clean_header
 # Remove lib file
 clean_lib
+clean_fq_runtime_links
 # Remove link log directory
 clean_log
 # Remove link configuration file
@@ -541,8 +692,12 @@ function clean_env_file() {
   escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
+      -e "/^# taos bin env$/d" \
+      -e "/^# taos lib env$/d" \
       -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export PATH=${escaped_bin}:.*|d" \
       -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
 }
 clean_env_file

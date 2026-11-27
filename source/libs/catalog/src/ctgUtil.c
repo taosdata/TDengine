@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,15 @@
  */
 
 #include "catalogInt.h"
+#include "extConnector.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
 #include "trpc.h"
+
+static void ctgFreeExtTableMetaPRes(void* p);
+static void ctgFreeTableMeta(void* p);
+void        ctgFreeVStbRefDbs(void* p);
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -146,7 +153,7 @@ void ctgFreeSTableIndex(void* info) {
 }
 
 void ctgFreeSMetaData(SMetaData* pData) {
-  taosArrayDestroy(pData->pTableMeta);
+  taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
   pData->pTableMeta = NULL;
 
   /*
@@ -206,8 +213,14 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
-  taosArrayDestroy(pData->pVStbRefDbs);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   pData->pVStbRefDbs = NULL;
+
+  taosArrayDestroy(pData->pExtSourceInfo);
+  pData->pExtSourceInfo = NULL;
+
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
+  pData->pExtTableMetaRsp = NULL;
 
   taosMemoryFreeClear(pData->pSvrVer);
 }
@@ -246,7 +259,8 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
     if (lock) {
       CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     }
-    taosMemoryFreeClear(pCache->pMeta);
+    queryFreeTableMeta(pCache->pMeta);
+    pCache->pMeta = NULL;
     if (lock) {
       CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
     }
@@ -384,10 +398,12 @@ void ctgFreeInstUserCache(SHashObj* pUserCache) {
 }
 
 void ctgFreeHandleImpl(SCatalog* pCtg) {
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -414,10 +430,12 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -508,10 +526,12 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -648,6 +668,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->target);
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (pCtx->out) {
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -667,8 +693,10 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
     return;
   }
 
-  taosMemoryFree(pOutput->tbMeta);
-  taosMemoryFree(pOutput->vctbMeta);
+  if ((STableMeta*)pOutput->vctbMeta != pOutput->tbMeta) {
+    queryFreeTableMeta((STableMeta*)pOutput->vctbMeta);
+  }
+  queryFreeTableMeta(pOutput->tbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -686,7 +714,8 @@ void ctgResetTbMetaTask(SCtgTask* pTask) {
     pTask->msgCtx.out = NULL;
   }
   taosMemoryFreeClear(pTask->msgCtx.target);
-  taosMemoryFreeClear(pTask->res);
+  queryFreeTableMeta(pTask->res);
+  pTask->res = NULL;
 }
 
 void ctgFreeBatchMeta(void* meta) {
@@ -695,7 +724,8 @@ void ctgFreeBatchMeta(void* meta) {
   }
 
   SMetaRes* pRes = (SMetaRes*)meta;
-  taosMemoryFreeClear(pRes->pRes);
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
 }
 
 void ctgFreeBatchHash(void* hash) {
@@ -789,12 +819,16 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
-    case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_TB_META: {
+    case CTG_TASK_GET_SVR_VER: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -854,8 +888,11 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       break;
     }
     case CTG_TASK_GET_V_STBREFDBS: {
-      SArray* pArray = (SArray*)*pRes;
-      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_EXT_SOURCE: {
+      taosMemoryFreeClear(*pRes);
       break;
     }
     default:
@@ -900,13 +937,18 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
-    case CTG_TASK_GET_TB_META:
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -930,6 +972,46 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     }
     default:
       qError("invalid task type %d", type);
+      break;
+  }
+}
+
+/*
+ * Destroy a task result that is owned only by the task itself.
+ * type identifies the async task result layout stored in *pRes.
+ * pRes receives NULL after the owned resource is fully released.
+ * Return value is void.
+ */
+static void ctgDestroyTaskOwnRes(CTG_TASK_TYPE type, void** pRes) {
+  if (NULL == pRes || NULL == *pRes) {
+    return;
+  }
+
+  switch (type) {
+    case CTG_TASK_GET_TB_META_BATCH:
+    case CTG_TASK_GET_TB_NAME: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchMeta);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TB_HASH_BATCH: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeBatchHash);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_VIEW: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeViewMetaRes);
+      *pRes = NULL;
+      break;
+    }
+    case CTG_TASK_GET_TSMA:
+    case CTG_TASK_GET_TB_TSMA: {
+      taosArrayDestroyEx((SArray*)*pRes, ctgFreeTbTSMARes);
+      *pRes = NULL;
+      break;
+    }
+    default:
+      ctgFreeTaskRes(type, pRes);
       break;
   }
 }
@@ -1014,7 +1096,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1059,10 +1142,40 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroy(taskCtx->pVgroups);
         taskCtx->pVgroups = NULL;
       }
+      if (taskCtx->pSubTablesList) {
+        taosArrayDestroyEx(taskCtx->pSubTablesList, tDestroySVSubTablesRsp);
+        taskCtx->pSubTablesList = NULL;
+      }
+      taosArrayDestroy(taskCtx->pLayerRefs);
+      taskCtx->pLayerRefs = NULL;
+      if (taskCtx->pLayerReqs) {
+        int32_t reqNum = taosArrayGetSize(taskCtx->pLayerReqs);
+        for (int32_t i = 0; i < reqNum; ++i) {
+          STablesReq* pReq = taosArrayGet(taskCtx->pLayerReqs, i);
+          if (NULL != pReq) {
+            taosArrayDestroy(pReq->pTables);
+            pReq->pTables = NULL;
+          }
+        }
+        taosArrayDestroy(taskCtx->pLayerReqs);
+        taskCtx->pLayerReqs = NULL;
+      }
+      taosHashCleanup(taskCtx->pFinalDbs);
+      taskCtx->pFinalDbs = NULL;
+      taosHashCleanup(taskCtx->pFinalExtSources);
+      taskCtx->pFinalExtSources = NULL;
+      taosMemoryFreeClear(taskCtx->pColRefCols);
+      tFreeSColRefArray(taskCtx->pResolvedColRefs, taskCtx->numOfColRefs);
+      taosMemoryFreeClear(taskCtx->pResolvedColRefs);
+      taskCtx->numOfColRefs = 0;
+      taosMemoryFreeClear(taskCtx->pTagRefCols);
+      taskCtx->numOfTagRefs = 0;
       if (taskCtx->pResList) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
-      taosMemoryFreeClear(taskCtx->pMeta);
+      taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
+      queryFreeTableMeta(taskCtx->pMeta);
+      taskCtx->pMeta = NULL;
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1075,7 +1188,11 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
 void ctgFreeTask(SCtgTask* pTask, bool freeRes) {
   ctgFreeMsgCtx(&pTask->msgCtx);
   if (freeRes || pTask->subTask) {
-    ctgFreeTaskRes(pTask->type, &pTask->res);
+    if (pTask->subTask) {
+      ctgDestroyTaskOwnRes(pTask->type, &pTask->res);
+    } else {
+      ctgFreeTaskRes(pTask->type, &pTask->res);
+    }
   }
   ctgFreeTaskCtx(pTask);
 
@@ -1108,7 +1225,19 @@ void ctgFreeJob(void* job) {
   uint64_t qid = pJob->queryId;
 
   ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
+  if (NULL != pJob->pRetiredTaskBufs) {
+    int32_t bufNum = taosArrayGetSize(pJob->pRetiredTaskBufs);
+    for (int32_t i = 0; i < bufNum; ++i) {
+      void** ppBuf = taosArrayGet(pJob->pRetiredTaskBufs, i);
+      if (NULL != ppBuf) {
+        taosMemoryFree(*ppBuf);
+      }
+    }
+    taosArrayDestroy(pJob->pRetiredTaskBufs);
+    pJob->pRetiredTaskBufs = NULL;
+  }
   ctgFreeBatchs(pJob->pBatchs);
+  taosHashCleanup(pJob->pDbShortNameMap);
 
   ctgFreeSMetaData(&pJob->jobRes);
 
@@ -1689,7 +1818,190 @@ int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst) {
   return TSDB_CODE_SUCCESS;
 }
 
+// Merge vchild-specific data (own extension columns/tags, col/tag refs, rversion) into a
+// caller-owned tbMeta that currently holds the pure (v)stb schema.
+//
+// The block is realloc'd; own column schemas (colId >= TSDB_VCHILD_OWN_COL_ID_BASE) are
+// inserted into the schema area right behind the existing columns and own tag schemas
+// right behind the existing tags (tag schemas are shifted back), and
+// tableInfo.numOfColumns/numOfTags are bumped accordingly. If the meta carries a
+// schemaExt area it is extended with zeroed entries for the own columns so the packed
+// layout stays consistent with TABLE_META_FULL_SIZE()/tableMetaResetPointers(). On
+// success the merged meta reports numOfOwnCols/numOfOwnTags == 0 and
+// ownSchemas/ownTagSchemas == NULL: own columns/tags become ordinary trailing
+// columns/tags and the result is indistinguishable from a meta built without them.
+//
+// *ppTbMeta must be caller-owned (a fresh msg-built meta or a cache clone), NEVER a
+// pointer into the catalog cache. Ref arrays are memcpy'd (ownership of tagCondJson
+// strings transfers to the merged meta, same as the previous inline merge code).
+// With numOfOwnCols == 0 && numOfOwnTags == 0 the result is byte-identical to the
+// previous inline merge.
+int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta) {
+  if (NULL == ppTbMeta || NULL == *ppTbMeta || NULL == pVctbMeta) {
+    qError("invalid input param, ppTbMeta:%p, pVctbMeta:%p", (void*)ppTbMeta, (void*)pVctbMeta);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pVctbMeta->numOfOwnCols < 0 || (pVctbMeta->numOfOwnCols > 0 && NULL == pVctbMeta->ownSchemas) ||
+      pVctbMeta->numOfOwnTags < 0 || (pVctbMeta->numOfOwnTags > 0 && NULL == pVctbMeta->ownTagSchemas) ||
+      pVctbMeta->numOfColRefs < 0 || (pVctbMeta->numOfColRefs > 0 && NULL == pVctbMeta->colRef) ||
+      pVctbMeta->numOfTagRefs < 0 || (pVctbMeta->numOfTagRefs > 0 && NULL == pVctbMeta->tagRef) ||
+      // ownSchemaExt is optional, but a non-NULL ext with zero own columns is an inconsistent
+      // state that the count-based sizing below cannot represent
+      (NULL != pVctbMeta->ownSchemaExt && pVctbMeta->numOfOwnCols <= 0)) {
+    qError("invalid vctb meta, numOfOwnCols:%d, ownSchemas:%p, numOfOwnTags:%d, ownTagSchemas:%p, numOfColRefs:%d, "
+           "colRef:%p, numOfTagRefs:%d, tagRef:%p, ownSchemaExt:%p",
+           pVctbMeta->numOfOwnCols, (void*)pVctbMeta->ownSchemas, pVctbMeta->numOfOwnTags,
+           (void*)pVctbMeta->ownTagSchemas, pVctbMeta->numOfColRefs, (void*)pVctbMeta->colRef,
+           pVctbMeta->numOfTagRefs, (void*)pVctbMeta->tagRef, (void*)pVctbMeta->ownSchemaExt);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STableMeta* pTbMeta = *ppTbMeta;
+  int32_t     numOfCols = pTbMeta->tableInfo.numOfColumns;
+  int32_t     numOfTags = pTbMeta->tableInfo.numOfTags;
+  int32_t     numOfOwnCols = pVctbMeta->numOfOwnCols;
+  int32_t     numOfOwnTags = pVctbMeta->numOfOwnTags;
+  int32_t     ownSchemaSize = numOfOwnCols * (int32_t)sizeof(SSchema);
+  int32_t     ownTagSchemaSize = numOfOwnTags * (int32_t)sizeof(SSchema);
+  int32_t     colRefSize = pVctbMeta->numOfColRefs * (int32_t)sizeof(SColRef);
+  int32_t     tagRefSize =
+      (pVctbMeta->tagRef && pVctbMeta->numOfTagRefs > 0) ? pVctbMeta->numOfTagRefs * (int32_t)sizeof(SColRef) : 0;
+
+  if (numOfCols + numOfOwnCols > TSDB_MAX_COLUMNS) {
+    qError("too many columns after merging vchild own columns, cols:%d, ownCols:%d, max:%d", numOfCols, numOfOwnCols,
+           TSDB_MAX_COLUMNS);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  if (numOfTags + numOfOwnTags > TSDB_MAX_TAGS) {
+    qError("too many tags after merging vchild own tags, tags:%d, ownTags:%d, max:%d", numOfTags, numOfOwnTags,
+           TSDB_MAX_TAGS);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+
+  int32_t metaSize = sizeof(STableMeta) + (numOfCols + numOfTags) * (int32_t)sizeof(SSchema);
+  int32_t schemaExtSize = 0;
+  if (withExtSchema(pTbMeta->tableType) && pTbMeta->schemaExt) {
+    schemaExtSize = numOfCols * (int32_t)sizeof(SSchemaExt);
+  }
+  // Own-column ext (typeMod) is independent of whether the vstb itself carries a schemaExt: a
+  // vchild whose vstb has no decimal columns can still own decimal columns. The merged schemaExt
+  // must be position-aligned with schema[] as [vstb cols ext][own cols ext] and must always cover
+  // the merged numOfColumns, because TABLE_META_FULL_SIZE()/tableMetaResetPointers() size the ext
+  // area as numOfColumns entries:
+  //  - vstb has ext: the ext area is extended with numOfOwnCols slots regardless of whether the
+  //    own columns carry ext of their own (zero-filled when they do not). Skipping those slots
+  //    under-allocates the block, and cloneTableMeta() then reads numOfOwnCols * sizeof(SSchemaExt)
+  //    bytes past it (ASAN heap-buffer-overflow).
+  //  - vstb has no ext but own columns do: the vstb's numOfCols slots still must be allocated and
+  //    zeroed so the own ext lands at the right offset  -  the ext area in that case is
+  //    (numOfCols + numOfOwnCols) entries, not just the own ones (otherwise the memset below writes
+  //    past the realloc'd block and corrupts the heap).
+  bool ownColHasExt = (pVctbMeta->ownSchemaExt != NULL);
+  int32_t ownExtSize = 0;
+  if (schemaExtSize > 0) {
+    ownExtSize = numOfOwnCols * (int32_t)sizeof(SSchemaExt);
+  } else if (ownColHasExt) {
+    ownExtSize = (numOfCols + numOfOwnCols) * (int32_t)sizeof(SSchemaExt);
+  }
+
+  STableMeta* pNew = taosMemoryRealloc(
+      pTbMeta, metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize + colRefSize + tagRefSize);
+  if (NULL == pNew) {
+    qError("realloc size[%d] failed since %s",
+           metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize + colRefSize + tagRefSize,
+           tstrerror(terrno));
+    return terrno;
+  }
+  pTbMeta = pNew;
+  *ppTbMeta = pNew;
+
+  char* pBase = (char*)pTbMeta;
+  // The schemaExt area sits right behind the schema area. After merge it must hold
+  // [vstb cols ext][own cols ext] (position-aligned with schema[]). Three cases:
+  //  - vstb has ext + own has ext: move vstb ext back, then copy own ext behind it.
+  //  - vstb has ext + own has no ext: move vstb ext back, then zero the own ext slots behind it.
+  //  - vstb has no ext + own has ext: zero the vstb slots, then copy own ext behind them.
+  int32_t totalExtSize = schemaExtSize + ownExtSize;
+  if (totalExtSize > 0) {
+    char* pExtBase = pBase + metaSize + ownSchemaSize + ownTagSchemaSize;
+    if (ownSchemaSize + ownTagSchemaSize > 0 && schemaExtSize > 0) {
+      memmove(pExtBase, pBase + metaSize, schemaExtSize);
+    }
+    if (schemaExtSize == 0 && ownExtSize > 0) {
+      // vstb had no ext: its numOfCols slots must exist (zeroed) so own ext stays aligned.
+      memset(pExtBase, 0, numOfCols * (int32_t)sizeof(SSchemaExt));
+    }
+    if (ownExtSize > 0) {
+      // Own ext lands right behind the vstb's ext slots. When the vstb has its own ext
+      // (schemaExtSize > 0) that offset is schemaExtSize; when it does not, the vstb's
+      // numOfCols zeroed placeholders fill the same role, so the offset is numOfCols slots.
+      int32_t ownExtOffset = (schemaExtSize > 0) ? schemaExtSize : numOfCols * (int32_t)sizeof(SSchemaExt);
+      SSchemaExt* pOwnExtDst = (SSchemaExt*)(pExtBase + ownExtOffset);
+      if (ownColHasExt) {
+        for (int32_t i = 0; i < numOfOwnCols; ++i) {
+          pOwnExtDst[i].typeMod = pVctbMeta->ownSchemaExt[i].typeMod;
+        }
+      } else {
+        // vstb has ext but own columns do not: keep their ext slots zeroed so the ext area
+        // still covers the merged numOfColumns.
+        memset(pOwnExtDst, 0, numOfOwnCols * (int32_t)sizeof(SSchemaExt));
+      }
+    }
+    pTbMeta->schemaExt = (SSchemaExt*)pExtBase;
+  } else {
+    pTbMeta->schemaExt = NULL;
+  }
+
+  // Shift the tag schemas behind the own columns and drop the own column schemas into
+  // the gap, so the schema area stays [columns][own columns][tags][own tags].
+  if (ownSchemaSize > 0) {
+    if (numOfTags > 0) {
+      memmove(&pTbMeta->schema[numOfCols + numOfOwnCols], &pTbMeta->schema[numOfCols],
+              numOfTags * (int32_t)sizeof(SSchema));
+    }
+    memcpy(&pTbMeta->schema[numOfCols], pVctbMeta->ownSchemas, ownSchemaSize);
+    pTbMeta->tableInfo.numOfColumns = numOfCols + numOfOwnCols;
+    for (int32_t i = 0; i < numOfOwnCols; ++i) {
+      pTbMeta->tableInfo.rowSize += pVctbMeta->ownSchemas[i].bytes;
+    }
+  }
+  if (ownTagSchemaSize > 0) {
+    memcpy(&pTbMeta->schema[numOfCols + numOfOwnCols + numOfTags], pVctbMeta->ownTagSchemas, ownTagSchemaSize);
+    pTbMeta->tableInfo.numOfTags = numOfTags + numOfOwnTags;
+  }
+
+  char* pCursor = pBase + metaSize + ownSchemaSize + ownTagSchemaSize + schemaExtSize + ownExtSize;
+  pTbMeta->numOfColRefs = pVctbMeta->numOfColRefs;
+  if (colRefSize > 0) {
+    pTbMeta->colRef = (SColRef*)pCursor;
+    memcpy(pTbMeta->colRef, pVctbMeta->colRef, colRefSize);
+  } else {
+    pTbMeta->colRef = NULL;
+  }
+  pTbMeta->numOfTagRefs = pVctbMeta->numOfTagRefs;
+  if (tagRefSize > 0) {
+    pTbMeta->tagRef = (SColRef*)(pCursor + colRefSize);
+    memcpy(pTbMeta->tagRef, pVctbMeta->tagRef, tagRefSize);
+  } else {
+    pTbMeta->tagRef = NULL;
+  }
+  pTbMeta->rversion = pVctbMeta->rversion;
+  // Own columns/tags were merged into the schema area; keep the head fields cleared so
+  // the result stays compatible with cloneTableMeta()/TABLE_META_FULL_SIZE(). ownSchemaExt
+  // must be cleared too: it still points into the caller's SVCTableMeta tail block, which is
+  // freed right after merge returns (catalog.c cache-miss path)  -  leaving it set would be a
+  // dangling pointer on every merged per-child meta.
+  pTbMeta->numOfOwnCols = 0;
+  pTbMeta->ownSchemas = NULL;
+  pTbMeta->ownSchemaExt = NULL;
+  pTbMeta->numOfOwnTags = 0;
+  pTbMeta->ownTagSchemas = NULL;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput) {
+  int32_t code = 0;
   *pOutput = taosMemoryMalloc(sizeof(STableMetaOutput));
   if (NULL == *pOutput) {
     qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
@@ -1701,10 +2013,26 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->vctbMeta) {
     int32_t metaSize = sizeof(SVCTableMeta);
     int32_t colRefSize = 0;
-    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
+    int32_t tagRefSize = 0;
+    int32_t ownSchemaSize = 0;
+    int32_t ownTagSchemaSize = 0;
+    if (hasColRef(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
       colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
     }
-    (*pOutput)->vctbMeta = taosMemoryMalloc(metaSize + colRefSize);
+    if (hasTagRef(output->vctbMeta->tableType) && output->vctbMeta->tagRef && output->vctbMeta->numOfTagRefs > 0) {
+      tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
+    }
+    if (output->vctbMeta->numOfOwnCols > 0 && output->vctbMeta->ownSchemas) {
+      ownSchemaSize = output->vctbMeta->numOfOwnCols * sizeof(SSchema);
+    }
+    int32_t ownSchemaExtSize = (output->vctbMeta->numOfOwnCols > 0 && output->vctbMeta->ownSchemaExt != NULL)
+                                   ? output->vctbMeta->numOfOwnCols * sizeof(SSchemaExt)
+                                   : 0;
+    if (output->vctbMeta->numOfOwnTags > 0 && output->vctbMeta->ownTagSchemas) {
+      ownTagSchemaSize = output->vctbMeta->numOfOwnTags * sizeof(SSchema);
+    }
+    (*pOutput)->vctbMeta =
+        taosMemoryMalloc(metaSize + colRefSize + tagRefSize + ownSchemaSize + ownSchemaExtSize + ownTagSchemaSize);
     if (NULL == (*pOutput)->vctbMeta) {
       qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       taosMemoryFreeClear(*pOutput);
@@ -1712,20 +2040,81 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
-    if (hasRefCol(output->vctbMeta->tableType) && output->vctbMeta->colRef) {
+    (*pOutput)->vctbMeta->seriesEntries = NULL;
+    memset(&(*pOutput)->vctbMeta->referenceExt, 0, sizeof((*pOutput)->vctbMeta->referenceExt));
+    if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->colRef, output->vctbMeta->numOfColRefs,
+                                      (*pOutput)->vctbMeta->colRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
     } else {
       (*pOutput)->vctbMeta->colRef = NULL;
+    }
+    if (tagRefSize > 0) {
+      (*pOutput)->vctbMeta->tagRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->tagRef, output->vctbMeta->numOfTagRefs,
+                                      (*pOutput)->vctbMeta->tagRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
+    } else {
+      (*pOutput)->vctbMeta->tagRef = NULL;
+    }
+    if (ownSchemaSize > 0) {
+      (*pOutput)->vctbMeta->ownSchemas =
+          (SSchema*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize + tagRefSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownSchemas, output->vctbMeta->ownSchemas, ownSchemaSize);
+    } else {
+      (*pOutput)->vctbMeta->numOfOwnCols = 0;
+      (*pOutput)->vctbMeta->ownSchemas = NULL;
+    }
+    if (ownSchemaExtSize > 0) {
+      (*pOutput)->vctbMeta->ownSchemaExt = (SSchemaExt*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize +
+                                                          tagRefSize + ownSchemaSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownSchemaExt, output->vctbMeta->ownSchemaExt, ownSchemaExtSize);
+    } else {
+      (*pOutput)->vctbMeta->ownSchemaExt = NULL;
+    }
+    if (ownTagSchemaSize > 0) {
+      (*pOutput)->vctbMeta->ownTagSchemas = (SSchema*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize +
+                                                        tagRefSize + ownSchemaSize + ownSchemaExtSize);
+      TAOS_MEMCPY((*pOutput)->vctbMeta->ownTagSchemas, output->vctbMeta->ownTagSchemas, ownTagSchemaSize);
+    } else {
+      (*pOutput)->vctbMeta->numOfOwnTags = 0;
+      (*pOutput)->vctbMeta->ownTagSchemas = NULL;
+    }
+    code = tCloneVtableReferenceExt(&output->vctbMeta->referenceExt, &(*pOutput)->vctbMeta->referenceExt);
+    if (code != TSDB_CODE_SUCCESS) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
+    }
+    code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
+                                   &(*pOutput)->vctbMeta->seriesEntries);
+    if (TSDB_CODE_SUCCESS != code) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
+    }
+    if (NULL == (*pOutput)->vctbMeta->seriesEntries) {
+      (*pOutput)->vctbMeta->numOfSeries = 0;
     }
   }
 
   if (output->tbMeta) {
-    int32_t code = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
-    if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFreeClear((*pOutput)->vctbMeta);
+    int32_t code2 = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
+    if (TSDB_CODE_SUCCESS != code2) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
-      CTG_ERR_RET(code);
+      CTG_ERR_RET(code2);
     }
   }
 
@@ -1826,7 +2215,8 @@ int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fet
 int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName) {
   STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
   if (NULL == pReq) {
-    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
+    qError("fail to get the %dth db request in pNames, dbNum:%d", pFetch->dbIdx,
+           (int32_t)taosArrayGetSize(pNames));
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
 
@@ -1854,6 +2244,14 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
 }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+static void ctgFreeExtSourceInfoPRes(void* p) {
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)((SMetaRes*)p)->pRes;
+  if (NULL != pInfo) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+  }
+}
+static void ctgFreeExtTableMetaPRes(void* p) { extConnectorFreeTableSchema((SExtTableMeta*)((SMetaRes*)p)->pRes); }
 
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
@@ -1923,7 +2321,11 @@ static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 //   return pDst;
 // }
 
-static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeTableMeta(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
+}
 
 static int32_t ctgCloneVgroupInfo(void* pSrc, void** ppDst) {
 #if 0
@@ -2154,6 +2556,18 @@ _return:
   CTG_RET(code);
 }
 
+// Table meta used by the auth check of a table. The meta that a sub task of this very check has just fetched is used
+// directly, so the result does not depend on the cache still holding it. Any other table (the super table of a child
+// table) is looked up in the cache.
+static int32_t ctgGetMetaForAuth(SCatalog* pCtg, SCtgAuthReq* req, SName* pSName, STableMeta** ppMeta) {
+  if (NULL != req->pFetchedMeta && pSName == &req->pRawReq->tbName) {
+    CTG_ERR_RET(cloneTableMeta(req->pFetchedMeta, ppMeta));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return catalogGetCachedTableMeta(pCtg, pSName, ppMeta);
+}
+
 #if 0
 static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2329,7 +2743,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       goto _return;
     }
 
-    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    CTG_ERR_JRET(ctgGetMetaForAuth(pCtg, req, pSName, &pMeta));
     if (NULL == pMeta) {
       res->withInsertCond = (req->authInfo.withInsertCond == 1);
       if (pReq->smlInsert) {
@@ -2788,6 +3202,10 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
+  // Federated query: SMetaData owns Phase-B ext table schema responses.  Semantic analysis clones the ones that
+  // need to live in SExtTableNode, while validation-only responses remain owned here.
+  taosArrayDestroyEx(pData->pExtSourceInfo, ctgFreeExtSourceInfoPRes);
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
 }
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex* pIndex) {
@@ -2817,7 +3235,12 @@ FORCE_INLINE uint64_t ctgGetTbMetaCacheSize(STableMeta* pMeta) {
     case TSDB_CHILD_TABLE:
       return sizeof(SCTableMeta);
     case TSDB_VIRTUAL_CHILD_TABLE:
-      return sizeof(SVCTableMeta);
+      // After ctgMergeVctbOwnMeta the cached vchild STableMeta is byte-identical to a normal
+      // STableMeta: own columns/tags are folded into schema[], numOfOwnCols/Tags == 0, and the
+      // colRef/tagRef/schemaExt areas sit in the same single block. So size it with the full
+      // generic formula (which also accounts for colRef/tagRef) rather than the SVCTableMeta
+      // compact-block layout used on the wire.
+      return TABLE_META_FULL_SIZE(pMeta);
     default:
       return sizeof(*pMeta) + pMeta->tableInfo.numOfColumns * sizeof(SSchema);
   }
@@ -3080,6 +3503,13 @@ void ctgGetGlobalCacheStat(SCtgCacheStat* pStat) {
 void ctgGetGlobalCacheSize(uint64_t* pSize) {
   *pSize = 0;
 
+  // pCluster may have been freed by catalogDestroy() if a dispatched timer
+  // callback (ctgProcessTimerEvent) is still running during teardown. Guard
+  // against a NULL/stale hash to avoid dereferencing it in taosHashIterate.
+  if (gCtgMgmt.pCluster == NULL || atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+    return;
+  }
+
   SCatalog* pCtg = NULL;
   void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
   while (pIter) {
@@ -3237,4 +3667,84 @@ int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t*
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+// Batch meta txn: whether a table meta response is (or may be) affected by the txn's uncommitted
+// changes, in which case it must not be written to the shared (committed-view) catalog cache.
+// Untouched tables return the committed meta and are safe to cache as usual.
+//
+// Fail-safe: a request that carries txnId > 0 must also carry the connection's txn-local hashes (fill the
+// SRequestConnInfo with parseCxtToConnInfo(); inside a txn they always exist, possibly empty). A NULL hash
+// means the caller filled txnId by hand and forgot the pointers, so "which tables did the txn touch" is
+// unknown: answer "touched" (never write the shared cache, always refetch with the txnId) instead of
+// silently treating every table as untouched, which would leak uncommitted meta to other sessions.
+static bool ctgTxnNameTouched(const SRequestConnInfo* pConn, const char* dbFName, const char* tbName) {
+  if (tbName[0] == '\0') return false;
+  if (pConn->pTxnTableMeta == NULL) {
+    qDebug("txn:%" PRId64 ", conn has no pTxnTableMeta, treat tb:%s as touched", (int64_t)pConn->txnId, tbName);
+    return true;
+  }
+  char key[TSDB_TABLE_FNAME_LEN] = {0};
+  int32_t len = snprintf(key, sizeof(key), "%s.%s", dbFName, tbName);
+  if (len <= 0 || len >= (int32_t)sizeof(key)) return true;  // cannot build key: be conservative
+  return taosHashGet(pConn->pTxnTableMeta, key, len) != NULL;
+}
+
+// A super table counts as touched when the txn changed it: created, altered or dropped it, all of which leave an
+// entry under its name in pTxnTableMeta (its txn-local meta, or the NULL sentinel of a drop). pTxnSuidMap alone does
+// not say that: it also maps the super table of every child table the txn merely created (the txn assembles the
+// child's schema through it), and creating a child changes nothing about the super table or its other children.
+// Taking that for a change would keep the super table and all its children out of the shared cache for the rest of
+// the txn and refetch their meta on every statement.
+static bool ctgTxnSuidTouched(const SRequestConnInfo* pConn, uint64_t suid) {
+  if (suid == 0) return false;
+  if (pConn->pTxnSuidMap == NULL || pConn->pTxnTableMeta == NULL) {
+    qDebug("txn:%" PRId64 ", conn has no txn-local hashes, treat suid:%" PRIu64 " as touched", (int64_t)pConn->txnId,
+           suid);
+    return true;
+  }
+  const char* stbFullName = (const char*)taosHashGet(pConn->pTxnSuidMap, &suid, sizeof(uint64_t));
+  if (stbFullName == NULL) return false;
+  size_t len = strnlen(stbFullName, TSDB_TABLE_FNAME_LEN);
+  if (len == 0 || len >= TSDB_TABLE_FNAME_LEN) return true;  // malformed entry: be conservative
+  return taosHashGet(pConn->pTxnTableMeta, stbFullName, len) != NULL;
+}
+
+// Batch meta txn: whether a table meta found in the shared catalog cache must be ignored by this
+// txn connection because the txn has modified the table, or the super table that defines its schema.
+// The shared cache holds the committed view, which is stale for such tables: treat it as a miss so
+// the meta is fetched with the txnId (the server returns the txn's view, virtual children included).
+bool ctgIsCachedMetaTouchedByTxn(const SRequestConnInfo* pConn, const SName* pName, const STableMeta* pMeta) {
+  if (pConn == NULL || pConn->txnId <= 0) return false;
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  if (tNameGetFullDbName(pName, dbFName) != 0) return true;  // cannot build the key: be conservative
+  if (ctgTxnNameTouched(pConn, dbFName, pName->tname)) return true;
+  if (pMeta == NULL) return false;
+  return ctgTxnSuidTouched(pConn, pMeta->suid) ||
+         (pMeta->tableType == TSDB_SUPER_TABLE && ctgTxnSuidTouched(pConn, pMeta->uid));
+}
+
+bool ctgIsMetaTouchedByTxn(const SRequestConnInfo* pConn, const STableMetaOutput* pOut) {
+  if (pConn == NULL || pOut == NULL || pConn->txnId <= 0) return false;
+
+  if (ctgTxnNameTouched(pConn, pOut->dbFName, pOut->ctbName) || ctgTxnNameTouched(pConn, pOut->dbFName, pOut->tbName)) {
+    return true;
+  }
+  switch (pOut->metaType) {
+    case META_TYPE_CTABLE:
+    case META_TYPE_BOTH_TABLE:
+      if (ctgTxnSuidTouched(pConn, pOut->ctbMeta.suid)) return true;
+      break;
+    case META_TYPE_VCTABLE:
+    case META_TYPE_BOTH_VTABLE:
+      if (pOut->vctbMeta && ctgTxnSuidTouched(pConn, pOut->vctbMeta->suid)) return true;
+      break;
+    default:
+      break;
+  }
+  if (pOut->tbMeta && (ctgTxnSuidTouched(pConn, pOut->tbMeta->suid) ||
+                       (pOut->tbMeta->tableType == TSDB_SUPER_TABLE && ctgTxnSuidTouched(pConn, pOut->tbMeta->uid)))) {
+    return true;
+  }
+  return false;
 }

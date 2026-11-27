@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-# filepath: hot_update/run/main.py
-#
-# IMPORTANT import order
-# ----------------------
-# 1. stdlib only
-# 2. Parse --from-dir / --rollupdate early (before any taos import)
-# 3. config_lib.prepare_native_lib(lib_dir)  <- sets LD_LIBRARY_PATH
-#      rolling upgrade  (--rollupdate): lib_dir = from_dir  (old client, runs during upgrade)
-#      cold upgrade     (default):      lib_dir = to_dir    (new client, back-compat with old server)
-# 4. Everything else (taos, clusterSetup, ...)
 
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# `spawn` workers import this module before unpickling Manager proxies. Load
+# hashlib now so its OpenSSL extension never initializes after libtaos.
+import hashlib
 import sys
 import os
 import socket
@@ -150,6 +158,17 @@ _COLD_PHASE2_ENV = "_TAOS_COLD_PHASE2"
 _lib_dir = _args.to_dir if os.environ.get(_COLD_PHASE2_ENV) else _args.from_dir
 prepare_native_lib(_lib_dir)
 
+# Start the manager before importing modules that load the target libtaos.
+# multiprocessing lazily imports _hashlib through hmac and secrets; importing it
+# after libtaos has loaded its OpenSSL dependency can crash the cold-upgrade CI.
+_cold_phase2_manager = None
+if (os.environ.get(_COLD_PHASE2_ENV)
+        and multiprocessing.current_process().name == "MainProcess"):
+    _manager_start_method = (
+        "fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn"
+    )
+    _cold_phase2_manager = multiprocessing.get_context(_manager_start_method).Manager()
+
 # -- Now safe to import taos-dependent modules ---------------------------------
 
 import config
@@ -195,6 +214,7 @@ def _init_metrics(manager):
     m["write_last_ts"]             = 0
     m["query_last_count"]          = 0
     m["subscribe_recv_total"]      = 0
+    m["subscribe_dup_total"]       = 0   # rows dropped as re-delivered duplicates
     m["subscribe_last_batch_rows"] = 0
     m["subscribe_last_recv_time"]  = 0.0   # unix timestamp; 0 = never received
     # Phase-4 success counters (reset at start of rolling upgrade)
@@ -259,6 +279,28 @@ def _workloads_ok(metrics, rp):
     if qec > 0:
         rp.error(f"Querier has {qec} failure batch(es) so far.")
     return True  # never abort mid-run
+
+
+def _wait_subscribe_ready(metrics, rp, timeout):
+    """Wait for the TMQ handshake before starting the verification window.
+
+    The writer is gated on ``subscribe_ready``, so a late subscription (slow
+    cluster stabilization, loaded runner) would otherwise burn the whole fixed
+    verification window with zero rows and fail the subscribe checks
+    spuriously.  If the handshake does not complete in time, verification
+    proceeds unchanged: the subscriber keeps retrying and the checks decide
+    the outcome.
+    """
+    deadline = time.time() + timeout
+    while not metrics.get("subscribe_ready", False) and time.time() < deadline:
+        time.sleep(1)
+    if metrics.get("subscribe_ready", False):
+        rp.info("Subscriber handshake ready; verification window starts now.")
+    else:
+        rp.info(
+            f"Subscriber handshake not ready within {timeout}s; "
+            "starting verification anyway"
+        )
 
 
 def _version_ge(ver_str: str, min_ver: str) -> bool:
@@ -329,6 +371,29 @@ def _parse_args():
     return args
 
 
+def _taosd_binary_version(version_dir):
+    """Return the version reported by ``<version_dir>/taosd -V``, or None on failure.
+
+    The install directory name is derived from the cmake-configured version and
+    can drift ahead of the binary it actually holds, so the version is read from
+    the binary itself.  Parses the ``taosd version: X.Y.Z.W`` token specifically
+    so the ``compatible_version:`` value on the same line is not mistaken for it.
+    """
+    import re
+    import subprocess as _subp
+    try:
+        taosd = get_taosd_path(version_dir)
+        out = _subp.run([taosd, "-V"], capture_output=True, text=True, timeout=15)
+    except Exception:
+        return None
+    text = (out.stdout or "") + "\n" + (out.stderr or "")
+    m = re.search(r'taosd\s+version:\s*(\d+(?:\.\d+)+)', text)
+    if not m:
+        # Fallback: first dotted 3- or 4-part version anywhere in the output.
+        m = re.search(r'(\d+\.\d+\.\d+(?:\.\d+)?)', text)
+    return m.group(1) if m else None
+
+
 def _resolve_paths(args):
     """Resolve and return all runtime paths derived from CLI args."""
     fqdn      = args.fqdn or socket.gethostname()
@@ -339,7 +404,10 @@ def _resolve_paths(args):
     _script_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     whitelist_dir = args.whitelist_dir or os.path.join(_script_root, "whitelist")
     from_ver  = os.path.basename(from_dir)
-    to_ver    = os.path.basename(to_dir)
+    # Target version comes from the actual target binary (taosd -V), not the
+    # install directory name.  Fall back to the basename if the binary can't be
+    # queried (e.g. missing/unexecutable).
+    to_ver    = _taosd_binary_version(to_dir) or os.path.basename(to_dir)
     return fqdn, from_dir, to_dir, base_path, cfg_dir, whitelist_dir, from_ver, to_ver
 
 
@@ -423,6 +491,21 @@ def _prepare_resources(fqdn, cfg_dir, from_ver, args, rp):
             rp.info(f"Insert initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows ...")
             st.rm.write_initial_data()
             rp.info(f"Initial data: {config.SUBTABLE_COUNT} x {config.INIT_ROWS_PER_SUBTABLE:,} rows written")
+
+            # Virtual table: created on the base version, queried again after the
+            # upgrade.  Gated because the feature does not exist on older bases.
+            if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+                st.rm.create_vtable_source()
+                rp.info(f"Virtual-table source '{config.VTABLE_SRC_TABLE}' created")
+                st.rm.create_virtual_table()
+                rp.info(f"Virtual table '{config.VTABLE_NAME}' created")
+                st.rm.create_virtual_stable()
+                rp.info(f"Virtual stable '{config.VTABLE_STB_NAME}' created")
+                st.rm.create_virtual_child_table()
+                rp.info(f"Virtual child table '{config.VTABLE_CHILD_NAME}' created")
+            else:
+                rp.info(f"Virtual table skipped: base version {from_ver} < "
+                        f"{config.VTABLE_MIN_VERSION}")
 
             if tsma_supported:
                 if args.no_tsma:
@@ -617,6 +700,8 @@ def _run_verify_phase(fqdn, cfg_dir, metrics, worker_procs, writer_stop_evt,
     rp.info(f"Waiting {stabilize_wait}s for cluster connections to stabilize ...")
     time.sleep(stabilize_wait)
 
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
+
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
     metrics["subscribe_window_max"] = 0.0
@@ -709,14 +794,13 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     # ---- user / privilege / schema checks ----
-    _RPC_SIG_MISMATCH_MSG = f"[0x0141/0x0140] client {from_ver} incompatible with server"
-
     def _is_sig_error(e):
         s = str(e)
         return (
@@ -724,13 +808,43 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
             "0x0140" in s or "0x80000140" in s or "Edition not compatible" in s
         )
 
+    def _engine_error_detail(e):
+        """Return the engine's own error code + description carried by *e*.
+
+        Produces e.g. ``[0x0141] Invalid signature`` by preferring the taos
+        connector's errno/msg attributes and falling back to parsing the text.
+        The high TSDB flag bit (0x80000000) is masked off so the code matches
+        the engine's documented form.  Returns the raw text if no code is found.
+        """
+        import re
+        errno = getattr(e, "errno", None)
+        msg   = getattr(e, "msg", None)
+        s     = str(e)
+        code  = None
+        if isinstance(errno, int):
+            code = errno & 0xFFFF
+        else:
+            m = re.search(r'0x[0-9a-fA-F]{3,8}', s)
+            if m:
+                code = int(m.group(0), 16) & 0xFFFF
+        desc = (msg or "").strip()
+        if not desc:
+            # Strip a leading '[0x....]:' / '(0x....)' code wrapper, keep the rest.
+            desc = re.sub(r'^\s*[\[(]?\s*0x[0-9a-fA-F]{3,8}\s*[\])]?\s*:?\s*', '', s).strip()
+        if code is not None:
+            return f"[0x{code:04x}] {desc}".rstrip()
+        return desc or s
+
     def _safe_verify(label, fn, *a, **kw):
         try:
             ok, msg = fn(*a, **kw)
             _chk(label, ok, msg)
         except Exception as _e:
             if _is_sig_error(_e):
-                _chk("RPC backward compatibility", False, _RPC_SIG_MISMATCH_MSG)
+                # Report the engine's actual code + description (not a generic
+                # lumped reason); keep the label so the report still tells which
+                # check hit it.
+                _chk(label, False, _engine_error_detail(_e))
             else:
                 raise
 
@@ -740,7 +854,7 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
         uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
         auth_ok, auth_msg = uv.verify_auth()
         if not auth_ok and _is_sig_error(Exception(auth_msg)):
-            auth_msg = _RPC_SIG_MISMATCH_MSG
+            auth_msg = _engine_error_detail(auth_msg)
         _chk("test_user authentication after upgrade", auth_ok, auth_msg)
 
         if phase2_st.priv_before is not None:
@@ -785,6 +899,23 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
             _chk("Stream preserved after upgrade", False, "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
+
+    # ---- virtual table check (rolling path) ----
+    # Queried through a fresh connection so the client has to fetch the virtual
+    # table metadata; that request is the one whose frame layout changes, so a
+    # client that cannot read the new server's reply fails here.  The ALTER
+    # statements cover the request direction: this path keeps the base-version
+    # client, so they also prove an old client can still alter a virtual table
+    # hosted by the new server.
+    if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+        _safe_verify("Virtual table query after upgrade", rm.verify_virtual_table)
+        _safe_verify("Virtual stable and child table after upgrade", rm.verify_virtual_stable)
+        _safe_verify("Virtual table ALTER after upgrade", rm.alter_virtual_table)
+        _safe_verify("Virtual table ALTER verified after upgrade",
+                     rm.verify_altered_virtual_table)
+    else:
+        rp.info(f"Virtual table check skipped: base version {from_ver} < "
+                f"{config.VTABLE_MIN_VERSION}")
 
     # ---- INFORMATION_SCHEMA check ----
     if args.check_sysinfo:
@@ -901,6 +1032,10 @@ def _run_cold_phase2(state_file: str):
     no_user          = st.get("no_user", False)
     no_index         = st.get("no_index", False)
 
+    manager = _cold_phase2_manager
+    if manager is None:
+        raise RuntimeError("cold-upgrade manager was not initialized")
+
     if st.get("quick"):
         config.SUBTABLE_COUNT         = 100
         config.INIT_ROWS_PER_SUBTABLE = 1_000
@@ -965,7 +1100,6 @@ def _run_cold_phase2(state_file: str):
             rp.error("SysInfo: snapshot unavailable, whitelist not written")
         sys.exit(0)
 
-    manager         = multiprocessing.Manager()
     metrics         = _init_metrics(manager)
     stop_evt        = manager.Event()
     writer_stop_evt = manager.Event()
@@ -1003,6 +1137,8 @@ def _run_cold_phase2(state_file: str):
 
     # -- Phase 5: Post-upgrade verification ------------------------------------
     rp.step_start(f"Phase 5  Post-upgrade verification ({config.VERIFY_DURATION_S}s)")
+
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
 
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
@@ -1095,9 +1231,10 @@ def _run_cold_phase2(state_file: str):
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     if no_user:
@@ -1166,6 +1303,26 @@ def _run_cold_phase2(state_file: str):
                      "baseline snapshot not captured (Phase 2 error)")
     else:
         rp.info(f"Stream check skipped: base version {from_ver} < 3.3.7.0")
+
+    # ------ virtual table checks ------
+    # rm runs with the upgraded client here, and every call opens a fresh
+    # connection, so the client has to fetch the virtual table metadata.
+    if _version_ge(from_ver, config.VTABLE_MIN_VERSION):
+        vtb_ok, vtb_msg = rm.verify_virtual_table()
+        _chk("Virtual table query after upgrade", vtb_ok, vtb_msg)
+
+        vstb_ok, vstb_msg = rm.verify_virtual_stable()
+        _chk("Virtual stable and child table after upgrade", vstb_ok, vstb_msg)
+
+        # ALTER covers the request direction, which pre-created resources do not.
+        alt_ok, alt_msg = rm.alter_virtual_table()
+        _chk("Virtual table ALTER after upgrade", alt_ok, alt_msg)
+        if alt_ok:
+            alt_v_ok, alt_v_msg = rm.verify_altered_virtual_table()
+            _chk("Virtual table ALTER verified after upgrade", alt_v_ok, alt_v_msg)
+    else:
+        rp.info(f"Virtual table checks skipped: base version {from_ver} < "
+                f"{config.VTABLE_MIN_VERSION}")
 
     # ------ INFORMATION_SCHEMA check ------
     if check_sysinfo and sysinfo_before is not None and _sysinfo_after is not None:

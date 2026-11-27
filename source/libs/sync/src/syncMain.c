@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sync.h"
+#include "tdTestSeam.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
@@ -41,6 +44,7 @@
 
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
+static void    syncNodeEqRestoreElectTimer(void* param, void* tmrId);
 static void    syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
@@ -79,6 +83,9 @@ int64_t syncOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion) {
   pSyncNode->pingBaseLine = pSyncInfo->pingMs;
   pSyncNode->pingTimerMS = pSyncInfo->pingMs;
   pSyncNode->electBaseLine = pSyncInfo->electMs;
+  // Capture the initial baseline once at open time; used as the restore target
+  // by the fallback restore-elect timer. Never overwritten afterwards.
+  pSyncNode->electBaseLineOrig = pSyncInfo->electMs;
   pSyncNode->hbBaseLine = pSyncInfo->heartbeatMs;
   pSyncNode->heartbeatTimerMS = pSyncInfo->heartbeatMs;
   pSyncNode->msgcb = pSyncInfo->msgcb;
@@ -327,7 +334,17 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   int32_t contLen = 0;
 
   SVArbSetAssignedLeaderReq req = {0};
-  if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead), pRpcMsg->contLen, &req) != 0) {
+  // [SECURITY FIX for finding "item49"] The buffer pointer is advanced by sizeof(SMsgHead) but the
+  // length passed to the deserializer used to be the full pRpcMsg->contLen, which over-reads up to
+  // sizeof(SMsgHead) bytes (8 bytes) beyond the actual frame. Pass the remaining length after the
+  // message header and reject malformed/short frames before decoding.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    sError("vgId:%d, set assigned leader msg too short, contLen:%d", ths->vgId, pRpcMsg->contLen);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead),
+                                            pRpcMsg->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     sError("vgId:%d, failed to deserialize SVArbSetAssignedLeaderReq", ths->vgId);
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -341,12 +358,21 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (!req.force) {
-    if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
-      sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
-            req.memberToken);
-      goto _OVER;
-    }
+  // [SECURITY FIX for finding "item 49"] The 'force' flag is a plain wire field that any host
+  // reachable on the dnode RPC port (6030) can set; the transport performs no sender authentication.
+  // Formerly 'force' skipped the only authorization check (the memberToken comparison), so an
+  // unauthenticated peer could send {arbTerm=huge, force=1} and become an ASSIGNED_LEADER without
+  // the shared-secret token, causing a split brain. The memberToken must ALWAYS match the locally
+  // generated ths->arbToken (the per-vnode secret established via the arbitrator heartbeat
+  // handshake) before the role/term is changed. The 'force' flag no longer bypasses auth.
+  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
+    // [SECURITY FIX for finding "item49" follow-up] Promote to sError: a rejected SET_ASSIGNED_LEADER
+    // (token mismatch) must be visible. The mnode relies on this result (and a follow-up heartbeat /
+    // timer re-send) to converge the operator-assigned leader; a silent skip would make the operator
+    // believe the assignment succeeded while the vgroup stays non-writable.
+    sError("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+           req.memberToken);
+    goto _OVER;
   }
 
   if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
@@ -574,6 +600,7 @@ bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
 }
 
 bool syncIsReadyForRead(int64_t rid) {
+  TD_SEAM_RET(syncIsReadyForRead, bool (*)(int64_t), (rid));
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     sError("sync ready for read error");
@@ -586,18 +613,24 @@ bool syncIsReadyForRead(int64_t rid) {
   return ready;
 }
 
-#ifdef BUILD_NO_CALL
-bool syncSnapshotSending(int64_t rid) {
+bool syncIsReadyForReplicaRead(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync replica read readiness check failed");
     return false;
   }
 
-  bool b = syncNodeSnapshotSending(pSyncNode);
+  bool ready = pSyncNode->restoreFinish;
+  if (!ready) {
+    terrno = TSDB_CODE_SYN_RESTORING;
+  }
+
   syncNodeRelease(pSyncNode);
-  return b;
+  return ready;
 }
 
+#ifdef BUILD_NO_CALL
 bool syncSnapshotRecving(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -609,6 +642,17 @@ bool syncSnapshotRecving(int64_t rid) {
   return b;
 }
 #endif
+
+bool syncSnapshotSending(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+
+  bool b = syncNodeSnapshotSending(pSyncNode);
+  syncNodeRelease(pSyncNode);
+  return b;
+}
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
@@ -1432,6 +1476,12 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo, int32_t vnodeVersion, int32_t elec
   pSyncNode->FpElectTimerCB = syncNodeEqElectTimer;
   pSyncNode->electTimerCounter = 0;
 
+  // init restore-elect timer
+  pSyncNode->pRestoreElectTimer = NULL;
+  pSyncNode->restoreElectTimerMS = SYNC_RESTORE_ELECT_TIMEOUT_MS;
+  atomic_store_64(&pSyncNode->restoreElectTimerLogicClock, 0);
+  pSyncNode->FpRestoreElectTimerCB = syncNodeEqRestoreElectTimer;
+
   // init heartbeat timer
   pSyncNode->pHeartbeatTimer = NULL;
   pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
@@ -1732,6 +1782,10 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     sError("vgId:%d, failed to stop heartbeat timer since %s", pSyncNode->vgId, tstrerror(code));
     return;
   }
+  if ((code = syncNodeStopRestoreElectTimer(pSyncNode)) != 0) {
+    sError("vgId:%d, failed to stop restore-elect timer since %s", pSyncNode->vgId, tstrerror(code));
+    return;
+  }
   syncNodeLogReplDestroy(pSyncNode);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
@@ -1807,7 +1861,7 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   (void)atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   bool stop = taosTmrStop(pSyncNode->pPingTimer);
   if (!stop) {
-    sWarn("vgId:%d, failed to stop ping timer, maybe it's already stopped, stop:%d", pSyncNode->vgId, stop);
+    sWarn("vgId:%d, failed to stop ping timer, maybe it is already stopped, stop:%d", pSyncNode->vgId, stop);
   } else {
     sDebug("vgId:%d, stop ping timer, stop:%d", pSyncNode->vgId, stop);
   }
@@ -1869,6 +1923,44 @@ void syncNodeResetElectTimer(SSyncNode* pSyncNode) {
 
   sNTrace(pSyncNode, "reset elect timer, min:%d, max:%d, ms:%d", pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine,
           electMS);
+}
+
+int32_t syncNodeStartRestoreElectTimer(SSyncNode* pSyncNode, int32_t ms) {
+  int32_t code = 0;
+  // Invalidate any in-flight restore-elect timer first (bump logic clock),
+  // so repeated syncSetElectBaseline calls always keep only the latest one.
+  TAOS_CHECK_RETURN(syncNodeStopRestoreElectTimer(pSyncNode));
+
+  if (syncIsInit()) {
+    pSyncNode->restoreElectTimerMS = ms;
+
+    int64_t execTime = taosGetTimestampMs() + ms;
+    atomic_store_64(&(pSyncNode->restoreElectTimerParam.executeTime), execTime);
+    atomic_store_64(&(pSyncNode->restoreElectTimerParam.logicClock), pSyncNode->restoreElectTimerLogicClock);
+    pSyncNode->restoreElectTimerParam.pSyncNode = pSyncNode;
+    pSyncNode->restoreElectTimerParam.pData = NULL;
+
+    bool stopped = taosTmrReset(pSyncNode->FpRestoreElectTimerCB, pSyncNode->restoreElectTimerMS,
+                                (void*)(pSyncNode->rid), syncEnv()->pTimerManager, &pSyncNode->pRestoreElectTimer);
+    if (stopped) sWarn("vgId:%d, failed to reset restore-elect timer, ms:%d", pSyncNode->vgId, ms);
+
+    sInfo("vgId:%d, start restore-elect timer, ms:%d, lc:%" PRIu64, pSyncNode->vgId, ms,
+          pSyncNode->restoreElectTimerLogicClock);
+  } else {
+    sError("vgId:%d, start restore-elect timer error, sync env is stop", pSyncNode->vgId);
+  }
+  return code;
+}
+
+int32_t syncNodeStopRestoreElectTimer(SSyncNode* pSyncNode) {
+  int32_t code = 0;
+  // Bump logic clock so any pending restore-elect timeout message is dropped
+  // by syncNodeOnTimeout (its logicClock will be older than the current one).
+  (void)atomic_add_fetch_64(&pSyncNode->restoreElectTimerLogicClock, 1);
+  bool stop = taosTmrStop(pSyncNode->pRestoreElectTimer);
+  sTrace("vgId:%d, stop restore-elect timer, stop:%d", pSyncNode->vgId, stop);
+  pSyncNode->pRestoreElectTimer = NULL;
+  return code;
 }
 
 #ifdef BUILD_NO_CALL
@@ -2148,7 +2240,7 @@ int32_t syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncI
           int32_t oldreplicaIndex = pSyncNode->senders[i]->replicaIndex;
           pSyncNode->senders[i]->replicaIndex = i;
 
-          sNTrace(pSyncNode, "snapshot sender udpate replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
+          sNTrace(pSyncNode, "snapshot sender update replicaIndex from %d to %d, dnode:%d, %p, reset:%d",
                   oldreplicaIndex, i, DID(&pSyncNode->replicasId[i]), pSyncNode->senders[i], reset);
 
           break;
@@ -2547,6 +2639,19 @@ int32_t syncSetElectBaseline(int64_t rid, int32_t ms){
   }
   pSyncNode->electBaseLine = ms;
   syncNodeResetElectTimer(pSyncNode);
+  // Start a fallback timer: if this node does not become leader within
+  // SYNC_RESTORE_ELECT_TIMEOUT_MS, electBaseLine will be restored to its
+  // original value. This protects against a stuck balance-leader transaction
+  // leaving a lagging replica with a too-small baseline (which would make it
+  // repeatedly trigger elections it cannot win, blocking leader election).
+  sInfo("vgId:%d, set electBaseLine to %d, orig:%d, arm restore timer %dms", pSyncNode->vgId, ms,
+        pSyncNode->electBaseLineOrig, SYNC_RESTORE_ELECT_TIMEOUT_MS);
+  if (ms != pSyncNode->electBaseLineOrig) {
+    if ((code = syncNodeStartRestoreElectTimer(pSyncNode, SYNC_RESTORE_ELECT_TIMEOUT_MS)) != 0) {
+      sWarn("vgId:%d, failed to start restore-elect timer since %s", pSyncNode->vgId, tstrerror(code));
+      code = 0;  // best-effort: baseline was set; don't fail the whole call
+    }
+  }
   return code;
 }
 
@@ -2858,6 +2963,48 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   syncNodeRelease(pNode);
 }
 
+static void syncNodeEqRestoreElectTimer(void* param, void* tmrId) {
+  if (!syncIsInit()) return;
+
+  int64_t    rid = (int64_t)param;
+  SSyncNode* pNode = syncNodeAcquire(rid);
+
+  if (pNode == NULL) return;
+
+  if (pNode->syncEqMsg == NULL) {
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  int64_t tsNow = taosGetTimestampMs();
+  if (tsNow < pNode->restoreElectTimerParam.executeTime) {
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  SRpcMsg rpcMsg = {0};
+  int32_t code = syncBuildTimeout(&rpcMsg, SYNC_TIMEOUT_RESTORE_ELECT, pNode->restoreElectTimerParam.logicClock,
+                                  pNode->restoreElectTimerMS, pNode);
+  if (code != 0) {
+    sError("vgId:%d, failed to build restore-elect msg", pNode->vgId);
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  SyncTimeout* pTimeout = rpcMsg.pCont;
+  sNTrace(pNode, "enqueue restore-elect msg lc:%" PRIu64, pTimeout->logicClock);
+
+  code = pNode->syncEqMsg(pNode->msgcb, &rpcMsg);
+  if (code != 0) {
+    sError("vgId:%d, failed to sync enqueue restore-elect msg since %s", pNode->vgId, terrstr());
+    rpcFreeCont(rpcMsg.pCont);
+    syncNodeRelease(pNode);
+    return;
+  }
+
+  syncNodeRelease(pNode);
+}
+
 #ifdef BUILD_NO_CALL
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
   if (!syncIsInit()) return;
@@ -3038,12 +3185,22 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
 }
 #endif
 
-void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TODO SAlterVnodeReplicaReq name is proper?
+int32_t syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TODO SAlterVnodeReplicaReq name is proper?
   cfg->replicaNum = 0;
   cfg->totalReplicaNum = 0;
-  int32_t code = 0;
 
-  for (int i = 0; i < pReq->replica; ++i) {
+  // cfg->nodeInfo has TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA slots and the request arrays are
+  // fixed-size, so the counts decoded from the entry must never drive the loops past them
+  int32_t numOfReplicas = pReq->replica;
+  int32_t numOfLearners = pReq->learnerReplica;
+  if (numOfReplicas < 0 || numOfReplicas > TSDB_MAX_REPLICA || numOfLearners < 0 ||
+      numOfLearners > TSDB_MAX_LEARNER_REPLICA) {
+    sError("vgId:%d, invalid replica:%d learnerReplica:%d in config change request", pReq->vgId, numOfReplicas,
+           numOfLearners);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  for (int i = 0; i < numOfReplicas; ++i) {
     SNodeInfo* pNode = &cfg->nodeInfo[i];
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
@@ -3057,7 +3214,7 @@ void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TO
   if (pReq->selfIndex != -1) {
     cfg->myIndex = pReq->selfIndex;
   }
-  for (int i = cfg->replicaNum; i < pReq->replica + pReq->learnerReplica; ++i) {
+  for (int i = cfg->replicaNum; i < numOfReplicas + numOfLearners; ++i) {
     SNodeInfo* pNode = &cfg->nodeInfo[i];
     pNode->nodeId = pReq->learnerReplicas[cfg->totalReplicaNum].id;
     pNode->nodePort = pReq->learnerReplicas[cfg->totalReplicaNum].port;
@@ -3068,11 +3225,12 @@ void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TO
           pNode->nodePort, pNode->nodeId, pNode->nodeRole, update);
     cfg->totalReplicaNum++;
   }
-  cfg->totalReplicaNum += pReq->replica;
+  cfg->totalReplicaNum += numOfReplicas;
   if (pReq->learnerSelfIndex != -1) {
-    cfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
+    cfg->myIndex = numOfReplicas + pReq->learnerSelfIndex;
   }
   cfg->changeVersion = pReq->changeVersion;
+  return 0;
 }
 
 int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
@@ -3082,16 +3240,30 @@ int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
 
   SSyncCfg cfg = {0};
-  syncBuildConfigFromReq(&req, &cfg);
+  TAOS_CHECK_RETURN(syncBuildConfigFromReq(&req, &cfg));
 
   if (cfg.totalReplicaNum >= 1 &&
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
@@ -3433,16 +3605,30 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
 
   SSyncCfg cfg = {0};
-  syncBuildConfigFromReq(&req, &cfg);
+  TAOS_CHECK_RETURN(syncBuildConfigFromReq(&req, &cfg));
 
   if (cfg.changeVersion <= ths->raftCfg.cfg.changeVersion) {
     sInfo(
@@ -3613,7 +3799,8 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
 
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
-    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer", ths->vgId, pEntry->index);
+    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer since %s", ths->vgId, pEntry->index,
+           tstrerror(code));
     int32_t ret = 0;
     if ((ret = syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false)) != 0) {
       sError("vgId:%d, index:%" PRId64 ", failed to execute fsm since %s", ths->vgId, pEntry->index, tstrerror(ret));
@@ -3699,7 +3886,7 @@ bool syncNodeSnapshotSending(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) return false;
   bool b = false;
   for (int32_t i = 0; i < pSyncNode->totalReplicaNum; ++i) {
-    if (pSyncNode->senders[i] != NULL && pSyncNode->senders[i]->start) {
+    if (pSyncNode->senders[i] != NULL && snapshotSenderIsStart(pSyncNode->senders[i])) {
       b = true;
       break;
     }
@@ -3761,6 +3948,17 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 #endif
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): the RPC dispatch path only guarantees
+  // contLen >= sizeof(SMsgHead) (8 bytes), far less than the fixed SyncHeartbeat
+  // header. The pMsg->srcId / timeStamp / term reads below all live inside that
+  // header, so a truncated frame would otherwise be an out-of-bounds heap read.
+  // Validate the fixed header before the first field access.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeat)) {
+    sError("vgId:%d, heartbeat frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeat));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
   bool           resetElect = false;
 
@@ -3904,6 +4102,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncHeartbeatReply header before syncNodeGetLogReplMgr() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeatReply)) {
+    sError("vgId:%d, heartbeat reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeatReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t code = 0;
 
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
@@ -3991,6 +4197,22 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+    // SECURITY FIX (finding item 52): a SyncClientRequest is produced only by the local
+    // syncNodePropose() loopback. Its dataLen field is fully attacker-controlled if the frame ever
+    // reaches here from the network, and syncEntryBuildFromClientRequest() trusts it as the memcpy
+    // length without comparing it to the real rpc frame length (pMsg->contLen). A short frame with a
+    // large dataLen would read far past the buffer (heap over-read, crash, or attacker bytes
+    // persisted into the WAL and replicated). Reject any request whose declared dataLen does not
+    // fit inside the received frame. A well-formed local request always satisfies this because its
+    // pMsg->contLen equals sizeof(SyncClientRequest) + dataLen.
+    SyncClientRequest* pClientReq = (SyncClientRequest*)pMsg->pCont;
+    if (pMsg->contLen < (int32_t)sizeof(SyncClientRequest) ||
+        pClientReq->dataLen > (uint32_t)(pMsg->contLen - (int32_t)sizeof(SyncClientRequest))) {
+      sGError(&pMsg->info.traceId,
+              "vgId:%d, msg:%p, drop malformed client request: contLen:%d dataLen:%u, possible forgery",
+              ths->vgId, pMsg, pMsg->contLen, pClientReq->dataLen);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, &pMsg->info.traceId);
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
@@ -4090,10 +4312,33 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
 }
 
 bool syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId) {
+  // TD-SEC-2026-044: this function is the membership authorization gate for every
+  // inbound SYNC message (RequestVote/AppendEntries/Heartbeat/Snapshot/...). It must
+  // not trust a CID==0 wildcard. When this node already knows its own cluster id
+  // (i.e. it has joined a cluster), require an EXACT (clusterId, nodeId, vgId) match
+  // via syncUtilSameIdStrict, so a forged message with CID=0 (or a mismatched cluster
+  // id) is rejected instead of being treated as a configured replica. The legacy
+  // lenient comparison is kept only while the local cluster id is still 0 (early
+  // bootstrap / not-yet-joined), to avoid regressing cluster formation.
+  bool strict = (CID(&ths->myRaftId) != 0);
   for (int32_t i = 0; i < ths->totalReplicaNum; ++i) {
-    if (syncUtilSameId(&((ths->replicasId)[i]), pRaftId)) {
+    bool match = strict ? syncUtilSameIdStrict(&((ths->replicasId)[i]), pRaftId)
+                        : syncUtilSameId(&((ths->replicasId)[i]), pRaftId);
+    if (match) {
       return true;
     }
+  }
+
+  if (strict) {
+    // A message from a non-matching cluster id was dropped at the authorization gate.
+    // NOTE: srcId is attacker-controlled and unauthenticated, so a remote peer can
+    // trigger this on every inbound packet. Keep it at DEBUG (not WARN) to avoid a
+    // remotely-abusable log-flood / disk-amplification vector (TD-SEC-2026-044 review).
+    // Enable sync DEBUG to surface possible spoofing/election-interference for forensics.
+    sNDebug(ths,
+            "drop msg from dnode:%d cid:%d, not in my raft group (my cid:%d, replicaNum:%d), possible spoofing "
+            "attempt (TD-SEC-2026-044)",
+            DID(pRaftId), CID(pRaftId), CID(&ths->myRaftId), ths->totalReplicaNum);
   }
   return false;
 }

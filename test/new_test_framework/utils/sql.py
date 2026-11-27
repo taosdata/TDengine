@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -29,9 +33,56 @@ import random
 import datetime
 import time
 import taos
+from taos.constants import FieldType
 import platform
 from tzlocal import get_localzone
 from typing import Optional, Literal
+
+
+_TRANSIENT_SQL_ERRORS = (
+    "Dnode is starting up",
+    "0x0130",
+    "Vnode is not leader",
+    "Sync leader transfer",
+    "cluster not ready",
+    "not ready",
+)
+_TRIM_WAL_SQL_RE = re.compile(r"^\s*trim\s+database\s+(\S+)\s+wal\s*", re.I)
+_SHOW_CREATE_RE = re.compile(r"show\s+create\b", re.I)
+
+
+def _is_asan_ci_build():
+    return os.environ.get("CI_ASAN_BUILD", "0") == "1"
+
+
+def ci_scaled_retry(seconds):
+    """Scale retry/timeout windows for slower ASAN CI runs."""
+    if _is_asan_ci_build():
+        return seconds * 2
+    return seconds
+
+
+def _scaled_query_times(queryTimes, err=None):
+    # Explicit single attempts let callers own the retry deadline and error policy.
+    if queryTimes == 1 or not _is_asan_ci_build():
+        return queryTimes
+    if err is not None and any(token in str(err) for token in _TRANSIENT_SQL_ERRORS):
+        return max(queryTimes, 60)
+    return queryTimes
+
+
+def _wait_after_trim_wal(cursor, sql):
+    trim_match = _TRIM_WAL_SQL_RE.match(sql)
+    if not trim_match or not _is_asan_ci_build():
+        return
+    dbname = trim_match.group(1)
+    tdLog.info(f"[ASAN] wait for WAL trim propagation on database {dbname}")
+    if cursor is not None:
+        try:
+            cursor.execute(f"flush database {dbname}")
+        except Exception as exc:
+            tdLog.notice(f"flush after trim ignored: {exc}")
+    time.sleep(10)
 
 
 def _parse_ns_timestamp(timestr):
@@ -206,7 +257,7 @@ class TDSql:
             tdLog.notice("'reset query cache' is not supported")
         if drop:
             s = f"drop database if exists {dbname}"
-            self.cursor.execute(s)
+            self.execute(s)
         s = f"create database {dbname}"
         for k, v in kwargs.items():
             if isinstance(v, str):
@@ -219,10 +270,10 @@ class TDSql:
         if "replica" not in kwargs:
             s += f" replica {self.replica}"
         tdLog.debug(f"create database cmd: {s}")
-        self.cursor.execute(s)
+        self.execute(s)
 
         s = f"use {dbname}"
-        self.cursor.execute(s)
+        self.execute(s)
         time.sleep(2)
 
     def queryAndCheckResult(self, sql_list, expect_result_list, dbPrecision=""):
@@ -254,6 +305,50 @@ class TDSql:
         except Exception as ex:
             raise (ex)
 
+    def _fetchall(self, sql=None):
+        """
+        Fetches all rows from the cursor. For SHOW CREATE ... statements only,
+        decodes BLOB columns that hold valid UTF-8 text (the DDL text, which the
+        FULL suffix returns as a BLOB column) into str, so string-based assertions
+        keep working. BLOB columns of any other statement are returned as-is
+        (bytes), preserving the historical behavior for binary-data cases.
+        """
+        rows = self.cursor.fetchall()
+        # regex rather than startswith("show create"): tolerates extra whitespace
+        # ("SHOW  CREATE  TABLE") that would otherwise silently skip the BLOB decode;
+        # non-str sql (None included) skips the special path instead of raising
+        # TypeError, matching the old bare cursor.fetchall() behavior
+        if not isinstance(sql, str) or not _SHOW_CREATE_RE.match(sql.strip()):
+            return rows
+        # snapshot right after fetch: description and rows both come from this call's
+        # result set, never from a previous (failed) execute on the same cursor.
+        # Only a missing description short-circuits: an empty row set still goes
+        # through the decode path (a no-op loop) so callers reading
+        # cursor.description see the same contract regardless of row count
+        desc = self.cursor.description
+        if not desc:
+            return rows
+        blob_cols = [i for i, d in enumerate(desc) if d and d[1] == FieldType.C_BLOB]
+        if not blob_cols:
+            return rows
+        decoded = []
+        for row in rows:
+            new_row = list(row)
+            for i in blob_cols:
+                if isinstance(new_row[i], (bytes, bytearray)):
+                    try:
+                        new_row[i] = bytes(new_row[i]).decode("utf-8")
+                    except UnicodeDecodeError:
+                        # SHOW CREATE DDL is assembled from identifiers and literals and
+                        # should always be valid UTF-8; a decode failure is anomalous and
+                        # the caller's str assertions will fail on the kept bytes, so log
+                        # at error level with the statement to keep it diagnosable.
+                        tdLog.error(f"show create BLOB column {i} is not valid UTF-8, keeping raw bytes; sql: {sql}")
+            # fetchall() always yields tuple rows (list(map(tuple, zip(*buffer)))).
+            # Convert unconditionally so the return type stays tuple-only.
+            decoded.append(tuple(new_row))
+        return decoded
+
     def query(
         self,
         sql,
@@ -284,10 +379,11 @@ class TDSql:
             tdLog.info(sql)
         self.sql = sql
         i = 1
-        while i <= queryTimes:
+        max_times = queryTimes
+        while i <= max_times:
             try:
                 self.cursor.execute(sql)
-                self.queryResult = self.cursor.fetchall()
+                self.queryResult = self._fetchall(sql)
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
 
@@ -295,8 +391,8 @@ class TDSql:
                     counter = 0
                     while len(self.queryResult) == 0 or count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
-                        self.queryResult = self.cursor.fetchall()
-                        if counter < queryTimes:
+                        self.queryResult = self._fetchall(sql)
+                        if counter < max_times:
                             counter += 0.5
                             time.sleep(0.5)
                         else:
@@ -305,7 +401,8 @@ class TDSql:
                     return self.queryResult
                 return self.queryRows
             except Exception as e:
-                if i == queryTimes:
+                max_times = _scaled_query_times(queryTimes, e)
+                if i == max_times:
                     if exit:
                         filename, lineno = _fast_caller(1)
                         args = (filename, lineno, sql, repr(e))
@@ -333,7 +430,7 @@ class TDSql:
         while i <= queryTimes:
             try:
                 self.cursor.execute(sql)
-                self.queryResult = self.cursor.fetchall()
+                self.queryResult = self._fetchall(sql)
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
 
@@ -341,7 +438,7 @@ class TDSql:
                     counter = 0
                     while count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
-                        self.queryResult = self.cursor.fetchall()
+                        self.queryResult = self._fetchall(sql)
                         if counter < queryTimes:
                             counter += 0.5
                             time.sleep(0.5)
@@ -464,13 +561,16 @@ class TDSql:
         if show:
             tdLog.info(sql)
         i = 1
-        while i <= queryTimes:
+        max_times = queryTimes
+        while i <= max_times:
             try:
                 self.affectedRows = self.cursor.execute(sql)
+                _wait_after_trim_wal(self.cursor, sql)
                 return self.affectedRows
             except Exception as e:
+                max_times = _scaled_query_times(queryTimes, e)
                 tdLog.notice("Try to execute sql again, execute times: %d " % i)
-                if i == queryTimes:
+                if i == max_times:
                     filename, lineno = _fast_caller(1)
                     args = (filename, lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
@@ -521,7 +621,7 @@ class TDSql:
         try:
             for i in range(timeout):
                 self.cursor.execute(sql)
-                self.queryResult = self.cursor.fetchall()
+                self.queryResult = self._fetchall(sql)
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
                 tdLog.info(
@@ -576,7 +676,7 @@ class TDSql:
         while i <= queryTimes:
             try:
                 self.cursor.execute(sql)
-                self.queryResult = self.cursor.fetchall()
+                self.queryResult = self._fetchall(sql)
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
 
@@ -584,7 +684,7 @@ class TDSql:
                     counter = 0
                     while count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
-                        self.queryResult = self.cursor.fetchall()
+                        self.queryResult = self._fetchall(sql)
                         if counter < queryTimes:
                             counter += 0.5
                             time.sleep(0.5)
@@ -763,7 +863,7 @@ class TDSql:
 
         try:
             self.cursor.execute(sql)
-            self.queryResult = self.cursor.fetchall()
+            self.queryResult = self._fetchall(sql)
             self.queryRows = len(self.queryResult)
             self.queryCols = len(self.cursor.description)
         except BaseException as e:
@@ -786,12 +886,21 @@ class TDSql:
             self.queryResult = None
             if fullMatched:
                 if expectedErrno != None:
-                    expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno == self.errno or expectedErrno_rest == (self.errno & 0x0000FFFF):
-                        tdLog.info(
-                            "sql:%s, expected errno %s occured" % (sql, expectedErrno)
-                        )
-                    else:
+                    _candidates = (
+                        list(expectedErrno)
+                        if isinstance(expectedErrno, (list, tuple))
+                        else [expectedErrno]
+                    )
+                    _matched = False
+                    for _exp in _candidates:
+                        _exp_rest = _exp & 0x0000FFFF
+                        if _exp == self.errno or _exp_rest == (self.errno & 0x0000FFFF):
+                            _matched = True
+                            tdLog.info(
+                                "sql:%s, expected errno %s occured" % (sql, _exp)
+                            )
+                            break
+                    if not _matched:
                         tdLog.exit(
                             "%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'"
                             % (
@@ -988,7 +1097,7 @@ class TDSql:
         self.sql = sql
         try:
             self.cursor.execute(sql)
-            self.queryResult = self.cursor.fetchall()
+            self.queryResult = self._fetchall(sql)
         except Exception as e:
             if exit:
                 filename, lineno = _fast_caller(1)
@@ -1548,7 +1657,20 @@ class TDSql:
                         if ts == data:
                             success = True
                     elif precision == "ns":
-                        if data == self.queryResult[row][col]:
+                        dt_obj = self.queryResult[row][col]
+                        if isinstance(dt_obj, datetime.datetime):
+                            ts = (
+                                int(
+                                    (
+                                        dt_obj
+                                        - datetime.datetime.fromtimestamp(0, dt_obj.tzinfo)
+                                    ).total_seconds()
+                                )
+                                * 1000000000
+                            ) + int(dt_obj.microsecond) * 1000
+                        else:
+                            ts = dt_obj
+                        if ts == data:
                             success = True
                     if success:
                         if show:
@@ -2852,23 +2974,25 @@ class TDSql:
         if exp_rows > 0:
             exp_cols = len(exp_result[0])
 
+        res_result = []
         for loop in range(retry):
             self.clearResult()
-            if self.query(sql, queryTimes=1, exit=False) and self.getRows() == exp_rows:
+            if self.query(sql, queryTimes=1, exit=False):
                 res_result = self.queryResult
-                all_same = True
-                for r in range(exp_rows):
-                    for c in range(exp_cols):
-                        if not self.compareData(r, c, exp_result[r][c], show):
-                            all_same = False
+                if self.getRows() == exp_rows:
+                    all_same = True
+                    for r in range(exp_rows):
+                        for c in range(exp_cols):
+                            if not self.compareData(r, c, exp_result[r][c], show):
+                                all_same = False
+                                break;
+                        if not all_same:
                             break;
-                    if not all_same:
-                        break;
-                if all_same:
-                    self.printResult(
-                        f"check succeed in {loop} seconds", input_result=res_result
-                    )
-                    return
+                    if all_same:
+                        self.printResult(
+                            f"check succeed in {loop} seconds", input_result=res_result
+                        )
+                        return
 
             if loop != retry - 1:
                 if show:

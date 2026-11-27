@@ -1,8 +1,25 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom, tdDnodes, etool
 import datetime
 import random
 import re
 import math
+import os
+import pytest
 PRIMARY_COL = "ts"
 
 INT_COL     = "c1"
@@ -972,7 +989,7 @@ class TestExplain:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1002,18 +1019,30 @@ class TestExplain:
         ]
         return exchange_idx
 
-    def __extract_table_scan_cost_ranges(self, plan_lines, table_name):
-        cost_ranges = []
+    def __extract_table_scan_rows(self, plan_lines, table_name):
+        row_counts = []
         pattern = re.compile(
-            r"Table Scan on {}\s+\(cost=([0-9.]+)(?:\([0-9.]+\))?\.\.([0-9.]+)(?:\([0-9.]+\))?"
+            r"Table Scan on {}\s+\(cost=\S+ rows=([0-9.]+)"
                 .format(re.escape(table_name))
         )
         for line in plan_lines:
             match = pattern.search(line)
             if match is None:
                 continue
-            cost_ranges.append((float(match.group(1)), float(match.group(2))))
-        return cost_ranges
+            row_counts.append(float(match.group(1)))
+        return row_counts
+
+    def __extract_exec_cost_create_timestamp(self, plan_lines):
+        pattern = re.compile(
+            r"Exec cost:.*create=([0-9]{4}-[0-9]{2}-[0-9]{2} "
+            r"[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6})"
+        )
+        for line in plan_lines:
+            match = pattern.search(line)
+            if match is None:
+                continue
+            return datetime.datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S.%f")
+        return None
 
     def __check_explain_plan_rules(self, plan_lines):
         self.__check_filter_efficiency_percent(plan_lines)
@@ -1067,7 +1096,7 @@ class TestExplain:
           1. cost values must be non-negative
           2. cost values must not be millisecond timestamps (not near current time)
           3. for cost=A..C or cost=A(B)..C(D), C must >= A and D must >= B and B must >= A and D must >= C
-          4. if all cost values are 0, then rows must also be 0
+        Sub-resolution execution can report zero cost with nonzero rows.
         """
         # Threshold for detecting timestamp values (1 day in ms)
         COST_MAX_REASONABLE_MS = 24 * 60 * 60 * 1000
@@ -1142,12 +1171,9 @@ class TestExplain:
                             .format(max_first, cost_first, max_last, cost_last, line)
                     )
 
-            # Validation 4: if all cost values are 0, rows must be 0
-            if all(cv == 0 for cv in cost_values) and rows_value != 0:
-                raise AssertionError(
-                    "all cost values are 0 but rows={} in line: {}" \
-                        .format(rows_value, line)
-                )
+            # Costs are rounded to three decimals and the Windows realtime
+            # clock can return the same tick before and after execution.
+            assert rows_value >= 0, f"negative row count in line: {line}"
 
     def __check_rows_hierarchy(self, plan_lines):
         """
@@ -1318,13 +1344,20 @@ class TestExplain:
                                 .format(field, max_value, avg_value, line)
                         )
 
-                # Validation 3: input_wait must be > 0 for non-scan operators
-                # Currently disabled because some operators (e.g., Merge) don't properly record input_wait
-                # Skip validation for Merge operators as they use tsort library internally
+                # Validation 3: input_wait must be > 0 for non-scan operators.
+                # The sort-Merge operator now records input_wait (time blocked in
+                # the tsort fetch callback) instead of folding it into compute, so
+                # it is no longer structurally broken.  The magnitude is still not
+                # asserted for Merge here: on tiny datasets the downstream fetch can
+                # be sub-microsecond and round to 0.000, which would make a strict
+                # > 0 check flaky.  Exchange operators are likewise skipped.
+                # Windows uses GetSystemTimeAsFileTime for these counters;
+                # a downstream call can finish within one realtime clock tick.
                 if field == "input_wait" and \
                     not is_scan_operator and \
                     not is_merge_operator and \
                     not is_exchange_operator and \
+                    os.name != "nt" and \
                     avg_value <= 0:
                     raise AssertionError(
                         "input_wait value {} must be greater than 0 in line: {}"
@@ -2183,6 +2216,18 @@ class TestExplain:
 
     def do_explain_partition_by_tag_regression(self):
         tdSql.execute("use db_explain")
+        tdSql.query(
+            "select table_name,vgroup_id from information_schema.ins_tables "
+            "where db_name='db_explain' and table_name in ('ctb1','ctb2','ctb3')"
+        )
+        table_vgroups = list(tdSql.queryResult)
+        expected_scan_rows = {}
+        for table, vgroup in table_vgroups:
+            tdSql.query(f"select count(*) from {table}")
+            expected_scan_rows[vgroup] = (
+                expected_scan_rows.get(vgroup, 0) + tdSql.getData(0, 0)
+            )
+        assert len(expected_scan_rows) == 2, "fixture must cover two vgroups"
         # check partition by gid
         tdSql.query("explain analyze verbose true select * from stb partition by gid", show=True)
         plan_lines = self.__extract_explain_plan_lines()
@@ -2191,14 +2236,14 @@ class TestExplain:
         assert len(exchange_idx) == 2, (
             "expect two Data Exchange nodes for partition by gid"
         )
-        table_scan_cost_ranges = self.__extract_table_scan_cost_ranges(plan_lines, "stb")
-        assert len(table_scan_cost_ranges) == 2, (
+        table_scan_rows = self.__extract_table_scan_rows(plan_lines, "stb")
+        assert len(table_scan_rows) == 2, (
             "expect two Table Scan nodes on stb for partition by gid"
         )
-        assert len(set(table_scan_cost_ranges)) == 2, (
-            # two scan operators MUST be different!!!
-            "expect two Table Scan nodes on stb with different cost ranges, got: {}"
-                .format(table_scan_cost_ranges)
+        # Check each scan's own statistics; rounded elapsed times may coincide.
+        assert sorted(table_scan_rows) == sorted(expected_scan_rows.values()), (
+            "Table Scan rows must match the source rows in each vgroup: "
+            f"expected={expected_scan_rows}, actual={table_scan_rows}"
         )
 
         # check union and filter
@@ -2220,10 +2265,11 @@ class TestExplain:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         History:
             - 2026-3-9 Tony Zhang Create partition by tag regression test case
+
         """
         self.prepare_complex_data()
         self.do_explain_partition_by_tag_regression()
@@ -2235,3 +2281,67 @@ class TestExplain:
         self.do_explain_sys_scan()
         self.do_explain_interp()
         self.do_explain_dynamic_query()
+
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
+    def test_explain_analyze_create_uses_session_timezone(self):
+        """EXPLAIN ANALYZE create timestamp should use session timezone.
+
+        1. Build a minimal table and execute EXPLAIN ANALYZE VERBOSE TRUE under
+           different session timezones.
+        2. Extract create= from "Exec cost:" lines in tdSql.queryResult directly.
+        3. Assert timezone shift is reflected in create= formatting.
+
+        Catalog:
+            - Query:Explain
+
+        Since: v3.4.1.6
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-05-15 Tony Zhang Added regression for session timezone in
+              EXPLAIN ANALYZE create= output.
+
+        Note:
+            compare_testcase_result filters "Exec cost:" lines in framework
+            utils, so this case must validate tdSql.queryResult directly.
+        """
+        tdSql.execute("drop database if exists test_explain_tz")
+        tdSql.execute("create database test_explain_tz")
+        tdSql.execute("use test_explain_tz")
+        tdSql.execute("create table tt (ts timestamp, v int)")
+        tdSql.execute("insert into tt values (now, 1)")
+
+        explain_sql = "explain analyze verbose true select * from tt"
+
+        tdSql.execute("set timezone 'UTC'")
+        tdSql.query(explain_sql)
+        utc_lines = self.__extract_explain_plan_lines()
+        utc_create = self.__extract_exec_cost_create_timestamp(utc_lines)
+        assert utc_create is not None, "expected create= in Exec cost line under UTC"
+
+        tdSql.execute("set timezone 'Asia/Shanghai'")
+        tdSql.query(explain_sql)
+        sh_lines = self.__extract_explain_plan_lines()
+        sh_create = self.__extract_exec_cost_create_timestamp(sh_lines)
+        assert sh_create is not None, "expected create= in Exec cost line under Asia/Shanghai"
+
+        delta_hours = (sh_create - utc_create).total_seconds() / 3600.0
+
+        if not (7.5 <= delta_hours <= 8.5):
+            tdLog.info(
+                f"UTC create={utc_create}, Asia/Shanghai create={sh_create}, "
+                f"delta_hours={delta_hours}"
+            )
+            tdLog.info("EXPLAIN output under Asia/Shanghai:")
+            for line in sh_lines:
+                tdLog.info(f"  {line}")
+
+        assert 7.5 <= delta_hours <= 8.5, (
+            "expected create= to reflect session timezone shift (~8h), "
+            f"got {delta_hours}h"
+        )

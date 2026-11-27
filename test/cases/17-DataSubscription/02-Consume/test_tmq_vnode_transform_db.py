@@ -1,3 +1,18 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import threading
 import time
 
@@ -124,7 +139,9 @@ class TestCase:
         # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        tmqCom.redistributeVgroups()
+        # Background retention needs more than one progress poll to release
+        # its transaction conflict before vgroup redistribution can proceed.
+        tmqCom.redistributeVgroups(queryTimes=60)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
@@ -203,7 +220,7 @@ class TestCase:
         # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        tmqCom.redistributeVgroups()
+        tmqCom.redistributeVgroups(queryTimes=60)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
@@ -229,7 +246,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

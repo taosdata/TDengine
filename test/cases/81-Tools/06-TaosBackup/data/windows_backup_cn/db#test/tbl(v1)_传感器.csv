@@ -1,0 +1,5 @@
+field,type,length,note
+ts,TIMESTAMP,8,
+c#1,INT,4,
+描述,NCHAR,20,
+t#region,NCHAR,8,TAG

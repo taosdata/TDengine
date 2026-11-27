@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import (tdLog,tdSql,tdStream,StreamCheckItem,)
 
@@ -12,18 +27,20 @@ class TestStreamMetaChangeVTable:
         """Meta Change: virtual table
 
         test meta change (add/drop/modify) cases to stream for virtual table
+        Verify virtual super table schema changes propagate to virtual child tables.
 
         Catalog:
             - Streams:UseCases
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2025-6-16 Lihui Created
+            - 2026-11-05 Jing Sima Use ALTER STABLE and verify virtual table schemas
 
         """
 
@@ -1576,18 +1593,33 @@ class TestStreamMetaChangeVTable:
             tdSql.execute(f"alter table {self.db}.{self.stbName1} drop tag tfloat")            
             
             # vtable
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} add column cdouble double")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop column cbigint")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop column cfloat")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} add column cdouble double")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop column cbigint")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop column cfloat")
             
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} add column cdouble double")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} drop column cbigint")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} drop column cfloat")
             
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} add tag tdouble double")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop tag tbigint")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop tag tfloat")
-            
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} add tag tdouble double")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop tag tbigint")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop tag tfloat")
+
+            expected_schema = [
+                ("cts", "TIMESTAMP", ""),
+                ("cint", "INT", ""),
+                ("cdouble", "DOUBLE", ""),
+                ("tint", "INT", "TAG"),
+                ("tdouble", "DOUBLE", "TAG"),
+            ]
+            for table in (self.vstbName1, "vctx", "vcty", "vctz"):
+                tdSql.query(f"desc {self.db}.{table}")
+                tdSql.checkRows(len(expected_schema))
+                for row, (name, data_type, note) in enumerate(expected_schema):
+                    tdSql.checkData(row, 0, name)
+                    tdSql.checkData(row, 1, data_type)
+                    tdSql.checkData(row, 3, note)
+
             sqls = [
                 "insert into ctx (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
                 "insert into ctx (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",

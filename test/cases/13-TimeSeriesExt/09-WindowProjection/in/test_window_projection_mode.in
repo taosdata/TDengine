@@ -1,0 +1,214 @@
+use test_wp_small;
+select _wstart, ts from d1001 interval(3s) order by 1, 2;
+select SCALAR _wstart, ts from d1001 interval(3s) order by 1, 2;
+select AGG _wstart, ts from d1001 interval(3s) order by 1, 2;
+
+select _wstart, ts, current from d1001 interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from d1001 interval(3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from d1001 interval(3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from d1001 interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from d1001 interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from d1001 interval(3s) order by 1, 2, 3;
+select _wstart, _wend, location from d1001 interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from d1001 interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from d1001 interval(3s) order by 1, 2, 3;
+select _wstart, _wend, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+select _wstart, _wend, ts, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, ts, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, ts, tbname, location from d1001 interval(3s) order by 1, 2, 3;
+
+select _wstart, ts, current from d1001 session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from d1001 session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from d1001 session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from d1001 session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from d1001 session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from d1001 session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, ts, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, ts, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, ts, tbname, location from d1001 session(ts, 3s) order by 1, 2, 3;
+
+select _wstart, ts, current from d1001 state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from d1001 state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, ts, current from d1001 state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, tbname from d1001 state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from d1001 state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from d1001 state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, location from d1001 state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from d1001 state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, location from d1001 state_window(voltage) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, voltage, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, voltage, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, voltage, tbname, location from d1001 state_window(voltage) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by tbname interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by tbname interval(3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by tbname interval(3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by tbname interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by tbname interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by tbname interval(3s) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by tbname interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by tbname interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by tbname interval(3s) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by tbname interval(3s) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by tbname session(ts, 3s) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by tbname state_window(voltage) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, voltage, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, voltage, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, voltage, tbname, location from meters partition by tbname state_window(voltage) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by location interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by location interval(3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by location interval(3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by location interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by location interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by location interval(3s) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by location interval(3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by location interval(3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by location interval(3s) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by location interval(3s) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by location session(ts, 3s) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by location session(ts, 3s) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by location session(ts, 3s) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by location state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by location state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by location state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by location state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by location state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by location state_window(voltage) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by location state_window(voltage) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by location state_window(voltage) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by location state_window(voltage) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select _wstart, _wend, voltage, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, voltage, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, voltage, tbname, location from meters partition by location state_window(voltage) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, ts, current from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, tbname from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, ts, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, ts, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, ts, tbname, location from d1001 external_window((select _wstart, _wend from d1001 interval(3s)) w) order by 1, 2, 3;
+
+select _wstart, ts, current from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by tbname external_window((select _wstart, _wend from meters partition by tbname interval(3s)) w) order by 1, 2, 3, 4;
+
+select _wstart, ts, current from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, ts, current from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, ts, current from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, tbname from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, tbname from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, tbname from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select _wstart, _wend, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select SCALAR _wstart, _wend, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+select AGG _wstart, _wend, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3;
+
+select _wstart, _wend, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;
+select _wstart, _wend, ts, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;
+select SCALAR _wstart, _wend, ts, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;
+select AGG _wstart, _wend, ts, tbname, location from meters partition by location external_window((select _wstart, _wend from meters partition by location interval(3s)) w) order by 1, 2, 3, 4;

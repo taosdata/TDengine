@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -85,6 +87,41 @@ typedef struct {
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
 int32_t     taosGetlocalhostname(char *hostname, size_t maxLen);
+
+// --- CPU Affinity Management ---
+
+#define TAOS_MAX_CPU_CORES 256
+
+typedef enum {
+  THREAD_CAT_MANAGEMENT = 0,
+  THREAD_CAT_WRITE = 1,
+  THREAD_CAT_READ = 2,
+  THREAD_CAT_COUNT = 3
+} EThreadCategory;
+
+typedef struct {
+  EThreadCategory category;
+#ifdef __linux__
+  cpu_set_t mask;
+#else
+  unsigned long mask;  // stub for non-Linux
+#endif
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t count;
+} SCpuCoreSet;
+
+typedef struct {
+  bool        enabled;
+  SCpuCoreSet sets[THREAD_CAT_COUNT];  // mgmt, write, read
+  int32_t     totalCores;
+} SCpuAllocStatus;
+
+void taosSetCpuAffinity(EThreadCategory category);
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset);
+#endif
+int32_t                taosInitCpuAllocation(void);
+const SCpuAllocStatus *taosGetCpuAllocStatus(void);
 
 #ifdef __cplusplus
 }

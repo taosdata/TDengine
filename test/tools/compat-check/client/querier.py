@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/client/querier.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Background querier process.
-# Executes  SELECT COUNT(*) FROM {stable}  once per second.
-# Updates shared metrics dict with latency information.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Retry policy
-# ------------
-# On failure: sleep RETRY_INTERVAL_S and retry (no process exit).
-# After MAX_CONSECUTIVE_RETRIES consecutive failures increment query_error_count
-# (= 1 real failure) and reset the counter.  The process keeps running.
-# Pass/fail judgment is done in main.py: query_error_count == 0 → pass.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys

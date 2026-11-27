@@ -1,0 +1,41 @@
+USE hash_join_snap;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY a.ts;
+
+SELECT a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a FULL JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT SEMI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT ANTI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY a.ts;
+
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY b.ts;
+
+SELECT a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a FULL JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY 1;
+
+SELECT a.ts, a.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT SEMI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY a.ts;
+
+SELECT a.ts, a.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a LEFT ANTI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY a.ts;
+
+EXPLAIN SELECT b.ts, b.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT SEMI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT b.ts, b.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT ANTI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device \G;
+
+SELECT b.ts, b.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT SEMI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY b.ts;
+
+SELECT b.ts, b.device FROM (SELECT ts, device, MAX(val) AS val FROM l_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) a RIGHT ANTI JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm WHERE ts >= '2025-01-01 00:00:01.000' AND ts <= '2025-01-01 00:00:02.000' GROUP BY ts, device) b ON a.ts = b.ts AND a.device = b.device ORDER BY b.ts;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts WHERE a.ts >= '2025-01-01 00:00:01.000' AND a.ts <= '2025-01-01 00:00:02.000' \G;
+
+SELECT a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts WHERE a.ts >= '2025-01-01 00:00:01.000' AND a.ts <= '2025-01-01 00:00:02.000' ORDER BY a.ts;

@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from datetime import datetime
 import re
 import json
@@ -596,7 +611,7 @@ class TestFunHistogram:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -630,3 +645,22 @@ class TestFunHistogram:
 
         #tdSql.close()
 
+    def test_histogram_user_bin_limit(self):
+        """Reject USER_INPUT histograms above the supported bin limit.
+
+        1. Create a minimal numeric input table.
+        2. Submit 1002 user-provided boundaries.
+        3. Verify validation rejects the oversized interval array.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,functional
+        """
+        tdSql.prepare(dbname="histogram_limit")
+        tdSql.execute("create table histogram_input (ts timestamp, value int)")
+        tdSql.execute("insert into histogram_input values (1700000000000, 1)")
+        oversized_bins = json.dumps(list(range(1002)))
+        tdSql.error(
+            "select histogram(value, 'USER_INPUT', "
+            f"'{oversized_bins}', 0) from histogram_input"
+        )

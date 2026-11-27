@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,11 +17,14 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "tdTestSeam.h"
+#include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
 #include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
 #include "tconv.h"
@@ -89,6 +94,10 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  if ((code = dmInitCorrelation(pDnode)) != 0) {
+    goto _OVER;
+  }
+
   indexInit(tsNumOfCommitThreads);
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
@@ -98,12 +107,17 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  // streamInit starts timers before dmOpenNode; early requests must reach the startup status check.
+  SMsgCb msgCb = dmGetMsgcb(pDnode);
+  tmsgSetDefault(&msgCb);
+
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;
 
 _OVER:
   if (code != 0 && pDnode != NULL) {
+    dmCleanupCorrelation(pDnode);
     dmClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode since %s", tstrerror(code));
@@ -117,11 +131,13 @@ void dmCleanupDnode(SDnode *pDnode) {
     return;
   }
 
+  dmCleanupCorrelation(pDnode);
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
   dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
 
+  blockDataRecycleCleanup();
   dmClearVars(pDnode);
   rpcCleanup();
   streamCleanup();
@@ -282,13 +298,6 @@ void dmClearVars(SDnode *pDnode) {
 
   SDnodeData *pData = &pDnode->data;
   (void)taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
-    }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-  }
   if (pData->dnodeEps != NULL) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;
@@ -307,7 +316,8 @@ void dmClearVars(SDnode *pDnode) {
     return;
   }
   if (tsVinfo.pVloads != NULL) {
-    taosArrayDestroy(tsVinfo.pVloads);
+    // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+    tFreeSVnodeLoadArray(tsVinfo.pVloads);
     tsVinfo.pVloads = NULL;
   }
   if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
@@ -347,6 +357,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
 }
 
 int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_RET(dmMarkWrapper, int32_t (*)(SMgmtWrapper *), (pWrapper));
   int32_t code = 0;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);
@@ -384,6 +395,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
 }
 
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_VOID(dmReleaseWrapper, void (*)(SMgmtWrapper *), (pWrapper));
   if (pWrapper == NULL) return;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -77,6 +79,43 @@ TEST(osDirTests, taosRemoveDir) {
 
   bool exist = taosDirExist(testDir);
   EXPECT_EQ(exist, false);
+
+  taosRemoveDir(testDir);
+}
+
+TEST(osDirTests, taosClearDir) {
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testSubDir[PATH_MAX];
+  char testFile2[PATH_MAX];
+
+  buildTestPath(testDir, sizeof(testDir), "clear-dir");
+  buildTestPath(testFile, sizeof(testFile), "clear-dir/clear-file");
+  buildTestPath(testSubDir, sizeof(testSubDir), "clear-dir/subdir");
+  buildTestPath(testFile2, sizeof(testFile2), "clear-dir/subdir/clear-file2");
+
+  taosRemoveDir(testDir);
+
+  int32_t ret = taosMulMkDir(testDir);
+  EXPECT_EQ(ret, 0);
+
+  TdFilePtr f1 = taosCreateFile(testFile, TD_FILE_CREATE);
+  EXPECT_NE(f1, nullptr);
+  EXPECT_EQ(taosCloseFile(&f1), 0);
+
+  ret = taosMkDir(testSubDir);
+  EXPECT_EQ(ret, 0);
+  TdFilePtr f2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  EXPECT_NE(f2, nullptr);
+  EXPECT_EQ(taosCloseFile(&f2), 0);
+
+  // clear the directory: contents removed, directory itself kept
+  taosClearDir(testDir);
+
+  EXPECT_EQ(taosDirExist(testDir), true);
+  EXPECT_EQ(taosCheckExistFile(testFile), false);
+  EXPECT_EQ(taosDirExist(testSubDir), false);
+  EXPECT_EQ(taosCheckExistFile(testFile2), false);
 
   taosRemoveDir(testDir);
 }
@@ -303,6 +342,15 @@ TEST(osDirTests, taosExpandDir) {
   ret = taosExpandDir("/x123", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
+  char exactFit[6] = {0};
+  ret = taosExpandDir("/x123", exactFit, sizeof(exactFit));
+  EXPECT_EQ(ret, 0);
+  EXPECT_STREQ(exactFit, "/x123");
+  char tooSmall[6] = "keep";
+  ret = taosExpandDir("/x123", tooSmall, sizeof(tooSmall) - 1);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_STREQ(tooSmall, "keep");
+
   ret = taosExpandDir("", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
@@ -311,7 +359,7 @@ TEST(osDirTests, taosExpandDir) {
     dir2[i] = '1';
   }
   ret = taosExpandDir(dir2, fullpath, 1024);
-  EXPECT_EQ(ret, 0);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
 
   taosRemoveDir(testDir);
 }
@@ -568,14 +616,63 @@ TEST(osDirTests, taosDirEntryIsDirWithNull) {
 
 TEST(osDirTests, taosExpandDirErrorCases) {
   int32_t ret = 0;
-  char fullpath[1024] = {0};
+  char fullpath[1024] = "unchanged";
+
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, 0), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, -1), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
   
   // Test with very long directory name that might cause expansion issues
   char longDir[PATH_MAX * 2];
   memset(longDir, 'a', sizeof(longDir) - 1);
   longDir[sizeof(longDir) - 1] = '\0';
   
-  // This might trigger error paths in wordexp
   ret = taosExpandDir(longDir, fullpath, sizeof(fullpath));
-  // Result may vary, just ensure it doesn't crash
+#ifdef WINDOWS
+  EXPECT_NE(ret, 0);
+  EXPECT_NE(terrno, 0);
+#else
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_CFG_VALUE);
+#endif
+  EXPECT_STREQ(fullpath, "unchanged");
 }
+
+#ifdef WINDOWS
+// taosMulMkDirW used to skip only a "C:\" drive prefix.  For a UNC path the
+// first character is a separator, so the walk truncated the buffer to an empty
+// string and called _wmkdir(L""), which fails every time: no directory below a
+// network share could ever be created.  The prefix now walks past the share and
+// only creates what is below it.
+TEST(osDirTests, taosMulMkDirWHandlesUncSharePrefix) {
+  WCHAR tmp[MAX_PATH] = {0};
+  ASSERT_NE(GetTempPathW(MAX_PATH, tmp), 0);
+
+  // "\\localhost\<drive>$" is the administrative share of the local drive, so
+  // the test does not depend on an external server.  It only resolves for an
+  // elevated process; otherwise the share is absent and there is nothing to
+  // assert about prefix handling.
+  char unc[TD_PATH_MAX] = {0};
+  char shareRoot[TD_PATH_MAX] = {0};
+  snprintf(shareRoot, sizeof(shareRoot), "\\\\localhost\\%c$", (char)tmp[0]);
+  snprintf(unc, sizeof(unc), "%s\\tdengine-unc-test\\nested\\leaf", shareRoot);
+
+  terrno = 0;
+  int32_t code = taosMulMkDirW(unc);
+  if (code != 0) {
+    GTEST_SKIP() << "local administrative share unavailable, terrno=" << terrno;
+  }
+  EXPECT_TRUE(taosDirExist(unc));
+
+  // Cleanup walks the same prefix logic.
+  taosRemoveDir(unc);
+  char    shareDeep[TD_PATH_MAX] = {0};
+  snprintf(shareDeep, sizeof(shareDeep), "%s\\tdengine-unc-test", shareRoot);
+  taosRemoveDir(shareDeep);
+}
+#endif

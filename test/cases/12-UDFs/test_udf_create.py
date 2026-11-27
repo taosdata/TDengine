@@ -1,4 +1,20 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+from udf_utils import find_udf_lib
 from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
@@ -37,10 +53,10 @@ class TestUdfCreate:
         print(projPath)
 
         if platform.system().lower() == 'windows':
-            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf1_dup = subprocess.Popen('(for /r %s %%i in ("udf1_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2_dup = subprocess.Popen('(for /r %s %%i in ("udf2_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1 = find_udf_lib("udf1", projPath).replace("\\", "/")
+            self.libudf1_dup = find_udf_lib("udf1_dup", projPath).replace("\\", "/")
+            self.libudf2 = find_udf_lib("udf2", projPath).replace("\\", "/")
+            self.libudf2_dup = find_udf_lib("udf2_dup", projPath).replace("\\", "/")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1_dup.so',projPath+"\\debug\\build\\lib\\")
@@ -195,8 +211,8 @@ class TestUdfCreate:
 
     def basic_udf_query(self):
         # create tsma of  udf 
-        tdSql.error("create tsma tsma_udf on db.tb  function(udf1(num1)) interval(10m);") # DB error: Not buildin function (0.001656s)
-        tdSql.error("create tsma tsma_udf on db.stb1  function(udf1(c1)) interval(10m);") # DB error: Not buildin function (0.001656s)
+        tdSql.error("create tsma tsma_udf on db.tb  function(udf1(num1)) interval(10m);") # DB error: Not a built-in function (0.001656s)
+        tdSql.error("create tsma tsma_udf on db.stb1  function(udf1(c1)) interval(10m);") # DB error: Not a built-in function (0.001656s)
         # scalar functions
 
         # udf1_dup
@@ -609,7 +625,7 @@ class TestUdfCreate:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

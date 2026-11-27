@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 from new_test_framework.utils.sqlset import TDSetSql
 from new_test_framework.utils.pathFinding import find_proj_root
@@ -6,10 +21,12 @@ import os
 import random
 import re
 import string
+import subprocess
 import taos
 import threading
 import time
 import shutil
+import tempfile
 
 class TestCase:
     _proj_root = find_proj_root(os.path.dirname(os.path.realpath(__file__)))
@@ -34,12 +51,14 @@ class TestCase:
     def s0_prepare_test_data(self):
         tdLog.info("======== s0_prepare_test_data: ")
         tdSql.query("select * from information_schema.ins_dnodes;")
-        tdSql.execute("create database if not exists audit keep 36500d");
+        tdSql.execute("create database if not exists audit is_audit 1 allow_drop 1 wal_level 2 vgroups 1 ENCRYPT_ALGORITHM 'SM4-CBC' keep 36500d");
         tdSql.execute("use audit");
-        tdSql.execute("create table operations(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
-        tdSql.execute("create table t_operations_abc using operations tags(1)");
+        # creating an is_audit database already creates the built-in audit.operations
+        # super table (tag: cluster_id varchar), so only the child table is needed here
+        tdSql.execute("create table t_operations_abc using operations tags('abc')");
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database if not exists db replica 1 keep 36500d")
+        # grantTest 1 expects 4 vnodes in total: the is_audit db above always has 1 vgroup, so db needs 3
+        tdSql.execute("create database if not exists db replica 1 vgroups 3 keep 36500d")
         tdSql.execute("use db")
         tdSql.execute("create table stb0(ts timestamp, c0 int primary key,c1 bigint,c2 int,c3 float,c4 double) tags(t0 bigint unsigned)");
         tdSql.execute("create table ctb0 using stb0 tags(0)");
@@ -149,6 +168,38 @@ class TestCase:
             tss_grant -= 5
             self.checkGrantsTimeSeries("drop database and check", tss_grant)
 
+    @staticmethod
+    def _toEpoch(val):
+        # ins_cluster timestamp columns may come back as datetime or as string,
+        # depending on the connector; normalize both to epoch seconds.
+        if hasattr(val, "timestamp"):
+            return val.timestamp()
+        return time.mktime(time.strptime(str(val).split('.')[0], "%Y-%m-%d %H:%M:%S"))
+
+    def s1_0_check_default_grant_expire(self):
+        tdLog.printNoPrefix("======== test default grant expire time: ")
+        # The default (ungranted) license expires 10 days after cluster creation.
+        # Allow generous redundancy (7~30 days) to tolerate rounding/service delays,
+        # but reject clearly wrong values such as ~1 year.
+        DAY = 86400
+        tdSql.query("select create_time, expire_time from information_schema.ins_cluster;")
+        tdSql.checkRows(1)
+        createEpoch = self._toEpoch(tdSql.queryResult[0][0])
+        expireEpoch = self._toEpoch(tdSql.queryResult[0][1])
+        deltaDays = (expireEpoch - createEpoch) / DAY
+        tdLog.info(f"create_time: {tdSql.queryResult[0][0]}, expire_time: {tdSql.queryResult[0][1]}, "
+                   f"delta: {deltaDays:.3f} days")
+        if not (7 <= deltaDays <= 30):
+            raise Exception(f"default grant expire delta {deltaDays:.3f} days out of expected 7~30 days "
+                            f"(cluster create_time + ~10 days)")
+        # Also confirm show grants agrees: expire_time == service_time + 10 days.
+        tdSql.query("show grants;")
+        tdSql.checkRows(1)
+        expireTime = time.mktime(time.strptime(tdSql.queryResult[0][1], "%Y-%m-%d %H:%M:%S"))
+        serviceTime = time.mktime(time.strptime(tdSql.queryResult[0][2], "%Y-%m-%d %H:%M:%S"))
+        tdSql.checkEqual(True, abs(expireTime - serviceTime - 10 * DAY) < 15)
+        tdLog.info("default grant expire time check passed (~10 days from cluster creation)")
+
     def genClusterInfo(self, check=False):
         tdLog.info("======== genClusterInfo: ")
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
@@ -172,7 +223,7 @@ class TestCase:
                 tdLog.info(f"expireTime: {expireTime}, serviceTime: {serviceTime}")
                 tdSql.checkEqual(True, abs(expireTime - serviceTime - 864000) < 15)
                 tdSql.query(f'show grants full;')
-                nGrantItems = 49
+                nGrantItems = 52
                 tdSql.checkRows(nGrantItems)
                 tdSql.checkEqual(tdSql.queryResult[0][2], serviceTimeStr)
                 for i in range(1, nGrantItems):
@@ -186,6 +237,22 @@ class TestCase:
             if infoFile:
                 infoFile.close()
 
+    def _run_grant_test(self, *args):
+        command = [os.path.join(self.workPath, "grantTest"), *args]
+        if os.name != "nt":
+            return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # The current Windows stub locates .clusterInfo by truncating cwd at
+        # "tsdb" and appending debug/build/bin. Give it a private matching
+        # layout while keeping the actual cluster and its generated metadata.
+        with tempfile.TemporaryDirectory(prefix="td-grant-") as temporary:
+            legacy_root = os.path.join(temporary, "tsdb")
+            legacy_bin = os.path.join(legacy_root, "debug", "build", "bin")
+            os.makedirs(legacy_bin)
+            shutil.copy2(self.infoPath, os.path.join(legacy_bin, ".clusterInfo"))
+            return subprocess.run(command, cwd=legacy_root,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
@@ -193,8 +260,8 @@ class TestCase:
             self.genClusterInfo(check=True)
             files_and_dirs = os.listdir(f'{self.workPath}')
             print(f"files_and_dirs: {files_and_dirs}")
-            process = subprocess.Popen([f'{self.workPath}{os.sep}grantTest'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate() 
+            process = self._run_grant_test()
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -213,8 +280,8 @@ class TestCase:
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")
         try:
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 1', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
+            process = self._run_grant_test('1')
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -224,6 +291,38 @@ class TestCase:
         except Exception as e:
             self.clearEnv()
             raise Exception(repr(e))
+
+    def _prepare_dual_replica_drop_target(self):
+        statement = "select `id`, `role`, `status` from information_schema.ins_mnodes"
+        rows = tdSql.query(statement, row_tag=True)
+        if not any(row[0] == 3 and row[1] == "leader" for row in rows):
+            return
+        expected_ids = {row[0] for row in rows}
+        if len(expected_ids) < 3:
+            raise RuntimeError(f"Cannot prepare grant stub drop dnode 3 with this mnode topology: {rows!r}")
+
+        def wait_for_topology(predicate):
+            deadline = time.monotonic() + 60
+            observed = []
+            while time.monotonic() < deadline:
+                observed = tdSql.query(statement, row_tag=True, queryTimes=1, exit=False) or []
+                if predicate(observed):
+                    return
+                time.sleep(1)
+            raise TimeoutError(f"Grant stub drop dnode 3 topology did not become ready: {observed!r}")
+
+        tdLog.info("Grant dual-replica stub drops dnode 3; moving mnode leadership before invoking it")
+        try:
+            tdDnodes.stop(3)
+            wait_for_topology(lambda current: any(
+                row[0] != 3 and row[1] == "leader" and row[2] == "ready" for row in current))
+        finally:
+            tdDnodes.startWithoutSleep(3)
+        wait_for_topology(lambda current: (
+            {row[0] for row in current} == expected_ids
+            and sum(row[1] == "leader" for row in current) == 1
+            and all(row[1] in ("leader", "follower") and row[2] == "ready" for row in current)
+            and any(row[0] == 3 and row[1] == "follower" for row in current)))
 
     def s4_ts6191_check_dual_replica(self):
         tdLog.printNoPrefix("======== test dual replica: ")
@@ -235,9 +334,10 @@ class TestCase:
             tdSql.query("select * from information_schema.ins_dnodes;")
             tdSql.checkRows(3)
 
+            self._prepare_dual_replica_drop_target()
             self.genClusterInfo(check=False)
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 2', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
+            process = self._run_grant_test('2')
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -248,134 +348,67 @@ class TestCase:
             self.clearEnv()
             raise Exception(repr(e))
 
-    @staticmethod
-    def parseSystemStbArrayFromC(filePath, arrayName):
-        """
-        Parse C array definition from vnodeQuery.c file.
-        Example: const char *tkLogStb[] = {"cluster_info", "data_dir", ...};
-        Returns a list of string values.
-        """
+    def s6_check_free_edition(self):
+        tdLog.printNoPrefix("======== test free license: ")
+        # Driven by grantTest 3. The lic-free- prefix match lives on the CLS response path and
+        # is not reachable from a test binary, so the stub sets the license-tier flag directly
+        # the way the CLS handler would once the prefix matched, and asserts the behaviour that
+        # follows from it: "free" shows up in all three tier-visible outputs (ins_cluster.version,
+        # SHOW CLUSTER, SHOW GRANTS) and stays there after expiry, the granted time-series figure
+        # is echoed back rather than replaced by taosd, neither table creation nor column addition
+        # is rejected above that figure, and applying the licence on an already-over-limit cluster
+        # succeeds where a tier-0 licence is refused.
+        #
+        # Runs last on purpose: it leaves the cluster on an expired license, which would break
+        # the timeseries and expire-time checks in the earlier steps.
+
+        # registerEmail defaults to empty. Asserted here rather than inside the stub because it is
+        # a once-per-cluster observation: the config framework refuses an empty value (see the
+        # stub), so once any address has been written the default can never be observed again, and
+        # only this side knows the cluster has not been touched yet.
+        tdSql.query("select value from information_schema.ins_dnode_variables "
+                    "where name = 'registerEmail' and dnode_id = 1")
+        tdSql.checkRows(1)
+        tdSql.checkEqual(tdSql.queryResult[0][0], "")
+        tdLog.info("registerEmail defaults to empty")
+
+        # grantTest 3 pins the licensed time-series figure to 1 and expects a tier-0 licence to be
+        # refused because the cluster already uses more than that. s3 and s5 leave no normal table
+        # behind (usage 0), so create one here: 1 ntb = 5 time series.
+        tdSql.execute("drop database if exists free_ts_db")
+        base = self.getShowGrantsTimeSeries()
+        tdSql.execute("create database free_ts_db keep 36500d")
+        tdSql.execute("create table free_ts_db.ntb(ts timestamp, c0 int, c1 bigint, c2 int, c3 float, c4 double)")
+        self.checkGrantsTimeSeries("free edition prerequisite usage", base + 5)
+
         try:
-            with open(filePath, 'r') as f:
-                content = f.read()
-            # Match pattern: const char *arrayName[] = {...};
-            pattern = rf'const\s+char\s+\*{arrayName}\[\]\s*=\s*\{{([^}}]+)\}}'
-            match = re.search(pattern, content, re.DOTALL)
-            if match:
-                array_content = match.group(1)
-                # Extract all quoted strings
-                strings = re.findall(r'"([^"]+)"', array_content)
-                return strings
-            else:
-                raise Exception(f"Array '{arrayName}' not found in {filePath}")
-        except FileNotFoundError:
-            raise Exception(f"File not found: {filePath}")
-
-    def s5_check_timeseries_exclude_systable(self):
-        """
-        Test the functionality of excluding system tables when calculating timeseries count(6672169603).
-        
-        The excluded system tables are supertables:
-        1. Supertables in the 'log' database (tkLogStb)
-        2. Supertables in the 'audit' database (tkAuditStb), where audit database is identified by:
-           - Database name is 'audit'
-           - Or the database is created with 'is_audit 1' option
-        """
-        # Dynamically parse system supertable arrays from vnodeQuery.c
-        # Probe multiple layouts: TDinternal CI, tsdb CI, TDengine CI
-        vnodeQueryPath = None
-        for _sub in ("community", os.path.join("source", "taos-community"), "."):
-            _candidate = os.path.join(self._proj_root, _sub, "source", "dnode", "vnode", "src", "vnd", "vnodeQuery.c")
-            if os.path.exists(_candidate):
-                vnodeQueryPath = _candidate
-                break
-        if vnodeQueryPath is None:
-            raise FileNotFoundError(f"vnodeQuery.c not found under {self._proj_root}")
-        tkLogStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkLogStb")
-        tkAuditStb = self.parseSystemStbArrayFromC(vnodeQueryPath, "tkAuditStb")
-        tdLog.info(f"Parsed tkLogStb ({len(tkLogStb)} items): {tkLogStb}")
-        tdLog.info(f"Parsed tkAuditStb ({len(tkAuditStb)} items): {tkAuditStb}")
-        assert len(tkLogStb) > 0, "Parsed tkLogStb is empty"
-        assert len(tkAuditStb) > 0, "Parsed tkAuditStb is empty"
-
-        tdLog.printNoPrefix("======== test timeseries exclude systable: ")
-        try:
-            # Get the current timeseries count as baseline
-            tss_grant_base = 5
-            self.checkGrantsTimeSeries("initial grant check", tss_grant_base)
-
-            # ========== Test1: Verify ALL system tables in audit db are excluded from timeseries ==========
-            tdLog.printNoPrefix("======== test1: audit db system tables should be excluded (full coverage)")
-            # Drop and recreate audit db to test all tkAuditStb tables
-            tdSql.execute("drop database if exists audit")
-            tdSql.execute("create database audit keep 36500d")
-            tdSql.execute("use audit")
-            # Create ALL system supertables and child tables in audit db (full coverage test)
-            for stb_name in tkAuditStb:
-                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
-                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
-                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
-                tdSql.execute(f"create table `t_{stb_name}_2` using `{stb_name}` tags(2)")
-                tdSql.execute(f"insert into `t_{stb_name}_2` values(now, 2, 200, 20, 2.0, 3.0)")
-            
-            # Verify timeseries count unchanged (all audit db system tables should be excluded)
-            self.checkGrantsTimeSeries("audit db system tables should be excluded", tss_grant_base)
-            tdLog.info(f"test1 passed: all {len(tkAuditStb)} audit db system tables excluded from timeseries count")
-
-            # ========== Test2: Verify operations table in normal db is counted in timeseries ==========
-            tdLog.printNoPrefix("======== test2: normal db operations table should be counted")
-            tss_grant_expected = tss_grant_base
-            tdSql.execute("drop database if exists normal_test")
-            tdSql.execute("create database normal_test keep 36500d")
-            tdSql.execute("use normal_test")
-            # Create operations supertable with same name in normal db
-            tdSql.execute("create table operations(ts timestamp, c0 int primary key, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
-            tdSql.execute("create table t_ops_normal_1 using operations tags(1)")
-            tdSql.execute("insert into t_ops_normal_1 values(now, 1, 100, 10, 1.0, 2.0)")
-            tss_grant_expected += 5  # 5 columns (excluding ts)
-            self.checkGrantsTimeSeries("normal db operations table should be counted", tss_grant_expected)
-            tdLog.info("test2 passed: normal db operations table counted in timeseries")
-
-            # ========== Test3: Verify ALL system tables in log db are excluded from timeseries ==========
-            tdLog.printNoPrefix("======== test3: log db system tables should be excluded (full coverage)")
-            tdSql.execute("drop database if exists log")
-            tdSql.execute("create database log keep 36500d")
-            tdSql.execute("use log")
-            # Create ALL system supertables and child tables in log db (full coverage test)
-            for stb_name in tkLogStb:
-                tdSql.execute(f"create table `{stb_name}`(ts timestamp, c0 int, c1 bigint, c2 int, c3 float, c4 double) tags(t0 bigint unsigned)")
-                tdSql.execute(f"create table `t_{stb_name}_1` using `{stb_name}` tags(1)")
-                tdSql.execute(f"insert into `t_{stb_name}_1` values(now, 1, 100, 10, 1.0, 2.0)")
-            
-            # Verify timeseries count unchanged (all log db system tables should be excluded)
-            self.checkGrantsTimeSeries("log db system tables should be excluded", tss_grant_expected)
-            tdLog.info(f"test3 passed: all {len(tkLogStb)} log db system tables excluded from timeseries count")
-
-            # ========== Test4: Verify non-system table in log db is counted in timeseries ==========
-            tdLog.printNoPrefix("======== test4: log db non-system table should be counted")
-            tdSql.execute("use log")
-            # Create non-system table in log db
-            tdSql.execute("create table `user_defined_stb`(ts timestamp, c0 int, c1 bigint, c2 int) tags(t0 int)")
-            tdSql.execute("create table `t_user_1` using `user_defined_stb` tags(1)")
-            tdSql.execute("insert into `t_user_1` values(now, 1, 100, 10)")
-            tss_grant_expected += 3  # 3 columns (excluding ts)
-            self.checkGrantsTimeSeries("log db non-system table should be counted", tss_grant_expected)
-            tdLog.info("test4 passed: log db non-system table counted in timeseries")
-
-            # ========== Cleanup test data ==========
-            tdLog.printNoPrefix("======== cleanup test databases")
-            tdSql.execute("drop database if exists normal_test")
-            tdSql.execute("drop database if exists log")
-            
-            # Verify timeseries restored to base count after cleanup
-            self.checkGrantsTimeSeries("cleanup and verify base timeseries", tss_grant_base)
-            tdLog.info("cleanup completed, timeseries restored to base count")
-
-            tdLog.printNoPrefix("======== all s5_check_timeseries_exclude_systable tests passed!")
-
+            process = self._run_grant_test('3')
+            output, error = process.stdout, process.stderr
+            output = output.decode(encoding="utf-8")
+            error = error.decode(encoding="utf-8")
+            print(f"code: {process.returncode}")
+            print(f"error:\n{error}")
+            print(f"output:\n{output}")
+            tdSql.checkEqual(process.returncode, 0)
         except Exception as e:
             self.clearEnv()
             raise Exception(repr(e))
+
+    def s5_run_ext_steps(self):
+        """Run the optional extra steps shipped with the enterprise sources, skipped when absent."""
+        import importlib.util
+        rel = os.path.join("test", "cases", "32-Grants", "grant_ext_steps.py")
+        here = os.path.dirname(os.path.realpath(__file__))
+        for root in (os.path.join(here, "..", "..", "..", "..", "taos-internal"),
+                     os.path.join(self._proj_root, "source", "taos-internal")):
+            path = os.path.join(root, rel)
+            if os.path.isfile(path):
+                spec = importlib.util.spec_from_file_location("grant_ext_steps", path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.run(self)
+                return
+        tdLog.info("no extra steps found, skip")
 
     def test_grant(self):
         """
@@ -384,14 +417,14 @@ class TestCase:
         description:
             This test case mainly verifies the timeseries statistics function related to TDengine grant, focusing on the following aspects:
             1. Whether timeseries statistics are accurate for normal tables, supertables, and virtual tables.
-            2. Specific supertables (such as operations, tkLogStb) in system databases like audit and log should be excluded from timeseries statistics.
-            3. Exclusion logic for operations tables in databases marked with is_audit.
+            2. Optional extra steps shipped with the enterprise sources (s5_run_ext_steps).
             4. Consistency of statistics for grant-related commands (show grants, show grants full).
             5. The impact of adding, deleting, and modifying various tables on timeseries statistics.
+            6. Prepare dnode3 as a follower before the external dual-replica stub drops it, preserving the original mnode count and grant assertions.
 
         Since: 2026-03-13
 
-        Labels: grant, timeseries, system-table, audit, log, regression
+        Labels: audit,grant,log,regression,system-table,timeseries,integration,functional,security
 
         Jira: 6672169603
 
@@ -402,16 +435,21 @@ class TestCase:
         History:
             - 2026-03-13: Initial migration, covering main grant and timeseries statistics process from Cary Xu.
             - 2026-03-13: Added system table exclusion and is_audit database scenarios from Cary Xu.
+            - 2026-11-13: replaced the source-parsing exclusion case with optional extra steps (s5_run_ext_steps).
+            - 2026-07: Added query_restricted grant item (show grants full now 50 rows) and default grant expire-time check.
+            - 2026-09-23: Re-enabled s2/s3/s4 (previously deferred) and added s7 free-edition coverage.
         """
         # keep the order of following steps
         self.workPath = os.path.join(tdCom.getBuildPath(), "build", "bin")
         tdLog.info(self.workPath)
         self.s0_prepare_test_data()
         self.s1_check_timeseries()
-        # self.s2_check_show_grants_ungranted() # migrated later
-        # self.s3_check_show_grants_granted() # migrated later
-        # self.s4_ts6191_check_dual_replica() # migrated later
-        self.s5_check_timeseries_exclude_systable()
+        self.s1_0_check_default_grant_expire()
+        self.s2_check_show_grants_ungranted()
+        self.s3_check_show_grants_granted()
+        self.s4_ts6191_check_dual_replica()
+        self.s5_run_ext_steps()
+        self.s6_check_free_edition()
         self.clearEnv()
 
 

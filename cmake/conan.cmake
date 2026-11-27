@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # Conan integration for TDengine
 # This file provides compatibility layer between Conan and the existing build system
 
@@ -55,13 +70,13 @@ if(${BUILD_JEMALLOC})
     endif()
 endif()
 
-# Taos-tools dependencies
+# taosBenchmark dependencies
 if(TD_TAOS_TOOLS)
     find_package(jansson QUIET)
     find_package(Snappy QUIET)
     find_package(avro-c QUIET)
     if(NOT jansson_FOUND OR NOT Snappy_FOUND OR NOT avro-c_FOUND)
-        message(STATUS "taos-tools dependencies not found in Conan packages, will use ExternalProject")
+        message(STATUS "taosBenchmark dependencies not found in Conan packages, will use ExternalProject")
     endif()
 endif()
 
@@ -236,6 +251,8 @@ macro(DEP_ext_gtest tgt)
         target_link_libraries(${tgt} PUBLIC GTest::gtest GTest::gtest_main)
         target_compile_features(${tgt} PUBLIC cxx_std_11)
         target_link_libraries(${tgt} PRIVATE Threads::Threads)
+        # Optional shared server engine (see cmake/test-shared-engine.cmake).
+        td_test_link_shared_engine(${tgt})
     endif()
 endmacro()
 

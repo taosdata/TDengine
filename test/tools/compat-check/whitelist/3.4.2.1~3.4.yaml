@@ -1,0 +1,11 @@
+# Expected INFORMATION_SCHEMA changes for 3.4.2.1 -> 3.4.x targets.
+#
+# Adding 3.4.2.1 as a cold-upgrade baseline surfaced this diff:
+#   INS_TRANSACTIONS.oper  VARCHAR(22) -> VARCHAR(24)
+# The column was narrowed in the 3.4.2 line and widened again before 3.4.3.9,
+# so the 3.4.0.0-based whitelist (3.4~3.4.yaml) does not record it.  It is a
+# system-table text column; widening does not affect clients that read it.
+modified_tables:
+- table: INS_TRANSACTIONS
+  changed_type:
+  - oper

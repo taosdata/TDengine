@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,11 +34,16 @@ typedef struct SStreamRunnerTaskStatus  SStreamRunnerTaskStatus;
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg);
 int32_t stRunnerTaskUndeploy(SStreamRunnerTask** ppTask, bool force);
-int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq);
+int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq, int64_t requestStartMonoUs);
+int32_t stRunnerTaskExecuteResumable(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq, int64_t requestStartMonoUs,
+                                     SStreamResultWait* wait);
+/** Releases an idle grouped continuation after its fetch response cannot be encoded. */
+int32_t stRunnerTaskAbortFetch(SStreamRunnerTask* pTask, int32_t execId);
 int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished);
+int32_t stRemoveStreamCacheReadScope(const SStreamCacheReadInfo* pInfo);
 int32_t stRunnerTaskDropTable(SStreamRunnerTask* pTask, SSTriggerDropRequest* pReq);
 int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask);
-int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList);
+int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList, int32_t rspCode);
 
 #ifdef __cplusplus
 }

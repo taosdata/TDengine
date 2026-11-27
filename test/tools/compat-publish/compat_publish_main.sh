@@ -1,11 +1,28 @@
 #!/bin/bash
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # Usage: compat_publish_main.sh <target_pkg_path> <green_base_dir> [branch]
 #
 # <target_pkg_path> : full path to the newly published .tar.gz package
 # <green_base_dir>  : directory containing green baseline version subdirs
-#                     (e.g. /green_version/3.3.6.0/{taosd,libtaos.so})
+#                     (e.g. /green_version/3.3.6.0/{taosd,libtaos.so}); packages built
+#                     with the thin dispatcher also get libtaosnative.so
 # [branch]          : target branch name, default: main
-#                     supported: main, 3.3.6
+#                     supported: main, 3.4.2, 3.3.6
 
 set -e
 
@@ -32,6 +49,26 @@ BASELINE_VERSIONS_HOT=(
     3.4.0.14
 )
 
+# Baseline versions for branch: 3.4.2
+BASELINE_VERSIONS_342=(
+    3.0.7.2
+    3.1.1.7
+    3.2.0.0
+    3.2.1.0
+    3.3.5.0
+    3.3.6.0
+    3.3.8.22
+    3.4.0.0
+    3.4.0.14
+    3.4.2.0
+    3.4.2.13
+)
+
+BASELINE_VERSIONS_HOT_342=(
+    3.4.2.0
+    3.4.2.13
+)
+
 
 # Baseline versions for branch: 3.3.6
 BASELINE_VERSIONS_336=(
@@ -51,7 +88,7 @@ BASELINE_VERSIONS_HOT_336=(
 # ── argument check ────────────────────────────────────────────────────────────
 if [ $# -lt 2 ] || [ $# -gt 3 ]; then
     echo "Usage: $0 <target_pkg_path> <green_base_dir> [branch]"
-    echo "  branch: main (default) | 3.3.6"
+    echo "  branch: main (default) | 3.4.2 | 3.3.6"
     exit 1
 fi
 
@@ -64,12 +101,16 @@ case "$BRANCH" in
         BASELINE_VERSIONS=("${BASELINE_VERSIONS_MAIN[@]}")
         BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT[@]}")
         ;;
+    3.4.2)
+        BASELINE_VERSIONS=("${BASELINE_VERSIONS_342[@]}")
+        BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT_342[@]}")
+        ;;
     3.3.6)
         BASELINE_VERSIONS=("${BASELINE_VERSIONS_336[@]}")
         BASELINE_VERSIONS_HOT_SEL=("${BASELINE_VERSIONS_HOT_336[@]}")
         ;;
     *)
-        echo "Error: unknown branch '${BRANCH}'. Supported: main, 3.3.6"
+        echo "Error: unknown branch '${BRANCH}'. Supported: main, 3.4.2, 3.3.6"
         exit 1
         ;;
 esac
@@ -97,7 +138,9 @@ if echo "$PKG_BASENAME" | grep -qiE 'explorer|client|agent|docker|debug|tdgpt'; 
     echo "Error: wrong package type: $PKG_BASENAME"
     echo ""
     echo "  This script requires a TDengine enterprise SERVER package, which contains"
-    echo "  taosd and libtaos.so. Common server package name patterns:"
+    echo "  taosd and the client library (libtaos.so, plus libtaosnative.so when the"
+    echo "  package ships the thin-dispatcher build)."
+    echo "  Common server package name patterns:"
     echo "    TDengine-enterprise-server-<ver>-Linux-x64.tar.gz     (3.0.x ~ 3.1.x)"
     echo "    TDengine-enterprise-<ver>-Linux-x64.tar.gz            (3.2.x ~ 3.3.5.x)"
     echo "    tdengine-tsdb-enterprise-<ver>-linux-x64.tar.gz       (3.3.6.x and later)"

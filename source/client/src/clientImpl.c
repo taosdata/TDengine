@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,10 +17,14 @@
 
 #include "cJSON.h"
 #include "clientInt.h"
+#include "clientWlr.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
+#include "cmdnodes.h"
 #include "command.h"
+#include "extConnector.h"
+#include "extError.h"
 #include "decimal.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -28,13 +34,24 @@
 #include "tmisce.h"
 #include "tmsg.h"
 #include "tmsgtype.h"
+#include "ttimer.h"
+#include "tuuid.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
+
+#include <ctype.h>
+#include <stdlib.h>
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
-static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
+static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
+                               const char* saslToken);
+static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList);
+static void    tscChargeTouchedObjects(SRequestObj* pRequest, const SExecResult* pRes);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -88,10 +105,19 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
 
   size_t dstLength = srcLength;
   if (escapeLength == 0) {
+    if (srcLength > maxDstLength) {
+      return -1;
+    }
     (void)memcpy(dst, src, srcLength);
   } else {
     dstLength = 0;
-    for (size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
+    for (size_t i = 0; i < srcLength; i++) {
+      bool escaped = (src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' ||
+                      src[i] == '\r' || src[i] == '\t');
+      size_t step = escaped ? 2 : 1;
+      if (dstLength + step > maxDstLength) {
+        return -1;
+      }
       switch (src[i]) {
         case '\"':
           dst[dstLength++] = '\\';
@@ -131,14 +157,15 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
 }
 
 bool chkRequestKilled(void* param) {
-  bool         killed = false;
-  SRequestObj* pRequest = acquireRequest((int64_t)param);
-  if (NULL == pRequest || pRequest->killed) {
-    killed = true;
+  int64_t      rid = (intptr_t)param;
+  SRequestObj* pRequest = acquireRequest(rid);
+  if (NULL == pRequest) {
+    // A removed request may still be held by the heartbeat thread.
+    return true;
   }
 
-  (void)releaseRequest((int64_t)param);
-
+  bool killed = pRequest->killed;
+  (void)releaseRequest(rid);
   return killed;
 }
 
@@ -369,8 +396,88 @@ int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj
     (*pNewRequest)->relation.nextRefId = pRequest->self;
     (*pNewRequest)->relation.userRefId = pRequest->self;
     (*pNewRequest)->isSubReq = true;
+    // a sub-request is part of its user request's statement: same txn identity
+    (*pNewRequest)->txnId = pRequest->txnId;
+    (*pNewRequest)->txnIdFixed = pRequest->txnIdFixed;
   }
   return code;
+}
+
+// Inside a txn, make sure pTxnTableMeta / pTxnSuidMap exist. The parse context and the catalog borrow these
+// pointers for the whole request, so a hash first created by a DDL of the very same statement (or by another
+// thread) would be invisible to them and txn-touched tables would look untouched. Caller holds pTscObj->mutex.
+int32_t tscTxnEnsureLocalMetaHashes(STscObj* pTscObj) {
+  if (pTscObj->pTxnTableMeta == NULL) {
+    pTscObj->pTxnTableMeta = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    pTscObj->pTxnSuidMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnTableMeta == NULL || pTscObj->pTxnSuidMap == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// The statements of a batch meta txn run one at a time on their connection. They all read and write the same
+// txn-local state (pTxnTableMeta / pTxnSuidMap and the DDL budget), which the parser and the catalog borrow for the
+// whole statement, and the order of the statements is what the txn means. A statement claims the connection's txn
+// slot before it borrows that state and gives it back when its callback is delivered; a second statement arriving
+// meanwhile is rejected with TSDB_CODE_TXN_CONCURRENT_STMT. A sub-request runs on behalf of its user request and a
+// retry reuses the request object, so both pass with the owner's claim. Outside a txn nothing is claimed.
+// txnId: the txn the statement belongs to (pRequest->txnId on the main path). Caller holds pTscObj->mutex.
+// *pAcquired: this call took the slot (it was free).
+int32_t tscTxnAcquireStmtSlot(SRequestObj* pRequest, txn_id_t txnId, bool* pAcquired) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  *pAcquired = false;
+  if (txnId <= 0) return TSDB_CODE_SUCCESS;
+  if (pTscObj->txnId != txnId) {
+    // The statement belongs to a txn that is no longer the connection's one. The slot keeps COMMIT / ROLLBACK
+    // out while it runs, so this is defensive only: never run it against another txn's state.
+    tscWarn("req:0x%" PRIx64 ", belongs to txn:%" PRId64 " but the connection's txn is %" PRId64 ", QID:0x%" PRIx64,
+            pRequest->self, txnId, pTscObj->txnId, pRequest->requestId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+
+  int64_t owner = (pRequest->isSubReq && pRequest->relation.userRefId != 0) ? pRequest->relation.userRefId
+                                                                             : pRequest->self;
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == 0) {
+    atomic_store_64(&pTscObj->txnStmtOwner, owner);
+    *pAcquired = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == owner) return TSDB_CODE_SUCCESS;
+
+  tscWarn("req:0x%" PRIx64 ", txn:%" PRIu64 " statement rejected, req:0x%" PRIx64
+          " of the same txn is still executing, QID:0x%" PRIx64,
+          pRequest->self, pTscObj->txnId, atomic_load_64(&pTscObj->txnStmtOwner), pRequest->requestId);
+  return TSDB_CODE_TXN_CONCURRENT_STMT;
+}
+
+// A request object reused for another execution (STMT / STMT2 keep it across executions) starts a new statement:
+// its txn check and txn identity from the previous execution do not carry over.
+void tscReqStartStatement(SRequestObj* pRequest) {
+  pRequest->txnChecked = false;
+  pRequest->txnIdFixed = false;
+  pRequest->txnId = 0;
+}
+
+// Fix the txn a statement belongs to: the connection's txn when the statement starts, once (a retry keeps it).
+void tscReqFixTxnId(SRequestObj* pRequest) {
+  if (pRequest->txnIdFixed) return;
+  pRequest->txnId = pRequest->pTscObj->txnId;
+  pRequest->txnIdFixed = true;
+}
+
+// Give the txn slot back if pRequest holds it (no-op otherwise, so it is safe on every completion path).
+void tscTxnReleaseStmtSlot(SRequestObj* pRequest) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj == NULL || atomic_load_64(&pTscObj->txnStmtOwner) != pRequest->self) return;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == pRequest->self) {
+    atomic_store_64(&pTscObj->txnStmtOwner, 0);
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
@@ -401,16 +508,52 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .stmtBindVersion = pRequest->stmtBindVersion,
       .setQueryFp = setQueryRequest,
       .timezone = pTscObj->optionInfo.timezone,
-      .charsetCxt = pTscObj->optionInfo.charsetCxt,
+      .charsetCxt = taosResolveCharsetCxt(pTscObj->optionInfo.charsetCxt),
+      // .txnId / .txnDdlRemaining are filled in below, under pTscObj->mutex: they are the pair
+      // that governs the txn DDL budget and are written (and zeroed together) by the txn
+      // lifecycle under that lock.
+      .pTxnVgSet = pTscObj->pTxnVgSet,
+      // .pTxnTableMeta / .pTxnSuidMap are also filled in below, under pTscObj->mutex.
   };
+  tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName,
+           sizeof(cxt.timezoneName));
 
-  cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  // Inject active external source context so 1-seg table refs can be resolved
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  // Snapshot the txn identity and the remaining budget under the same lock that the BEGIN
+  // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged from
+  // the scheduler completion callback, so deriving the per-vgroup quota from an unlocked read
+  // could see a half-updated txnId/txnDdlCount pair.
+  cxt.txnId = pTscObj->txnId;
+  cxt.txnDdlRemaining = txnDdlRemainingOps(pTscObj);
+  // This synchronous parse (statement / bypass paths) is not followed by a request callback, so a slot it takes
+  // is given back when the parse is done, below.
+  bool    txnSlotAcquired = false;
+  int32_t txnHashCode = cxt.txnId > 0 ? tscTxnAcquireStmtSlot(pRequest, cxt.txnId, &txnSlotAcquired) : TSDB_CODE_SUCCESS;
+  if (txnHashCode == TSDB_CODE_SUCCESS && cxt.txnId > 0) {
+    txnHashCode = tscTxnEnsureLocalMetaHashes(pTscObj);
+  }
+  cxt.pTxnTableMeta = pTscObj->pTxnTableMeta;
+  cxt.pTxnSuidMap = pTscObj->pTxnSuidMap;
+  tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
+  tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
+  tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
+  int32_t code = txnHashCode;
+  if (code == TSDB_CODE_SUCCESS) {
+    cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+    code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  }
   if (code != TSDB_CODE_SUCCESS) {
+    if (txnSlotAcquired) tscTxnReleaseStmtSlot(pRequest);
     return code;
   }
 
   code = qParseSql(&cxt, pQuery);
+  // Keep the insert tbname kind even when parsing failed: the statement layer uses
+  // it to distinguish a real "table does not exist" from an unbound tbname.
+  pRequest->stmtTbNameFlag = cxt.stmtTbNameFlag;
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
       code = setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols,
@@ -427,6 +570,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   taosArrayDestroy(cxt.pTableMetaPos);
   taosArrayDestroy(cxt.pTableVgroupPos);
+  if (txnSlotAcquired) tscTxnReleaseStmtSlot(pRequest);
 
   return code;
 }
@@ -456,23 +600,545 @@ static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
 }
 #endif
 
+static int32_t execResetQueryCacheForExtSource(SRequestObj* pRequest, const SResetQueryCacheStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || !pStmt->forExtSource || pStmt->sourceName[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = catalogClearExtSourceDemotions(pCatalog, pStmt->sourceName);
+  if (TSDB_CODE_SUCCESS == code) {
+    tscDebug("RESET QUERY CACHE FOR EXTERNAL SOURCE `%s`: cleared demotion cache", pStmt->sourceName);
+  }
+
+  return code;
+}
+
+static void extCopyLowerString(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t n = (int32_t)strlen(pIn);
+  if (n > outLen - 1) {
+    n = outLen - 1;
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[n] = '\0';
+}
+
+static bool extClauseNameToKind(const char* pName, EExtClauseKind* pKind) {
+  if (NULL == pName || NULL == pKind || pName[0] == '\0') {
+    return false;
+  }
+
+  const char* pNorm = pName;
+  if (0 == strncasecmp(pNorm, "EXT_CLAUSE_", strlen("EXT_CLAUSE_"))) {
+    pNorm += strlen("EXT_CLAUSE_");
+  }
+
+  static const struct {
+    const char*    name;
+    EExtClauseKind kind;
+  } kClauseMap[] = {
+      {"FILTER", EXT_CLAUSE_FILTER},
+      {"PROJECTION", EXT_CLAUSE_PROJECTION},
+      {"AGG", EXT_CLAUSE_AGG},
+      {"ORDER", EXT_CLAUSE_ORDER},
+      {"LIMIT", EXT_CLAUSE_LIMIT},
+      {"JOIN", EXT_CLAUSE_JOIN},
+      {"GROUP_ROLLUP", EXT_CLAUSE_GROUP_ROLLUP},
+      {"HAVING", EXT_CLAUSE_HAVING},
+      {"ORDER_NULLS_FIRST", EXT_CLAUSE_ORDER_NULLS_FIRST},
+      {"ORDER_NULLS_LAST", EXT_CLAUSE_ORDER_NULLS_LAST},
+      {"OFFSET", EXT_CLAUSE_OFFSET},
+      {"DISTINCT", EXT_CLAUSE_DISTINCT},
+      {"INNER_JOIN", EXT_CLAUSE_INNER_JOIN},
+      {"LEFT_JOIN", EXT_CLAUSE_LEFT_JOIN},
+      {"RIGHT_JOIN", EXT_CLAUSE_RIGHT_JOIN},
+      {"FULL_OUTER_JOIN", EXT_CLAUSE_FULL_OUTER_JOIN},
+      {"SEMI_JOIN", EXT_CLAUSE_SEMI_JOIN},
+      {"ANTI_JOIN", EXT_CLAUSE_ANTI_JOIN},
+      {"FROM_SUBQUERY", EXT_CLAUSE_FROM_SUBQUERY},
+      {"SCALAR_SUBQUERY", EXT_CLAUSE_SCALAR_SUBQUERY},
+      {"INTERVAL_TUMBLING", EXT_CLAUSE_INTERVAL_TUMBLING},
+      {"INTERVAL_SLIDING", EXT_CLAUSE_INTERVAL_SLIDING},
+      {"PARTITION_TBNAME", EXT_CLAUSE_PARTITION_TBNAME},
+      {"PARTITION_COLUMN", EXT_CLAUSE_PARTITION_COLUMN},
+      {"FEAT_CTE", EXT_CLAUSE_FEAT_CTE},
+      {"FEAT_WINDOW_FUNCTIONS", EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS},
+      {"FEAT_LARGE_IN_LIST", EXT_CLAUSE_FEAT_LARGE_IN_LIST},
+      {"IN_SUBQUERY", EXT_CLAUSE_IN_SUBQUERY},
+      {"ALL_ANY_SUBQUERY", EXT_CLAUSE_ALL_ANY_SUBQUERY},
+      {"ASOF_JOIN", EXT_CLAUSE_ASOF_JOIN},
+      {"WINDOW_JOIN", EXT_CLAUSE_WINDOW_JOIN},
+      {"STATE_WINDOW", EXT_CLAUSE_STATE_WINDOW},
+      {"SESSION_WINDOW", EXT_CLAUSE_SESSION_WINDOW},
+      {"EVENT_WINDOW", EXT_CLAUSE_EVENT_WINDOW},
+      {"COUNT_WINDOW", EXT_CLAUSE_COUNT_WINDOW},
+      {"FILL", EXT_CLAUSE_FILL},
+      {"INTERP", EXT_CLAUSE_INTERP},
+      {"SLIMIT", EXT_CLAUSE_SLIMIT},
+  };
+
+  for (size_t i = 0; i < sizeof(kClauseMap) / sizeof(kClauseMap[0]); ++i) {
+    if (0 == strcasecmp(pNorm, kClauseMap[i].name)) {
+      *pKind = kClauseMap[i].kind;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extTypeNameToCode(const char* pName, int8_t* pTypeCode) {
+  if (NULL == pName || NULL == pTypeCode || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char* name;
+    int8_t      typeCode;
+  } kTypeMap[] = {
+      {"BOOL", TSDB_DATA_TYPE_BOOL},
+      {"BOOLEAN", TSDB_DATA_TYPE_BOOL},
+      {"TINYINT", TSDB_DATA_TYPE_TINYINT},
+      {"SMALLINT", TSDB_DATA_TYPE_SMALLINT},
+      {"INT", TSDB_DATA_TYPE_INT},
+      {"INTEGER", TSDB_DATA_TYPE_INT},
+      {"BIGINT", TSDB_DATA_TYPE_BIGINT},
+      {"UTINYINT", TSDB_DATA_TYPE_UTINYINT},
+      {"USMALLINT", TSDB_DATA_TYPE_USMALLINT},
+      {"UINT", TSDB_DATA_TYPE_UINT},
+      {"UBIGINT", TSDB_DATA_TYPE_UBIGINT},
+      {"FLOAT", TSDB_DATA_TYPE_FLOAT},
+      {"DOUBLE", TSDB_DATA_TYPE_DOUBLE},
+      {"VARCHAR", TSDB_DATA_TYPE_VARCHAR},
+      {"BINARY", TSDB_DATA_TYPE_VARCHAR},
+      {"NCHAR", TSDB_DATA_TYPE_NCHAR},
+      {"TIMESTAMP", TSDB_DATA_TYPE_TIMESTAMP},
+      {"JSON", TSDB_DATA_TYPE_JSON},
+      {"VARBINARY", TSDB_DATA_TYPE_VARBINARY},
+      {"DECIMAL", TSDB_DATA_TYPE_DECIMAL},
+      {"DECIMAL64", TSDB_DATA_TYPE_DECIMAL64},
+      {"BLOB", TSDB_DATA_TYPE_BLOB},
+      {"MEDIUMBLOB", TSDB_DATA_TYPE_MEDIUMBLOB},
+      {"GEOMETRY", TSDB_DATA_TYPE_GEOMETRY},
+  };
+
+  for (size_t i = 0; i < sizeof(kTypeMap) / sizeof(kTypeMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kTypeMap[i].name)) {
+      *pTypeCode = kTypeMap[i].typeCode;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extOperatorNameToType(const char* pName, EOperatorType* pOpType) {
+  if (NULL == pName || NULL == pOpType || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char*   name;
+    EOperatorType opType;
+  } kOpMap[] = {
+      {"+", OP_TYPE_ADD},
+      {"ADD", OP_TYPE_ADD},
+      {"-", OP_TYPE_SUB},
+      {"SUB", OP_TYPE_SUB},
+      {"*", OP_TYPE_MULTI},
+      {"MULTI", OP_TYPE_MULTI},
+      {"MUL", OP_TYPE_MULTI},
+      {"/", OP_TYPE_DIV},
+      {"DIV", OP_TYPE_DIV},
+      {"%", OP_TYPE_REM},
+      {"REM", OP_TYPE_REM},
+      {"&", OP_TYPE_BIT_AND},
+      {"BIT_AND", OP_TYPE_BIT_AND},
+      {"|", OP_TYPE_BIT_OR},
+      {"BIT_OR", OP_TYPE_BIT_OR},
+      {">", OP_TYPE_GREATER_THAN},
+      {"GT", OP_TYPE_GREATER_THAN},
+      {"GREATER_THAN", OP_TYPE_GREATER_THAN},
+      {">=", OP_TYPE_GREATER_EQUAL},
+      {"GE", OP_TYPE_GREATER_EQUAL},
+      {"GREATER_EQUAL", OP_TYPE_GREATER_EQUAL},
+      {"<", OP_TYPE_LOWER_THAN},
+      {"LT", OP_TYPE_LOWER_THAN},
+      {"LOWER_THAN", OP_TYPE_LOWER_THAN},
+      {"<=", OP_TYPE_LOWER_EQUAL},
+      {"LE", OP_TYPE_LOWER_EQUAL},
+      {"LOWER_EQUAL", OP_TYPE_LOWER_EQUAL},
+      {"=", OP_TYPE_EQUAL},
+      {"==", OP_TYPE_EQUAL},
+      {"EQ", OP_TYPE_EQUAL},
+      {"EQUAL", OP_TYPE_EQUAL},
+      {"!=", OP_TYPE_NOT_EQUAL},
+      {"<>", OP_TYPE_NOT_EQUAL},
+      {"NE", OP_TYPE_NOT_EQUAL},
+      {"NOT_EQUAL", OP_TYPE_NOT_EQUAL},
+      {"IN", OP_TYPE_IN},
+      {"NOT_IN", OP_TYPE_NOT_IN},
+      {"LIKE", OP_TYPE_LIKE},
+      {"NOT_LIKE", OP_TYPE_NOT_LIKE},
+      {"MATCH", OP_TYPE_MATCH},
+      {"NMATCH", OP_TYPE_NMATCH},
+      {"IS_NULL", OP_TYPE_IS_NULL},
+      {"IS_NOT_NULL", OP_TYPE_IS_NOT_NULL},
+      {"IS_TRUE", OP_TYPE_IS_TRUE},
+      {"IS_FALSE", OP_TYPE_IS_FALSE},
+      {"IS_UNKNOWN", OP_TYPE_IS_UNKNOWN},
+      {"IS_NOT_TRUE", OP_TYPE_IS_NOT_TRUE},
+      {"IS_NOT_FALSE", OP_TYPE_IS_NOT_FALSE},
+      {"IS_NOT_UNKNOWN", OP_TYPE_IS_NOT_UNKNOWN},
+      {"EXISTS", OP_TYPE_EXISTS},
+      {"NOT_EXISTS", OP_TYPE_NOT_EXISTS},
+      {"->", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_GET_VALUE", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_CONTAINS", OP_TYPE_JSON_CONTAINS},
+      {"MINUS", OP_TYPE_MINUS},
+      {"ASSIGN", OP_TYPE_ASSIGN},
+  };
+
+  for (size_t i = 0; i < sizeof(kOpMap) / sizeof(kOpMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kOpMap[i].name)) {
+      *pOpType = kOpMap[i].opType;
+      return true;
+    }
+  }
+
+  char* end = NULL;
+  int64_t opVal = taosStr2Int64(pName, &end, 10);
+  if (NULL != end && *end == '\0' && opVal > 0 && opVal < OP_TYPE_ASSIGN + 1) {
+    *pOpType = (EOperatorType)opVal;
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t execAlterExtSourceCapability(SRequestObj* pRequest, const SAlterExtSourceStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || pStmt->sourceName[0] == '\0' || pStmt->capValue[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capAction == EXT_CAP_ACTION_NONE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capKind != EXT_DEMOTE_KIND_FUNC && pStmt->capKind != EXT_DEMOTE_KIND_CLAUSE &&
+      pStmt->capKind != EXT_DEMOTE_KIND_TYPE && pStmt->capKind != EXT_DEMOTE_KIND_OP) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  bool isExtSource = false;
+  code = catalogIsExtSource(pCatalog, pStmt->sourceName, &isExtSource);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (!isExtSource) {
+    return pStmt->ignoreNotExists ? TSDB_CODE_SUCCESS : TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = (EExtCapDemoteKind)pStmt->capKind, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  switch (spec.kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      extCopyLowerString(pStmt->capValue, spec.detail.funcName, sizeof(spec.detail.funcName));
+      if (spec.detail.funcName[0] == '\0') {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind = EXT_CLAUSE_FILTER;
+      if (!extClauseNameToKind(pStmt->capValue, &clauseKind)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.clauseKind = clauseKind;
+      break;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      int8_t typeCode = TSDB_DATA_TYPE_NULL;
+      if (!extTypeNameToCode(pStmt->capValue, &typeCode)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.tsdbTypeCode = typeCode;
+      break;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      EOperatorType opType = OP_TYPE_ADD;
+      if (!extOperatorNameToType(pStmt->capValue, &opType)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.opType = opType;
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pStmt->capAction == EXT_CAP_ACTION_DISABLE) {
+    code = catalogDemoteExtSourceCapability(pCatalog, pStmt->sourceName, &spec);
+  } else {
+    code = catalogClearExtSourceDemoteEntry(pCatalog, pStmt->sourceName, &spec);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    const char* action = (pStmt->capAction == EXT_CAP_ACTION_DISABLE) ? "DISABLE" : "ENABLE";
+    tscDebug("ALTER EXTERNAL SOURCE `%s` %s capability kind=%d value=%s applied", pStmt->sourceName, action,
+             pStmt->capKind, pStmt->capValue);
+  }
+
+  return code;
+}
+static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
+  int64_t rid = pRequest->pTscObj->id;
+  int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
+  if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen,
+                   "Invalid or unsupported timezone: '%s'", pStmt->timezone);
+  }
+  return code;
+}
+
+static int32_t execSetFirstDayOfWeek(SRequestObj* pRequest, SSetFirstDayOfWeekStmt* pStmt) {
+  pRequest->pTscObj->optionInfo.firstDayOfWeek = pStmt->firstDayOfWeek;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool execLocalSetCmd(SRequestObj* pRequest, SQuery* pQuery, int32_t* pCode) {
+  if (pQuery->pRoot == NULL) {
+    return false;
+  }
+
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+      *pCode = execSetTimezone(pRequest, (SSetTimezoneStmt*)pQuery->pRoot);
+      return true;
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      *pCode = execSetFirstDayOfWeek(pRequest, (SSetFirstDayOfWeekStmt*)pQuery->pRoot);
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t prepareAlterLocalTimezone(SRequestObj* pRequest, SNode* pRoot,
+                                         SPreparedTimezone* pTimezone, bool* pPrepared) {
+  if (pRequest == NULL || pTimezone == NULL || pPrepared == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pPrepared = false;
+  if (pRoot == NULL || nodeType(pRoot) != QUERY_NODE_ALTER_LOCAL_STMT) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SAlterLocalStmt* pStmt = (SAlterLocalStmt*)pRoot;
+  if (strcasecmp(pStmt->config, "timezone") == 0) {
+    int32_t code = tscPrepareSessionTimezone(pStmt->value, true, pTimezone);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL &&
+        pRequest->msgBufLen > 0) {
+      (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen,
+                     "Invalid or unsupported timezone: '%s'", pStmt->value);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    *pPrepared = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void commitAlterLocalTimezone(SRequestObj* pRequest,
+                                     const SPreparedTimezone* pTimezone, bool prepared) {
+  if (!prepared) {
+    return;
+  }
+
+  tscCommitSessionTimezone(pRequest->pTscObj, pTimezone);
+  tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s', explicit:%d",
+           pRequest->pTscObj->optionInfo.timezoneName,
+           (int)pRequest->pTscObj->optionInfo.timezoneExplicit);
+}
+
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  // Handle USE ext_source stmt: update session ext source context without mnode round-trip
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("execLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s', setting connection ext source",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      return execResetQueryCacheForExtSource(pRequest, pStmt);
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      return execAlterExtSourceCapability(pRequest, pStmt);
+    }
+  }
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    return code;
+  }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   uint8_t            showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
     showVarPrivMask = getShowVarPrivMask(pRequest);
   }
 #endif
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
-                              biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                      biMode, pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
 
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
+      nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
+    SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+      SExtConnectorModuleCfg extConnCfg = {
+        .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+        .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+        .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+        .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+        .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+      };
+      extConnectorUpdateModuleCfg(&extConnCfg);
+    }
+  }
+#endif
+
   return code;
+}
+
+// Track vgId in txn's participant set (deduplicated, O(1))
+static int32_t tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
+  if (atomic_load_8(&pTscObj->txnState) != UTXN_STAGE_ACTIVE || pTscObj->pTxnVgSet == NULL || vgId <= 0)
+    return TSDB_CODE_SUCCESS;
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
+  // Re-check after acquiring mutex: tscResetTxnState on callback thread may have freed pTxnVgSet
+  if (pTscObj->pTxnVgSet == NULL || pTscObj->txnState != UTXN_STAGE_ACTIVE) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (tSimpleHashGet(pTscObj->pTxnVgSet, &vgId, sizeof(vgId)) != NULL) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return TSDB_CODE_SUCCESS;
+  }
+  int8_t dummy = 0;
+  if (tSimpleHashPut(pTscObj->pTxnVgSet, &vgId, sizeof(vgId), &dummy, sizeof(dummy)) != 0) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isExtSourceDdlReq(int32_t msgType) {
+  return msgType == TDMT_MND_CREATE_EXT_SOURCE || msgType == TDMT_MND_ALTER_EXT_SOURCE ||
+         msgType == TDMT_MND_DROP_EXT_SOURCE || msgType == TDMT_MND_REFRESH_EXT_SOURCE;
+}
+
+static void setRequestExtSourceNameFromDdl(SRequestObj* pRequest, const SQuery* pQuery) {
+  if (pRequest == NULL || pQuery == NULL || pQuery->pRoot == NULL || !isExtSourceDdlReq(pRequest->type)) {
+    return;
+  }
+
+  const char* sourceName = NULL;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      sourceName = ((const SCreateExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      sourceName = ((const SAlterExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      sourceName = ((const SDropExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      sourceName = ((const SRefreshExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    default:
+      break;
+  }
+
+  if (sourceName != NULL && sourceName[0] != '\0') {
+    tstrncpy(pRequest->extSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  }
+}
+
+static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
+  (void)code;
+  if (pRequest == NULL || !isExtSourceDdlReq(pRequest->type) || pRequest->extSourceName[0] == '\0') {
+    return;
+  }
+
+  SCatalog*     pCtg  = NULL;
+  SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+  if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    // Invalidate on completion even when the DDL failed: the server may have
+    // committed while the client saw an error or lost the response.  Keeping the
+    // entry out of the cache forces the next reader to fetch the authoritative
+    // state, and the generation bump drops heartbeat pushes built before this
+    // point.
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
+              pRequest->self, pRequest->extSourceName, TMSG_INFO(pRequest->type), tstrerror(rmCode),
+              pRequest->requestId);
+    }
+  }
 }
 
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
@@ -483,10 +1149,21 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
+  setRequestExtSourceNameFromDdl(pRequest, pQuery);
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (atomic_load_8(&pTscObj->txnState) == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    int32_t trackCode = tscTxnTrackVgId(pTscObj, vgId);
+    TSC_ERR_RET(trackCode);
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 
-  STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   // int64_t transporterId = 0;
@@ -499,8 +1176,55 @@ static SAppInstInfo* getAppInfo(SRequestObj* pRequest) { return pRequest->pTscOb
 
 void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SPreparedTimezone preparedTimezone = {0};
+  bool               timezonePrepared = false;
   if (pRequest->validateOnly) {
     doRequestCallback(pRequest, 0);
+    return;
+  }
+
+  // Handle USE ext_source stmt: update session ext source context
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("asyncExecLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s'",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    doRequestCallback(pRequest, 0);
+    return;
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      code = execResetQueryCacheForExtSource(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      code = execAlterExtSourceCapability(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
+  code = prepareAlterLocalTimezone(pRequest, pQuery->pRoot, &preparedTimezone,
+                                   &timezonePrepared);
+  if (code != TSDB_CODE_SUCCESS) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
     return;
   }
 
@@ -510,12 +1234,33 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     showVarPrivMask = getShowVarPrivMask(pRequest);
   }
 #endif
-  int32_t code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
-                              atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
+  code = qExecCommand(&pRequest->pTscObj->id, pRequest->pTscObj->sysInfo, showVarPrivMask, pQuery->pRoot, &pRsp,
+                      atomic_load_8(&pRequest->pTscObj->biMode), pRequest->pTscObj->optionInfo.charsetCxt);
+  if (code == TSDB_CODE_SUCCESS) {
+    commitAlterLocalTimezone(pRequest, &preparedTimezone, timezonePrepared);
+  }
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
   }
+
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
+      nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
+    SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+      SExtConnectorModuleCfg extConnCfg = {
+        .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+        .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+        .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+        .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+        .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+      };
+      extConnectorUpdateModuleCfg(&extConnCfg);
+    }
+  }
+#endif
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
   pRequest->code = code;
@@ -550,6 +1295,26 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // triggered by the async response callback on another thread) will not double-free pCmdMsg.
   pQuery->pCmdMsg = NULL;
   pRequest->type = pMsgInfo->msgType;
+  setRequestExtSourceNameFromDdl(pRequest, pQuery);
+
+  // Track VNode vgId for batch metadata transaction
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (atomic_load_8(&pTscObj->txnState) == UTXN_STAGE_ACTIVE && pMsgInfo->msgType > TDMT_VND_MSG_MIN &&
+      pMsgInfo->msgType < TDMT_VND_MSG_MAX && pMsgInfo->pMsg != NULL && pMsgInfo->msgLen >= (int32_t)sizeof(SMsgHead)) {
+    SMsgHead* pHead = (SMsgHead*)pMsgInfo->pMsg;
+    int32_t   vgId = ntohl(pHead->vgId);
+    int32_t   trackCode = tscTxnTrackVgId(pTscObj, vgId);
+    if (trackCode != 0) {
+      tscError("conn:0x%" PRIx64 ", txn:%" PRIu64 " failed to track vgId:%d: %s", pTscObj->id, pTscObj->txnId, vgId,
+               tstrerror(trackCode));
+      taosMemoryFree(pMsgInfo->pMsg);
+      pMsgInfo->pMsg = NULL;
+      taosMemoryFree(pMsgInfo);
+      doRequestCallback(pRequest, trackCode);
+      return trackCode;
+    }
+  }
+
   pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
   pMsgInfo->pMsg = NULL;  // pMsg transferred to SMsgSendInfo management
 
@@ -580,6 +1345,8 @@ int compareQueryNodeLoad(const void* elem1, const void* elem2) {
 }
 
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
+  int64_t qnodeNum = (NULL != pNodeList) ? taosArrayGetSize(pNodeList) : 0;
+
   TSC_ERR_RET(taosThreadMutexLock(&pInfo->qnodeMutex));
   if (pInfo->pQnodeList) {
     taosArrayDestroy(pInfo->pQnodeList);
@@ -587,11 +1354,13 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
     tscDebug("QnodeList cleared in cluster 0x%" PRIx64, pInfo->clusterId);
   }
 
-  if (pNodeList) {
+  if (qnodeNum > 0) {
     pInfo->pQnodeList = taosArrayDup(pNodeList, NULL);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
     tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%ld", pInfo->clusterId,
              taosArrayGetSize(pInfo->pQnodeList));
+  } else {
+    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:0 (cache cleared)", pInfo->clusterId);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pInfo->qnodeMutex));
 
@@ -623,12 +1392,18 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
     *pNodeList = taosArrayDup(pInfo->pQnodeList, NULL);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pInfo->qnodeMutex));
+
   if (NULL == *pNodeList) {
     SCatalog* pCatalog = NULL;
     code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("req:0x%" PRIx64 " getQnodeList catalogGetHandle failed, code:0x%x, cluster:0x%" PRIx64,
+               pRequest->requestId, code, pInfo->clusterId);
+    }
+
     if (TSDB_CODE_SUCCESS == code) {
       *pNodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
-      if (NULL == pNodeList) {
+      if (NULL == *pNodeList) {
         TSC_ERR_RET(terrno);
       }
       SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
@@ -646,25 +1421,104 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
   return code;
 }
 
+static int32_t syncQnodeListIfEmpty(SRequestObj* pRequest, SArray** pQnodeList) {
+  if (NULL != *pQnodeList && taosArrayGetSize(*pQnodeList) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pLatestQnodeList = NULL;
+  int32_t code = getQnodeList(pRequest, &pLatestQnodeList);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(pLatestQnodeList);
+    return code;
+  }
+
+  if (NULL != pLatestQnodeList && taosArrayGetSize(pLatestQnodeList) > 0) {
+    taosArrayDestroy(*pQnodeList);
+    *pQnodeList = pLatestQnodeList;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosArrayDestroy(pLatestQnodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Batch meta txn: encode the super tables the statement's txn has altered or created, from the connection's
+// txn-local meta. param is the request: the statement is judged by its own txn (pRequest->txnId), and the
+// connection's txn-local state is used only while it still belongs to that txn. *ppBuf is NULL outside a txn or
+// when the txn touched no super table. Caller frees with taosMemoryFree.
+static int32_t tscTxnBuildStbSchemas(void* param, char** ppBuf, int32_t* pLen) {
+  SRequestObj* pRequest = (SRequestObj*)param;
+  STscObj*     pTscObj = pRequest->pTscObj;
+  *ppBuf = NULL;
+  *pLen = 0;
+  if (pRequest->txnId <= 0) return TSDB_CODE_SUCCESS;
+
+  SArray* pStbs = taosArrayInit(4, sizeof(STableMeta*));
+  if (pStbs == NULL) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  // The metas are encoded while the lock is held: another thread of this connection may replace (and free) them.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnId != pRequest->txnId) {
+    // the txn is over (defensive: the statement slot keeps COMMIT / ROLLBACK out while the statement runs)
+    code = TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  } else if (pTscObj->pTxnTableMeta != NULL) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter)) != NULL) {
+      STableMeta* pMeta = *(STableMeta**)pIter;
+      if (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE && pMeta->tableInfo.numOfColumns > 0 &&
+          taosArrayPush(pStbs, &pMeta) == NULL) {
+        code = terrno;
+        taosHashCancelIterate(pTscObj->pTxnTableMeta, pIter);
+        break;
+      }
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = queryEncodeTxnStbSchemas(pStbs, ppBuf, pLen);
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  taosArrayDestroy(pStbs);
+  return code;
+}
+
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
+  void*         charsetCxt =
+      taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
 
   SPlanContext cxt = {.queryId = pRequest->requestId,
                       .acctId = pRequest->pTscObj->acctId,
                       .mgmtEpSet = getEpSet_s(&pAppInfo->mgmtEp),
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
+                      .xnodeDsnOutputMode = pQuery->xnodeDsnOutputMode,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
+                      .pExtCapability = NULL,
+                      .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                      .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
+                      .timezoneExplicit =
+                          pRequest->pTscObj->optionInfo.timezoneExplicit,
+                      .charsetCxt = charsetCxt,
                       .sysInfo = pRequest->pTscObj->sysInfo,
+                      .userAppId = pRequest->pTscObj->optionInfo.userAppId,
+                      .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                       .minSecLevel = pRequest->pTscObj->minSecLevel,
                       .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                       .macMode = pAppInfo->serverCfg.macActive};
+  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+           sizeof(cxt.timezoneName));
 
+  // encoded by the planner only if this plan scans a system table that needs it
+  if (pRequest->txnId > 0) {
+    cxt.getTxnStbSchemas = tscTxnBuildStbSchemas;
+    cxt.getTxnStbSchemasParam = pRequest;
+  }
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
@@ -675,39 +1529,37 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
     return TSDB_CODE_INVALID_PARA;
   }
 
-  pResInfo->numOfCols = numOfCols;
-  if (pResInfo->fields != NULL) {
-    taosMemoryFree(pResInfo->fields);
-  }
-  if (pResInfo->userFields != NULL) {
-    taosMemoryFree(pResInfo->userFields);
-  }
-  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD_E));
-  if (NULL == pResInfo->fields) return terrno;
-  pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
-  if (NULL == pResInfo->userFields) {
-    taosMemoryFree(pResInfo->fields);
-    return terrno;
-  }
-  if (numOfCols != pResInfo->numOfCols) {
-    tscError("numOfCols:%d != pResInfo->numOfCols:%d", numOfCols, pResInfo->numOfCols);
-    return TSDB_CODE_FAILED;
+  // Preserve the current schema until both replacement arrays are ready.
+  TAOS_FIELD_E* pFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD_E));
+  if (NULL == pFields) return terrno;
+  TAOS_FIELD* pUserFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  if (NULL == pUserFields) {
+    int32_t code = terrno;
+    taosMemoryFree(pFields);
+    return code;
   }
 
-  for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-    pResInfo->fields[i].type = pSchema[i].type;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    pFields[i].type = pSchema[i].type;
 
-    pResInfo->userFields[i].type = pSchema[i].type;
+    pUserFields[i].type = pSchema[i].type;
     // userFields must convert to type bytes, no matter isStmt or not
-    pResInfo->userFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, false);
-    pResInfo->fields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, isStmt);
-    if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
-      decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
+    pUserFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, false);
+    pFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, isStmt);
+    if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP && pExtSchema && pExtSchema[i].typeMod != 0) {
+      pFields[i].precision = (uint8_t)(pExtSchema[i].typeMod);
+    } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
+      decimalFromTypeMod(pExtSchema[i].typeMod, &pFields[i].precision, &pFields[i].scale);
     }
 
-    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
-    tstrncpy(pResInfo->userFields[i].name, pSchema[i].name, tListLen(pResInfo->userFields[i].name));
+    tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
+    tstrncpy(pUserFields[i].name, pSchema[i].name, tListLen(pUserFields[i].name));
   }
+  taosMemoryFree(pResInfo->fields);
+  taosMemoryFree(pResInfo->userFields);
+  pResInfo->fields = pFields;
+  pResInfo->userFields = pUserFields;
+  pResInfo->numOfCols = numOfCols;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -837,13 +1689,26 @@ void freeVgList(void* list) {
   taosArrayDestroy(pList);
 }
 
-int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta) {
+int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta,
+                               SQueryPlan* pDag) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
   FDelete fp = NULL;
   int32_t code = 0;
 
-  switch (tsQueryPolicy) {
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
+  int32_t effectivePolicy = tsQueryPolicy;
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+      (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
+    effectivePolicy = QUERY_POLICY_HYBRID;
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d -> HYBRID, QID:0x%" PRIx64,
+             pRequest->requestId, tsQueryPolicy, pRequest->requestId);
+  }
+
+  switch (effectivePolicy) {
     case QUERY_POLICY_VNODE:
     case QUERY_POLICY_CLIENT: {
       if (pResultMeta) {
@@ -932,6 +1797,21 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         TSC_ERR_JRET(taosThreadMutexUnlock(&pInst->qnodeMutex));
       }
 
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
+      int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
+        qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      }
+
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
+
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
@@ -947,12 +1827,24 @@ _return:
   return code;
 }
 
-int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
+int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SQueryPlan* pDag) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
   int32_t code = 0;
 
-  switch (tsQueryPolicy) {
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
+  int32_t effectivePolicy = tsQueryPolicy;
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+      (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
+    effectivePolicy = QUERY_POLICY_HYBRID;
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d -> HYBRID, QID:0x%" PRIx64,
+             pRequest->requestId, tsQueryPolicy, pRequest->requestId);
+  }
+
+  switch (effectivePolicy) {
     case QUERY_POLICY_VNODE:
     case QUERY_POLICY_CLIENT: {
       int32_t dbNum = taosArrayGetSize(pRequest->dbList);
@@ -996,6 +1888,21 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
     case QUERY_POLICY_HYBRID:
     case QUERY_POLICY_QNODE: {
       TSC_ERR_JRET(getQnodeList(pRequest, &pQnodeList));
+      int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+
+      // FH-11: Pure federated queries REQUIRE qnode  -  reject mnode fallback
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
+        qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      }
+
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
 
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
@@ -1013,6 +1920,44 @@ _return:
   return code;
 }
 
+static bool queryPlanHasCorrelationTemplates(const SQueryPlan* pPlan) {
+  if (NULL == pPlan) {
+    return false;
+  }
+  if (LIST_LENGTH(pPlan->pCorrelationTemplates) > 0) {
+    return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pPlan->pChildren) {
+    if (queryPlanHasCorrelationTemplates((const SQueryPlan*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SCorrelationExecution initCorrelationExecution(const SRequestObj* pRequest, const SQueryPlan* pDag) {
+  SCorrelationExecution correlation = {0};
+  if (!queryPlanHasCorrelationTemplates(pDag)) {
+    return correlation;
+  }
+
+  correlation.rootExecutionId = (uint64_t)tGenIdPI64();
+  correlation.rootQueryId = pRequest->requestId;
+  correlation.rootClientId = pRequest->pTscObj->connId;
+  correlation.executionGeneration = pRequest->retry + 1;
+
+  const char* pUser = NULL != pRequest->effectiveUser ? pRequest->effectiveUser : pRequest->pTscObj->user;
+  const char* pDb = NULL != pRequest->pDb ? pRequest->pDb : pRequest->pTscObj->db;
+  const char* pCharset = taosConvCharset(pRequest->pTscObj->optionInfo.charsetCxt);
+  tstrncpy(correlation.user, pUser, sizeof(correlation.user));
+  tstrncpy(correlation.dbFName, pDb, sizeof(correlation.dbFName));
+  tstrncpy(correlation.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+           sizeof(correlation.timezoneName));
+  tstrncpy(correlation.charsetName, pCharset, sizeof(correlation.charsetName));
+  return correlation;
+}
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
@@ -1020,9 +1965,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
+  // FH-11: CLIENT policy + federated scan must execute on server (Connector runs server-side)
+  bool localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT) &&
+                  !(pDag != NULL && pDag->hasFederatedScan);
   SSchedulerReq    req = {
          .syncReq = true,
-         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+         .localReq = localReq,
          .pConn = &conn,
          .pNodeList = pNodeList,
          .pDag = pDag,
@@ -1036,9 +1984,13 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .source = pRequest->source,
          .secureDelete = pRequest->secureDelete,
          .pWorkerCb = getTaskPoolWorkerCb(),
+         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
+         .txnId = pRequest->txnId,
+         .correlation = initCorrelationExecution(pRequest, pDag),
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+  pRequest->execDispatched |= res.execDispatched;
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   (void)memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
@@ -1049,6 +2001,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     pRequest->code = code;
     terrno = code;
     return pRequest->code;
+  }
+
+  // Only reconcile the DDL budget when the statement itself succeeded, mirroring the
+  // async path (schedulerExecCb): a failed statement's numTouchedObjects is not
+  // trustworthy (the vnode may have assigned it before the lock/track loop failed),
+  // so charging it here would diverge from the async behavior and skew txnDdlCount.
+  if (res.code == TSDB_CODE_SUCCESS) {
+    tscChargeTouchedObjects(pRequest, &res);
   }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
@@ -1135,6 +2095,202 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
   return catalogAsyncUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
+// Whether txn-local state may still be written on behalf of a statement of txn `txnId`. Caller holds
+// pTscObj->mutex. A statement's response can arrive after its txn ended (COMMIT / ROLLBACK cleared the txn-local
+// hashes, which live on for the connection) or even after the next txn began: writing then would leave an entry of
+// a finished txn behind, which the next txn would take for its own. Such a late write is dropped.
+static bool tscTxnLocalWritable(const STscObj* pTscObj, txn_id_t txnId, const char* what) {
+  if (txnId > 0 && pTscObj->txnId == txnId) return true;
+  tscWarn("conn:0x%" PRIx64 ", txn:%" PRId64 " is no longer the connection's txn (now %" PRId64 "), drop late %s",
+          pTscObj->id, (int64_t)txnId, (int64_t)pTscObj->txnId, what);
+  return false;
+}
+
+// Upsert a pre-built STableMeta into pTxnTableMeta on behalf of a statement of txn `txnId`.
+// On success, ownership of pTableMeta is transferred to the hash; that includes a late write for a txn that is no
+// longer the connection's one, which is dropped (pTableMeta freed here, see tscTxnLocalWritable).
+// On failure, caller must free pTableMeta.
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, txn_id_t txnId, const char* fullName, STableMeta* pTableMeta,
+                              const char* opName) {
+  int32_t code = 0;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (!tscTxnLocalWritable(pTscObj, txnId, opName)) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    taosMemoryFree(pTableMeta);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTscObj->pTxnTableMeta == NULL) {
+    pTscObj->pTxnTableMeta = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnTableMeta == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return code;
+  }
+  STableMeta** ppOld = (STableMeta**)taosHashGet(pTscObj->pTxnTableMeta, fullName, strlen(fullName));
+  if (ppOld && *ppOld) {
+    taosMemoryFreeClear(*ppOld);
+  }
+  code = taosHashPut(pTscObj->pTxnTableMeta, fullName, strlen(fullName), &pTableMeta, sizeof(STableMeta*));
+  if (code == 0) {
+    tscDebug("conn:0x%" PRIx64 ", txn:%" PRIu64 " %s meta for %s", pTscObj->id, pTscObj->txnId, opName, fullName);
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
+}
+
+// Record stb suid -> full name in pTxnSuidMap (created on demand). Lets the txn tell which child tables follow
+// a super table it touched: used to detect a dropped parent and to keep txn-modified meta out of the shared cache.
+static int32_t tscTxnPutStbSuid(STscObj* pTscObj, txn_id_t txnId, uint64_t suid, const char* stbFullName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    value[TSDB_TABLE_FNAME_LEN] = {0};
+  tstrncpy(value, stbFullName, sizeof(value));
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (!tscTxnLocalWritable(pTscObj, txnId, "stb suid")) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    pTscObj->pTxnSuidMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    tscError("txn: failed to alloc pTxnSuidMap, code:0x%x", code);
+  } else {
+    code = taosHashPut(pTscObj->pTxnSuidMap, &suid, sizeof(uint64_t), value, TSDB_TABLE_FNAME_LEN);
+    if (code != 0) {
+      tscError("txn: failed to track suid:%" PRIu64 " in pTxnSuidMap, code:0x%x", suid, code);
+    }
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
+}
+
+// Record STB's suid  ->  fullName in pTxnSuidMap so that subsequent queries against child
+// tables can detect the parent STB was dropped in this txn.
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, txn_id_t txnId, const SName* pStbName) {
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != 0) return code;
+
+  STableMeta* pStbMeta = NULL;
+  (void)catalogGetCachedSTableMeta(pCatalog, pStbName, &pStbMeta);
+  if (pStbMeta == NULL) {
+    // Might not be in cache; try non-STB cache path
+    (void)catalogGetCachedTableMeta(pCatalog, pStbName, &pStbMeta);
+  }
+  if (pStbMeta == NULL) return TSDB_CODE_SUCCESS;  // not in cache, nothing to record
+
+  uint64_t suid = (pStbMeta->tableType == TSDB_SUPER_TABLE) ? pStbMeta->uid : pStbMeta->suid;
+  taosMemoryFree(pStbMeta);
+  if (suid == 0) return TSDB_CODE_SUCCESS;
+
+  char stbFullName[TSDB_TABLE_FNAME_LEN];
+  int32_t nameCode = tNameExtractFullName(pStbName, stbFullName);
+  if (nameCode != 0) return nameCode;
+
+  return tscTxnPutStbSuid(pTscObj, txnId, suid, stbFullName);
+}
+
+// Decode STableMetaRsp into STableMeta and upsert into pTxnTableMeta.
+// Handles the full lifecycle: decode  ->  fullName  ->  upsert  ->  log.
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp, const char* opName) {
+  if (pMetaRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  STableMeta* pTableMeta = NULL;
+  bool        isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+  int32_t     code = queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta);
+  if (code != 0 || pTableMeta == NULL) {
+    return code;
+  }
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+  uint64_t stbSuid = isStb ? (uint64_t)pTableMeta->uid : 0;
+  code = tscTxnUpsertTableMeta(pTscObj, txnId, fullName, pTableMeta, opName);
+  if (code != 0) {
+    taosMemoryFree(pTableMeta);
+    return code;
+  }
+  if (stbSuid != 0) {
+    // A super table with txn-local meta (ALTER/CREATE in this txn): record suid -> fullName so that
+    // child tables, whose schema follows the STB, can be resolved against this txn's version
+    // instead of the shared (committed) catalog cache. pTableMeta is owned by the hash now.
+    code = tscTxnPutStbSuid(pTscObj, txnId, stbSuid, fullName);
+  }
+  return code;
+}
+
+// Cache a VNode CREATE TABLE response into pTxnTableMeta.
+// Handles CTB compact stubs (with pTxnSuidMap population) and normal/virtual tables.
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp) {
+  int32_t     code = 0;
+  STableMeta* pTableMeta = NULL;
+
+  if(pMetaRsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pMetaRsp->tableType == TSDB_CHILD_TABLE) {
+    // Compact CTB stub: store only the SCTableMeta-sized header (no schema copy).
+    // tableInfo.numOfColumns == 0 signals "compact stub" to the parser.
+    // Full schema is assembled on demand in getTargetMetaImpl via pTxnSuidMap.
+    pTableMeta = (STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta));
+    if (pTableMeta == NULL) {
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pTableMeta->uid = pMetaRsp->tuid;
+    pTableMeta->suid = pMetaRsp->suid;
+    pTableMeta->vgId = pMetaRsp->vgId;
+    pTableMeta->tableType = TSDB_CHILD_TABLE;
+
+    // Populate suid  ->  stbFullName reverse map for on-demand schema assembly.
+    // Multiple CTBs with the same suid overwrite with the same value  -  idempotent.
+    char stbFullName[TSDB_TABLE_FNAME_LEN];
+    (void)snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
+    (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (!tscTxnLocalWritable(pTscObj, txnId, "child table meta")) {
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      taosMemoryFree(pTableMeta);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (pTscObj->pTxnSuidMap == NULL) {
+      pTscObj->pTxnSuidMap =
+          taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+    }
+    if (pTscObj->pTxnSuidMap == NULL) {
+      taosMemoryFree(pTableMeta);
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    code = taosHashPut(pTscObj->pTxnSuidMap, &pMetaRsp->suid, sizeof(uint64_t), stbFullName, TSDB_TABLE_FNAME_LEN);
+    if (code != 0) {
+      taosMemoryFree(pTableMeta);
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      return code;
+    }
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  } else {
+    // For TSDB_NORMAL_TABLE, TSDB_VIRTUAL_CHILD_TABLE, TSDB_VIRTUAL_NORMAL_TABLE:
+    // the VNode response carries full schema, so build directly from the message.
+    bool isStb = (pMetaRsp->tableType == TSDB_SUPER_TABLE);
+    code = queryCreateTableMetaFromMsg(pMetaRsp, isStb, &pTableMeta);
+    if (code != 0) return code;
+  }
+
+  if (pTableMeta != NULL) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
+    code = tscTxnUpsertTableMeta(pTscObj, txnId, fullName, pTableMeta, "cached");
+    if (code != 0) {
+      taosMemoryFree(pTableMeta);
+      return code;
+    }
+  }
+  return 0;
+}
+
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
     return pRequest->code;
@@ -1150,11 +2306,40 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 
   SEpSet       epset = getEpSet_s(&pAppInfo->mgmtEp);
   SExecResult* pRes = &pRequest->body.resInfo.execRes;
+  STscObj*     pTscObj = pRequest->pTscObj;
 
   switch (pRes->msgType) {
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      code = handleAlterTbExecRes(pRes->res, pCatalog);
+      // Batch meta txn: skip global catalog update during txn to prevent
+      // cross-session pollution. Only populate per-connection pTxnTableMeta.
+      if (pRequest->txnId == 0) {
+        code = handleAlterTbExecRes(pRes->res, pCatalog);
+        // ALTER ... ADD/DROP BASE ON flips the parents' hasInheritors. The create/alter response
+        // carries the altered table's meta (so the generic RM_TBLMETA path is skipped), so invalidate
+        // the recorded parent stables here explicitly. Best-effort: a failure only leaves a stale
+        // parent meta entry that is re-fetched on next use, so log it rather than failing the alter.
+        if (TSDB_CODE_SUCCESS == code && NULL != pRequest->targetTableList) {
+          int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+          if (rmCode != TSDB_CODE_SUCCESS) {
+            tscWarn("QID:0x%" PRIx64 ", failed to invalidate target table meta after alter, error:%s",
+                    pRequest->requestId, tstrerror(rmCode));
+          }
+        }
+      } else if (pRequest->txnId > 0) {
+        if (pRes->res != NULL) {
+          STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
+          if (pRes->msgType == TDMT_VND_ALTER_TABLE) {
+            code = tscTxnTrackVgId(pTscObj, pMetaRsp->vgId);
+          }
+          if (code == 0) {
+            code = tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, pMetaRsp, "alter");
+          }
+        }
+      } else {
+        code = TSDB_CODE_APP_ERROR;
+        tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in ALTER TABLE response", pTscObj->id, pRequest->txnId);
+      }
       break;
     }
     case TDMT_VND_CREATE_TABLE: {
@@ -1162,13 +2347,40 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       int32_t num = taosArrayGetSize(pList);
       for (int32_t i = 0; i < num; ++i) {
         void* res = taosArrayGetP(pList, i);
-        // handleCreateTbExecRes will handle res == null
-        code = handleCreateTbExecRes(res, pCatalog);
+        if (pRequest->txnId == 0) {
+          code = handleCreateTbExecRes(res, pCatalog);
+        } else if (pRequest->txnId > 0) {
+          code = tscTxnCacheCreateTbMeta(pTscObj, pRequest->txnId, (STableMetaRsp*)res);
+        } else {
+          code = TSDB_CODE_APP_ERROR;
+          tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in CREATE TABLE response", pTscObj->id,
+                   pRequest->txnId);
+        }
       }
       break;
     }
     case TDMT_MND_CREATE_STB: {
-      code = handleCreateTbExecRes(pRes->res, pCatalog);
+      // Batch meta txn: skip global catalog cache update during txn to prevent
+      // cross-session pollution. Only populate per-connection pTxnTableMeta.
+      if (pRequest->txnId == 0) {
+        code = handleCreateTbExecRes(pRes->res, pCatalog);
+        // CREATE STABLE ... BASE ON sets hasInheritors on its parents. As above, the response carries
+        // the new child's meta so the generic RM_TBLMETA path is skipped; invalidate parents here.
+        // Best-effort: log on failure rather than failing the (succeeded) create.
+        if (TSDB_CODE_SUCCESS == code && NULL != pRequest->targetTableList) {
+          int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+          if (rmCode != TSDB_CODE_SUCCESS) {
+            tscWarn("QID:0x%" PRIx64 ", failed to invalidate target table meta after create, error:%s",
+                    pRequest->requestId, tstrerror(rmCode));
+          }
+        }
+      } else if (pRequest->txnId > 0) {
+        code = tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "cached STB");
+      } else {
+        code = TSDB_CODE_APP_ERROR;
+        tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in CREATE STABLE response", pTscObj->id,
+                 pRequest->txnId);
+      }
       break;
     }
     case TDMT_VND_SUBMIT: {
@@ -1223,6 +2435,9 @@ void returnToUser(SRequestObj* pRequest) {
   SRequestObj* pUserReq = acquireRequest(pRequest->relation.userRefId);
   if (pUserReq) {
     pUserReq->code = pRequest->code;
+    if (pUserReq->msgBuf != NULL && pUserReq->msgBufLen > 0 && pRequest->msgBuf != NULL && pRequest->msgBuf[0] != '\0') {
+      tstrncpy(pUserReq->msgBuf, pRequest->msgBuf, pUserReq->msgBufLen);
+    }
     // return to client
     doRequestCallback(pUserReq, pUserReq->code);
     (void)releaseRequest(pRequest->relation.userRefId);
@@ -1234,9 +2449,9 @@ void returnToUser(SRequestObj* pRequest) {
 }
 
 static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock** pBlock) {
-  int64_t     lastTs = 0;
-  TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  int64_t       lastTs = 0;
+  TAOS_FIELD_E* pResFields = taos_fetch_fields_e(pRes);
+  int32_t       numOfFields = taos_num_fields(pRes);
 
   int32_t code = createDataBlock(pBlock);
   if (code) {
@@ -1245,6 +2460,8 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
 
   for (int32_t i = 0; i < numOfFields; ++i) {
     SColumnInfoData colInfoData = createColumnInfoData(pResFields[i].type, pResFields[i].bytes, i + 1);
+    colInfoData.info.precision = pResFields[i].precision;
+    colInfoData.info.scale = pResFields[i].scale;
     code = blockDataAppendColInfo(*pBlock, &colInfoData);
     if (TSDB_CODE_SUCCESS != code) {
       blockDataDestroy(*pBlock);
@@ -1259,7 +2476,10 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    TAOS_ROW pRow = taos_fetch_row(pRes);
+    /* Driver completion thread: use the impl so this internal read does not appear
+     * as a user fetch (TS RE014). */
+    TAOS_ROW pRow = taos_fetch_row_impl(pRes);
+
     if (NULL == pRow[0] || NULL == pRow[1] || NULL == pRow[2]) {
       tscError("invalid data from vnode");
       blockDataDestroy(*pBlock);
@@ -1335,6 +2555,422 @@ void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
   }
 }
 
+// Pool-exhaustion retry: async delayed re-execution via client timer.
+// Timer handle is created once on first exhaustion; ref ID (not pointer) is
+// passed as the timer parameter so the callback can safely acquire the request.
+#define EXT_POOL_RETRY_MAX_TIMES 5
+#define EXT_POOL_RETRY_DELAY_MS  1000
+#define EXT_SOURCE_NOT_FOUND_RETRY_MAX_TIMES 1
+
+static void*        tscExtPoolTimer     = NULL;
+static TdThreadOnce tscExtPoolTimerOnce = PTHREAD_ONCE_INIT;
+
+static void tscExtPoolTimerInit(void) {
+  tscExtPoolTimer = taosTmrInit(128, 100, 60000, "EXT_POOL_RETRY");
+}
+
+static void extPoolRetryTimerCb(void* param, void* tmrId) {
+  int64_t      refId    = (int64_t)(intptr_t)param;
+  SRequestObj* pRequest = acquireRequest(refId);
+  if (NULL == pRequest) {
+    return;  // request already freed; nothing to do
+  }
+  // Reset the general metadata-refresh retry counter so doAsyncQuery does not
+  // give up due to that unrelated limit; extPoolRetry guards pool retries.
+  pRequest->retry = 0;
+  restartAsyncQuery(pRequest, TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  (void)releaseRequest(refId);
+}
+
+static bool extIsPushdownDemoteCode(int32_t code) {
+  return code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY;
+}
+
+static bool extExtractHintToken(const char* pMsg, const char* pToken, char* pBuf, int32_t bufLen) {
+  if (NULL == pMsg || NULL == pToken || NULL == pBuf || bufLen <= 0) {
+    return false;
+  }
+
+  pBuf[0] = '\0';
+  const char* pPos = taosStrCaseStr(pMsg, pToken);
+  if (NULL == pPos) {
+    return false;
+  }
+
+  pPos += strlen(pToken);
+  while (*pPos == ' ' || *pPos == '\'' || *pPos == '"') {
+    ++pPos;
+  }
+
+  int32_t i = 0;
+  while (*pPos != '\0' && *pPos != ',' && *pPos != ']' && !isspace((unsigned char)*pPos) && i < (bufLen - 1)) {
+    pBuf[i++] = *pPos++;
+  }
+
+  while (i > 0 && (pBuf[i - 1] == '\'' || pBuf[i - 1] == '"')) {
+    --i;
+  }
+
+  pBuf[i] = '\0';
+  return i > 0;
+}
+
+static bool extInferClauseFromMsg(const char* pMsg, EExtClauseKind* pClause) {
+  if (NULL == pClause) {
+    return false;
+  }
+
+  *pClause = EXT_CLAUSE_FILTER;
+  if (NULL == pMsg || '\0' == pMsg[0]) {
+    return true;
+  }
+
+  if (NULL != taosStrCaseStr(pMsg, "order by") || NULL != taosStrCaseStr(pMsg, "clause=order")) {
+    *pClause = EXT_CLAUSE_ORDER;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "group by") || NULL != taosStrCaseStr(pMsg, "having") ||
+      NULL != taosStrCaseStr(pMsg, "clause=agg")) {
+    *pClause = EXT_CLAUSE_AGG;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "limit") || NULL != taosStrCaseStr(pMsg, "clause=limit")) {
+    *pClause = EXT_CLAUSE_LIMIT;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, " join ") || NULL != taosStrCaseStr(pMsg, "clause=join")) {
+    *pClause = EXT_CLAUSE_JOIN;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "select") || NULL != taosStrCaseStr(pMsg, "projection") ||
+      NULL != taosStrCaseStr(pMsg, "clause=projection")) {
+    *pClause = EXT_CLAUSE_PROJECTION;
+    return true;
+  }
+
+  return true;
+}
+
+static bool extBuildDemoteSpecFromDiag(int32_t code, const char* pMsg, const SExtPushdownDiagnostic* pDiag,
+                                       SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || NULL == pDiag) {
+    return false;
+  }
+
+  memset(pSpec, 0, sizeof(*pSpec));
+  pSpec->reasonCode = (pDiag->reasonCode > 0) ? (uint8_t)pDiag->reasonCode : (uint8_t)EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+
+  if (EXT_DEMOTE_KIND_NONE != pDiag->suggestedDemoteKind) {
+    pSpec->kind = pDiag->suggestedDemoteKind;
+  } else {
+    return false;
+  }
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC: {
+      if (pDiag->detail.funcName[0] != '\0') {
+        tstrncpy(pSpec->detail.funcName, pDiag->detail.funcName, sizeof(pSpec->detail.funcName));
+        return true;
+      }
+      char funcName[TSDB_FUNC_NAME_LEN] = {0};
+      if (!extExtractHintToken(pMsg, "func=", funcName, sizeof(funcName))) {
+        return false;
+      }
+      tstrncpy(pSpec->detail.funcName, funcName, sizeof(pSpec->detail.funcName));
+      return true;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      if (pDiag->detail.opType > 0 && pDiag->detail.opType <= OP_TYPE_ASSIGN) {
+        pSpec->detail.opType = pDiag->detail.opType;
+        return true;
+      }
+      char opBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "op=", opBuf, sizeof(opBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t opVal = taosStr2Int64(opBuf, &end, 10);
+      if (NULL == end || *end != '\0') {
+        return false;
+      }
+      pSpec->detail.opType = (EOperatorType)opVal;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind;
+      if (pDiag->detail.clauseKind >= EXT_CLAUSE_FILTER && pDiag->detail.clauseKind < EXT_CLAUSE_MAX) {
+        clauseKind = pDiag->detail.clauseKind;
+      } else if (!extInferClauseFromMsg(pMsg, &clauseKind)) {
+        return false;
+      }
+      // Only GATE clause values participate in error-based dynamic demote.
+      // STATIC values (dialect defaults / manual SQL only) must not be produced
+      // by error classification; fall back to unclassified handling instead.
+      if (!extClauseIsGate(clauseKind)) {
+        return false;
+      }
+      pSpec->detail.clauseKind = clauseKind;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      if (pDiag->detail.tsdbTypeCode > 0) {
+        pSpec->detail.tsdbTypeCode = pDiag->detail.tsdbTypeCode;
+        return true;
+      }
+      char typeBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "type=", typeBuf, sizeof(typeBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t typeVal = taosStr2Int64(typeBuf, &end, 10);
+      if (NULL == end || *end != '\0' || typeVal < INT8_MIN || typeVal > INT8_MAX) {
+        return false;
+      }
+      pSpec->detail.tsdbTypeCode = (int8_t)typeVal;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// FILTER-clause runtime demote is too coarse to persist into catalog capability.
+// A failed WHERE pushdown can be caused by a query-specific combination such as
+// nested subquery SQL fragments, function composition, or connector-side rewrite
+// shape; persisting it as "this source no longer supports FILTER" poisons later
+// unrelated statements. Keep FILTER demote scoped to the request overlay so the
+// current statement can fall back while later statements still re-evaluate full
+// pushability from the capability matrix.
+static bool extShouldPersistCatalogDemote(const SRequestObj* pRequest, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return false;
+  }
+
+  if (EXT_DEMOTE_KIND_CLAUSE == pSpec->kind && EXT_CLAUSE_FILTER == pSpec->detail.clauseKind) {
+    tscDebug("req:0x%" PRIx64
+             ", skip catalog demote for FILTER clause; keep overlay-only to avoid cross-query capability poisoning, "
+             "QID:0x%" PRIx64,
+             (NULL != pRequest) ? pRequest->self : 0, (NULL != pRequest) ? pRequest->requestId : 0);
+    return false;
+  }
+
+  return true;
+}
+// FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
+// extErrMsg should already have been copied to pRequest->msgBuf before this call.
+void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
+  // Pool exhaustion: retry even if sourceName not yet stashed (catalog phase).
+  if (NEED_CLIENT_RETRY_EXT_POOL_ERROR(code)) {
+    if (pRequest->extPoolRetry < EXT_POOL_RETRY_MAX_TIMES) {
+      pRequest->extPoolRetry++;
+      tscDebug("req:0x%" PRIx64 ", ext pool exhausted (src:'%s'), scheduling retry %u/%d after %dms, QID:0x%" PRIx64,
+               pRequest->self, pRequest->extSourceName, pRequest->extPoolRetry, EXT_POOL_RETRY_MAX_TIMES,
+               EXT_POOL_RETRY_DELAY_MS, pRequest->requestId);
+      (void)taosThreadOnce(&tscExtPoolTimerOnce, tscExtPoolTimerInit);
+      if (tscExtPoolTimer != NULL &&
+          taosTmrStart(extPoolRetryTimerCb, EXT_POOL_RETRY_DELAY_MS,
+                       (void*)(intptr_t)pRequest->self, tscExtPoolTimer) != NULL) {
+        return;  // timer scheduled; request will be restarted by callback
+      }
+      tscWarn("req:0x%" PRIx64 ", taosTmrStart failed for pool retry, returning error to user", pRequest->self);
+    } else {
+      tscWarn("req:0x%" PRIx64 ", ext pool exhausted max retries (%d) reached, returning error, QID:0x%" PRIx64,
+              pRequest->self, EXT_POOL_RETRY_MAX_TIMES, pRequest->requestId);
+    }
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED || code == TSDB_CODE_EXT_SYNTAX_UNSUPPORTED ||
+      extIsPushdownDemoteCode(code)) {
+    SExtPushdownDiagnostic diag = {0};
+    if (pRequest->body.resInfo.execRes.extPushdownDiag != NULL) {
+      diag = *pRequest->body.resInfo.execRes.extPushdownDiag;
+    }
+    if (diag.reasonCode == 0) {
+      (void)extClassifyRemoteError(code, NULL, 0, 0, pRequest->msgBuf, &diag);
+    }
+
+    if (pRequest->extPushdownAttemptCount < INT32_MAX) {
+      pRequest->extPushdownAttemptCount += 1;
+    }
+    pRequest->extSessionOverlay.attemptCount = pRequest->extPushdownAttemptCount;
+
+    bool              demoted = false;
+    SExtCapDemoteSpec spec = {0};
+    bool              hasSpec = extBuildDemoteSpecFromDiag(code, pRequest->msgBuf, &diag, &spec);
+    bool              preferOverlay = false;
+
+    if (hasSpec) {
+      SExtCapDemoteSpec escalated = {0};
+      if (extCapOverlayTryEscalateOnRepeat(&pRequest->extSessionOverlay, &spec, &escalated)) {
+        spec = escalated;
+        preferOverlay = true;
+        tscDebug("req:0x%" PRIx64 ", repeated precise demote escalated to clause:%d, attempt:%d, QID:0x%" PRIx64,
+                 pRequest->self, spec.detail.clauseKind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+      }
+    }
+
+    const char* sourceName = pRequest->extSourceName;
+    bool allowCatalogDemote = hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) &&
+                              '\0' != sourceName[0] && extShouldPersistCatalogDemote(pRequest, &spec);
+
+    if (hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) && '\0' != sourceName[0] &&
+        !allowCatalogDemote) {
+      tscDebug("req:0x%" PRIx64
+               ", precise demote kept in overlay only for source:%s kind:%d clause:%d reason:%d, QID:0x%" PRIx64,
+               pRequest->self, sourceName, (int32_t)spec.kind,
+               (EXT_DEMOTE_KIND_CLAUSE == spec.kind) ? (int32_t)spec.detail.clauseKind : -1,
+               (int32_t)spec.reasonCode, pRequest->requestId);
+    }
+
+    if (allowCatalogDemote) {
+      SCatalog*     pCtg = NULL;
+      SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+      int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
+      if (TSDB_CODE_SUCCESS == ctgCode) {
+        int32_t demoteCode = catalogDemoteExtSourceCapability(pCtg, sourceName, &spec);
+        if (TSDB_CODE_SUCCESS == demoteCode) {
+          demoted = true;
+          tscDebug("req:0x%" PRIx64 ", catalog demote applied for source:%s kind:%d attempt:%d, QID:0x%" PRIx64,
+                   pRequest->self, sourceName, spec.kind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+        } else {
+          tscWarn("req:0x%" PRIx64 ", catalog demote failed for source:%s, error:%s, fallback to overlay, QID:0x%" PRIx64,
+                  pRequest->self, sourceName, tstrerror(demoteCode), pRequest->requestId);
+        }
+      } else {
+        tscWarn("req:0x%" PRIx64 ", catalogGetHandle failed:%s, fallback to overlay demote, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(ctgCode), pRequest->requestId);
+      }
+    }
+
+    if (!demoted) {
+      int32_t overlayCode = TSDB_CODE_SUCCESS;
+      if (hasSpec) {
+        overlayCode = extCapOverlayDemote(&pRequest->extSessionOverlay, &spec);
+      } else {
+        // Keep unclassified failures in overlay-only path without forcing a
+        // synthetic clause demotion. Coarse baseline fallback is still ensured
+        // by EXT_MAX_PUSHDOWN_ATTEMPTS below.
+        tscDebug("req:0x%" PRIx64 ", unclassified pushdown diagnostic (reason:%d), no precise demote applied, QID:0x%" PRIx64,
+                 pRequest->self, (int32_t)diag.reasonCode, pRequest->requestId);
+      }
+
+      if (TSDB_CODE_SUCCESS != overlayCode) {
+        tscWarn("req:0x%" PRIx64 ", overlay demote failed:%s, mark coarse fallback, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(overlayCode), pRequest->requestId);
+        extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay,
+                                   (uint8_t)((diag.reasonCode > 0) ? diag.reasonCode
+                                                                   : EXT_DEMOTE_REASON_REMOTE_UNKNOWN));
+      }
+    }
+
+    if (pRequest->extPushdownAttemptCount >= EXT_MAX_PUSHDOWN_ATTEMPTS) {
+      extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay, EXT_DEMOTE_REASON_RETRY_ESCALATION);
+
+      // The budget is spent and the all-coarse baseline plan (no expression
+      // pushdown) has already run once, yet the remote source keeps failing
+      // with the same error: this failure sits inside the remote object itself
+      // (e.g. a view whose CAST fails on a row value), so no further demote can
+      // change the statement.  Restarting again would loop forever - surface
+      // the error to the user instead (DS 5.3.10).
+      if (pRequest->extPushdownAttemptCount > EXT_MAX_PUSHDOWN_ATTEMPTS) {
+        tscWarn("req:0x%" PRIx64
+                ", ext pushdown demote budget exhausted after %d attempts for source:'%s', "
+                "surfacing remote error, QID:0x%" PRIx64,
+                pRequest->self, pRequest->extPushdownAttemptCount, pRequest->extSourceName,
+                pRequest->requestId);
+        pRequest->code = TSDB_CODE_EXT_REMOTE_INTERNAL;
+        returnToUser(pRequest);
+        return;
+      }
+    }
+
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
+  const char* sourceName = pRequest->extSourceName;
+  if ('\0' == sourceName[0]) {
+    // No ext source context stashed  -  just return to user.
+    returnToUser(pRequest);
+    return;
+  }
+
+  SCatalog*     pCtg    = NULL;
+  SAppInstInfo* pInst   = pRequest->pTscObj->pAppInfo;
+  int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
+  if (TSDB_CODE_SUCCESS != ctgCode) {
+    tscWarn("req:0x%" PRIx64 ", handleExtSourceError: catalogGetHandle failed:%s, non-retrying, QID:0x%" PRIx64,
+            pRequest->self, tstrerror(ctgCode), pRequest->requestId);
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (NEED_CLIENT_RM_EXT_SOURCE_ERROR(code)) {
+    // A CREATE EXTERNAL SOURCE commit can be followed immediately by a query on
+    // the same connection. Give catalog one forced refresh before returning a
+    // real not-found error to the user.
+    tscDebug("req:0x%" PRIx64 ", ext source not found, removing cache for:%s, retry:%u, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->retry, pRequest->requestId);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s, QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
+
+    if (pRequest->retry <= EXT_SOURCE_NOT_FOUND_RETRY_MAX_TIMES) {
+      restartAsyncQuery(pRequest, code);
+      return;
+    }
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(code)) {
+    // EXT_SOURCE_CHANGED / EXT_SCHEMA_CHANGED / EXT_TABLE_NOT_EXIST:
+    // remove cache and retry (re-resolve metadata)
+    if (code == TSDB_CODE_EXT_COLUMN_NOT_EXIST && pRequest->retry > 1) {
+      tscDebug("req:0x%" PRIx64
+               ", ext column still missing after one forced refresh for:%s, returning error, QID:0x%" PRIx64,
+               pRequest->self, sourceName, pRequest->requestId);
+      returnToUser(pRequest);
+      return;
+    }
+
+    tscDebug("req:0x%" PRIx64 ", ext source meta stale, removing cache for:%s, retrying, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->requestId);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s (continuing retry), QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
+
+  if (NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(code)) {
+    // Connection / auth / runtime errors  -  return details to user, no retry
+    tscDebug("req:0x%" PRIx64 ", ext source runtime error %s for:%s, returning to user, QID:0x%" PRIx64,
+             pRequest->self, tstrerror(code), sourceName, pRequest->requestId);
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (code == TSDB_CODE_EXT_CAPABILITY_CHANGED) {
+    // Executor probed new capabilities; update cache and re-plan
+    tscDebug("req:0x%" PRIx64 ", ext capability changed for:%s, updating & retrying, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->requestId);
+    // extErrMsg carried new capability info  -  update cache then retry
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
+
+  // Catch-all: unknown ext error, return to user
+  returnToUser(pRequest);
+}
+
 // todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SSqlCallbackWrapper* pWrapper = param;
@@ -1347,8 +2983,20 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   pRequest->code = code;
   if (pResult) {
+    pRequest->execDispatched |= pResult->execDispatched;
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     (void)memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
+    // Only reconcile on success, matching the sync path above.
+    //
+    // Exact for a single-vgroup statement. On a partial multi-vgroup failure it is not: the
+    // vnodes that already applied did leave their children PRE_ALTER'd under this txn, yet the
+    // provisional charge of 1 is kept, so txnDdlCount understates the real reach until the txn
+    // ends. The per-vnode pre-scan quota is the backstop bounding that window. Charging the
+    // partial count from here is not possible: a response carrying a non-zero code has no
+    // trustworthy numTouched to add.
+    if (code == TSDB_CODE_SUCCESS) {
+      tscChargeTouchedObjects(pRequest, pResult);
+    }
   }
 
   int32_t type = pRequest->type;
@@ -1369,24 +3017,103 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   tscDebug("req:0x%" PRIx64 ", enter scheduler exec cb, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
            pRequest->requestId);
 
+  // FH-8/9/10: Copy ext error message to msgBuf BEFORE any error dispatch.
+  // This ensures taos_errstr() returns remote error details on any exit path.
+  {
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
+    if (pRes->extErrMsg != NULL && pRequest->msgBuf != NULL) {
+      tstrncpy(pRequest->msgBuf, pRes->extErrMsg, pRequest->msgBufLen > 0 ? pRequest->msgBufLen : 1);
+      taosMemoryFreeClear(pRes->extErrMsg);
+    }
+  }
+
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL &&
       pRequest->stmtBindVersion == 0) {
     tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
-    if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
-      tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
+    int32_t metaCode = TSDB_CODE_SUCCESS;
+    bool    isViewQuery = (NULL != pWrapper && NULL != pWrapper->pParseCtx && pWrapper->pParseCtx->isView);
+    if (code == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS) {
+      // Virtual table sources are discovered indirectly. Drop every referenced DB cache so table metadata and
+      // vgroup routes are refreshed together before rebuilding the plan.
+      metaCode = removeQueryDbMeta(pTscObj, pRequest->dbList);
+    } else {
+      metaCode = removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+      if (TSDB_CODE_SUCCESS == metaCode && isViewQuery && NULL != pRequest->tableList) {
+        // Tables referenced by the view body are collected in pTableList during translation
+        // but never appear in the outer statement's target list. Evict them explicitly so
+        // the retry re-resolves them by name instead of reusing a stale UID.
+        int32_t rmCode = removeMeta(pTscObj, pRequest->tableList, false);
+        if (TSDB_CODE_SUCCESS != rmCode) {
+          tscError("req:0x%" PRIx64 ", failed to remove view source table meta, code:%s, QID:0x%" PRIx64,
+                   pRequest->self, tstrerror(rmCode), pRequest->requestId);
+        }
+      }
+    }
+    if (metaCode != TSDB_CODE_SUCCESS) {
+      tscError("req:0x%" PRIx64 ", remove meta failed, code:%s, QID:0x%" PRIx64, pRequest->self,
+               tstrerror(metaCode), pRequest->requestId);
     }
     restartAsyncQuery(pRequest, code);
     return;
   }
 
+  // FH-8/9/7: ext source error dispatch (independent of NEED_CLIENT_HANDLE_ERROR)
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->sqlstr != NULL &&
+      pRequest->stmtBindVersion == 0) {
+    tscDebug("req:0x%" PRIx64 ", ext source error dispatch code:%s, tryCount:%d, QID:0x%" PRIx64,
+             pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    pRequest->pWrapper = NULL;
+    handleExtSourceError(pRequest, code);
+    return;
+  }
+
   tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+  // A successful CREATE TABLE / CREATE STABLE returns the meta of everything it really created. No meta in the response
+  // means nothing was created (IF NOT EXISTS on an existing object), the cached meta is still correct and must be kept:
+  // removing it also drops the cached super table (a child entry holds no schema) and every later query of that stable
+  // has to fetch it again. Only the failed create falls through to the removal below.
+  // Condition, read as: the request type needs its cached meta removed, AND the response carries no meta, AND it is
+  // not a successful create (the one case that is skipped).
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res &&
+      !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == code)) {
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
+    if (code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+      int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+        if (pTbName) {
+          int32_t rc = tscTxnRecordDroppedStbSuid(pTscObj, pRequest->txnId, pTbName);
+          if (rc != 0) {
+            code = rc;
+            break;
+          }
+        }
+      }
+    }
     if (TSDB_CODE_SUCCESS != removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type))) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
     }
   }
 
+  // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
+  // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
+  if (code == 0 && pRequest->txnId > 0 &&
+      (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
+    int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+    for (int32_t i = 0; i < tbNum; ++i) {
+      SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+      if (pTbName) {
+        char fullName[TSDB_TABLE_FNAME_LEN];
+        if (tNameExtractFullName(pTbName, fullName) == 0) {
+          (void)tscTxnUpsertTableMeta(pTscObj, pRequest->txnId, fullName, NULL, "drop");
+        }
+      }
+    }
+  }
+
+  invalidateExtSourceCacheAfterDdl(pRequest, code);
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
 
   int32_t code1 = handleQueryExecRsp(pRequest);
@@ -1411,12 +3138,425 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 }
 
+static bool nodeIsShowStmt(int16_t type) {
+  // SHOW statements defined in range [400, 573] (QUERY_NODE_SHOW_DNODES_STMT .. QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT)
+  if (type >= QUERY_NODE_SHOW_DNODES_STMT && type <= QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT) {
+    return true;
+  }
+  // SHOW statements in range [181, 188] (QUERY_NODE_SHOW_CREATE_VIEW_STMT .. QUERY_NODE_SHOW_TABLE_TAGS_STMT)
+  if (type >= QUERY_NODE_SHOW_CREATE_VIEW_STMT && type <= QUERY_NODE_SHOW_TABLE_TAGS_STMT) {
+    return true;
+  }
+  // Additional SHOW stmts
+  if (type == QUERY_NODE_SHOW_DB_ALIVE_STMT || type == QUERY_NODE_SHOW_CLUSTER_ALIVE_STMT) {
+    return true;
+  }
+  if (type == QUERY_NODE_SHOW_CREATE_TSMA_STMT || type == QUERY_NODE_SHOW_CREATE_VTABLE_STMT ||
+      type == QUERY_NODE_SHOW_CREATE_RSMA_STMT) {
+    return true;
+  }
+  return false;
+}
+
+// Return values for isTxnAllowedStmtType:
+//   0  TXN_STMT_REJECTED   -  not allowed inside a transaction
+//   1  TXN_STMT_NON_DDL    -  allowed, but does not count toward the DDL op limit
+//   2  TXN_STMT_DDL        -  allowed DDL; counted against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+#define TXN_STMT_REJECTED  0
+#define TXN_STMT_NON_DDL   1
+#define TXN_STMT_DDL       2
+
+// Number of metadata objects a single statement affects, for DDL-op accounting.
+//
+// Counting per object rather than per statement: a batch statement occupies vnode/mnode
+// resources proportional to how many objects it touches (one shadow B+tree entry and one
+// track record each), so charging it as a single op made TSDB_TXN_MAX_DDL_OPS_PER_TXN
+// meaningless for batches - DROP TABLE with 5000 clauses used to cost the same as one.
+//
+// There is no per-statement cap: a batch may affect any number of objects as long as the
+// transaction total stays within the limit. Statements whose object count is only known
+// server-side (WHERE-based bulk tag update) are counted as 1 here; see the note below.
+static int32_t txnStmtObjectCount(SNode* pRoot) {
+  switch ((int32_t)pRoot->type) {
+    case QUERY_NODE_DROP_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropVirtualTableStmt*)pRoot)->pTables));
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+      return TMAX(1, LIST_LENGTH(((SCreateMultiTablesStmt*)pRoot)->pSubTables));
+    case QUERY_NODE_DROP_STREAM_STMT:
+      return TMAX(1, LIST_LENGTH(((SDropStreamStmt*)pRoot)->pStreamList));
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT: {
+      SAlterTableStmt* pAlter = (SAlterTableStmt*)pRoot;
+      // Multi-table SET TAG carries one clause per table in pList.
+      if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
+        return TMAX(1, LIST_LENGTH(pAlter->pList));
+      }
+      // UPDATE_CHILD_TABLE_TAG_VAL (SET TAG ... WHERE) matches an arbitrary number of
+      // children, resolved by the vnode pre-scan. The client cannot know the count here,
+      // so it is charged as 1; the real resource bound for that statement is the vnode
+      // pre-scan plus the async vacuum, not this counter.
+      return 1;
+    }
+    case QUERY_NODE_VNODE_MODIFY_STMT: {
+      // After translation, CREATE/DROP table statements are rewritten into per-vgroup
+      // blocks; each block records how many tables it carries.
+      SVnodeModifyOpStmt* pModify = (SVnodeModifyOpStmt*)pRoot;
+      if (pModify->pDataBlocks == NULL) {
+        return 1;
+      }
+      // Accumulate in int64_t: pVgData->numOfTables is int32_t and a batch spanning
+      // many vgroups could overflow an int32 sum, which would then wrap negative and
+      // make TMAX(1, total) return 1 - under-counting the batch and evading the limit.
+      // Non-positive per-block counts are skipped for the same reason. The final
+      // int32 cast is safe because the sum is clamped to the (50000) txn limit.
+      int64_t total = 0;
+      int32_t numBlocks = (int32_t)taosArrayGetSize(pModify->pDataBlocks);
+      for (int32_t i = 0; i < numBlocks; ++i) {
+        SVgDataBlocks* pVgData = *(SVgDataBlocks**)TARRAY_GET_ELEM(pModify->pDataBlocks, i);
+        if (pVgData != NULL && pVgData->numOfTables > 0) {
+          total += pVgData->numOfTables;
+        }
+      }
+      if (total > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+        total = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+      }
+      return (int32_t)TMAX(1, total);
+    }
+    default:
+      return 1;
+  }
+}
+
+int32_t isTxnAllowedStmtType(SNode* pRoot) {
+  // switch lets the compiler emit a jump table  -  O(1) dispatch instead of a linear if-chain.
+  // SHOW ranges (spanning ~200 values) are still handled by nodeIsShowStmt() in the default branch.
+  switch ((int32_t)pRoot->type) {
+    // Table-level DDL  -  counted
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+    case QUERY_NODE_DROP_TABLE_STMT:
+    case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+    case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+    case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+    case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+    // Stream DDL (phase 2). CREATE/DROP/START/STOP are in scope; ALTER/RECALCULATE
+    // STREAM stay rejected via the default branch.
+    case QUERY_NODE_CREATE_STREAM_STMT:
+    case QUERY_NODE_DROP_STREAM_STMT:
+    // START / STOP STREAM: persisted lifecycle flag, applied at COMMIT.
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+    case QUERY_NODE_RESUME_STREAM_STMT:
+      return TXN_STMT_DDL;
+    // SELECT, read-only utilities, transaction control  -  not counted
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_USE_DATABASE_STMT:
+    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_DESCRIBE_STMT:
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+    case QUERY_NODE_RESET_QUERY_CACHE_STMT:
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      return TXN_STMT_NON_DDL;
+
+    // Tag-index DDL is rejected. The index is a separate mnode SDB object (SIdxObj) with
+    // no txnId/txnStatus marker and no shadow-op type, so it cannot be committed or rolled
+    // back together with the super table it belongs to. Listed explicitly rather than left
+    // to the default branch to make the exclusion deliberate and greppable.
+    // Note: the index updates that DROP TAG / RENAME TAG perform as a side effect are
+    // unaffected - those ride along with the super-table change.
+    case QUERY_NODE_CREATE_INDEX_STMT:
+    case QUERY_NODE_DROP_INDEX_STMT:
+      return TXN_STMT_REJECTED;
+
+    case QUERY_NODE_VNODE_MODIFY_STMT: {
+      // VNODE_MODIFY_STMT wraps both CREATE TABLE and INSERT after translation.
+      // Allow only DDL variants; block INSERT / DELETE.
+      switch ((int32_t)((SVnodeModifyOpStmt*)pRoot)->sqlNodeType) {
+        case QUERY_NODE_CREATE_TABLE_STMT:
+        case QUERY_NODE_CREATE_MULTI_TABLES_STMT:
+        case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+        case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+        case QUERY_NODE_DROP_TABLE_STMT:
+        case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
+        case QUERY_NODE_ALTER_TABLE_STMT:
+        case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
+          return TXN_STMT_DDL;
+        default:
+          return TXN_STMT_REJECTED;
+      }
+    }
+
+    default:
+      // SHOW statements cover two discontiguous ranges; delegate to nodeIsShowStmt().
+      return nodeIsShowStmt((int32_t)pRoot->type) ? TXN_STMT_NON_DDL : TXN_STMT_REJECTED;
+  }
+}
+
+// Charge the objects a completed statement actually touched against the txn's DDL budget.
+//
+// Most statements' object count is known client-side and already charged in
+// tscCheckTxnState. The exception is the WHERE-based bulk tag update, whose reach is
+// resolved by the vnode pre-scan: it is provisionally charged as 1 there, and the real count
+// arrives here via SExecResult::numTouchedObjects (summed across vgroups by the scheduler).
+// Replace the provisional 1 with the real figure.
+//
+// The budget was already enforced per-vnode during the pre-scan, so a statement reaching
+// this point is within its share; this only keeps the running total honest for the
+// statements that follow. Clamped at the limit so the counter cannot be driven past it by
+// the divide-across-vgroups approximation.
+//
+// Note on the vnode-side over-quota rejection: when the pre-scan finds more matching
+// children than the txn's remaining budget allows, the vnode aborts the statement with
+// TSDB_CODE_TXN_TOO_MANY_DDL_OPS and no result reaches this function. The provisional
+// charge of 1 from tscCheckTxnState is therefore left in txnDdlCount - a statement that
+// failed to execute still consumed its provisional unit. That is an over-count of at most
+// one object per rejected statement, which only makes the limit marginally stricter;
+// it never under-counts, so the budget can never be evaded through this path.
+static void tscChargeTouchedObjects(SRequestObj* pRequest, const SExecResult* pRes) {
+#ifdef TD_ENTERPRISE
+  STscObj*      pTscObj = pRequest->pTscObj;
+  const SQuery* pQuery = pRequest->pQuery;
+  if (pTscObj == NULL || pRequest->txnId == 0 || pRes == NULL || pRes->numTouchedObjects <= 0) {
+    return;
+  }
+  // Only the WHERE-based bulk tag update is charged provisionally as 1 in
+  // txnStmtObjectCount; every other statement is already charged by its real object count.
+  // Verify that is the statement we are reconciling rather than relying on numTouchedObjects
+  // being populated by that path alone - otherwise the -1 below would silently discount a
+  // correctly-charged statement.
+  if (pQuery == NULL || pQuery->pRoot == NULL) {
+    return;
+  }
+  int32_t nodeT = (int32_t)nodeType(pQuery->pRoot);
+  if (nodeT != QUERY_NODE_ALTER_TABLE_STMT && nodeT != QUERY_NODE_ALTER_SUPER_TABLE_STMT &&
+      nodeT != QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT) {
+    return;
+  }
+  if (((SAlterTableStmt*)pQuery->pRoot)->alterType != TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
+    return;
+  }
+  // Undo the provisional charge of 1 before adding the measured count.
+  //
+  // This runs on the scheduler completion thread, while the next statement's budget slice is
+  // computed on the parse thread and the txn lifecycle zeroes the counter - all under
+  // pTscObj->mutex. Charge under the same lock so this read-modify-write cannot interleave with
+  // those and lose an update. Only a completed WHERE-based bulk tag update inside a txn reaches
+  // here, so the lock is not on a hot path.
+  int32_t prev = 0;
+  int32_t adjusted = 0;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  prev = pTscObj->txnDdlCount;
+  adjusted = prev - 1 + pRes->numTouchedObjects;
+  if (adjusted > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+    adjusted = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+  }
+  if (adjusted < 0) {
+    adjusted = 0;
+  }
+  pTscObj->txnDdlCount = adjusted;
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  tscDebug("txn:%" PRIu64 " bulk DDL touched %d objects, DDL count %d -> %d", pTscObj->txnId,
+           pRes->numTouchedObjects, prev, adjusted);
+#endif
+}
+
+// Claim the connection's txn statement slot for a statement of a txn (no-op outside a txn, and for the request that
+// already holds it). The main path claims it when it builds the parse context; the bypass paths (SML / rawBlock /
+// STMT / STMT2) only get here, so this is where they are serialised with the other statements of the txn, and with
+// its COMMIT / ROLLBACK. Run before the txn check, which charges the DDL budget: a rejected statement costs nothing.
+int32_t tscTxnClaimStmtSlot(SRequestObj* pRequest) {
+  if (pRequest->txnId <= 0) return TSDB_CODE_SUCCESS;
+  bool    acquired = false;
+  STscObj* pTscObj = pRequest->pTscObj;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  int32_t code = tscTxnAcquireStmtSlot(pRequest, pRequest->txnId, &acquired);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
+}
+
+// Validate transaction state and statement type for the current request.
+// Called from doAsyncQuery (main path) and, when txnChecked is false, from
+// launchQueryImpl / launchAsyncQuery (SML / rawBlock / STMT2 bypass paths).
+//
+// pWrapper may be NULL (sync path). When non-NULL and the statement is a
+// ROLLBACK during a timeout-killed txn, this function performs the local
+// cleanup (frees pWrapper and pRequest->pQuery, calls doRequestCallback) and
+// sets *pHandled = true so the caller returns immediately.
+//
+// Return value: TSDB_CODE_SUCCESS means the statement is allowed to proceed;
+// any other code means it should be rejected. *pHandled is set to true only
+// when this function has already dispatched the callback.
+int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled) {
+  *pHandled = false;
+  // The main path fixed the request's txn identity when it created the parse context; the bypass paths (SML /
+  // rawBlock / STMT) fix it here. Everything after this point judges the statement by pRequest->txnId only.
+  tscReqFixTxnId(pRequest);
+#ifdef TD_ENTERPRISE
+  // A retry of the statement checks it again but must not charge its DDL objects a second time.
+  const bool firstCheck = !pRequest->txnChecked;
+  pRequest->txnChecked = true;
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pRequest->txnId == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Txn was forcibly rolled back by MNode timeout.
+  if (atomic_load_8(&pTscObj->txnState) == UTXN_STAGE_TIMEOUT_KILLED) {
+    bool isRollback = (pRequest->pQuery != NULL && pRequest->pQuery->pRoot != NULL &&
+                       nodeType(pRequest->pQuery->pRoot) == QUERY_NODE_ROLLBACK_TRANS_STMT);
+    if (isRollback) {
+      tscResetTxnState(pTscObj);
+      pRequest->code = 0;
+      if (pWrapper != NULL) {
+        destorySqlCallbackWrapper(pWrapper);
+        pRequest->pWrapper = NULL;
+      }
+      qDestroyQuery(pRequest->pQuery);
+      pRequest->pQuery = NULL;
+      doRequestCallback(pRequest, 0);
+      *pHandled = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_TXN_TIMEOUT_KILLED;
+  }
+
+  // BEGIN ALLOW_NONTRANSACTIONAL: statements the txn cannot cover are let through (no AST either),
+  // read under the mutex that BEGIN / reset use to write it. Txn-capable DDL still falls through to
+  // the normal path below so it keeps being budgeted.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  bool allowNonTxn = (pTscObj->txnFlags & TSC_TXN_FLAG_ALLOW_NONTXN) != 0;
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
+  // Validate stmt type and track DDL count.
+  if (pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
+    // No AST (e.g. rawBlock path): reject while a txn is active.
+    if (allowNonTxn) return TSDB_CODE_SUCCESS;
+    tscWarn("req:0x%" PRIx64 ", txn:%" PRIu64 " has no AST, reject in txn context, QID:0x%" PRIx64, pRequest->self,
+            pTscObj->txnId, pRequest->requestId);
+    return TSDB_CODE_TXN_INVALID_OPERATION;
+  }
+  int32_t stmtKind = isTxnAllowedStmtType(pRequest->pQuery->pRoot);
+  if (stmtKind == TXN_STMT_REJECTED) {
+    return allowNonTxn ? TSDB_CODE_SUCCESS : TSDB_CODE_TXN_INVALID_OPERATION;
+  }
+  if (stmtKind == TXN_STMT_DDL && firstCheck) {
+    int32_t objCount = txnStmtObjectCount(pRequest->pQuery->pRoot);
+    // Clamp the object count to [1, limit] before the budget arithmetic: a count that
+    // is somehow out of range (e.g. an overflowing batch accumulator) must neither make
+    // limit - objCount negative-and-then-always-true (rejecting everything) nor inflate
+    // the remaining budget past the real limit.
+    if (objCount < 1) {
+      objCount = 1;
+    } else if (objCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN) {
+      objCount = TSDB_TXN_MAX_DDL_OPS_PER_TXN;
+    }
+    // The check-and-add below must run under the same mutex that the scheduler
+    // completion thread uses in tscChargeTouchedObjects to reconcile txnDdlCount
+    // (prev - 1 + numTouchedObjects) and that the txn lifecycle uses to zero it.
+    // An unlocked read-modify-write here could lose an add (under-charging and
+    // evading the limit) or interleave with the -1 reconciliation of a WHERE-based
+    // bulk update that is still in flight from an earlier statement.
+    bool overLimit = false;
+    (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (pTscObj->txnDdlCount > TSDB_TXN_MAX_DDL_OPS_PER_TXN - objCount) {
+      overLimit = true;
+    } else {
+      pTscObj->txnDdlCount += objCount;
+    }
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (overLimit) {
+      tscError("req:0x%" PRIx64 ", txn:%" PRIu64 " DDL count %d + %d objects > limit %d, reject", pRequest->self,
+               pTscObj->txnId, pTscObj->txnDdlCount, objCount, TSDB_TXN_MAX_DDL_OPS_PER_TXN);
+      return TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+    }
+  }
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+// Track all VNode vgIds referenced by a VNODE_MODIFY_STMT inside a batch txn.
+// Called from both the sync (launchQueryImpl) and async (launchAsyncQuery) paths.
+static int32_t tscTxnTrackVgIdsFromQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pRequest->txnId == 0 || atomic_load_8(&pTscObj->txnState) != UTXN_STAGE_ACTIVE || pQuery->pRoot == NULL ||
+      nodeType(pQuery->pRoot) != QUERY_NODE_VNODE_MODIFY_STMT) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Non-txn statements let through by ALLOW_NONTRANSACTIONAL (e.g. INSERT) must not enlist their vgroups.
+  // Only reached for VNODE_MODIFY_STMT while the txn is ACTIVE. Let-through DDL runs in local/RPC mode and never
+  // gets here; a future let-through VNODE_MODIFY_STMT variant is filtered by this check.
+  if (isTxnAllowedStmtType(pQuery->pRoot) == TXN_STMT_REJECTED) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SVnodeModifyOpStmt* pModStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;
+  if (pModStmt->pDataBlocks == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numBlocks = (int32_t)taosArrayGetSize(pModStmt->pDataBlocks);
+  for (int32_t i = 0; i < numBlocks; ++i) {
+    SVgDataBlocks* pVgData = *(SVgDataBlocks**)TARRAY_GET_ELEM(pModStmt->pDataBlocks, i);
+    if (pVgData == NULL) continue;
+    int32_t code = tscTxnTrackVgId(pTscObj, pVgData->vg.vgId);
+    if (code != 0) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery) {
+  if (pRequest == NULL || pQuery == NULL || pQuery->pRoot == NULL || pRequest->pTscObj == NULL) {
+    return;
+  }
+  if (nodeType(pQuery->pRoot) != QUERY_NODE_ALTER_USER_STMT) {
+    return;
+  }
+  SAlterUserStmt* pStmt = (SAlterUserStmt*)pQuery->pRoot;
+  if (pStmt->pUserOptions == NULL || !pStmt->pUserOptions->hasPassword) {
+    return;
+  }
+  if (0 == strncmp(pStmt->userName, pRequest->pTscObj->user, TSDB_USER_LEN)) {
+    pRequest->passAlterSelf = true;
+  }
+}
+
 void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res) {
   int32_t code = 0;
   int32_t subplanNum = 0;
 
+#ifdef TD_ENTERPRISE
+  // SML / rawBlock / STMT / STMT2 bypass doAsyncQuery and land here without transaction validation. Only those
+  // paths call this function, once per execution, and a statement object may run the same request again: every
+  // call is a new statement, checked (and its txn identity fixed) afresh.
+  tscReqStartStatement(pRequest);
+  tscReqFixTxnId(pRequest);
+  // This synchronous execution is not followed by a request callback: the slot it claims is given back below,
+  // on every exit of this function.
+  code = tscTxnClaimStmtSlot(pRequest);
+  if (code == TSDB_CODE_SUCCESS && !pRequest->txnChecked) {
+    bool handled = false;
+    code = tscCheckTxnState(pRequest, NULL, &handled);
+    // tscCheckTxnState does not call doRequestCallback on the sync path (pWrapper == NULL,
+    // so handled is always false here). Just propagate the error code.
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscTxnReleaseStmtSlot(pRequest);
+    pRequest->code = code;
+    if (res) *res = pRequest;
+    return;
+  }
+#endif
+
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
+    markPassAlterSelf(pRequest, pQuery);
     if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
       pRequest->secureDelete = ((SDeleteStmt*)pQuery->pRoot)->secureDelete;
     }
@@ -1450,18 +3590,27 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       }
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      const bool trackStmtPhase = pRequest->stmtBindVersion > 0;
+      code = tscTxnTrackVgIdsFromQuery(pRequest, pQuery);
+      if (code != 0) break;
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
         code = terrno;
         break;
       }
       SQueryPlan* pDag = NULL;
+      if (trackStmtPhase) {
+        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PLAN);
+      }
       code = getPlan(pRequest, pQuery, &pDag, pMnodeList);
       if (TSDB_CODE_SUCCESS == code) {
         pRequest->body.subplanNum = pDag->numOfSubplans;
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
-          code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+          if (trackStmtPhase) {
+            CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
+          }
+          code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList, pDag);
 
           if (TSDB_CODE_SUCCESS == code) {
             code = sessMetricCheckValue((SSessMetric*)pRequest->pTscObj->pSessMetric, SESSION_MAX_CALL_VNODE_NUM,
@@ -1469,6 +3618,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
           }
 
           if (TSDB_CODE_SUCCESS == code) {
+            if (trackStmtPhase) {
+              CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_EXECUTE);
+            }
             code = scheduleQuery(pRequest, pDag, pNodeList);
           }
           taosArrayDestroy(pNodeList);
@@ -1488,11 +3640,47 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     qDestroyQuery(pQuery);
   }
 
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+  // see schedulerExecCb: a successful CREATE TABLE / STABLE without a response meta created nothing, keep the cache
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res &&
+      !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == pRequest->code)) {
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache,
+    // so child table queries can detect the parent was dropped.
+    if (pRequest->code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+      int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+        if (pTbName) {
+          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pRequest->txnId, pTbName);
+          if (rc != 0) {
+            pRequest->code = rc;
+            break;
+          }
+        }
+      }
+    }
     int ret = removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
     if (TSDB_CODE_SUCCESS != ret) {
       tscError("req:0x%" PRIx64 ", remove meta failed,code:%d, QID:0x%" PRIx64, pRequest->self, ret,
                pRequest->requestId);
+    }
+  }
+
+  // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
+  // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
+  if (pRequest->code == 0 && pRequest->txnId > 0 &&
+      (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
+    int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+    for (int32_t i = 0; i < tbNum; ++i) {
+      SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+      if (pTbName) {
+        char fullName[TSDB_TABLE_FNAME_LEN];
+        if (tNameExtractFullName(pTbName, fullName) == 0) {
+          if ((code = tscTxnUpsertTableMeta(pRequest->pTscObj, pRequest->txnId, fullName, NULL, "drop"))) {
+            pRequest->code = code;
+            break;
+          }
+        }
+      }
     }
   }
 
@@ -1508,6 +3696,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     *res = pRequest->body.resInfo.execRes.res;
     pRequest->body.resInfo.execRes.res = NULL;
   }
+
+  // the statement is done with the txn-local state (see tscTxnClaimStmtSlot)
+  tscTxnReleaseStmtSlot(pRequest);
 }
 
 static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
@@ -1526,11 +3717,14 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
     if (NULL == pMnodeList) {
       code = terrno;
     }
+    void* charsetCxt =
+        taosResolveCharsetCxt(pRequest->pTscObj->optionInfo.charsetCxt);
     SPlanContext cxt = {.queryId = pRequest->requestId,
                         .acctId = pRequest->pTscObj->acctId,
                         .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                         .pAstRoot = pQuery->pRoot,
                         .showRewrite = pQuery->showRewrite,
+                        .xnodeDsnOutputMode = pQuery->xnodeDsnOutputMode,
                         .isView = pWrapper->pParseCtx->isView,
                         .isAudit = pWrapper->pParseCtx->isAudit,
                         .privInfo = pWrapper->pParseCtx->privInfo,
@@ -1538,9 +3732,23 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .userId = pRequest->pTscObj->userId,
+                        .pExtCapability = NULL,
+                        .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                        .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                         .sysInfo = pRequest->pTscObj->sysInfo,
+                        .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
+                        .timezoneExplicit =
+                            pRequest->pTscObj->optionInfo.timezoneExplicit,
+                        .charsetCxt = charsetCxt,
+                        .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
+    tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+             sizeof(cxt.timezoneName));
+    if (pRequest->txnId > 0) {
+      cxt.getTxnStbSchemas = tscTxnBuildStbSchemas;
+      cxt.getTxnStbSchemasParam = pRequest;
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
@@ -1559,7 +3767,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
       CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
-      code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+      code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta, pDag);
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -1571,9 +3779,12 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
+      // FH-11: CLIENT policy + federated scan must execute on server (Connector runs server-side)
+      bool localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT) &&
+                      !(pDag != NULL && pDag->hasFederatedScan);
       SSchedulerReq    req = {
              .syncReq = false,
-             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+             .localReq = localReq,
              .pConn = &conn,
              .pNodeList = pNodeList,
              .pDag = pDag,
@@ -1588,6 +3799,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
              .source = pRequest->source,
              .secureDelete = pRequest->secureDelete,
              .pWorkerCb = getTaskPoolWorkerCb(),
+             .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
+             .txnId = pRequest->txnId,
+             .correlation = initCorrelationExecution(pRequest, pDag),
       };
 
       if (TSDB_CODE_SUCCESS == code) {
@@ -1626,6 +3840,30 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
     return;
   }
 
+#ifdef TD_ENTERPRISE
+  // SML / rawBlock / STMT2 bypass doAsyncQuery: claim the txn statement slot (a no-op for the main path, which holds
+  // it already, and also taken again by an internal STMT2 retry, which runs after the first callback gave it back),
+  // then run the full txn check when not yet done. The slot is given back by doRequestCallback.
+  tscReqFixTxnId(pRequest);
+  code = tscTxnClaimStmtSlot(pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    // same unwinding as a failed txn check below
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
+  if (!pRequest->txnChecked) {
+    bool handled = false;
+    code = tscCheckTxnState(pRequest, pWrapper, &handled);
+    if (handled) return;  // ROLLBACK early-exit: callback already dispatched
+    if (code != TSDB_CODE_SUCCESS) {
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+#endif
+
   pRequest->body.execMode = pQuery->execMode;
   if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
     destorySqlCallbackWrapper(pWrapper);
@@ -1651,6 +3889,11 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
+      code = tscTxnTrackVgIdsFromQuery(pRequest, pQuery);
+      if (code != 0) {
+        doRequestCallback(pRequest, code);
+        break;
+      }
       code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;
     }
@@ -1665,11 +3908,14 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   }
 }
 
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
-  SCatalog* pCatalog = NULL;
-  int32_t   code = 0;
-  int32_t   dbNum = taosArrayGetSize(pRequest->dbList);
-  int32_t   tblNum = taosArrayGetSize(pRequest->tableList);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t errorCode) {
+  SCatalog*               pCatalog = NULL;
+  int32_t                 code = 0;
+  int32_t                 dbNum = taosArrayGetSize(pRequest->dbList);
+  int32_t                 tblNum = taosArrayGetSize(pRequest->tableList);
+  EClientMetaRefreshScope refreshScope = clientGetMetaRefreshScope(errorCode);
+  bool                    refreshDbVgroup = (CLIENT_META_REFRESH_TABLE != refreshScope);
+  // Keep the legacy full refresh for non-client-handled errors passed by specialized callers.
 
   if (dbNum <= 0 && tblNum <= 0) {
     return TSDB_CODE_APP_ERROR;
@@ -1685,13 +3931,15 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
 
-  for (int32_t i = 0; i < dbNum; ++i) {
-    char* dbFName = taosArrayGet(pRequest->dbList, i);
+  if (refreshDbVgroup) {
+    for (int32_t i = 0; i < dbNum; ++i) {
+      char* dbFName = taosArrayGet(pRequest->dbList, i);
 
-    // catalogRefreshDBVgInfo will handle dbFName == null.
-    code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      // catalogRefreshDBVgInfo will handle dbFName == null.
+      code = catalogRefreshDBVgInfo(pCatalog, &conn, dbFName);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
@@ -1701,11 +3949,40 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
     // catalogRefreshTableMeta will handle tableName == null.
     code = catalogRefreshTableMeta(pCatalog, &conn, tableName, -1);
     if (code != TSDB_CODE_SUCCESS) {
+      // A table-only refresh can discover stale vnode routing. Escalate once;
+      // CLIENT_META_REFRESH_FULL cannot enter this branch recursively.
+      if (CLIENT_META_REFRESH_TABLE == refreshScope && CLIENT_META_REFRESH_FULL == clientGetMetaRefreshScope(code)) {
+        return refreshMeta(pTscObj, pRequest, code);
+      }
       return code;
     }
   }
 
   return code;
+}
+
+static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList) {
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  int32_t firstCode = TSDB_CODE_SUCCESS;
+  int32_t dbNum = taosArrayGetSize(dbList);
+  for (int32_t i = 0; i < dbNum; ++i) {
+    char* dbFName = taosArrayGet(dbList, i);
+    if (dbFName == NULL) {
+      continue;
+    }
+
+    code = catalogRemoveDB(pCatalog, dbFName, 0);
+    if (code != TSDB_CODE_SUCCESS && firstCode == TSDB_CODE_SUCCESS) {
+      firstCode = code;
+    }
+  }
+
+  return firstCode;
 }
 
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView) {
@@ -1796,6 +4073,184 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
   return 0;
 }
 
+#ifdef USE_LIBGSASL
+// Async response handler for one SASL handshake round: stash the decoded SSaslStepRsp into the
+// caller-owned struct referenced by `param`, then wake the synchronous loop.
+typedef struct {
+  int64_t       reqSelf;
+  SSaslStepRsp* pRspOut;
+} SScramRspParam;
+
+static int32_t scramStepRspHandler(void* param, SDataBuf* pMsg, int32_t code) {
+  SScramRspParam* p = (SScramRspParam*)param;
+  SRequestObj*    pRequest = acquireRequest(p->reqSelf);
+  if (pRequest != NULL) {
+    if (code == TSDB_CODE_SUCCESS && pMsg != NULL && pMsg->pData != NULL) {
+      if (tDeserializeSSaslStepRsp(pMsg->pData, pMsg->len, p->pRspOut) != 0) {
+        code = TSDB_CODE_TSC_INVALID_VERSION;
+      }
+    }
+    pRequest->code = code;
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("scram: failed to post semaphore");
+    }
+    (void)releaseRequest(pRequest->self);
+  }
+  // `param` is freed by the transport via body->paramFreeFp (set in scramSendStep), which also
+  // covers the asyncSendMsgToServer failure path where this callback never runs. Do not free here.
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+  }
+  return code;
+}
+
+// One synchronous SASL round-trip to the mnode.
+static int32_t scramSendStep(STscObj* pObj, SSaslStepReq* pReq, SSaslStepRsp* pRsp) {
+  SRequestObj* pRequest = NULL;
+  int32_t      code = createRequest(pObj->id, TDMT_MND_AUTH_SASL, 0, &pRequest);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  int32_t contLen = tSerializeSSaslStepReq(NULL, 0, pReq);
+  if (contLen < 0) {
+    destroyRequest(pRequest);
+    return contLen;
+  }
+  void* pData = taosMemoryMalloc(contLen);
+  if (pData == NULL) {
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  if (tSerializeSSaslStepReq(pData, contLen, pReq) < 0) {
+    taosMemoryFree(pData);
+    destroyRequest(pRequest);
+    return terrno;
+  }
+
+  SMsgSendInfo*   body = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  SScramRspParam* cbParam = taosMemoryCalloc(1, sizeof(SScramRspParam));
+  if (body == NULL || cbParam == NULL) {
+    taosMemoryFree(pData);
+    taosMemoryFree(body);
+    taosMemoryFree(cbParam);
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  cbParam->reqSelf = pRequest->self;
+  cbParam->pRspOut = pRsp;
+
+  body->msgType = TDMT_MND_AUTH_SASL;
+  body->requestObjRefId = pRequest->self;
+  body->requestId = pRequest->requestId;
+  body->fp = scramStepRspHandler;
+  body->param = cbParam;
+  body->paramFreeFp = taosAutoMemoryFree;  // transport frees cbParam, incl. the send-failure path
+  body->target.type = TARGET_TYPE_MNODE;
+  body->msgInfo.pData = pData;
+  body->msgInfo.len = contLen;
+
+  SEpSet epset = getEpSet_s(&pObj->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer(pObj->pAppInfo->pTransporter, &epset, NULL, body);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyRequest(pRequest);
+    return code;
+  }
+  if (tsem_wait(&pRequest->body.rspSem) != 0) {
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  code = pRequest->code;
+  destroyRequest(pRequest);
+  return code;
+}
+
+// Drive the full SCRAM-SHA-256 handshake. On success, authTokenOut (size TSDB_TOKEN_LEN) receives the
+// one-time token that the subsequent CONNECT presents. `auth` is the already-hashed password; it must
+// be normalized to the SAME truncated form the server provisioned from (see tbase64/passwords[].pass).
+static int32_t doScramHandshake(STscObj* pObj, const char* user, const char* auth, char* authTokenOut) {
+  Gsasl*         ctx = NULL;
+  Gsasl_session* sctx = NULL;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  char*          in = NULL;  // server data carried into the next gsasl_step
+  char           scramPass[TSDB_PASSWORD_LEN] = {0};
+
+  authTokenOut[0] = 0;
+  // match the server's SCRAM password: the hashed password truncated to a NUL-terminated string
+  tstrncpy(scramPass, auth, sizeof(scramPass));
+
+  if (gsasl_init(&ctx) != GSASL_OK) return TSDB_CODE_OUT_OF_MEMORY;
+  if (gsasl_client_start(ctx, "SCRAM-SHA-256", &sctx) != GSASL_OK) {
+    gsasl_done(ctx);
+    return TSDB_CODE_FAILED;
+  }
+  (void)gsasl_property_set(sctx, GSASL_AUTHID, user);
+  (void)gsasl_property_set(sctx, GSASL_PASSWORD, scramPass);
+
+  char authId[TSDB_SASL_AUTH_ID_LEN] = {0};
+  while (1) {
+    char* out = NULL;
+    int   rc = gsasl_step64(sctx, in != NULL ? in : "", &out);
+    if (rc != GSASL_OK && rc != GSASL_NEEDS_MORE) {
+      code = TSDB_CODE_MND_AUTH_FAILURE;
+      gsasl_free(out);
+      break;
+    }
+
+    SSaslStepReq req = {0};
+    tstrncpy(req.mech, "SCRAM-SHA-256", sizeof(req.mech));
+    tstrncpy(req.user, user, sizeof(req.user));
+    tstrncpy(req.authId, authId, sizeof(req.authId));
+    tstrncpy(req.sVer, td_version, sizeof(req.sVer));
+    if (out != NULL) {
+      req.data = (uint8_t*)out;
+      req.dataLen = (int32_t)strlen(out) + 1;
+    }
+
+    SSaslStepRsp rsp = {0};
+    code = scramSendStep(pObj, &req, &rsp);
+    gsasl_free(out);
+    if (code != TSDB_CODE_SUCCESS) {
+      tFreeSSaslStepRsp(&rsp);
+      break;
+    }
+    tstrncpy(authId, rsp.authId, sizeof(authId));
+
+    if (rsp.done) {
+      // SCRAM mutual auth: the server MUST send its final ServerSignature for us to authenticate it.
+      // A done=1 with no server data cannot be verified, so reject it rather than blindly trusting the
+      // token -- otherwise a rogue/MITM server could short-circuit the exchange.
+      if (rsp.data != NULL) {
+        char* o = NULL;
+        int   vrc = gsasl_step64(sctx, (const char*)rsp.data, &o);
+        gsasl_free(o);
+        if (vrc != GSASL_OK) code = TSDB_CODE_MND_AUTH_FAILURE;
+      } else {
+        code = TSDB_CODE_MND_AUTH_FAILURE;
+      }
+      // A verified handshake must carry a usable one-time token; an empty token is a server-side error.
+      if (code == TSDB_CODE_SUCCESS && rsp.authToken[0] == 0) {
+        code = TSDB_CODE_MND_AUTH_FAILURE;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        tstrncpy(authTokenOut, rsp.authToken, TSDB_TOKEN_LEN);
+      }
+      tFreeSSaslStepRsp(&rsp);
+      break;
+    }
+
+    // carry the server data into the next step
+    taosMemoryFreeClear(in);
+    if (rsp.data != NULL) in = taosStrdup((const char*)rsp.data);
+    tFreeSSaslStepRsp(&rsp);
+  }
+
+  taosMemoryFree(in);
+  gsasl_finish(sctx);
+  gsasl_done(ctx);
+  return code;
+}
+#endif  // USE_LIBGSASL
+
 int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db, __taos_async_fn_t fp,
                         void* param, SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
   *pTscObj = NULL;
@@ -1804,10 +4259,72 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
     return code;
   }
 
+  char         saslToken[TSDB_TOKEN_LEN] = {0};
   SRequestObj* pRequest = NULL;
+  int32_t      saslConnAttempt = 0;
+
+_scram_reconnect:
+  saslToken[0] = 0;
+#ifdef USE_LIBGSASL
+  if (tsAuthMech != TSDB_AUTH_MECH_LEGACY) {
+    for (int32_t attempt = 0; attempt < 2; ++attempt) {
+      code = doScramHandshake(*pTscObj, user, auth, saslToken);
+      if (TSDB_CODE_SUCCESS == code) break;
+      if (code == TSDB_CODE_MND_SASL_SESSION_EXPIRED && attempt == 0) {
+        tscDebug("SCRAM session expired for user:%s, retrying (possible leader change)", user);
+        continue;
+      }
+      break;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      // authenticated via SCRAM; CONNECT will present saslToken
+    } else if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
+      // SCRAM explicitly required: do not fall back
+      tscError("SCRAM handshake failed for user:%s (SCRAM required), code:%s", user, tstrerror(code));
+      // Destroy via the conn ref pool, not destroyTscObj() directly: an in-flight SASL request may
+      // still hold a ref on this TscObj (its response callback runs on a transport worker thread and
+      // calls doDestroyRequest, which dereferences pTscObj). Freeing pTscObj directly here races with
+      // that release -> heap-use-after-free. taos_close_internal() defers the free until refcount hits 0.
+      taos_close_internal(*pTscObj);
+      *pTscObj = NULL;
+      return code;
+    } else if (code == TSDB_CODE_MSG_NOT_PROCESSED || code == TSDB_CODE_OPS_NOT_SUPPORT ||
+               code == TSDB_CODE_MND_SASL_SESSION_EXPIRED) {
+      // auto mode: server too old, the user has no SCRAM credentials, or the SASL session kept
+      // expiring across retries (persistent leader churn) -> fall back to legacy CONNECT. The latter
+      // is a transient infrastructure condition, not a wrong password, so legacy auth (which still
+      // verifies the stored hash) is the right graceful degradation here.
+      tscDebug("SCRAM unavailable for user:%s (code:%s), falling back to legacy auth", user, tstrerror(code));
+      saslToken[0] = 0;
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      // genuine authentication failure -> surface it, do not mask with a legacy retry
+      tscError("SCRAM handshake failed for user:%s, code:%s", user, tstrerror(code));
+      // See note above: free through the conn ref pool to avoid racing an in-flight SASL request's
+      // response callback (this is the exact path ASAN caught at clientEnv.c:777 / clientImpl.c:3042).
+      taos_close_internal(*pTscObj);
+      *pTscObj = NULL;
+      return code;
+    }
+  }
+#else
+  if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
+    tscError("SCRAM auth required (authMech=1) but libgsasl is not built in");
+    // No SASL request was sent on this branch, so no in-flight ref exists; but use the conn ref pool
+    // path anyway for consistency with every other error exit (harmless when refcount is already 1).
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+#endif
+
+  pRequest = NULL;
   code = createRequest((*pTscObj)->id, TDMT_MND_CONNECT, 0, &pRequest);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
+    // createRequest failed -> no request registered; still free the conn via the ref pool (not
+    // destroyTscObj directly) so any prior in-flight SASL request ref is honored.
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
 
@@ -1815,13 +4332,23 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
   if (pRequest->sqlstr) {
     pRequest->sqlLen = strlen(pRequest->sqlstr);
   } else {
-    return terrno;
+    // Same cleanup discipline as the other error exits: don't leak pRequest/pTscObj on strdup failure.
+    code = terrno;
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
+    return code;
   }
 
   SMsgSendInfo* body = NULL;
-  code = buildConnectMsg(pRequest, &body, totpCode);
+  code = buildConnectMsg(pRequest, &body, totpCode, saslToken);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
+    // pRequest is registered here: destroy it and free the conn via the ref pool (matches the
+    // success-path error handling at the CONNECT-failed branch below). The old code both freed
+    // pTscObj directly (use-after-free risk) and leaked pRequest.
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
 
@@ -1829,14 +4356,30 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
   SEpSet epset = getEpSet_s(&(*pTscObj)->pAppInfo->mgmtEp);
   code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &epset, NULL, body);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
   if (TSDB_CODE_SUCCESS != tsem_wait(&pRequest->body.rspSem)) {
-    destroyTscObj(*pTscObj);
     tscError("failed to wait sem, code:%s", terrstr());
+    // Most dangerous path: the CONNECT msg is already in-flight, so a transport worker will run its
+    // response callback -> doDestroyRequest -> deref pTscObj. Freeing pTscObj directly here is the
+    // very race ASAN reported. Destroy the request and free the conn through the ref pool instead.
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return terrno;
+  }
+  // The one-time SASL token is leader-local; a leadership change in the gap between the handshake and
+  // this CONNECT invalidates it (server returns SASL_SESSION_EXPIRED). Redo the whole handshake+CONNECT
+  // once against the current leader before surfacing the failure.
+  if (pRequest->code == TSDB_CODE_MND_SASL_SESSION_EXPIRED && saslToken[0] != 0 && saslConnAttempt++ == 0) {
+    tscDebug("SCRAM token expired at CONNECT for user:%s, retrying handshake (possible leader change)", user);
+    destroyRequest(pRequest);
+    pRequest = NULL;
+    goto _scram_reconnect;
   }
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
@@ -1862,7 +4405,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
   return code;
 }
 
-static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode) {
+static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
+                               const char* saslToken) {
   *pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (*pMsgSendInfo == NULL) {
     return terrno;
@@ -1901,8 +4445,15 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
 
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
-  tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  if (saslToken != NULL && saslToken[0] != 0) {
+    memset(connectReq.passwd, 0, sizeof(connectReq.passwd));
+  } else {
+    tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  }
   tstrncpy(connectReq.token, pObj->token, sizeof(connectReq.token));
+  if (saslToken != NULL) {
+    tstrncpy(connectReq.saslToken, saslToken, sizeof(connectReq.saslToken));
+  }
   tstrncpy(connectReq.sVer, td_version, sizeof(connectReq.sVer));
   tSignConnectReq(&connectReq);
 
@@ -2109,6 +4660,18 @@ _exit:
   }
 }
 
+/*
+ * The three credential-bearing connect variants are recorded as diagnostic events
+ * only: the secret (TOTP code, auth string, token) is never passed to the recorder,
+ * so replay cannot reissue these calls and rejects such a session before dispatch
+ * (DS 6.7.1). What IS recorded is endpoint/user/db/port and the API type, so the
+ * trace shows which auth method the application actually used.
+ *
+ * The logical conn ID is minted here for the same reason taos_connect mints one.
+ * A running recorder covers nested connects whose own BEGIN was skipped but whose
+ * later queries are outermost. A recorded token covers the shutdown transition while
+ * the real connect is in flight. Both paths require a non-zero CONN_ID (TS API007).
+ */
 TAOS* taos_connect_totp(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
                         uint16_t port) {
   tscInfo("try to connect to %s:%u by totp, user:%s db:%s", ip, port, user, db);
@@ -2120,20 +4683,35 @@ TAOS* taos_connect_totp(const char* ip, const char* user, const char* pass, cons
     pass = TSDB_DEFAULT_PASS;
   }
 
+  (void)taos_init();
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_TOTP, ip, user, db, port);
+
   STscObj* pObj = NULL;
   int32_t  code = taos_connect_internal(ip, user, pass, totp, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos_connect_totp to %s:%u, user:%s db:%s", ip, port, user, db);
+      /* Explicit rather than terrno: the connect above succeeded, so terrno holds
+       * whatever that path last set. taosMemoryCalloc does set OOM, but naming the
+       * code keeps the recorded value correct regardless of intervening calls. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
+      /* The connection succeeded, so it must be released before bailing out -- as the
+       * taos_connect_auth path below already does. Pre-existing leak, fixed here
+       * because this function is being touched anyway. */
+      taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -2155,20 +4733,37 @@ int taos_connect_test(const char* ip, const char* user, const char* pass, const 
 TAOS* taos_connect_token(const char* ip, const char* token, const char* db, uint16_t port) {
   tscInfo("try to connect to %s:%u by token, db:%s", ip, port, db);
 
+  (void)taos_init();
+  /* No user is supplied by this API -- the token carries the identity. NULL is
+   * recorded as-is rather than invented. */
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_TOKEN, ip, NULL, db, port);
+
   STscObj* pObj = NULL;
   int32_t  code = taos_connect_by_auth(ip, NULL, token, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos_connect_token to %s:%u db:%s", ip, port, db);
+      /* Explicit rather than terrno: the connect above succeeded, so terrno holds
+       * whatever that path last set. taosMemoryCalloc does set OOM, but naming the
+       * code keeps the recorded value correct regardless of intervening calls. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
+      /* The connection succeeded, so it must be released before bailing out -- as the
+       * taos_connect_auth path below already does. Pre-existing leak, fixed here
+       * because this function is being touched anyway. */
+      taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -2178,8 +4773,20 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     user = TSDB_DEFAULT_USER;
   }
 
+  (void)taos_init();
+  /* Recorded before the auth check, so a rejected attempt still appears in the
+   * trace. taos_connect_totp and taos_connect_token have no such early return and
+   * always open a token; leaving this one behind the validation meant an application
+   * calling with no auth info produced an untraced connect, which is exactly the
+   * failure an operator would come to the recording to explain. The secret is not an
+   * argument here either way (FS 6.2) -- only endpoint/user/db/port are recorded. */
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_AUTH, ip, user, db, port);
+
   if (auth == NULL) {
     tscError("No auth info is given, failed to connect to server");
+    terrno = TSDB_CODE_INVALID_PARA;
+    WLR_API_END_CODE(&wlrTok, TSDB_CODE_INVALID_PARA);
     return NULL;
   }
 
@@ -2189,12 +4796,29 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      /* Explicit rather than terrno: see the note on the other connect OOM paths. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
+      taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
+  } else {
+    terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
+}
+
+static int32_t getResultSchemaBytes(int8_t type, int32_t bytes, bool isStmt) {
+  // BLOB field bytes already represent the maximum encoded value size,
+  // including BLOBSTR_HEADER_SIZE.
+  if (isStmt || IS_STR_DATA_BLOB(type)) return bytes;
+  if (type == TSDB_DATA_TYPE_JSON) return tDataTypes[type].bytes;
+  return calcSchemaBytesFromTypeBytes(type, bytes, false);
 }
 
 void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
@@ -2202,19 +4826,18 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->userFields[i].bytes, false);
+    int32_t schemaBytes = getResultSchemaBytes(type, pResultInfo->userFields[i].bytes, false);
 
     if (IS_VAR_DATA_TYPE(type)) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
-        if (IS_STR_DATA_BLOB(type)) {
-          pResultInfo->length[i] = blobDataLen(pStart);
-          pResultInfo->row[i] = blobDataVal(pStart);
-        } else {
-          pResultInfo->length[i] = varDataLen(pStart);
-          pResultInfo->row[i] = varDataVal(pStart);
-        }
+        // setResultDataPtr already validated the cell against the encoded
+        // column buffer. Virtual columns may contain complete source values
+        // wider than the declared result field; preserve their actual length.
+        int32_t cellLen = IS_STR_DATA_BLOB(type) ? blobDataLen(pStart) : varDataLen(pStart);
+        pResultInfo->length[i] = cellLen;
+        pResultInfo->row[i] = IS_STR_DATA_BLOB(type) ? blobDataVal(pStart) : varDataVal(pStart);
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;
@@ -2298,7 +4921,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // All data has returned to App already, no need to try again
     if (pResultInfo->completed) {
       pResultInfo->numOfRows = 0;
-      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+      CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
       return NULL;
     }
 
@@ -2349,16 +4972,13 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bool isStmt) {
+static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, C2M, pResultInfo->charsetCxt);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes =
-        calcSchemaBytesFromTypeBytes(pResultInfo->fields[i].type, pResultInfo->fields[i].bytes, isStmt);
-
     if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
@@ -2374,11 +4994,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bo
           char* pStart = pCol->offset[j] + pCol->pData;
 
           int32_t len = taosUcs4ToMbsEx((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p), conv);
-          if (len < 0 || len > schemaBytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])) {
-            tscError(
-                "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
-                "colLength[i]):%p",
-                len, schemaBytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
+          size_t remaining = (size_t)(pResultInfo->convertBuf[i] + colLength[i] - p);
+          if (len < 0 || (size_t)len + VARSTR_HEADER_SIZE > remaining) {
+            tscError("doConvertUCS4 error, invalid converted length:%d, remaining:%zu", len, remaining);
             taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
@@ -2434,78 +5052,172 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
-static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
-  char*   p = (char*)pResultInfo->pData;
-  int32_t blockVersion = *(int32_t*)p;
-
-  int32_t numOfRows = pResultInfo->numOfRows;
-  int32_t numOfCols = pResultInfo->numOfCols;
-
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
-  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if (numOfCols != cols) {
-    tscError("estimateJsonLen error: numOfCols:%d != cols:%d", numOfCols, cols);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
+static int32_t validateResultBlockSchema(const SReqResultInfo* pResultInfo, bool isStmt) {
+  const char* pData = pResultInfo->pData;
+  int32_t     rows = 0;
+  int32_t     cols = 0;
+  memcpy(&rows, pData + sizeof(int32_t) * 2, sizeof(rows));
+  memcpy(&cols, pData + sizeof(int32_t) * 3, sizeof(cols));
+  if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
+    tscError("invalid result block dimensions, rows:%d/%" PRIu64 ", cols:%d/%u", rows,
+             pResultInfo->numOfRows, cols, pResultInfo->numOfCols);
+    return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t  len = getVersion1BlockMetaSize(p, numOfCols);
+  size_t schemaOffset = sizeof(int32_t) * 5 + sizeof(uint64_t);
+  for (int32_t i = 0; i < cols; ++i) {
+    int8_t type = TSDB_DATA_TYPE_NULL;
+    int32_t bytes = 0;
+    memcpy(&type, pData + schemaOffset, sizeof(type));
+    schemaOffset += sizeof(type);
+    memcpy(&bytes, pData + schemaOffset, sizeof(bytes));
+    schemaOffset += sizeof(bytes);
+
+    const TAOS_FIELD_E* pField = &pResultInfo->fields[i];
+    int32_t             schemaBytes = bytes;
+    uint8_t             precision = 0;
+    uint8_t             scale = 0;
+    if (IS_DECIMAL_TYPE(type)) extractDecimalTypeInfoFromBytes(&schemaBytes, &precision, &scale);
+
+    // Decimal conversion changes field bytes to the string buffer width.
+    // Encoded blocks retain the physical decimal width across fetches.
+    int32_t expectedBytes = IS_DECIMAL_TYPE(pField->type)
+                                ? tDataTypes[pField->type].bytes
+                                : getResultSchemaBytes(pField->type, pField->bytes, isStmt);
+    // Variable-width block schemas describe storage chosen by the producer,
+    // while result fields describe the SQL type. Constant folding may narrow
+    // a block, and virtual columns may retain a wider source type. Validate
+    // their offsets and value lengths against the payload, not field width.
+    bool bytesMismatch = !IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_NULL && schemaBytes != expectedBytes;
+    // Virtual-table sort blocks can omit decimal metadata (0/0). Conversion
+    // uses the SQL result metadata in that case; reject explicit conflicts.
+    bool decimalMismatch = IS_DECIMAL_TYPE(type) && pField->precision != 0 && (precision != 0 || scale != 0) &&
+                           (precision != pField->precision || scale != pField->scale);
+    if (type != pField->type || bytesMismatch || decimalMismatch) {
+      tscError("result block schema mismatch at col:%d, type:%d/%d, bytes:%d/%d, precision:%u/%u, scale:%u/%u", i,
+               type, pField->type, schemaBytes, expectedBytes, precision, pField->precision, scale, pField->scale);
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addJsonBufferSize(size_t* pTotal, size_t bytes) {
+  if (bytes > INT32_MAX || *pTotal > (size_t)INT32_MAX - bytes) return TSDB_CODE_INVALID_MSG;
+  *pTotal += bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct {
+  char*  value;
+  size_t length;
+} SJsonStringCacheEntry;
+
+static void destroyJsonStringCache(SArray* cache) {
+  if (cache == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(cache); ++i) {
+    SJsonStringCacheEntry* entry = taosArrayGet(cache, i);
+    if (entry != NULL) taosMemoryFree(entry->value);
+  }
+  taosArrayDestroy(cache);
+}
+
+static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t* pDataLen, SArray** jsonStringCache) {
+  char*   p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
+  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
+  if (numOfCols != cols) return TSDB_CODE_INVALID_MSG;
+
+  size_t   len = (size_t)getVersion1BlockMetaSize(p, numOfCols);
   int32_t* colLength = (int32_t*)(p + len);
-  len += sizeof(int32_t) * numOfCols;
+  int32_t  code = addJsonBufferSize(&len, (size_t)numOfCols * sizeof(int32_t));
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   char* pStart = p + len;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen = blockVersion == BLOCK_VERSION_1 ? htonl(colLength[i]) : colLength[i];
+    size_t  columnMetaLen = IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)
+                                ? (size_t)numOfRows * sizeof(int32_t)
+                                : (size_t)BitmapLen(numOfRows);
+    code = addJsonBufferSize(&len, columnMetaLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
-      int32_t  lenTmp = numOfRows * sizeof(int32_t);
-      len += lenTmp;
-      pStart += lenTmp;
-
-      int32_t estimateColLen = 0;
+      pStart += columnMetaLen;
+      size_t estimateColLen = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
-        if (offset[j] == -1) {
-          continue;
+        if (offset[j] == -1 || (colLen == 0 && offset[j] == 0)) continue;
+        if (offset[j] < 0 || offset[j] >= colLen) return TSDB_CODE_INVALID_MSG;
+
+        char*  data = offset[j] + pStart;
+        size_t jsonValueLen = 0;
+        if (!blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, data, (size_t)(colLen - offset[j]),
+                                            &jsonValueLen)) {
+          return TSDB_CODE_INVALID_MSG;
         }
-        char* data = offset[j] + pStart;
 
         int32_t jsonInnerType = *data;
         char*   jsonInnerData = data + CHAR_BYTES;
+        size_t  convertedLen = 0;
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-          estimateColLen += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
+          convertedLen = VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L);
         } else if (tTagIsJson(data)) {
-          estimateColLen += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
-        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
-          estimateColLen += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
+          char* jsonString = NULL;
+          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
+          if (jsonString == NULL) return terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+          size_t jsonStrLen = strlen(jsonString);
+          if (jsonStrLen > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            taosMemoryFree(jsonString);
+            return TSDB_CODE_INVALID_MSG;
+          }
+          SJsonStringCacheEntry entry = {.value = jsonString, .length = jsonStrLen};
+          if (*jsonStringCache == NULL) {
+            *jsonStringCache = taosArrayInit(0, sizeof(SJsonStringCacheEntry));
+            if (*jsonStringCache == NULL) {
+              taosMemoryFree(jsonString);
+              return terrno;
+            }
+          }
+          if (taosArrayPush(*jsonStringCache, &entry) == NULL) {
+            taosMemoryFree(jsonString);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          convertedLen = VARSTR_HEADER_SIZE + jsonStrLen;
+        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {
+          convertedLen = varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-          estimateColLen += (VARSTR_HEADER_SIZE + 32);
+          double value = 0;
+          memcpy(&value, jsonInnerData, sizeof(value));
+          int32_t printedLen = snprintf(NULL, 0, "%.9lf", value);
+          if (printedLen < 0 || printedLen > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            return TSDB_CODE_INVALID_MSG;
+          }
+          convertedLen = VARSTR_HEADER_SIZE + (size_t)printedLen;
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-          estimateColLen += (VARSTR_HEADER_SIZE + 5);
-        } else if (IS_STR_DATA_BLOB(jsonInnerType)) {
-          estimateColLen += (BLOBSTR_HEADER_SIZE + 32);
+          convertedLen = VARSTR_HEADER_SIZE + 5;
         } else {
-          tscError("estimateJsonLen error: invalid type:%d", jsonInnerType);
-          return -1;
+          return TSDB_CODE_INVALID_MSG;
         }
+        code = addJsonBufferSize(&estimateColLen, convertedLen);
+        if (code != TSDB_CODE_SUCCESS) return code;
       }
-      len += TMAX(colLen, estimateColLen);
-    } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
-      int32_t lenTmp = numOfRows * sizeof(int32_t);
-      len += (lenTmp + colLen);
-      pStart += lenTmp;
+      code = addJsonBufferSize(&len, TMAX((size_t)colLen, estimateColLen));
     } else {
-      int32_t lenTmp = BitmapLen(pResultInfo->numOfRows);
-      len += (lenTmp + colLen);
-      pStart += lenTmp;
+      pStart += columnMetaLen;
+      code = addJsonBufferSize(&len, (size_t)colLen);
     }
+    if (code != TSDB_CODE_SUCCESS) return code;
     pStart += colLen;
   }
 
-  // Ensure the complete structure of the block, including the blankfill field,
-  // even though it is not used on the client side.
-  len += sizeof(bool);
-  return len;
+  code = addJsonBufferSize(&len, sizeof(bool));
+  if (code != TSDB_CODE_SUCCESS) return code;
+  *pDataLen = (int32_t)len;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
@@ -2525,24 +5237,28 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 
   tscDebug("start to convert form json format string");
 
+  SArray* jsonStringCache = NULL;
+  int32_t jsonStringCacheIndex = 0;
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
-  int32_t dataLen = estimateJsonLen(pResultInfo);
-  if (dataLen <= 0) {
-    tscError("doConvertJson error: estimateJsonLen failed");
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
+  int32_t dataLen = 0;
+  int32_t code = estimateJsonLen(pResultInfo, &dataLen, &jsonStringCache);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
 
   taosMemoryFreeClear(pResultInfo->convertJson);
   pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
-  if (pResultInfo->convertJson == NULL) return terrno;
+  if (pResultInfo->convertJson == NULL) {
+    code = terrno;
+    goto _return;
+  }
   char* p1 = pResultInfo->convertJson;
 
-  int32_t totalLen = 0;
+  size_t totalLen = 0;
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
   if (numOfCols != cols) {
     tscError("doConvertJson error: numOfCols:%d != cols:%d", numOfCols, cols);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
   }
 
   int32_t len = getVersion1BlockMetaSize(p, numOfCols);
@@ -2567,7 +5283,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
     int32_t colLen1 = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength1[i]) : colLength1[i];
     if (colLen >= dataLen) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
-      return TSDB_CODE_TSC_INTERNAL_ERROR;
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto _return;
     }
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -2580,10 +5297,21 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 
       len = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
-        if (offset[j] == -1) {
+        if (offset[j] == -1 || (colLen == 0 && offset[j] == 0)) {
           continue;
         }
-        char* data = offset[j] + pStart;
+        if (offset[j] < 0 || offset[j] >= colLen) {
+          tscError("doConvertJson error: invalid offset:%d, colLen:%d", offset[j], colLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
+        char*  data = offset[j] + pStart;
+        size_t jsonValueLen = 0;
+        if (!blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, data, (size_t)(colLen - offset[j]), &jsonValueLen)) {
+          tscError("doConvertJson error: invalid json cell at offset:%d, colLen:%d", offset[j], colLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
 
         int32_t jsonInnerType = *data;
         char*   jsonInnerData = data + CHAR_BYTES;
@@ -2592,31 +5320,40 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
-          char* jsonString = NULL;
-          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
-          if (jsonString == NULL) {
-            tscError("doConvertJson error: parseTagDatatoJson failed");
-            return terrno;
+          SJsonStringCacheEntry* entry = taosArrayGet(jsonStringCache, jsonStringCacheIndex++);
+          if (entry == NULL || entry->value == NULL || entry->length > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            tscError("doConvertJson error: missing or invalid cached JSON string at index:%d",
+                     jsonStringCacheIndex - 1);
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
           }
-          STR_TO_VARSTR(dst, jsonString);
-          taosMemoryFree(jsonString);
+          varDataSetLen(dst, entry->length);
+          memcpy(varDataVal(dst), entry->value, entry->length);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
+          if (varDataLen(jsonInnerData) > TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2) {
+            tscError("doConvertJson error: json nchar value too long:%u", varDataLen(jsonInnerData));
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
+          }
           *(char*)varDataVal(dst) = '\"';
           char    tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(tmp),
                                          pResultInfo->charsetCxt);
           if (length <= 0) {
-            tscError("charset:%s to %s. convert failed.", DEFAULT_UNICODE_ENCODEC,
-                     pResultInfo->charsetCxt != NULL ? ((SConvInfo*)(pResultInfo->charsetCxt))->charset : tsCharset);
             length = 0;
           }
           int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,
                                                  varDataVal(tmp), length);
+          if (escapeLength < 0) {
+            tscError("doConvertJson error: escaped json value too long");
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
+          }
           varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
-          tscError("value:%s.", varDataVal(dst));
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-          double jsonVd = *(double*)(jsonInnerData);
+          double jsonVd = 0;
+          memcpy(&jsonVd, jsonInnerData, sizeof(jsonVd));
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
@@ -2625,12 +5362,19 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
           tscError("doConvertJson error: invalid type:%d", jsonInnerType);
-          return TSDB_CODE_TSC_INTERNAL_ERROR;
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
         }
 
+        size_t convertedLen = varDataTLen(dst);
+        if (totalLen + (size_t)len + convertedLen > (size_t)dataLen) {
+          tscError("doConvertJson error: converted json exceeds estimate:%d", dataLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
         offset1[j] = len;
-        (void)memcpy(pStart1 + len, dst, varDataTLen(dst));
-        len += varDataTLen(dst);
+        (void)memcpy(pStart1 + len, dst, convertedLen);
+        len += (int32_t)convertedLen;
       }
       colLen1 = len;
       totalLen += colLen1;
@@ -2641,10 +5385,20 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
       pStart += len;
       pStart1 += len;
       totalLen += len;
+      if (totalLen + (size_t)colLen > (size_t)dataLen) {
+        tscError("doConvertJson error: column length:%d exceeds estimate:%d", colLen, dataLen);
+        code = TSDB_CODE_TSC_INTERNAL_ERROR;
+        goto _return;
+      }
       totalLen += colLen;
       (void)memcpy(pStart1, pStart, colLen);
     } else {
       len = BitmapLen(pResultInfo->numOfRows);
+      if (totalLen + (size_t)len + (size_t)colLen > (size_t)dataLen) {
+        tscError("doConvertJson error: fixed column length:%d exceeds estimate:%d", colLen, dataLen);
+        code = TSDB_CODE_TSC_INTERNAL_ERROR;
+        goto _return;
+      }
       (void)memcpy(pStart1, pStart, len);
       pStart += len;
       pStart1 += len;
@@ -2659,11 +5413,20 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   // Ensure the complete structure of the block, including the blankfill field,
   // even though it is not used on the client side.
   // (void)memcpy(pStart1, pStart, sizeof(bool));
+  if (totalLen + sizeof(bool) > (size_t)dataLen) {
+    tscError("doConvertJson error: total length:%zu exceeds estimate:%d", totalLen + sizeof(bool), dataLen);
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
+  }
   totalLen += sizeof(bool);
 
-  *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
+  *(int32_t*)(pResultInfo->convertJson + 4) = (int32_t)totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
-  return TSDB_CODE_SUCCESS;
+  code = TSDB_CODE_SUCCESS;
+
+_return:
+  destroyJsonStringCache(jsonStringCache);
+  return code;
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt) {
@@ -2682,7 +5445,20 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  int32_t code = doPrepareResPtr(pResultInfo);
+  if (pResultInfo->payloadLen <= 0) {
+    tscError("setResultDataPtr error: invalid payloadLen:%d", pResultInfo->payloadLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t code = blockDataValidateEncoding(pResultInfo->pData, (size_t)pResultInfo->payloadLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("setResultDataPtr error: invalid encoded result block");
+    return code;
+  }
+  code = validateResultBlockSchema(pResultInfo, isStmt);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = doPrepareResPtr(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -2753,6 +5529,13 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     }
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
+      if (colLength[i] == 0) {
+        // Older producers use zero offsets for an empty variable column.
+        // Match blockDecode's NULL normalization before exposing row pointers.
+        for (int32_t row = 0; row < pResultInfo->numOfRows; ++row) {
+          pResultInfo->pCol[i].offset[row] = -1;
+        }
+      }
       pStart += pResultInfo->numOfRows * sizeof(int32_t);
     } else {
       pResultInfo->pCol[i].nullbitmap = pStart;
@@ -2778,7 +5561,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
 
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, colLength, isStmt);
+    code = doConvertUCS4(pResultInfo, colLength);
   }
 #endif
   if (TSDB_CODE_SUCCESS == code && convertForDecimal) {
@@ -2811,6 +5594,26 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
 
   (void)taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  // Switching to a local DB clears any active external source context
+  pTscObj->extSource[0] = '\0';
+  pTscObj->extNs1[0]    = '\0';
+  pTscObj->extNs2[0]    = '\0';
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+void setConnectionExtSource(STscObj* pTscObj, const char* srcName,
+                            const char* ns1, const char* ns2) {
+  if (pTscObj == NULL || srcName == NULL) return;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  // Switching to an external source must drop the local DB context.
+  // Otherwise subsequent 1-seg table refs are expanded to local_db.table
+  // before parser-side external USE fallback gets a chance to run.
+  pTscObj->db[0] = '\0';
+  tstrncpy(pTscObj->extSource, srcName, sizeof(pTscObj->extSource));
+  if (ns1 && ns1[0]) tstrncpy(pTscObj->extNs1, ns1, sizeof(pTscObj->extNs1));
+  else pTscObj->extNs1[0] = '\0';
+  if (ns2 && ns2[0]) tstrncpy(pTscObj->extNs2, ns2, sizeof(pTscObj->extNs2));
+  else pTscObj->extNs2[0] = '\0';
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
@@ -2840,6 +5643,11 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   // decompress data if needed
   int32_t payloadLen = htonl(pRsp->payloadLen);
+  int32_t wirePayloadLen = htonl(pRsp->compLen);
+  if (payloadLen < 0 || wirePayloadLen < 0) {
+    tscError("setQueryResultFromRsp: invalid payloadLen:%d wirePayloadLen:%d", payloadLen, wirePayloadLen);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
 
   if (pRsp->compressed) {
     if (pResultInfo->decompBuf == NULL) {
@@ -2864,12 +5672,33 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   }
 
   if (payloadLen > 0) {
+    if (payloadLen < PAYLOAD_PREFIX_LEN || wirePayloadLen < PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: invalid payloadLen:%d wirePayloadLen:%d", payloadLen, wirePayloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+
     int32_t compLen = *(int32_t*)pRsp->data;
     int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
+    if (compLen < 0 || rawLen < 0 || compLen > rawLen) {
+      tscError("setQueryResultFromRsp: invalid compLen:%d rawLen:%d", compLen, rawLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+    if (compLen > wirePayloadLen - PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: compLen:%d exceeds wire payload:%d", compLen, wirePayloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+    if (rawLen > payloadLen - PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: rawLen:%d exceeds payload:%d", rawLen, payloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
 
     char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
 
     if (pRsp->compressed && compLen < rawLen) {
+      if (rawLen > pResultInfo->decompBufSize) {
+        tscError("setQueryResultFromRsp: rawLen:%d exceeds decompBuf size:%d", rawLen, pResultInfo->decompBufSize);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
       int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
       if (len < 0) {
         tscError("tsDecompressString failed");
@@ -2883,8 +5712,8 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
       pResultInfo->payloadLen = rawLen;
     } else {
       pResultInfo->pData = pStart;
-      pResultInfo->payloadLen = htonl(pRsp->compLen);
-      if (pRsp->compLen != pRsp->payloadLen) {
+      pResultInfo->payloadLen = rawLen;
+      if (wirePayloadLen != payloadLen) {
         tscError("pRsp->compLen:%d != pRsp->payloadLen:%d", pRsp->compLen, pRsp->payloadLen);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }
@@ -2933,7 +5762,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (TSDB_CODE_SUCCESS != taosVersionStrToInt(td_version, &rpcInit.compatibilityVer)) {
-    tscError("faild to convert taos version from str to int, errcode:%s", terrstr());
+    tscError("failed to convert taos version from str to int, errcode:%s", terrstr());
     goto _OVER;
   }
 
@@ -3206,13 +6035,33 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   }
 }
 
+static uint64_t wlrCompletePendingAsyncFailure(int32_t code, bool fromAsyncWrapper) {
+  if (!fromAsyncWrapper) return 0;
+  SWorkloadCallToken token = {0};
+  wlrTakePendingAsyncCall(&token.callId, &token.beginMonoNs, &token.apiType);
+  if (token.callId == 0) return 0;
+  token.recorded = true;
+  SWorkloadDoneArgs done = {0};
+  done.code = code;
+  wlrAsyncDone(&token, &done);
+  return token.callId;
+}
+
+static void wlrInvokeAsyncFailureCallback(__taos_async_fn_t fp, void *param, int32_t code,
+                                          uint64_t parentCallId) {
+  if (fp == NULL) return;
+  SWlrCallbackScope scope;
+  wlrCallbackScopeBegin(parentCallId, &scope);
+  fp(param, NULL, code);
+  wlrCallbackScopeEnd(&scope);
+}
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                        int8_t source) {
+                        int8_t source, bool fromAsyncWrapper) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    if (fp) {
-      fp(param, NULL, terrno);
-    }
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
 
     return;
   }
@@ -3221,7 +6070,8 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   if (sqlLen > (size_t)tsMaxSQLLength) {
     tscError("conn:0x%" PRIx64 ", sql string exceeds max length:%d", connId, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
@@ -3231,29 +6081,40 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   code = connCheckAndUpateMetric(connId);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   pRequest->source = source;
   pRequest->body.queryFp = fp;
-  doAsyncQuery(pRequest, false);
+
+  /* Taken, not read: consuming it prevents a later request on this thread from
+   * inheriting the ID if that path was not recorded (DS 6.8). All preflight checks
+   * are complete here. Once attached to pRequest, every doAsyncQuery failure path
+   * reaches doRequestCallback, which emits wlrAsyncDone before invoking the user. */
+  if (fromAsyncWrapper) {
+    wlrTakePendingAsyncCall(&pRequest->wlrAsyncCallId, &pRequest->wlrAsyncBeginMonoNs,
+                            &pRequest->wlrAsyncApiType);
+  }
+
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                                 int64_t reqid) {
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+                                 int64_t reqid, bool fromAsyncWrapper) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    if (fp) {
-      fp(param, NULL, terrno);
-    }
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
 
     return;
   }
@@ -3262,7 +6123,8 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   if (sqlLen > (size_t)tsMaxSQLLength) {
     tscError("conn:0x%" PRIx64 ", QID:0x%" PRIx64 ", sql string exceeds max length:%d", connId, reqid, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
@@ -3272,21 +6134,33 @@ void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, reqid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
+
+  pRequest->literal_by_stmt2 = stmt;
 
   code = connCheckAndUpateMetric(connId);
 
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   pRequest->body.queryFp = fp;
 
-  doAsyncQuery(pRequest, false);
+  /* Successful requests carry the token to doRequestCallback. Preflight failures
+   * consume it earlier, emit DONE, and invoke the synchronous failure callback in
+   * the original call's callback scope. */
+  if (fromAsyncWrapper) {
+    wlrTakePendingAsyncCall(&pRequest->wlrAsyncCallId, &pRequest->wlrAsyncBeginMonoNs,
+                            &pRequest->wlrAsyncApiType);
+  }
+
+  doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source) {
@@ -3306,7 +6180,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     return NULL;
   }
 
-  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
+  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source, false);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3347,7 +6221,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     return NULL;
   }
 
-  taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
+  taosAsyncQueryImplWithReqid(NULL, *(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid, false);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -3409,7 +6283,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, pResultInfo->numOfRows);
 }
 
-void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
+int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
   pRequest->body.fetchFp = fp;
   ((SSyncQueryParam*)pRequest->body.interParam)->userParam = param;
 
@@ -3418,15 +6292,15 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
   // this query has no results or error exists, return directly
   if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
 
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     // it is a local executed query, no need to do async fetch
     if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {
@@ -3440,7 +6314,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     }
 
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   SSchedulerReq req = {
@@ -3454,12 +6328,40 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
     // pRequest->body.fetchFp(param, pRequest, code);
   }
+  return code;
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
+  // The statement is done with the txn-local state: the next statement of the txn may run (before the user
+  // callback, which may well issue it).
+  tscTxnReleaseStmtSlot(pRequest);
 
   int64_t this = pRequest->self;
+  SRequestObj* pThis = acquireRequest(this);
+  if (pThis != pRequest) {
+    if (pThis != NULL) {
+      (void)releaseRequest(this);  // balance the (wrong-object) acquire above
+    }
+
+    if (pThis != NULL || !pRequest->killed) {
+      // A different live object occupies this id, or the id vanished for a request that was
+      // never killed -- genuine, unexplained corruption. Keep the hard stop.
+      // NOTE: internal logic error, not recoverable!!!
+      tscError("internal logic error: SRequestObj lifecycle management");
+      abort();
+    }
+
+    // Expected shutdown race: the owning connection/app instance was torn down concurrently
+    // (taos_close / process exit -> destroyAllRequests) and already reclaimed this request's id
+    // from clientReqRefPool before this in-flight completion could run. pRequest is still the
+    // exact object we were asked to complete (ref-counting guarantees it can't be freed out from
+    // under us), so deliver the callback instead of leaving the original caller blocked forever.
+    tscWarn("QID:0x%" PRIx64 ", req:0x%" PRIx64 ", request id reclaimed by a concurrent close "
+            "while delivering its completion; request was killed, continuing safely",
+            pRequest->requestId, pRequest->self);
+  }
+
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
       (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     code = TSDB_CODE_SUCCESS;
@@ -3476,13 +6378,63 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
            pRequest);
 
   if (pRequest->body.queryFp != NULL) {
+    /*
+     * Establish the callback context before handing control to user code, and clear
+     * it after (DS 6.8). A public API the user calls from inside this callback then
+     * records a parentCallId, which is how replay learns "not before that completed".
+     *
+     * Clearing is not optional: this thread is a driver completion thread and will
+     * run other callbacks. A stale value would attach an unrelated parent to a later
+     * call, and replay would wait on a dependency that has nothing to do with it
+     * (TS API027b). wlrCallbackBegin also temporarily clears an outer synchronous
+     * wrapper's depth, so callbacks reached on an error path can record their own
+     * public calls as children rather than being mistaken for nested implementation calls.
+     */
+    /*
+     * REQUEST_DONE, the third moment of an async call (DS 6.8). Emitted before the
+     * user callback runs, so it is ordered ahead of any API the callback itself
+     * records -- which will name this call as its parent via the context set below.
+     *
+     * The token is rebuilt from the fields carried on the request: the original was a
+     * stack object in the public wrapper and returned to the user long ago. recorded
+     * is set true because a non-zero Call ID can only have come from a recorded BEGIN.
+     */
+    if (pRequest->wlrAsyncCallId != 0 && pRequest->wlrResultId == 0 &&
+        TD_RES_QUERY(&pRequest->resType)) {
+      /* The asynchronous request first becomes a user-visible TAOS_RES here.
+       * Mint its ID before DONE and before user code can fetch/free the result. */
+      pRequest->wlrResultId = wlrNextResultId();
+    }
+
+    if (pRequest->wlrAsyncCallId != 0) {
+      SWorkloadCallToken wlrTok = {0};
+      wlrTok.callId = pRequest->wlrAsyncCallId;
+      wlrTok.beginMonoNs = pRequest->wlrAsyncBeginMonoNs;
+      wlrTok.apiType = pRequest->wlrAsyncApiType;
+      wlrTok.recorded = true;
+      /* depthOwner stays false: RETURN already unwound the depth on the originating
+       * thread, and this is a driver thread. wlrAsyncDone must not touch depth. */
+
+      SWorkloadDoneArgs wlrDone = {0};
+      wlrDone.code = code;
+      wlrDone.logicalResultId = pRequest->wlrResultId;
+      wlrDone.affectedRows = taos_affected_rows64(pRequest);
+      wlrAsyncDone(&wlrTok, &wlrDone);
+    }
+
+    /* User callbacks are C ABI callbacks and must return normally. A C++ exception or
+     * longjmp escaping this frame is unsupported by the client callback contract; C
+     * has no cleanup construct that can make the TLS and inCallback restoration safe
+     * across such a non-local exit. Save/restore handles supported nested callbacks. */
+    SWlrCallbackScope wlrScope;
+    wlrCallbackScopeBegin(pRequest->wlrAsyncCallId, &wlrScope);
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+    wlrCallbackScopeEnd(&wlrScope);
   }
 
-  SRequestObj* pReq = acquireRequest(this);
-  if (pReq != NULL) {
-    pReq->inCallback = false;
-    (void)releaseRequest(this);
+  pRequest->inCallback = false;
+  if (pThis == pRequest) {
+    (void)releaseRequest(this);  // NOTE: pairing `pThis = acquireRequest(this);`
   }
 }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,206 @@
 #include "parUtil.h"
 #include "tname.h"
 #include "ttime.h"
+
+bool qIsLiteralSql(const char* pStr) {
+  if (NULL == pStr || !*pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+  SToken t;
+
+again:
+
+  t.n = tGetToken(pSql, &t.type, NULL);
+  if (t.n == 0) return true;
+  if (t.type == TK_NK_QUESTION) return false;
+
+  pSql += t.n;
+
+  goto again;
+}
+
+#define MATCH(t) (token.type == t)
+#define ADVANCE() pSql = qNextToken(pSql, &token)
+#define RETURN_EXPECTING(msg) do {                                             \
+  (void)snprintf(pCtx->buf, sizeof(pCtx->buf),                                 \
+      "expecting %s, but got `%.*s`",                                          \
+      msg, token.n < 10 ? 10 : token.n, token.z);                              \
+  return TSDB_CODE_PAR_SYNTAX_ERROR;                                           \
+} while (0)
+
+static inline const char* qNextToken(const char *pStr, SToken *t) {
+again:
+  t->z = (char*)pStr;
+  t->n = tGetToken(pStr, &t->type, NULL);
+  if (t->n == 0) return pStr;
+  if (t->type != TK_NK_SPACE) return pStr + t->n;
+  pStr += t->n;
+  goto again;
+}
+
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr) {
+  // NOTE: only for insert into [db.]? (...) values (...)
+  pCtx->nr_params  = 0;
+
+  int nr_names = 0;
+  int nr_values = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const char* pSql = pStr;
+  SToken token;
+
+  ADVANCE();
+  if (!MATCH(TK_INSERT)) {
+    RETURN_EXPECTING("`insert`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_INTO)) {
+    RETURN_EXPECTING("`into`");
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_ID)) {
+    SToken db = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_DOT)) {
+      RETURN_EXPECTING("`.`");
+    }
+    ADVANCE();
+    if (!MATCH(TK_NK_QUESTION)) {
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
+    if (db.z + db.n + 1 + token.n != token.z + token.n) {
+      token.n = token.z + token.n - db.z;
+      token.z = db.z;
+      RETURN_EXPECTING("<ID>.?");
+    }
+    ++pCtx->nr_params;
+  } else if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+  } else {
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  }
+
+  ADVANCE();
+  if (MATCH(TK_USING)) {
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  }
+  if (MATCH(TK_NK_LP)) {
+    ADVANCE();
+again:
+    if (!MATCH(TK_NK_ID)) {
+      RETURN_EXPECTING("<ID>");
+    }
+    ++nr_names;
+    ADVANCE();
+    if (MATCH(TK_NK_COMMA)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_ID)) {
+        RETURN_EXPECTING("`<ID>`");
+      }
+      goto again;
+    } else if (!MATCH(TK_NK_RP)) {
+      RETURN_EXPECTING("`,` or `)`");
+    }
+    ADVANCE();
+  } else if (!MATCH(TK_VALUES)) {
+    RETURN_EXPECTING("`(` or `values`");
+  }
+
+  if (!MATCH(TK_VALUES)) {
+    if (MATCH(TK_USING)) {
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
+    RETURN_EXPECTING("`values`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_NK_LP)) {
+    RETURN_EXPECTING("`(`");
+  }
+
+  ADVANCE();
+
+next_value:
+  if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+    ++nr_values;
+    ADVANCE();
+  } else if (MATCH(TK_NK_INTEGER)
+      || MATCH(TK_NK_FLOAT)
+      || MATCH(TK_NK_STRING)
+      || MATCH(TK_NK_BOOL)
+      || MATCH(TK_NULL)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ++nr_values;
+    ADVANCE();
+  } else if (MATCH(TK_NK_MINUS)) {
+    SToken t1 = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_INTEGER) && !MATCH(TK_NK_FLOAT)) {
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    if (t1.n + token.n != token.z + token.n - t1.z) {
+      token = t1;
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    ADVANCE();
+    ++nr_values;
+  } else if (MATCH(TK_NOW)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
+    }
+    ++nr_values;
+  } else if (MATCH(TK_TODAY)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
+    }
+    ++nr_values;
+  } else {
+    RETURN_EXPECTING("`?` or <INTEGER> or <FLOAT> or <STRING>");
+  }
+
+  if (MATCH(TK_NK_COMMA)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ADVANCE();
+    goto next_value;
+  } else if (MATCH(TK_NK_RP)) {
+    if (nr_names && nr_values != nr_names) {
+      RETURN_EXPECTING("`,`");
+    }
+  } else {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    } else {
+      RETURN_EXPECTING("`,`");
+    }
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_SEMI)) return TSDB_CODE_SUCCESS;
+  if (token.n) {
+    RETURN_EXPECTING("<EOF>");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
@@ -466,6 +668,18 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
   return code;
 }
 
+static uint8_t inferTimestampPrecision(int64_t tsVal) {
+  // Preserve the timestamp precision convention used by statement bindings.
+  int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
+  if (absVal < 10000000000000LL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+  if (absVal < 10000000000000000LL) {
+    return TSDB_TIME_PRECISION_MICRO;
+  }
+  return TSDB_TIME_PRECISION_NANO;
+}
+
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, void *charsetCxt) {
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
@@ -520,6 +734,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
+      break;
+    }
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
@@ -530,6 +751,44 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
+}
+
+static uint8_t getDecimalBindScale(const char* value, int32_t len, uint8_t maxScale) {
+  int32_t fractionDigits = 0;
+  int32_t trailingZeros = 0;
+  int32_t exponentSign = 1;
+  int32_t exponentPos = len;
+  int64_t exponent = 0;
+  bool    afterPoint = false;
+
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == 'e' || value[i] == 'E') {
+      exponentPos = i + 1;
+      break;
+    }
+    if (value[i] == '.') {
+      afterPoint = true;
+    } else if (isdigit((unsigned char)value[i])) {
+      if (afterPoint) {
+        ++fractionDigits;
+      }
+      trailingZeros = value[i] == '0' ? trailingZeros + 1 : 0;
+    }
+  }
+
+  if (exponentPos < len && (value[exponentPos] == '+' || value[exponentPos] == '-')) {
+    exponentSign = value[exponentPos] == '-' ? -1 : 1;
+    ++exponentPos;
+  }
+  // Account for significand zeros even when a negative exponent shifts them
+  // into the fractional part. The bound still keeps exponent parsing safe.
+  int64_t exponentLimit = (int64_t)TMAX(fractionDigits, trailingZeros) + maxScale;
+  for (int32_t i = exponentPos; i < len && isdigit((unsigned char)value[i]); ++i) {
+    exponent = TMIN(exponent * 10 + value[i] - '0', exponentLimit);
+  }
+
+  int64_t scale = (int64_t)fractionDigits - trailingZeros - exponentSign * exponent;
+  return (uint8_t)TMAX(0, TMIN(scale, maxScale));
 }
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
@@ -547,8 +806,8 @@ static void rewriteQueryExprAlias(SNode* pRoot, int32_t* pNo) {
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOper = (SSetOperator*)pRoot;
-      rewriteQueryExprAlias(pSetOper->pLeft, pNo);
-      rewriteQueryExprAlias(pSetOper->pRight, pNo);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOper); ++i)
+        rewriteQueryExprAlias(setOperatorChildAt(pSetOper, i), pNo);
       break;
     }
     default:
@@ -673,6 +932,8 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
   taosArrayDestroy(pCatalogReq->pVStbRefDbs);
+  taosArrayDestroy(pCatalogReq->pExtSourceCheck);
+  taosArrayDestroy(pCatalogReq->pExtTableMeta);
 }
 
 void tfreeSParseQueryRes(void* p) {
@@ -819,67 +1080,41 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL64: {
-      // TSDB_DATA_TYPE_DECIMAL64: buffer may be string, need to convert to int64_t
-      // If buffer is string, convert it to decimal64 value first
-      if (pParam->length && *(pParam->length) > 0 && *(pParam->length) != sizeof(int64_t)) {
-        // Buffer is string, need to convert
-        uint8_t precision = pVal->node.resType.precision;
-        uint8_t scale = pVal->node.resType.scale;
-        // If precision/scale not set, use default (should not happen in normal case)
-        if (precision == 0 && scale == 0) {
-          precision = 18;
-          scale = 0;
-        }
-        Decimal64 dec = {0};
-        int32_t   code = decimal64FromStr((const char*)pParam->buffer, *(pParam->length), precision, scale, &dec);
-        if (code != TSDB_CODE_SUCCESS) {
-          return code;
-        }
-        int64_t value = DECIMAL64_GET_VALUE(&dec);
-        pVal->datum.i = value;
-        pVal->typeData = value;
-        pVal->node.resType.bytes = sizeof(int64_t);
-      } else {
-        // Buffer is already int64_t value, use it directly
-        int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
-        if (code) {
-          return code;
-        }
+      int32_t   strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t   precision = TSDB_DECIMAL64_MAX_PRECISION;
+      uint8_t   scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal64 dec = {0};
+      int32_t   code = decimal64FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
+      int64_t value = DECIMAL64_GET_VALUE(&dec);
+      pVal->datum.i = value;
+      pVal->typeData = value;
+      pVal->node.resType.bytes = sizeof(int64_t);
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
       break;
     }
     case TSDB_DATA_TYPE_DECIMAL: {
-      // TSDB_DATA_TYPE_DECIMAL: buffer is string, need to convert to decimal128 binary format
+      // Conversion can fail after rebinding a scalar whose union held no pointer.
+      pVal->datum.p = NULL;
       pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
-      pVal->datum.p = taosMemoryCalloc(1, pVal->node.resType.bytes);
+      int32_t    strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t    precision = TSDB_DECIMAL128_MAX_PRECISION;
+      uint8_t    scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal128 dec = {0};
+      int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pVal->datum.p = taosMemoryMalloc(pVal->node.resType.bytes);
       if (NULL == pVal->datum.p) {
         return terrno;
       }
-
-      // Check if buffer is string or already binary format
-      int32_t strLen = (pParam->length && *(pParam->length) > 0) ? *(pParam->length) : 0;
-      if (strLen > 0 && strLen != pVal->node.resType.bytes) {
-        // Buffer is string, need to convert to decimal128
-        uint8_t precision = pVal->node.resType.precision;
-        uint8_t scale = pVal->node.resType.scale;
-        // If precision/scale not set, use default (should not happen in normal case)
-        if (precision == 0 && scale == 0) {
-          precision = 38;
-          scale = 0;
-        }
-        Decimal128 dec = {0};
-        int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFree(pVal->datum.p);
-          pVal->datum.p = NULL;
-          return code;
-        }
-        // Copy decimal128 binary data
-        memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
-      } else {
-        // Buffer is already binary format, copy directly
-        memcpy(pVal->datum.p, pParam->buffer, pVal->node.resType.bytes);
-      }
+      memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
       break;
     }
     case TSDB_DATA_TYPE_BLOB:
@@ -888,30 +1123,16 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
     case TSDB_DATA_TYPE_TIMESTAMP: {
       // Auto-detect source precision from the magnitude of the int64 value.
       //
-      // Thresholds (absolute value):
-      //   < 10^13 → milliseconds
-      //   < 10^16 → microseconds
-      //   otherwise → nanoseconds
-      //
       // The raw (unconverted) value is stored together with the detected source
       // precision in pVal->node.resType.precision.  The actual conversion to the
       // DB's target precision is deferred to translateValueImpl(), which runs
       // after the statement is fully translated and SSelectStmt::precision is set.
       int64_t tsVal = *(int64_t*)pParam->buffer;
-      int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
-      uint8_t srcPrecision;
-      if (absVal < 10000000000000LL) {  // < 10^13
-        srcPrecision = TSDB_TIME_PRECISION_MILLI;
-      } else if (absVal < 10000000000000000LL) {  // < 10^16
-        srcPrecision = TSDB_TIME_PRECISION_MICRO;
-      } else {  // >= 10^16
-        srcPrecision = TSDB_TIME_PRECISION_NANO;
-      }
       pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
       pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
       // deferred; normalized to statement precision during translateWhere(),
       // before getQueryTimeRange derives pSelect->timeRange
-      pVal->node.resType.precision = srcPrecision;
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
       pVal->datum.i = tsVal;
       *(int64_t*)&pVal->typeData = tsVal;
       break;
@@ -926,6 +1147,14 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStmtRefreshQuery2(SQuery* pQuery) {
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  int32_t code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
+  if (code == TSDB_CODE_SUCCESS) rewriteExprAlias(pQuery->pRoot);
+  return code;
 }
 
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt) {
@@ -944,12 +1173,7 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
-    nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = NULL;
-    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    rewriteExprAlias(pQuery->pRoot);
+    code = qStmtRefreshQuery2(pQuery);
   }
   return code;
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -277,6 +279,46 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid) {
 }
 
 int32_t taosReleaseRef(int32_t rsetId, int64_t rid) { return taosDecRefCount(rsetId, rid, 0, NULL); }
+
+int32_t taosQueryRefState(int32_t rsetId, int64_t rid, int32_t* pCount, int32_t* pRemoved) {
+  int32_t   state = 0;
+  int32_t   hash = 0;
+  SRefNode* pNode = NULL;
+  SRefSet*  pSet = NULL;
+
+  if (pCount) *pCount = 0;
+  if (pRemoved) *pRemoved = 0;
+  if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS || rid <= 0) {
+    return 0;
+  }
+
+  (void)taosThreadOnce(&tsRefModuleInit, taosInitRefModule);
+  pSet = tsRefSetList + rsetId;
+  taosIncRsetCount(pSet);
+  if (pSet->state != TSDB_REF_STATE_ACTIVE) {
+    taosDecRsetCount(pSet);
+    return 0;
+  }
+
+  hash = rid % pSet->max;
+  taosLockList(pSet->lockedBy + hash);
+  pNode = pSet->nodeList[hash];
+  while (pNode) {
+    if (pNode->rid == rid) {
+      break;
+    }
+    pNode = pNode->next;
+  }
+  if (pNode) {
+    state = pNode->removed ? 2 : 1;
+    if (pCount) *pCount = pNode->count;
+    if (pRemoved) *pRemoved = pNode->removed;
+  }
+  taosUnlockList(pSet->lockedBy + hash);
+  taosDecRsetCount(pSet);
+
+  return state;
+}
 int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t *isReleased) {
   return taosDecRefCount(rsetId, rid, 0, isReleased);
 }

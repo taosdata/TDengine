@@ -1,10 +1,26 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.sqlset import TDSetSql
 
 import platform
 import os
-import time
+import pytest
 if platform.system().lower() == 'windows':
+    from datetime import datetime
     import tzlocal
 
 class TestFunTimezone:
@@ -47,7 +63,9 @@ class TestFunTimezone:
     def get_system_timezone(self):
         if platform.system().lower() == 'windows':
             time_zone_1 = tzlocal.get_localzone_name()
-            time_zone_2 = time.strftime('(UTC, %z)')
+            # Use IANA rules for both the abbreviation and offset. Windows CRT
+            # names differ from the timezone database used by TDengine.
+            time_zone_2 = datetime.now(tzlocal.get_localzone()).strftime('(%Z, %z)')
             time_zone = time_zone_1 + " " + time_zone_2
         else:
             time_zone_arr = os.popen('timedatectl | grep zone').read().strip().split(':')
@@ -213,8 +231,19 @@ class TestFunTimezone:
         rows = tdSql.getRows()
         for i in range(rows):
             if tdSql.getData(i, 0) == "timezone" :
-                if tdSql.getData(i, 1).find(timezone) == -1:
-                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1), timezone))
+                value = str(tdSql.getData(i, 1))
+                # The abbreviation inside the parentheses comes from the platform
+                # timezone database, so it legitimately differs: 'CST' where an
+                # abbreviation is available (Linux, and Windows with the registry
+                # data), 'UTC' where the backend has none, a localized name
+                # elsewhere.  Compare the zone name and the numeric offset, which
+                # are the parts the session timezone actually defines.
+                name, _, tail = value.partition(" (")
+                expected_name, _, expected_tail = timezone.partition(" (")
+                actual_offset = tail.rstrip(")").rsplit(",", 1)[-1].strip() if tail else ""
+                expected_offset = expected_tail.rstrip(")").rsplit(",", 1)[-1].strip() if expected_tail else ""
+                if name != expected_name or (expected_offset and actual_offset != expected_offset):
+                    tdLog.exit("show timezone:%s != %s"%(value, timezone))
 
     def charset_check(self, sql, charset):
         tdSql.query(sql)
@@ -233,7 +262,7 @@ class TestFunTimezone:
    
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -243,7 +272,7 @@ class TestFunTimezone:
         timezone = self.get_system_timezone()
         # timezone = "Asia/Shanghai"
         self.charset_check("show local variables", "UTF-8")
-        self.timezone_check("show dnode 1 variables", "UTF-8")
+        self.charset_check("show dnode 1 variables", "UTF-8")
         self.timezone_check("show local variables", timezone)
         self.timezone_check("show dnode 1 variables", timezone)
 
@@ -252,4 +281,64 @@ class TestFunTimezone:
         self.timezone_format_test()
 
         #tdSql.close()
+
+    def test_fun_sca_timezone_set_fixed_offset(self):
+        """summary: SET TIMEZONE with a fixed offset → TIMEZONE() returns fixed-offset representation.
+
+        description: After SET TIMEZONE '+08:00', SELECT TIMEZONE() must return a string
+                     whose prefix matches the original fixed-offset spec (e.g. '+08:00'),
+                     not an IANA name such as 'Asia/Shanghai'.  This verifies that the
+                     L2 session timezone is correctly reflected by TIMEZONE() when the
+                     caller uses a numeric fixed-offset rather than an IANA name.
+
+        Since: v3.4.2.0
+
+        Labels: timezone,common
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-06-01: Tony Zhang created
+        """
+        for offset in ['+08:00', '+05:30', '-05:00']:
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query("SELECT TIMEZONE()")
+            tdSql.checkRows(1)
+            result = str(tdSql.queryResult[0][0])
+            assert result.startswith(offset), (
+                f"TIMEZONE() after SET TIMEZONE '{offset}' should start with "
+                f"'{offset}', got: {result!r}"
+            )
+
+        # A bare fixed offset follows the POSIX sign convention (+ = west), so
+        # SET TIMEZONE '+08:00' must render the ISO offset '-08:00'.  This is the
+        # cross-platform consistency check: the Windows backend used to flip the
+        # sign a second time and produce '+08:00' here, i.e. a 16 hour difference
+        # from Linux for the very same session setting.
+        dbname = 'db_tz_fixed_offset'
+        tdSql.execute(f'create database if not exists {dbname}')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute('create table if not exists tz_fixed_offset (ts timestamp, c1 int)')
+        tdSql.execute('insert into tz_fixed_offset values (1640966400000, 1)')
+        iso_cases = {
+            '+08:00': '-08:00',
+            '+05:30': '-05:30',
+            '-05:00': '+05:00',
+            'Z': 'Z',
+        }
+        for offset, expected in iso_cases.items():
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query('select to_iso8601(ts) from tz_fixed_offset')
+            tdSql.checkRows(1)
+            rendered = str(tdSql.queryResult[0][0])
+            assert expected in rendered, (
+                f"SET TIMEZONE '{offset}' should render ISO offset '{expected}', "
+                f"got: {rendered!r}"
+            )
+        tdSql.execute('drop database if exists db_tz_fixed_offset')
+
+        tdSql.connect()
 

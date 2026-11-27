@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -51,6 +53,7 @@ int32_t mndDropViewByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndValidateDynViewVersion(SMnode *pMnode, SDynViewVersion* pReqVer, bool *needCheck, SDynViewVersion** ppRspVer);
 int32_t mndValidateViewInfo(SMnode *pMnode, SViewVersion *pViewVersions, int32_t numOfViews, void **ppRsp,
                            int32_t *pRspLen);
+int32_t mndBuildSCMCreateViewRsp(SMnode *pMnode, const char *viewFName, void **ppCont, int32_t *pContLen);
 
 #endif
 

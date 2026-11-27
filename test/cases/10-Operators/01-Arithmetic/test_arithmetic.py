@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 
 class TestArithmetic:
@@ -14,8 +29,7 @@ class TestArithmetic:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -265,9 +279,14 @@ class TestArithmetic:
         # not available
 
         # multi row result aggregation [d.4]
-        tdSql.error(f"select top(c1, 1) - bottom(c1, 1) from {tb}")
-        tdSql.error(f"select top(c1, 99) - bottom(c1, 99) from {tb}")
-        tdSql.query(f"      select top(c1,1) - 88 from {tb}")
+        tdSql.query(f"select top(c1, 1) - bottom(c1, 1) from {tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9)
+        tdSql.query(f"select top(c1, 99) - bottom(c1, 99) from {tb}")
+        tdSql.checkRows(99)
+        tdSql.checkData(0, 0, 9)
+        tdSql.checkData(98, 0, 9)
+        tdSql.query(f"select top(c1,1) - 88 from {tb}")
 
         # all data types [d.6] ================================================================
         tdSql.query(
@@ -384,8 +403,18 @@ class TestArithmetic:
         tdSql.checkData(9, 0, 9.500000000)
 
         # interval query [d.17]==================================================================
-        tdSql.error(f"select c2*c2, c3-c3, c4+9 from {tb} interval(1s)")
-        tdSql.error(f"select c7-c9 from {tb} interval(2y)")
+        tdSql.query(f"select c2*c2, c3-c3, c4+9 from {tb} interval(1s)")
+        tdSql.checkRows(rowNum)
+        for x in range(rowNum):
+            c = x % 10
+            tdSql.checkData(x, 0, float(c * c))
+            tdSql.checkData(x, 1, 0.0)
+            tdSql.checkData(x, 2, float(c + 9))
+
+        tdSql.query(f"select c7-c9 from {tb} interval(2y)")
+        tdSql.checkRows(rowNum)
+        for x in range(rowNum):
+            tdSql.checkData(x, 0, 1.0)
 
         # aggregation query [d.18]===============================================================
         # see test cases below
@@ -466,12 +495,15 @@ class TestArithmetic:
 
         # error cases
         tdSql.error(f"select first(c1, c2) - last(c1, c2) from {stb}")
-        tdSql.error(f"select top(c1, 5) - bottom(c1, 5) from {stb}")
+        tdSql.query(f"select top(c1, 5) - bottom(c1, 5) from {stb}")
+        tdSql.checkRows(5)
         tdSql.error(f"select first(*) - 99 from {stb}")
 
         # multi row result aggregation [d.4]
-        tdSql.error(f"select top(c1, 1) - bottom(c1, 1) from {stb}")
-        tdSql.error(f"select top(c1, 99) - bottom(c1, 99) from {stb}")
+        tdSql.query(f"select top(c1, 1) - bottom(c1, 1) from {stb}")
+        tdSql.checkRows(1)
+        tdSql.query(f"select top(c1, 99) - bottom(c1, 99) from {stb}")
+        tdSql.checkRows(99)
 
         # query on super table [d.5]=============================================================
         # all cases in this part are query on super table

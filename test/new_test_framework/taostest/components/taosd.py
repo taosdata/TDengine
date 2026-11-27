@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from ..util.file import dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -11,7 +26,13 @@ import time
 import re
 import platform
 import subprocess
+import socket
+import shlex
 from new_test_framework.utils.server.win_process import start_taosd_windows, stop_taosd_windows
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
 try:
     import taos
 except:
@@ -36,6 +57,41 @@ class TaosD:
                 self.taosc_valgrind = True
         self.run_time = time.strftime("%Y%m%d%H%M%S", time.localtime(time.time()))
         self._local_host = platform.node()
+
+    def _tail_file(self, path, line_count=20):
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()[-line_count:]
+            return " | ".join(line.rstrip() for line in lines if line.rstrip())
+        except OSError as err:
+            return f"failed to read {path}: {err}"
+
+    def _taosd_env_cmds(self, taosd_path):
+        if platform.system().lower() == "windows":
+            return []
+
+        lib_dir = os.path.normpath(os.path.join(os.path.dirname(taosd_path), os.pardir, "lib"))
+        return [f'export LD_LIBRARY_PATH="{lib_dir}:$LD_LIBRARY_PATH"']
+
+    def _taosd_screen_cmd(self, taosd_path, config_dir, error_output=None):
+        cmds = self._taosd_env_cmds(taosd_path)
+        if error_output:
+            cmds.extend([
+                'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
+                '$(realpath $(gcc -print-file-name=libstdc++.so))"',
+                'export ASAN_OPTIONS="detect_odr_violation=0"',
+                f'{taosd_path} -c {config_dir} 2>{error_output}',
+            ])
+            return f"screen -d -m bash -c '{' && '.join(cmds)}'"
+
+        cmds.append(f'{taosd_path} -c {config_dir}')
+        return f"screen -L -d -m bash -c '{' && '.join(cmds)}'"
+
+    def _taosd_start_with_nofile_limit(self, start_cmd):
+        if platform.system().lower() == "windows":
+            return start_cmd
+        return f"limit=$(ulimit -Hn); [ \"$limit\" = unlimited ] || [ \"$limit\" -gt 1048576 ] && limit=1048576; ulimit -n \"$limit\" && {start_cmd}"
+
     def check_status(self):
         pass
 
@@ -83,6 +139,118 @@ class TaosD:
         win.run_cmd('sc create taosd binpath= C:/TDengine/taosd.exe type= own start= auto displayname= taosd')
         win.run_cmd('net start taosd')
         
+    def _taosd_process_running(self, config_dir):
+        needle = config_dir.rstrip("/")
+        for proc in psutil.process_iter(["cmdline"]):
+            try:
+                cmdline = proc.info.get("cmdline") or []
+                joined = " ".join(cmdline)
+                if "taosd" in joined and needle in joined:
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return False
+
+    def _taosd_ps_count_cmd(self, config_dir):
+        return (
+            "ps -efww | grep -wi taosd | grep -F -- {needle} | "
+            "grep -v grep | grep -v defunct | wc -l"
+        ).format(needle=shlex.quote(config_dir))
+
+    def _taosd_wait_exit(self, fqdn, config_dir, timeout=15, poll_interval=0.2):
+        deadline = time.time() + timeout
+        if fqdn == "localhost" or fqdn == self._local_host:
+            while time.time() < deadline:
+                if not self._taosd_process_running(config_dir):
+                    return True
+                time.sleep(poll_interval)
+            return False
+
+        check_cmd = self._taosd_ps_count_cmd(config_dir)
+        while time.time() < deadline:
+            result = self._remote.cmd(fqdn, [check_cmd])
+            if result is None:
+                time.sleep(poll_interval)
+                continue
+            try:
+                if int(str(result).strip() or "0") == 0:
+                    return True
+            except ValueError:
+                self.logger.debug(
+                    "unexpected taosd process count while waiting for exit: %r", result
+                )
+            time.sleep(poll_interval)
+        return False
+
+    def _get_running_lock_files(self, dnode):
+        cfg = dnode.get("config", {})
+        data_dirs = cfg.get("dataDir")
+        if not data_dirs:
+            return []
+        if not isinstance(data_dirs, list):
+            data_dirs = [data_dirs]
+
+        lock_files = []
+        for entry in data_dirs:
+            data_dir = entry.split(" ", 1)[0] if isinstance(entry, str) else str(entry)
+            data_dir = data_dir.strip()
+            if data_dir:
+                lock_files.append(os.path.join(data_dir, ".running"))
+        return lock_files
+
+    def _running_lock_released_local(self, lock_file):
+        if not lock_file or not os.path.exists(lock_file):
+            return True
+        if fcntl is None:
+            return True
+
+        fd = None
+        try:
+            fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o666)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                return True
+            except BlockingIOError:
+                return False
+            except OSError as err:
+                self.logger.debug("probe running lock failed for %s: %s", lock_file, err)
+                return False
+        except OSError as err:
+            self.logger.debug("open running lock failed for %s: %s", lock_file, err)
+            return False
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+    def _taosd_wait_running_lock_release(self, fqdn, dnode, timeout=5, poll_interval=0.2):
+        lock_files = self._get_running_lock_files(dnode)
+        if not lock_files:
+            return True
+        if not (fqdn == "localhost" or fqdn == self._local_host):
+            return True
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if all(self._running_lock_released_local(lock_file) for lock_file in lock_files):
+                return True
+            time.sleep(poll_interval)
+        return False
+
+    def _dump_startup_diagnostics(self, log_file, asan_file):
+        for label, path in (("taosdlog", log_file), ("asan", asan_file)):
+            if not path or not os.path.exists(path):
+                continue
+            try:
+                with open(path, "r", errors="replace") as f:
+                    lines = f.readlines()
+                tail = "".join(lines[-40:])
+                self.logger.error(
+                    "[startup-diag] last lines of %s (%s):\n%s" % (label, path, tail)
+                )
+            except OSError as exc:
+                self.logger.error("[startup-diag] cannot read %s: %s" % (path, exc))
+
     def _configure_and_start(self, tmp_dir, dnode, common_cfg, index):
         cfg = common_cfg.copy()
         cfg["fqdn"], cfg["serverPort"] = dnode["endpoint"].split(":")
@@ -119,78 +287,104 @@ class TaosD:
         if dnode["endpoint"] != cfg["firstEP"]:
             createDnode = "create dnode '{0}'".format(dnode["endpoint"])
         if self.taosd_valgrind:
-            start_cmd = f"screen -L -d -m {valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}  "
+            cmds = self._taosd_env_cmds(taosd_path)
+            cmds.append(f"{valgrind_cmdline} {taosd_path} -c {dnode['config_dir']}")
+            start_cmd = f"screen -L -d -m bash -c '{' && '.join(cmds)}'"
         else:
+            if not self._taosd_wait_running_lock_release(cfg["fqdn"], dnode, timeout=10):
+                self.logger.error(
+                    "running lock is still held before starting taosd: %s",
+                    ", ".join(self._get_running_lock_files(dnode)),
+                )
             if error_output:
                 # do NOT set abort_on_error=1: it causes taosd to crash immediately on any ASAN
                 # error, making tmq_sim / polling loops hang forever waiting for a dead taosd.
                 # ASAN errors are still written to error_output and caught by checkAsan.sh.
-                asan_options = [
-                    "detect_odr_violation=0",
-                ]
-                cmds = [
-                    'export LD_PRELOAD="$(realpath $(gcc -print-file-name=libasan.so)) '
-                    '$(realpath $(gcc -print-file-name=libstdc++.so))"',
-                    f'export ASAN_OPTIONS="{":".join(asan_options)}"',
-                    f'{taosd_path} -c {dnode["config_dir"]} 2>{error_output}',
-                ]
-                run_cmd = " && ".join(cmds)
-                start_cmd = f"screen -d -m bash -c '{run_cmd}'"
-                self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
+                start_cmd = self._taosd_screen_cmd(taosd_path, dnode["config_dir"], error_output)
+                self._remote.cmd(cfg["fqdn"], [self._taosd_start_with_nofile_limit(start_cmd)])
             else:
                 if platform.system().lower() == "windows":
                     start_taosd_windows(taosd_path, dnode['config_dir'], log=self.logger)
                 else:
-                    start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
-                    self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
+                    start_cmd = self._taosd_screen_cmd(taosd_path, dnode["config_dir"])
+                    self._remote.cmd(cfg["fqdn"], [self._taosd_start_with_nofile_limit(start_cmd)])
         
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
             if index == 0:
+                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
                 key = 'from offline to online'
                 bkey = bytes(key, encoding="utf8")
                 logFile = os.path.join(self._run_log_dir, "taosdlog.0")
-                i = 0
-                while not os.path.exists(logFile):
+                _start_timeout = 180 if _asan_build else 60
+                _start_deadline = time.time() + _start_timeout
+                while not os.path.exists(logFile) and time.time() < _start_deadline:
                     time.sleep(0.1)
-                    i += 1
-                    if i > 50:
+                if not os.path.exists(logFile):
+                    detail = ""
+                    if error_output:
+                        detail = f"; stderr tail: {self._tail_file(error_output)}"
+                    msg = (
+                        f"wait too long for taosd log file (dnode:{index}, "
+                        f"log:{logFile}, timeout:{_start_timeout}s){detail}"
+                    )
+                    self.logger.error(msg)
+                    raise RuntimeError(msg)
+
+                timeout = time.time() + _start_timeout
+                while True:
+                    # Startup can replace/truncate the log after it first
+                    # appears. Reopen it instead of following an obsolete inode
+                    # forever (observed with the FQ timezone fixture).
+                    try:
+                        with open(logFile, "rb") as startup_log:
+                            ready = any(bkey in line for line in startup_log)
+                    except FileNotFoundError:
+                        ready = False
+                    if ready:
                         break
-                with open(logFile) as f:
-                    timeout = time.time() + 10 * 2
-                    while True:
-                        line = f.readline().encode('utf-8')
-                        if bkey in line:
-                            break
-                        if time.time() > timeout:
-                            self.logger.error('wait too long for taosd start')
-                            break
+                    if time.time() > timeout:
+                        msg = (
+                            f"wait too long for taosd start (dnode:{index}, "
+                            f"log:{logFile}); abort to avoid connecting to stale taosd"
+                        )
+                        self.logger.error(msg)
+                        self._dump_startup_diagnostics(logFile, error_output)
+                        raise RuntimeError(msg)
+                    time.sleep(0.1)
                 self.logger.debug("the dnode:%d has been started." % (index))
-                # Probe the connection until taosd is truly ready to serve queries.
+                # Probe the TCP port until taosd is truly ready to serve connections.
                 # "from offline to online" only means the dnode joined the cluster;
                 # the mnode Raft leader may still be restoring (0x0914) for several
                 # more seconds, especially under CI pressure load or with multi-node
-                # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
+                # clusters.  Keep retrying until the connection succeeds or timeout.
                 _probe_host = cfg.get("fqdn", "localhost")
                 _probe_port = int(cfg.get("serverPort", 6030))
-                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
                 _probe_timeout = 180 if _asan_build else 60
                 _probe_deadline = time.time() + _probe_timeout
+                _last_probe_err = None
                 while time.time() < _probe_deadline:
+                    if not self._taosd_process_running(dnode["config_dir"]):
+                        msg = "taosd process died during probe dnode:%d" % index
+                        self.logger.error(msg)
+                        self._dump_startup_diagnostics(logFile, error_output)
+                        raise RuntimeError(msg)
                     try:
-                        _conn = taos.connect(host=_probe_host, port=_probe_port)
-                        _conn.close()
-                        self.logger.debug("taosd ready (connection probe OK) dnode:%d" % index)
+                        _s = socket.create_connection((_probe_host, _probe_port), timeout=2)
+                        _s.close()
+                        self.logger.debug("taosd ready (TCP probe OK) dnode:%d" % index)
                         break
-                    except Exception as _probe_err:
+                    except OSError as _probe_err:
+                        _last_probe_err = _probe_err
                         self.logger.debug(
                             "taosd not ready yet dnode:%d (%s), retrying in 1s ..." % (index, _probe_err)
                         )
                         time.sleep(1)
                 else:
-                    self.logger.error(
-                        "taosd connection probe timed out after %ds for dnode:%d" % (_probe_timeout, index)
-                    )
+                    msg = "taosd connection probe timed out after %ds for dnode:%d" % (_probe_timeout, index)
+                    self.logger.error(msg)
+                    self._dump_startup_diagnostics(logFile, error_output)
+                    raise RuntimeError(msg)
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))
@@ -360,7 +554,7 @@ class TaosD:
                     host, port = dnode["endpoint"].split(":")
                     win=winrm.Session(f'http://{host}:5985/wsman',auth=('administrator','tbase125!'))
                     core_dir = f"{logDir}/data/{host}/coredump"
-                    os.system(f"mkdir -p {core_dir}")
+                    os.makedirs(core_dir, exist_ok=True)
                     # because the Windows environment executes test cases concurrently, taosd is shared, so when an error occurs, taosd cannot be stopped;  The log files will be occupied by the taosd process when collecting(copy)  logs, so taos and taosd log can't be collected at the same time;
                     # self._remote.cmd_windows(host, ["taskkill -f /im taosd.exe"])         
                     corePattern = self._remote.cmd_windows(host,["ls /C:/TDengine/taosd.dmp"])
@@ -483,14 +677,38 @@ class TaosD:
 
                 else:
                     if "asanDir" in i:
+                        match_cmd = (
+                            "ps -efww | grep -wi {name} | grep -F -- {cfg} | "
+                            "grep -v grep | grep -v defunct | awk '{{print $2}}'"
+                        ).format(
+                            name=nodeDict["name"],
+                            cfg=shlex.quote(i["config_dir"]),
+                        )
+                        killCmd = [f"{match_cmd} | xargs -r kill"]
                         if fqdn == "localhost":
-                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                             env = os.environ.copy()
                             env.pop('LD_PRELOAD', None)
-                            subprocess.run(killCmd, shell=True, text=True, env=env)
+                            subprocess.run(killCmd[0], shell=True, text=True, env=env)
                         else:
-                            killCmd = ["ps -efww | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
                             self._remote.cmd(fqdn, killCmd)
+
+                        if not self._taosd_wait_exit(fqdn, i["config_dir"], timeout=15):
+                            self.logger.info(
+                                "taosd still exiting after SIGTERM, escalate to SIGKILL: %s",
+                                i["config_dir"],
+                            )
+                            force_kill_cmd = [f"{match_cmd} | xargs -r kill -9"]
+                            if fqdn == "localhost":
+                                env = os.environ.copy()
+                                env.pop('LD_PRELOAD', None)
+                                subprocess.run(force_kill_cmd[0], shell=True, text=True, env=env)
+                            else:
+                                self._remote.cmd(fqdn, force_kill_cmd)
+                            if not self._taosd_wait_exit(fqdn, i["config_dir"], timeout=5):
+                                self.logger.error(
+                                    "taosd did not exit after SIGKILL: %s",
+                                    i["config_dir"],
+                                )
                     else:
                         check_cmd = f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | wc -l"
                         result = self._remote.cmd(fqdn, [check_cmd])
@@ -498,6 +716,16 @@ class TaosD:
                             killCmd = [
                                 f"ps -efww | grep -wi {nodeDict['name']} | grep {i['config_dir']} | grep -v grep | awk '{{print $2}}' | xargs kill -9 > /dev/null 2>&1"]
                             self._remote.cmd(fqdn, killCmd)
+                            if not self._taosd_wait_exit(fqdn, i["config_dir"], timeout=5):
+                                self.logger.error(
+                                    "taosd did not exit after destroy kill -9: %s",
+                                    i["config_dir"],
+                                )
+                        if not self._taosd_wait_running_lock_release(fqdn, i, timeout=10):
+                            self.logger.error(
+                                "running lock is still held after destroying taosd: %s",
+                                ", ".join(self._get_running_lock_files(i)),
+                            )
 
                     # if "system" in i.keys() and i["system"].lower() == "darwin":
                     #     stop_service_cmd = "launchctl unload /Library/LaunchDaemons/com.taosdata.taosd.plist"
@@ -544,9 +772,8 @@ class TaosD:
         config_dir = dnode["config_dir"]
         killCmd = "ps ef | grep %s | grep -v grep | awk '{print $1}' | xargs kill -9 " % config_dir
         sleepCmd = "sleep %s" % sleep_seconds
-        ulimitCmd = "ulimit -n 1048576"
-        startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        startCmd = self._taosd_screen_cmd(taosd_path, config_dir)
+        self._remote.cmd(fqdn, [f"{killCmd}; {sleepCmd}; {self._taosd_start_with_nofile_limit(startCmd)}"])
 
     def restart(self, dnode, sleep_seconds=1):
         """
@@ -557,9 +784,8 @@ class TaosD:
         config_dir = dnode["config_dir"]
         killCmd = "ps ef | grep %s | grep -v grep | awk '{print $1}' | xargs kill -9 " % config_dir
         sleepCmd = "sleep %s" % sleep_seconds
-        ulimitCmd = "ulimit -n 1048576"
-        startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [killCmd, sleepCmd, ulimitCmd, startCmd])
+        startCmd = self._taosd_screen_cmd(taosd_path, config_dir)
+        self._remote.cmd(fqdn, [f"{killCmd}; {sleepCmd}; {self._taosd_start_with_nofile_limit(startCmd)}"])
 
     def kill_by_config_dir(self, dnode):
         """
@@ -585,9 +811,8 @@ class TaosD:
         fqdn, _ = dnode["endpoint"].split(":")
         taosd_path = dnode["taosdPath"] if "taosdPath" in dnode else "/usr/bin/taosd"
         config_dir = dnode["config_dir"]
-        ulimitCmd = "ulimit -n 1048576"
-        startCmd = f"screen -L -d -m {taosd_path} -c {config_dir}"
-        self._remote.cmd(fqdn, [ulimitCmd, startCmd])
+        startCmd = self._taosd_screen_cmd(taosd_path, config_dir)
+        self._remote.cmd(fqdn, [self._taosd_start_with_nofile_limit(startCmd)])
 
     def _install(self, host, version, pkg):
         if pkg is None:
@@ -648,7 +873,8 @@ class TaosD:
                         dnode["config_dir"])
                     self._remote.cmd(cfg["fqdn"], [killCmd])
                     self._remote.cmd(
-                        cfg["fqdn"], ["ulimit -n 1048576", f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}"])
+                        cfg["fqdn"],
+                        [self._taosd_start_with_nofile_limit(self._taosd_screen_cmd(taosd_path, dnode["config_dir"]))])
                     taosd_process_count = self._remote.cmd(cfg["fqdn"], [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
                     if int(taosd_process_count) > 0:
                         ready_count = self._remote.cmd(cfg["fqdn"], [f'taos -s "show dnodes" | grep {cfg["firstEP"]} | grep ready | wc -l'])

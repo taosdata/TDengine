@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -51,6 +55,15 @@ class TestBenchmarkExcept:
         tdLog.exit("Timeout waiting for taosBenchmark process to start.")
         return []
 
+    def stop_leftover_benchmark(self, pids):
+        """Prevent a stuck benchmark from extending the CI case timeout."""
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                tdLog.info(f"Killed leftover taosBenchmark process: {pid}")
+            except ProcessLookupError:
+                pass
+
     #
     # ------------------- test_insert_cancel ----------------
     #
@@ -65,7 +78,9 @@ class TestBenchmarkExcept:
 
         os.kill(pids[0], signal.SIGINT)
         if isForceExit:
-            # Send second SIGINT immediately (no delay!) to trigger forced exit
+            # Standard signals are not queued. Give the first handler a full
+            # scheduler time slice before delivering the forced-stop signal.
+            time.sleep(1)
             os.kill(pids[0], signal.SIGINT)
 
         # Wait for benchmark to finish and write output.
@@ -83,6 +98,7 @@ class TestBenchmarkExcept:
             else:
                 self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
         else:
+            self.stop_leftover_benchmark(pids)
             tdLog.exit("The benchmark process has not stopped!")
 
     def dbInsertThread(self, cmd):
@@ -142,6 +158,7 @@ class TestBenchmarkExcept:
             tdLog.info(self._rlist)
             self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
         else:
+            self.stop_leftover_benchmark(pids)
             tdLog.exit("The benchmark process has not stopped!")
 
     # run
@@ -170,11 +187,11 @@ class TestBenchmarkExcept:
         1. Insert operator be canceled check expect
         2. Insert operator be forced exit check expect
         3. Insert operator meet dnode exit check expect
-        
-        
+
+
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

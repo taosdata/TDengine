@@ -1,0 +1,71 @@
+set max_binary_display_width 1024;
+alter local "timezone" "UTC";
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d < 5.0 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d < 5.0 ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE flag = true ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE flag = true ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label <> 'alpha' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label <> 'alpha' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site <> 'a' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site <> 'a' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NULL ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NULL ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NOT NULL ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NOT NULL ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IN ('a','b') ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IN ('a','b') ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site NOT IN ('a','b') ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site NOT IN ('a','b') ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IN (1,3,7) ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IN (1,3,7) ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000002000000000 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000002000000000 ORDER BY time;
+
+SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time ASC LIMIT 4 OFFSET 1;
+EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time ASC LIMIT 4 OFFSET 1;
+
+SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+
+SELECT CAST(time AS BIGINT), d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = '' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = '' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IS NULL ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IS NULL ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 OR site = 'a' ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 OR site = 'a' ORDER BY time;
+
+SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2 ORDER BY time;
+EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2 ORDER BY time;
+
+SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT ASOF JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b ON a.time >= b.time WHERE a.i > 2 ORDER BY a.time,b.time;
+EXPLAIN VERBOSE TRUE SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT ASOF JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b ON a.time >= b.time WHERE a.i > 2 ORDER BY a.time,b.time;
+
+SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT WINDOW JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b WINDOW_OFFSET(-1s,1s) WHERE a.i = 3 ORDER BY a.time,b.time;
+EXPLAIN VERBOSE TRUE SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT WINDOW JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b WINDOW_OFFSET(-1s,1s) WHERE a.i = 3 ORDER BY a.time,b.time;
+
+SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+EXPLAIN VERBOSE TRUE SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+
+SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION ALL SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+EXPLAIN VERBOSE TRUE SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION ALL SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;

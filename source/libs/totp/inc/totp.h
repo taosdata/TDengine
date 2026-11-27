@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -33,6 +35,13 @@ int taosFormatTotp(int32_t totp, int digits, char *buffer, size_t size);
 // secret is a byte array, not a base32 string.
 // return the generated TOTP code, or -1 on error.
 int32_t taosGenerateTotpCode(const uint8_t *secret, size_t secretLen, int digits);
+
+// generate TOTP code for an explicit RFC 6238 time step (tm = unixTime / 30).
+// The current-time entry points cannot be checked against the RFC 6238 test
+// vectors, so the time step is exposed for deterministic callers and unit
+// tests.  secret is a byte array, not a base32 string.
+// return the generated TOTP code, or -1 on error.
+int32_t taosGenerateTotpCodeAt(const uint8_t *secret, size_t secretLen, uint64_t tm, int digits);
 
 // verify TOTP code for given secret at current time with allowed window.
 // secret is a byte array, not a base32 string.

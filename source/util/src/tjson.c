@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -341,6 +343,8 @@ int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal)
   return TSDB_CODE_SUCCESS;
 }
 
+bool tjsonIsArray(const SJson* pJson) { return cJSON_IsArray(pJson); }
+
 int32_t tjsonGetArraySize(const SJson* pJson) { return cJSON_GetArraySize(pJson); }
 
 SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index) { return cJSON_GetArrayItem(pJson, index); }
@@ -412,27 +416,35 @@ bool tjsonValidateJson(const char* jIn) {
     return false;
   }
 
+  // cJSON_Parse allocates the whole parsed tree; it must be freed on EVERY exit
+  // path, otherwise each validation leaks the parsed cJSON objects (ASan: direct
+  // leak of 320 bytes per STATIS frame that reaches mndProcessStatisReq).
+  bool valid = false;
   if (!cJSON_IsObject(root)) {
-    return false;
+    goto _over;
   }
   int size = cJSON_GetArraySize(root);
   for (int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {
-      return false;
+      goto _over;
     }
 
     char* jsonKey = item->string;
-    if (!jsonKey) return false;
+    if (!jsonKey) goto _over;
     for (size_t j = 0; j < strlen(jsonKey); ++j) {
-      if (isprint(jsonKey[j]) == 0) return false;
+      if (isprint(jsonKey[j]) == 0) goto _over;
     }
 
     if (item->type == cJSON_Object || item->type == cJSON_Array) {
-      return false;
+      goto _over;
     }
   }
-  return true;
+  valid = true;
+
+_over:
+  cJSON_Delete(root);
+  return valid;
 }
 
 const char* tjsonGetError() { return cJSON_GetErrorPtr(); }

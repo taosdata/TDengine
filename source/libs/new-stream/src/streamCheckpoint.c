@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "crypt.h"
 #include "stream.h"
 #include "streamInt.h"
@@ -42,7 +59,7 @@ static int32_t writeFile(char* filepath, void* data, int64_t dataLen) {
   char*     encryptedData = NULL;
   int32_t   writeLen = dataLen;
 
-  pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_CLOEXEC);
+  pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC);
   STREAM_CHECK_NULL_GOTO(pFile, terrno);
 
   // Wait for keys to be loaded (similar to mnode)
@@ -64,7 +81,7 @@ static int32_t writeFile(char* filepath, void* data, int64_t dataLen) {
     // Encrypt using CBC with metaKey
     SCryptOpts opts = {0};
     opts.len = writeLen;
-    opts.source = (char*)data;
+    opts.source = encryptedData;
     opts.result = encryptedData;
     opts.unitLen = 16;
     opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
@@ -104,30 +121,23 @@ int32_t streamWriteCheckPoint(int64_t streamId, void* data, int64_t dataLen) {
   int32_t code = 0;
   int32_t lino = 0;
   char    filepath[PATH_MAX] = {0};
+  char    filepathTmp[PATH_MAX] = {0};
   STREAM_CHECK_NULL_GOTO(data, TSDB_CODE_INVALID_PARA);
-  STREAM_CHECK_CONDITION_GOTO(dataLen <= 0, TSDB_CODE_INVALID_PARA);
-  
+  STREAM_CHECK_CONDITION_GOTO(dataLen < 2 * INT_BYTES + LONG_BYTES, TSDB_CODE_INVALID_PARA);
+
   STREAM_CHECK_RET_GOTO(getFilePath(filepath));
   STREAM_CHECK_RET_GOTO(taosMkDir(filepath));
 
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
-  bool exist = taosCheckExistFile(filepath);
-  if (exist) {
-    stDebug("[checkpoint] checkpoint file already exists for streamId:%" PRIx64 ", file:%s, overwrite", streamId, filepath);
-    char filepathTmp[PATH_MAX] = {0};
-    STREAM_CHECK_RET_GOTO(getFileNameTmp(filepathTmp, streamId));
-    STREAM_CHECK_RET_GOTO(writeFile(filepathTmp, data, dataLen));
-    if (taosRenameFile(filepathTmp, filepath) != 0) {
-      stError("failed to rename checkpoint file from %s to %s for streamId:%" PRIx64, filepathTmp,
-              filepath, streamId);
-      STREAM_CHECK_CONDITION_GOTO(taosRemoveFile(filepathTmp) != 0, terrno);
-      code = terrno;
-      goto end;
-    }
-  } else {
-    stDebug("[checkpoint] write checkpoint file for streamId:%" PRIx64 ", file:%s, content(%d, %"PRIx64") len:%"PRId64, 
-      streamId, filepath, *(int32_t*)(POINTER_SHIFT(data, INT_BYTES)), *(int64_t*)POINTER_SHIFT(data, 2 * INT_BYTES), dataLen);
-    STREAM_CHECK_RET_GOTO(writeFile(filepath, data, dataLen));
+  // Publish only a fully written checkpoint, including the first write.
+  STREAM_CHECK_RET_GOTO(getFileNameTmp(filepathTmp, streamId));
+  STREAM_CHECK_RET_GOTO(writeFile(filepathTmp, data, dataLen));
+  code = taosRenameFile(filepathTmp, filepath);
+  if (code != 0) {
+    int32_t ret = taosRemoveFile(filepathTmp);
+    stError("failed to rename checkpoint file, code:%d, ret:%d from %s to %s for streamId:%" PRIx64, code, ret,
+            filepathTmp, filepath, streamId);
+    goto end;
   }
 
 end:
@@ -145,15 +155,17 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
   int64_t   readLen = 0;
   int64_t   fileSize = 0;
 
-  STREAM_CHECK_NULL_GOTO(data, TSDB_CODE_INVALID_PARA);
-  STREAM_CHECK_NULL_GOTO(dataLen, TSDB_CODE_INVALID_PARA);
+  if (data == NULL || dataLen == NULL) return TSDB_CODE_INVALID_PARA;
+  *data = NULL;
+  *dataLen = 0;
   STREAM_CHECK_RET_GOTO(getFileName(filepath, streamId));
 
   terrno = 0;
   pFile = taosOpenFile(filepath, TD_FILE_READ);
-  STREAM_CHECK_NULL_GOTO(pFile, 0);
+  STREAM_CHECK_NULL_GOTO(pFile, errorIsFileNotExist(terrno) ? TSDB_CODE_SUCCESS : terrno);
 
   STREAM_CHECK_RET_GOTO(taosFStatFile(pFile, &fileSize, NULL));
+  STREAM_CHECK_CONDITION_GOTO(fileSize < 2 * INT_BYTES + LONG_BYTES, TSDB_CODE_FILE_CORRUPTED);
 
   // Read candidate length header (new format has an 8-byte originalLen prefix)
   STREAM_CHECK_CONDITION_GOTO(taosReadFile(pFile, &originalLen, sizeof(int64_t)) != sizeof(int64_t),
@@ -176,6 +188,8 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen) {
     encryptedData = NULL;  // Transfer ownership
     goto end;
   }
+
+  STREAM_CHECK_CONDITION_GOTO(originalLen < 2 * INT_BYTES + LONG_BYTES, TSDB_CODE_FILE_CORRUPTED);
 
   // Calculate read length (encrypted or plain)
   readLen = originalLen;
@@ -295,15 +309,25 @@ static int32_t sendDeleteMsg(int64_t streamId, SEpSet* epSet){
   return tmsgSendReq(epSet, &msg);
 }
 
-int32_t streamCheckpointSetReady(int64_t streamId) {
+int32_t streamCheckpointSyncComplete(int64_t streamId, int32_t result) {
   SStreamTriggerTask* pTriggerTask = NULL;
   void* taskAddr = NULL;
   int32_t code = streamAcquireTriggerTask(streamId, (SStreamTask**)&pTriggerTask, &taskAddr);
   if (code == 0){
-    atomic_store_8(&pTriggerTask->isCheckpointReady, 1);
+    if (result == TSDB_CODE_SUCCESS) {
+      // A late success must not clear a terminal corruption error during startup.
+      (void)atomic_val_compare_exchange_8(&pTriggerTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_PENDING,
+                                          STREAM_CHECKPOINT_SYNC_READY);
+      (void)atomic_val_compare_exchange_8(&pTriggerTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_RETRY,
+                                          STREAM_CHECKPOINT_SYNC_READY);
+    } else {
+      int8_t state =
+          result == TSDB_CODE_FILE_CORRUPTED ? STREAM_CHECKPOINT_SYNC_CORRUPTED : STREAM_CHECKPOINT_SYNC_RETRY;
+      (void)atomic_val_compare_exchange_8(&pTriggerTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_PENDING, state);
+    }
     streamReleaseTask(taskAddr);
   }
-  return code;
+  return result != TSDB_CODE_SUCCESS ? result : code;
 }
 
 int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen) {

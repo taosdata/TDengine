@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,8 +21,8 @@
 #include "indexInt.h"
 #include "indexUtil.h"
 #include "nodes.h"
+#include "osString.h"
 #include "querynodes.h"
-#include "scalar.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "ttypes.h"
@@ -72,8 +74,13 @@ typedef struct SIFParam {
   SHashObj *pFilter;
   SArray   *result;
   char     *condValue;
+  void     *charsetCxt;  // borrowed client charset (restored on vnode); not freed
 
   SIdxFltStatus status;
+  // true when result/condValue/pFilter were copied from a ctx->pRes entry: the
+  // hash entry keeps the sole ownership and sifFreeRes destroys them, so a
+  // shared param must never be freed by its consumer
+  bool          shared;
   uint8_t       colValType;
   col_id_t      colId;
   int64_t       suid;  // add later
@@ -120,8 +127,13 @@ static sif_func_t sifNullFunc = NULL;
 
 static FORCE_INLINE void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
+  // function contract: a shared param only borrows result/condValue/pFilter
+  // from a ctx->pRes entry, which stays the sole owner and is destroyed by
+  // sifFreeRes -- freeing borrowed members here would double-destroy them
+  if (param->shared) return;
 
   taosArrayDestroy(param->result);
+  param->result = NULL;
   taosMemoryFree(param->condValue);
   param->condValue = NULL;
   taosHashCleanup(param->pFilter);
@@ -220,6 +232,27 @@ typedef struct SInFilterValue {
   char    data[0];  // Variable length data
 } SInFilterValue;
 
+static int32_t sifVarcharToNchar(const char *varchar, void *charsetCxt,
+                                char **nchar) {
+  int32_t mbsLen = varDataLen(varchar);
+  int32_t bufLen = (mbsLen + 1) * TSDB_NCHAR_SIZE;
+  char   *buf = taosMemoryCalloc(1, bufLen + VARSTR_HEADER_SIZE);
+  if (buf == NULL) {
+    return terrno;
+  }
+
+  int32_t ucs4Len = 0;
+  if (!taosMbsToUcs4(varDataVal(varchar), mbsLen,
+                     (TdUcs4 *)varDataVal(buf), bufLen, &ucs4Len,
+                     charsetCxt)) {
+    taosMemoryFree(buf);
+    return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+  }
+  varDataSetLen(buf, ucs4Len);
+  *nchar = buf;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t sifCreateHashFromNodeList(SNode *node, SHashObj **pFilter) {
   SNodeListNode *nl = (SNodeListNode *)node;
 
@@ -296,6 +329,12 @@ static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCt
   if (nodeType(node) != QUERY_NODE_OPERATOR) {
     return TSDB_CODE_INVALID_PARA;
   }
+  // defensive shape check: the json key operator must be COLUMN -> VALUE;
+  // any other shape (e.g. a nested json path) would read the wrong node memory
+  if (nd->pLeft == NULL || nd->pRight == NULL || nodeType(nd->pLeft) != QUERY_NODE_COLUMN ||
+      nodeType(nd->pRight) != QUERY_NODE_VALUE) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
 
@@ -303,6 +342,14 @@ static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCt
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
   if (r->literal == NULL) return TSDB_CODE_QRY_INVALID_INPUT;
+  // colName is a fixed-size buffer later read as a NUL-terminated string, so the
+  // json key must fit with room for the terminator; an over-long key is rejected
+  // and the caller falls back to the non-index filter path
+  if (strlen(r->literal) >= sizeof(param->colName)) {
+    indexWarn("json key exceeds colName capacity, keyLen:%d, maxLen:%d, fall back to non-index filter",
+              (int32_t)strlen(r->literal), (int32_t)sizeof(param->colName));
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   memcpy(param->colName, r->literal, strlen(r->literal));
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
@@ -366,7 +413,7 @@ static int32_t sifInitParamValByCol(SNode *r, SNode *l, SIFParam *param, SIFCtx 
 
   param->colId = -1;
   param->colValType = (uint8_t)(vn->node.resType.type);
-  if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
+  if (vn->literal != NULL && strlen(vn->literal) < sizeof(param->colName)) {
     memcpy(param->colName, vn->literal, strlen(vn->literal));
   } else {
     param->status = SFLT_NOT_INDEX;
@@ -387,7 +434,10 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
-      if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
+      // The value node's charsetCxt is serialized as "CharsetName" and restored
+      // on the vnode; it is NULL when client==server or on an old plan.
+      param->charsetCxt = vn->charsetCxt;
+      if (vn->literal != NULL && strlen(vn->literal) < sizeof(param->colName)) {
         memcpy(param->colName, vn->literal, strlen(vn->literal));
       } else {
         param->status = SFLT_NOT_INDEX;
@@ -420,6 +470,10 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
         SIF_ERR_RET(TSDB_CODE_APP_ERROR);
       }
       *param = *res;
+      // the ctx->pRes entry keeps the sole ownership of result/condValue/pFilter;
+      // this copy only borrows them, otherwise the cleanup below and sifFreeRes
+      // would both destroy them
+      param->shared = true;
       break;
     }
     default:
@@ -432,12 +486,12 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (NULL == node->pLeft || (nParam == 2 && NULL == node->pRight)) {
-    indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
+    indexError("invalid operation node, left: %p, right: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
   if (nParam == 2 && node->pRight != NULL && (nodeType(node->pRight)) != QUERY_NODE_VALUE) {
-    indexError("right node should be value, node:%p, type:%d", node->pRight, nodeType(node->pRight));
+    indexDebug("right node should be value, node:%p, type:%d", node->pRight, nodeType(node->pRight));
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -474,6 +528,16 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
 
     if (nParam > 1) {
       SIF_ERR_JRET(sifInitParam(node->pRight, &paramList[1], ctx));
+      if (paramList[0].colValType == TSDB_DATA_TYPE_NCHAR &&
+          nodeType(node->pRight) == QUERY_NODE_VALUE &&
+          paramList[1].colValType == TSDB_DATA_TYPE_VARCHAR) {
+        char *nchar = NULL;
+        SIF_ERR_JRET(sifVarcharToNchar(paramList[1].condValue,
+                                       paramList[1].charsetCxt, &nchar));
+        taosMemoryFree(paramList[1].condValue);
+        paramList[1].condValue = nchar;
+        paramList[1].colValType = TSDB_DATA_TYPE_NCHAR;
+      }
     }
     *params = paramList;
     return TSDB_CODE_SUCCESS;
@@ -507,7 +571,7 @@ _return:
   SIF_RET(code);
 }
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
-  indexDebug("index-filter not support buildin function");
+  indexDebug("index-filter does not support built-in functions");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
@@ -740,6 +804,12 @@ static int8_t sifShouldUseIndexBasedOnType(SIFParam *left, SIFParam *right) {
 
   if (IS_VAR_DATA_TYPE(left->colValType)) {
     if (!IS_VAR_DATA_TYPE(right->colValType)) return 0;
+    // NCHAR tag-index probes must be UCS-4. Actual execution converts string
+    // constants before parameter initialization; hint-only walks do not.
+    if (left->colValType == TSDB_DATA_TYPE_NCHAR &&
+        right->colValType != TSDB_DATA_TYPE_NCHAR) {
+      return 0;
+    }
   } else if (IS_NUMERIC_TYPE(left->colValType)) {
     if (IS_SIGNED_NUMERIC_TYPE(left->colValType) && IS_SIGNED_NUMERIC_TYPE(right->colValType)) {
       if (left->colValType >= right->colValType) {
@@ -784,6 +854,12 @@ static int8_t sifShouldUseIndexForInOperator(SIFParam *left, SIFParam *right) {
       if (!IS_VAR_DATA_TYPE(valueType)) {
         return 0;  // Incompatible: column is var type but value is not
       }
+      // NCHAR tag-index probes must be UCS-4 (see
+      // sifShouldUseIndexBasedOnType).
+      if (left->colValType == TSDB_DATA_TYPE_NCHAR &&
+          valueType != TSDB_DATA_TYPE_NCHAR) {
+        return 0;
+      }
     } else if (IS_NUMERIC_TYPE(left->colValType)) {
       // For IN operations, be more permissive with numeric type compatibility
       // This addresses the issue where parser assigns different types to values in IN vs == operations
@@ -803,6 +879,32 @@ static int8_t sifShouldUseIndexForInOperator(SIFParam *left, SIFParam *right) {
   }
 
   return 1;  // All values are compatible with column type
+}
+
+// JSON string values are UCS-4, just like NCHAR. Only VARCHAR probes need
+// decoding with the connection charset; persisted keys never use a locale.
+static int32_t sifJsonNormalizeProbeVal(SIFParam *right) {
+  if (right->condValue == NULL || right->colValType != TSDB_DATA_TYPE_VARCHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t capacity = varDataLen(right->condValue) * TSDB_NCHAR_SIZE;
+  char *value = taosMemoryMalloc(capacity + VARSTR_HEADER_SIZE);
+  if (value == NULL) return terrno;
+  int32_t length = 0;
+  if (!taosMbsToUcs4(varDataVal(right->condValue), varDataLen(right->condValue),
+                      (TdUcs4 *)varDataVal(value), capacity, &length, right->charsetCxt)) {
+    taosMemoryFree(value);
+    return TSDB_CODE_CHARSET_CONVERT_ERROR;
+  }
+  if (length > UINT16_MAX) {
+    taosMemoryFree(value);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  varDataSetLen(value, length);
+  taosMemoryFree(right->condValue);
+  right->condValue = value;
+  right->colValType = TSDB_DATA_TYPE_NCHAR;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
@@ -868,8 +970,11 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   }
 
   if (left->colValType == TSDB_DATA_TYPE_JSON) {
+    // Normalize string probes to the same UCS-4 representation as tag values.
+    SIF_ERR_RET(sifJsonNormalizeProbeVal(right));
+
     SIndexTerm *tm = indexTermCreate(arg->suid, DEFAULT, right->colValType, left->colName, strlen(left->colName),
-                                     right->condValue, strlen(right->condValue));
+                                     right->condValue, IS_VAR_DATA_TYPE(right->colValType) ? varDataLen(right->condValue) : tDataTypes[right->colValType].bytes);
     if (tm == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

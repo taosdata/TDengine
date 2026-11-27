@@ -1,0 +1,1 @@
+CREATE TABLE `t1` (`ts` TIMESTAMP, `remark` NCHAR(50))

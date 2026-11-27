@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import tempfile
 import time
@@ -18,7 +33,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
 
@@ -37,7 +52,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_multi_fileset_core_fixture()
 
@@ -58,7 +73,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_stt_fixture()
 
@@ -76,7 +91,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         with tempfile.NamedTemporaryFile(delete=False) as fp:
             fp.write(b"x" * 64)
@@ -102,7 +117,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
@@ -135,7 +150,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_dispatch_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -185,7 +200,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_entry_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -209,3 +224,37 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         tdSql.checkEqual("repair execution is not enabled in this phase" in output, False)
         tdSql.checkEqual(code == 0 and "repair parameter validation succeeded (phase1)" in output, False)
+
+    def test_tsdb_force_repair_exits_after_completion(self):
+        """TSDB force repair should exit on its own instead of serving.
+
+        1. Build one real healthy core fixture.
+        2. Stop taosd and run force repair with a generous timeout.
+        3. Verify taosd exits by itself with code 0 well before the timeout,
+           proving it does not enter the normal service loop.
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+        """
+        fixture = self._prepare_core_fixture()
+        vnode_id = fixture["vnode_id"]
+        fid = fixture["fid"]
+
+        repair_timeout = 60
+        try:
+            tdDnodes.stop(1)
+            time.sleep(2)
+            started = time.time()
+            code, output = self._run_force_repair(
+                vnode_id, fid, extra_args="", timeout_sec=repair_timeout
+            )
+            elapsed = time.time() - started
+        finally:
+            self._restart_taosd_and_wait_ready()
+
+        # code 0 means taosd returned normally; a timeout would SIGTERM it (-15).
+        tdSql.checkEqual(code, 0)
+        # Self-exit must happen well before the timeout window.
+        tdSql.checkEqual(elapsed < repair_timeout, True)
+

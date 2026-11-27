@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -162,6 +164,17 @@ void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo) {
   if (dmMarkWrapper(pWrapper) == 0) {
     if (pWrapper->pMgmt != NULL) {
       vmGetVnodeLoadsLite(pWrapper->pMgmt, pInfo);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+
+void dmCollectVnodeTxnIdle(SArray **ppQueries) {
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmCollectTxnIdleQueries(pWrapper->pMgmt, ppQueries);
     }
     dmReleaseWrapper(pWrapper);
   }

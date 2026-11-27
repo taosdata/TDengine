@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,11 +24,16 @@ extern "C" {
 
 #include "filter.h"
 #include "stream.h"
+#include "streamWindowChain.h"
 #include "tcommon.h"
 #include "tlosertree.h"
 #include "tobjpool.h"
 
 struct SStreamTriggerTask;
+struct SSTimeAlignState;
+int32_t stVtableMergerAlignBlock(struct SSTimeAlignState *state, const SArray *slots, uint64_t uid, int32_t tsSlot,
+                                 SFilterInfo *filter, SSDataBlock *block, const SArray *sourceTimes,
+                                 int32_t timeOffset);
 
 typedef struct SSTriggerMetaData {
   int64_t skey;
@@ -215,9 +222,48 @@ typedef struct SSTriggerColMatch {
     col_id_t otbSlotId;
   };
   col_id_t vtbSlotId;
+  col_id_t physicalId;   // physical column identity across WAL projection generations
+  int32_t  sourceBytes;  // bound width of a flat virtual column
 } SSTriggerColMatch;
 
+typedef enum ESTriggerReaderKind {
+  STRIGGER_READER_KIND_INTERNAL = 0,
+  STRIGGER_READER_KIND_EXTERNAL = 1,
+  // Calc-phase data of the same external registry entry must not share the trigger-phase identity:
+  // the trigger check of one group can still be pending while another group already requests calc
+  // data for the same reader, and slices/metas/ranges are all keyed by this struct. Sharing the key
+  // let a SEND_CALC_REQ block overwrite the trigger block other groups still had to consume.
+  STRIGGER_READER_KIND_EXTERNAL_CALC = 2,
+} ESTriggerReaderKind;
+
+static FORCE_INLINE bool stTriggerReaderKindIsExternal(int8_t readerKind) {
+  return readerKind == STRIGGER_READER_KIND_EXTERNAL || readerKind == STRIGGER_READER_KIND_EXTERNAL_CALC;
+}
+
+typedef struct SSTriggerReaderDataKey {
+  int8_t   readerKind;
+  uint8_t  reserved[7];
+  uint64_t stableReaderId;
+  int64_t  logicalUid;
+} SSTriggerReaderDataKey;
+
+static FORCE_INLINE SSTriggerReaderDataKey stTriggerReaderDataKey(int8_t readerKind, uint64_t stableReaderId,
+                                                                  int64_t logicalUid) {
+  SSTriggerReaderDataKey key = {0};
+  key.readerKind = readerKind;
+  key.stableReaderId = stableReaderId;
+  key.logicalUid = logicalUid;
+  return key;
+}
+
+typedef struct SSTriggerVirtualTableSliceRef {
+  int64_t                 virtualUid;
+  int64_t                 virtualGid;
+  SSTriggerReaderDataKey readerKey;
+} SSTriggerVirtualTableSliceRef;
+
 typedef struct SSTriggerTableColRef {
+  SSTriggerReaderDataKey readerKey;
   int64_t otbSuid;
   int64_t otbUid;
   int32_t otbVgId;
@@ -230,7 +276,15 @@ typedef enum ETriggerVtableMergerMask {
   TRIGGER_VTABLE_MERGER_MASK_META_DATA_SET = BIT_FLAG_MASK(1),
 } ETriggerVtableMergerMask;
 
+// One raw buffer is exchanged with a suspended input before its merger can advance.
+typedef struct {
+  SSDataBlock *spare;
+  SSDataBlock *output;
+  SArray      *sourceTimes;  // physical timestamp columns indexed by virtual input slot
+} SSTriggerAlignBuffers;
+
 typedef struct SSTriggerVtableMerger {
+  SSTriggerAlignBuffers      alignBuffers;
   struct SStreamTriggerTask *pTask;
   int64_t                    flags;  // bitmask of ETriggerVtableMergerMask
   SSDataBlock               *pDataBlock;
@@ -327,11 +381,14 @@ int32_t stVtableMergerGetMetaToFetch(SSTriggerVtableMerger *pMerger, SSTriggerMe
  * @return int32_t Status code indicating success or error
  */
 int32_t stVtableMergerBindDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock);
+int32_t stVtableMergerBindDataBatch(SSTriggerVtableMerger *pMerger, SSDataBlock **ppDataBlock, bool done);
 
 typedef struct SSTriggerDataSlice {
   SSDataBlock *pDataBlock;
   int32_t      startIdx;
   int32_t      endIdx;
+  void        *pSnapshotCache;
+  int64_t      snapshotSourceId;
 } SSTriggerDataSlice;
 
 typedef struct SSTriggerNewTimestampSorter {
@@ -342,10 +399,15 @@ typedef struct SSTriggerNewTimestampSorter {
   SSDataBlock *pDataBlock;
   int32_t      tsSlotId;
   int32_t      pkSlotId;
+  int32_t                keyTsSlotId;
+  SSDataBlock           *pWalInput;
+  SSDataBlock           *pMergedRow;
+  SSTriggerReaderDataKey readerKey;
 
   SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
   SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
   SMultiwayMergeTreeInfo *pDataMerger;
+  void                   *pSnapshotSort;
 } SSTriggerNewTimestampSorter;
 
 /**
@@ -377,17 +439,18 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter);
  * @brief Set the table data for the timestamp sorter
  *
  * @param pSorter The SSTriggerNewTimestampSorter instance to set the data
- * @param tbUid The UID of the table to be sorted
+ * @param pReaderKey The source-scoped identity of the reader data
  * @param tsSlotId The index of the timestamp column in the data block, starting from 0
  * @param pkSlotId The index of the primary key column in the data block, starting from 0
  * @param pReadRange The time range for sorting, containing start and end timestamps
  * @param pMetas The metadatas of current table
  * @param pSlice The data slice containing the data block and the range of rows to be considered
+ * @param orderedInput Whether rows older than the accepted version frontier must be skipped
  * @return int32_t Status code indicating success or error
  */
-int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_t tbUid, int32_t tsSlotId,
-                                    int32_t pkSlotId, STimeWindow *pReadRange, SObjList *pMetas,
-                                    SSTriggerDataSlice *pSlice);
+int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter,
+                                    const SSTriggerReaderDataKey *pReaderKey, int32_t tsSlotId, int32_t pkSlotId,
+                                    STimeWindow *pReadRange, SObjList *pMetas, SSTriggerDataSlice *pSlice, bool orderedInput);
 
 /**
  * @brief Get next data block from the sorter.
@@ -402,12 +465,14 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
                                           int32_t *pStartIdx, int32_t *pEndIdx);
 
 typedef struct SSTriggerNewVtableMerger {
+  SSTriggerAlignBuffers      alignBuffers;
   struct SStreamTriggerTask *pTask;
   SSDataBlock               *pDataBlock;
   bool                      *pIsPseudoCol;  // whether the column is pseudo column, could be NULL if no pseudo columns
   SFilterInfo               *pFilter;
 
   bool         inUse;
+  bool         timeAlignTrigger;
   SSDataBlock *pPseudoColValues;  // value of pseudo columns, could be NULL if no pseudo columns
   int32_t      tsSlotId;
 
@@ -415,6 +480,24 @@ typedef struct SSTriggerNewVtableMerger {
   SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>
   SMultiwayMergeTreeInfo *pDataMerger;
 } SSTriggerNewVtableMerger;
+
+// Borrowed input descriptors; each layout generation keeps its own column mapping.
+typedef struct SSTriggerVtableSource {
+  SSTriggerReaderDataKey readerKey;
+  SSTriggerTableColRef  *pColRef;
+  SSTriggerDataSlice     slice;
+  SObjList              *pMetas;
+  int64_t                generation;
+} SSTriggerVtableSource;
+
+struct SSTriggerRealtimeGroup;
+struct SSTriggerVirtTableInfo;
+// Inspect the first eligible timestamp with the same source sorters as the body.
+int32_t stVtableMergerFirstInputTs(struct SSTriggerRealtimeGroup *group, const struct SSTriggerVirtTableInfo *table,
+                                   SObjList *tableRefs, bool ordered, int64_t *first, bool *found);
+
+int32_t stNewVtableMergerSetSources(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SArray *pSources, bool orderedInput);
 
 /**
  * @brief Initializes a vtable merger for merging data from original tables.
@@ -458,11 +541,16 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pMetas The metadatas of all original tables
  * @param pSlices The hash map from original table uid to its data slice
+ * @param pReaderConsumedEkeys Optional per-EXT-reader consumed ekey map (may be NULL). For external
+ *        trigger readers the row floor is the consumed ekey + 1 instead of pReadRange->skey, so a
+ *        reader that has not yet delivered past the group threshold is not clipped by it.
+ * @param orderedInput Whether each source must skip rows older than its accepted version frontier
  * @return int32_t
  */
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices);
+                                 SSHashObj *pMetas, SSHashObj *pSlices, SSHashObj *pReaderConsumedEkeys,
+                                 bool orderedInput);
 
 /**
  * @brief Gets next data block from the vtable merger.
@@ -475,6 +563,43 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
  */
 int32_t stNewVtableMergerNextDataBlock(SSTriggerNewVtableMerger *pMerger, SSDataBlock **ppDataBlock, int32_t *pStartIdx,
                                        int32_t *pEndIdx);
+
+typedef struct SStreamTriggerPeerMerger SStreamTriggerPeerMerger;
+
+typedef enum {
+  STREAM_TRIGGER_PEER_SOURCE_ROW = 0,
+  STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT,
+  STREAM_TRIGGER_PEER_SOURCE_EOF,
+} EStreamTriggerPeerSourceStatus;
+
+typedef enum {
+  STREAM_TRIGGER_PEER_GROUP_READY = 0,
+  STREAM_TRIGGER_PEER_GROUP_NEED_INPUT,
+  STREAM_TRIGGER_PEER_GROUP_EOF,
+} EStreamTriggerPeerGroupStatus;
+
+typedef struct {
+  SWindowChainRowRef row;
+  TSKEY              eventTs;
+} SStreamTriggerPeerHead;
+
+typedef int32_t (*FStreamTriggerPeerSourcePeek)(void *pSource, SStreamTriggerPeerHead *pHead,
+                                                EStreamTriggerPeerSourceStatus *pStatus);
+typedef void (*FStreamTriggerPeerSourceConsume)(void *pSource);
+
+typedef struct {
+  FStreamTriggerPeerSourcePeek    peek;
+  FStreamTriggerPeerSourceConsume consume;
+} SStreamTriggerPeerSourceOps;
+
+int32_t stTriggerMergerPeerCreate(int64_t gid, SStreamTriggerPeerMerger **ppMerger);
+void    stTriggerMergerPeerReset(SStreamTriggerPeerMerger *pMerger, int64_t gid);
+int32_t stTriggerMergerPeerAddSource(SStreamTriggerPeerMerger *pMerger, int64_t tableUid,
+                                     const SStreamTriggerPeerSourceOps *pOps, void *pSource);
+int32_t stTriggerMergerNextPeerGroup(SStreamTriggerPeerMerger *pMerger, EStreamTriggerPeerGroupStatus *pStatus,
+                                     int32_t *pNeedSourceIndex, const SWindowChainPeerGroup **ppGroup);
+int32_t stTriggerMergerPeerRetryOutstanding(SStreamTriggerPeerMerger *pMerger);
+void    stTriggerMergerPeerDestroy(SStreamTriggerPeerMerger **ppMerger);
 
 #ifdef __cplusplus
 }

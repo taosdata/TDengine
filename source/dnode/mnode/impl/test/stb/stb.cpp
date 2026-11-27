@@ -116,7 +116,7 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
 
   {
     SField field = {0};
-    field.bytes = 2;
+    field.bytes = 1;
     field.type = TSDB_DATA_TYPE_TINYINT;
     strcpy(field.name, "tag1");
     taosArrayPush(createReq.pTags, &field);
@@ -173,7 +173,7 @@ void* MndTestStb::BuildCreateStbDuplicateReq(const char* stbname, int32_t* pCont
 
   {
     SField field = {0};
-    field.bytes = 2;
+    field.bytes = 1;
     field.type = TSDB_DATA_TYPE_TINYINT;
     strcpy(field.name, "tag1");
     taosArrayPush(createReq.pTags, &field);
@@ -452,7 +452,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       SSchema* pSchema = &metaRsp.pSchemas[2];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TINYINT);
       EXPECT_EQ(pSchema->colId, 3);
-      EXPECT_EQ(pSchema->bytes, 2);
+      EXPECT_EQ(pSchema->bytes, 1);
       EXPECT_STREQ(pSchema->name, "tag1");
     }
 
@@ -1022,7 +1022,7 @@ void* MndTestStb::BuildCreateStbWithCompressReq(const char* stbname, uint32_t co
 
   {
     SField field = {0};
-    field.bytes = 2;
+    field.bytes = 1;
     field.type = TSDB_DATA_TYPE_TINYINT;
     strcpy(field.name, "tag1");
     taosArrayPush(createReq.pTags, &field);

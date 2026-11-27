@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, StreamItem
 import time
 
@@ -897,12 +912,27 @@ class TestFunCols:
         tdSql.error(f'select cols(first(ts+1), c0+2 cc0, c1 cc1) cc from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+1, c0+2 as cc0) as cc from {self.dbname}.meters')
         tdSql.error(f'select cols(ABS(c0), c1) from {self.dbname}.meters group by tbname')
+
+        # K-row selection functions are not valid as COLS first arg
+        # (COLS requires a single-row selector as anchor)
         tdSql.error(f'select cols(top(c0, 5), c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(BOTTOM(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(ts, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(UNIQUE(ts),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(sample(ts, 5),c1) from {self.dbname}.meters')
+
+        # Non-selection pipeline functions (N-row / N-1-row output) are not valid as COLS first arg
+        # These functions transform rows but do not select a specific row anchor
+        tdSql.error(f'select cols(diff(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(derivative(c0, 1s, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(csum(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(mavg(c0, 2), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lag(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lead(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(fill_forward(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(statecount(c0, "GE", 1), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(stateduration(c0, "GE", 1, 1s), c1) from {self.dbname}.meters')
         
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')
@@ -962,11 +992,23 @@ class TestFunCols:
         tdSql.checkCols(5)
         tdSql.checkData(0, 4, 2)
         
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1) from test.meters state_window(c0) order by c0')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1) from test.meters state_window(c0) order by c0')
+        tdSql.checkRows(4)
+        tdSql.checkCols(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(3, 0, 4)
+        tdSql.checkData(3, 1, 4)
+        tdSql.checkData(3, 2, 4)
 
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1), tbname from test.meters state_window(c0)')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1), tbname from test.meters state_window(c0)')
+        tdSql.checkRows(4)
+        tdSql.checkCols(4)
         
-        tdSql.error(f'select c0,  cols(first(ts), c0, c1), t1 from test.meters state_window(c0)')
+        tdSql.query(f'select c0,  cols(first(ts), c0, c1), t1 from test.meters state_window(c0)')
+        tdSql.checkRows(4)
+        tdSql.checkCols(4)
         
         tdSql.error(f'select tbname, c0,  cols(first(ts), c0, c1), cols(last(ts), c0) from test.meters state_window(c0)')
     
@@ -993,9 +1035,21 @@ class TestFunCols:
         tdSql.checkRows(2)
         tdSql.checkCols(4)
         
-        tdSql.error(f'select  cols(first(ts), c0, c1), first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.query(f'select  cols(first(ts), c0, c1), first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.checkRows(2)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 3, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(1, 3, 2)
         
-        tdSql.error(f'select   first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.query(f'select   first(ts),  count(1) from test.meters event_window start with c3=true end with c3!=true')
+        tdSql.checkRows(2)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 2)
         
 
     def join_test(self):
@@ -1381,6 +1435,158 @@ class TestFunCols:
         self.window_test2()
         self.stream_cols_test()
 
+    def duplicate_select_func_test(self):
+        duplicate_cols_sql = ('select cols(first(c0), c1), cols(first(c0), c2) '
+                              'from test.normal_table')
+        tdSql.query(duplicate_cols_sql)
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 'c2')
+        tdSql.query('explain verbose true ' + duplicate_cols_sql)
+        assert 'functions=3' in tdSql.queryResult[0][0]
+
+        distinct_cols_sql = ('select cols(first(c0), c1), cols(first(c1), c2) '
+                             'from test.normal_table')
+        tdSql.query(distinct_cols_sql)
+        tdSql.checkRows(1)
+        tdSql.checkCols(2)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 'c2')
+        tdSql.query('explain verbose true ' + distinct_cols_sql)
+        assert 'functions=4' in tdSql.queryResult[0][0]
+
+        sql = ('select cols(first(c0), c1, c2), cols(first(c0), c3, ts), first(c0) '
+               'from test.normal_table')
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 'c2')
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, '2024-12-19 10:22:09.000')
+        tdSql.checkData(0, 4, 1)
+        tdSql.query('select cols(first(c0), c1 as companion), first(c0) as selected '
+                    'from test.normal_table')
+        tdSql.checkResColNameList(['companion', 'selected'])
+        tdSql.checkData(0, 1, 1)
+        tdSql.query('explain verbose true ' + sql)
+        # The Aggregate functions count comes from EXPLAIN VERBOSE's operator summary.
+        assert 'functions=6' in tdSql.queryResult[0][0]
+
+        tdSql.query('select first(c0) from test.normal_table')
+        first_col_name = tdSql.cursor.description[0][0]
+        tdSql.query('select cols(first(c0), c1), first(c0) from test.normal_table')
+        tdSql.checkResColNameList(['c1', first_col_name])
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.error('select cols(abs(c0), c1), abs(c0) from test.normal_table')
+        tdSql.error('select cols(abs(c0), c1, c2), abs(c0) from test.normal_table')
+
+        distinct_func_sql = ('select cols(first(c0), c1, c2), '
+                             'cols(first(c1), c3, ts), first(c0) from test.normal_table')
+        tdSql.query(distinct_func_sql)
+        tdSql.checkRows(1)
+        tdSql.checkCols(5)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 'c2')
+        tdSql.checkData(0, 2, True)
+        tdSql.checkData(0, 3, '2024-12-19 10:22:09.000')
+        tdSql.checkData(0, 4, 1)
+        tdSql.query('explain verbose true ' + distinct_func_sql)
+        assert 'functions=7' in tdSql.queryResult[0][0]
+
+        order_sql = ('select cols(first(c0), c1), first(c0) '
+                     'from test.normal_table order by first(c0)')
+        tdSql.query(order_sql)
+        tdSql.checkRows(1)
+        tdSql.checkResColNameList(['c1', first_col_name])
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query('explain verbose true ' + order_sql)
+        assert any('Aggregate (functions=3 ' in row[0] for row in tdSql.queryResult)
+
+        different_order_sql = ('select cols(first(c0), c1), first(c0) '
+                               'from test.normal_table order by first(c1)')
+        tdSql.query(different_order_sql)
+        tdSql.checkData(0, 1, 1)
+        tdSql.query('explain verbose true ' + different_order_sql)
+        assert any('Aggregate (functions=4 ' in row[0] for row in tdSql.queryResult)
+
+        nested_sql = ('select cols(first(c0), c1), pow(first(c0), 2) '
+                      'from test.normal_table')
+        tdSql.query(nested_sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.query('explain verbose true ' + nested_sql)
+        assert any('Aggregate (functions=3 ' in row[0] for row in tdSql.queryResult)
+
+        tdSql.query('select cols(first(c0), *), first(c0) from test.normal_table')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 5, 1)
+
+        tdSql.query('select cols(first(c0), c1), first(c0) '
+                    'from (select * from test.normal_table)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1.0)
+        tdSql.checkData(0, 1, 1)
+
+        having_sql = ('select cols(first(c0), c1), first(c0) '
+                      'from test.normal_table group by c3 '
+                      'having first(c0) > 0 order by first(c0)')
+        tdSql.query(having_sql)
+        tdSql.checkRows(2)
+        tdSql.query('explain verbose true ' + having_sql)
+        assert any('functions=4 ' in row[0] for row in tdSql.queryResult)
+
+        tdSql.query('select cols(first(c0), c1), first(c0) '
+                    'from test.normal_table state_window(c0)')
+        tdSql.checkRows(4)
+
+        union_arm = ('select cols(first(c0), c1), first(c0) '
+                     'from test.normal_table')
+        tdSql.query(union_arm + ' union all ' + union_arm)
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 1)
+
+        partition_sql = ('select cols(first(c0), c1), first(c0) '
+                         'from test.meters partition by tbname order by first(c0)')
+        tdSql.query(partition_sql)
+        tdSql.checkRows(2)
+        tdSql.query('explain verbose true ' + partition_sql)
+        assert any('functions=3 ' in row[0] for row in tdSql.queryResult)
+
+        filtered_sql = ('select cols(first(c0), ts as first_ts, c1 as first_c1), '
+                        'cols(first(c0), c2 as first_c2), first(c0) '
+                        'from test.meters where c0 < 4 group by tbname order by tbname')
+        tdSql.query(filtered_sql)
+        tdSql.checkRows(2)
+        tdSql.checkCols(4)
+        tdSql.checkData(0, 0, '2024-12-19 10:22:09.000')
+        tdSql.checkData(0, 1, 1.0)
+        tdSql.checkData(0, 2, 'c2')
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, '2024-12-19 10:22:09.000')
+        tdSql.checkData(1, 1, 1.0)
+        tdSql.checkData(1, 2, 'c2')
+        tdSql.checkData(1, 3, 1)
+
+    def test_duplicate_select_func(self):
+        """Reuse identical selection functions in cols.
+
+        Check query results and aggregate plan function counts when cols
+        selection functions match each other or a standalone function.
+
+        Since: v3.4.2.12
+
+        Labels: common,ci,integration,functional
+        """
+        self.create_test_data('none')
+        self.duplicate_select_func_test()
+
     #
     # ------------------ main ------------------
     #
@@ -1400,7 +1606,7 @@ class TestFunCols:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1416,4 +1622,3 @@ class TestFunCols:
 
     def stop(self):
         tdSql.close()
-

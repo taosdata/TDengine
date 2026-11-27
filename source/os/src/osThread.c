@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -591,11 +593,42 @@ int32_t taosThreadOnce(TdThreadOnce *onceControl, void (*initRoutine)(void)) {
   return code;
 }
 
+#ifdef __USE_WIN_THREAD
+/* glibc default (PTHREAD_RWLOCK_PREFER_READER_NP): a queued writer does not
+ * stop a new reader. Writer-prefer (preferWriter != 0) does, matching
+ * PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP used by meta/wal/bse.
+ * Not recursive. Unlock of a lock this thread does not hold is undefined,
+ * same as pthread_rwlock_unlock.
+ * No logging here. uDebug with asyncLog=0 writes the log file under this same
+ * rwlock, and a log call while gate is held recurses until the stack overflows.
+ * gate is an SRWLOCK used only in exclusive mode so a zero-filled lock (the
+ * sessMgt pattern, and extConnector lock-after-destroy) stays valid. */
+static int32_t taosWinRwlockReaderBlocked(const TdThreadRwlock *rwlock) {
+  if (rwlock->state & TD_WIN_RWLOCK_WRITER_BIT) return 1;
+  if (rwlock->preferWriter && rwlock->nWriterWait > 0) return 1;
+  return 0;
+}
+
+static int32_t taosWinRwlockWait(TdThreadRwlock *rwlock, CONDITION_VARIABLE *cv) {
+  if (!SleepConditionVariableSRW(cv, &rwlock->gate, INFINITE, 0)) {
+    return EINVAL;
+  }
+  return 0;
+}
+
+int32_t taosWinThreadRwlockAttrSetKindNP(TdThreadRwlockAttr *attr, int32_t kind) {
+  OS_PARAM_CHECK(attr);
+  /* 0 is reader-prefer (Linux default). Any other glibc kind is writer-prefer. */
+  *attr = (kind == 0) ? 0 : 1;
+  return 0;
+}
+#endif
+
 int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock) {
 #ifdef __USE_WIN_THREAD
-  /* SRWLock does not need explicit destruction so long as there are no waiting threads
-   * See: https://docs.microsoft.com/windows/win32/api/synchapi/nf-synchapi-initializesrwlock#remarks
-   */
+  /* SRWLOCK and CONDITION_VARIABLE have no destroy. Keep this a no-op so a
+   * later Rdlock/Wrlock on a zeroed lock (extConnector) is still defined. */
+  OS_PARAM_CHECK(rwlock);
   return 0;
 #else
   OS_PARAM_CHECK(rwlock);
@@ -610,8 +643,19 @@ int32_t taosThreadRwlockDestroy(TdThreadRwlock *rwlock) {
 int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *attr) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
+  int32_t preferWriter = 0;
+  /* Read preferWriter before the memset. Callers pass attr pointing at a field
+   * inside rwlock (see bse/meta/wal), so reading it afterwards is always 0. */
+  if (attr != NULL && *attr != 0) {
+    preferWriter = 1;
+  }
   memset(rwlock, 0, sizeof(*rwlock));
-  InitializeSRWLock(&rwlock->lock);
+  /* NULL attr is the Linux default: reader-prefer. SRWLOCK_INIT and
+   * CONDITION_VARIABLE_INIT are all-zero, so a lock that skips Init stays valid. */
+  InitializeSRWLock(&rwlock->gate);
+  InitializeConditionVariable(&rwlock->readerCv);
+  InitializeConditionVariable(&rwlock->writerCv);
+  rwlock->preferWriter = preferWriter;
   return 0;
 #else
   int32_t code = pthread_rwlock_init(rwlock, attr);
@@ -625,7 +669,17 @@ int32_t taosThreadRwlockInit(TdThreadRwlock *rwlock, const TdThreadRwlockAttr *a
 int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
-  AcquireSRWLockShared(&rwlock->lock);
+  int32_t code = 0;
+  AcquireSRWLockExclusive(&rwlock->gate);
+  while (taosWinRwlockReaderBlocked(rwlock)) {
+    code = taosWinRwlockWait(rwlock, &rwlock->readerCv);
+    if (code != 0) {
+      ReleaseSRWLockExclusive(&rwlock->gate);
+      return code;
+    }
+  }
+  rwlock->state += 1;
+  ReleaseSRWLockExclusive(&rwlock->gate);
   return 0;
 #else
   int32_t code = pthread_rwlock_rdlock(rwlock);
@@ -647,7 +701,15 @@ int32_t taosThreadRwlockRdlock(TdThreadRwlock *rwlock) {
 int32_t taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
-  if (!TryAcquireSRWLockShared(&rwlock->lock)) return EBUSY;
+  if (!TryAcquireSRWLockExclusive(&rwlock->gate)) {
+    return EBUSY;
+  }
+  if (taosWinRwlockReaderBlocked(rwlock)) {
+    ReleaseSRWLockExclusive(&rwlock->gate);
+    return EBUSY;
+  }
+  rwlock->state += 1;
+  ReleaseSRWLockExclusive(&rwlock->gate);
   return 0;
 #else
   int32_t code = pthread_rwlock_tryrdlock(rwlock);
@@ -661,8 +723,15 @@ int32_t taosThreadRwlockTryRdlock(TdThreadRwlock *rwlock) {
 int32_t taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
-  if (!TryAcquireSRWLockExclusive(&rwlock->lock)) return EBUSY;
-  atomic_store_8(&rwlock->excl, 1);
+  if (!TryAcquireSRWLockExclusive(&rwlock->gate)) {
+    return EBUSY;
+  }
+  if (rwlock->state != 0) {
+    ReleaseSRWLockExclusive(&rwlock->gate);
+    return EBUSY;
+  }
+  rwlock->state = TD_WIN_RWLOCK_WRITER_BIT;
+  ReleaseSRWLockExclusive(&rwlock->gate);
   return 0;
 #else
   int32_t code = pthread_rwlock_trywrlock(rwlock);
@@ -676,11 +745,23 @@ int32_t taosThreadRwlockTryWrlock(TdThreadRwlock *rwlock) {
 int32_t taosThreadRwlockUnlock(TdThreadRwlock *rwlock) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
-  if (1 == atomic_val_compare_exchange_8(&rwlock->excl, 1, 0)) {
-    ReleaseSRWLockExclusive(&rwlock->lock);
-  } else {
-    ReleaseSRWLockShared(&rwlock->lock);
+  AcquireSRWLockExclusive(&rwlock->gate);
+  if (rwlock->state & TD_WIN_RWLOCK_WRITER_BIT) {
+    rwlock->state &= ~TD_WIN_RWLOCK_WRITER_BIT;
+  } else if ((rwlock->state & TD_WIN_RWLOCK_READER_MASK) > 0) {
+    rwlock->state -= 1;
   }
+  /* Reader-prefer: wake every reader that is now allowed in. A waiting writer
+   * is woken only when no reader remains, so it cannot cut ahead of readers
+   * that arrived while it was queued. Writer-prefer skips the reader wake
+   * while nWriterWait > 0. */
+  if (!taosWinRwlockReaderBlocked(rwlock)) {
+    WakeAllConditionVariable(&rwlock->readerCv);
+  }
+  if (rwlock->state == 0 && rwlock->nWriterWait > 0) {
+    WakeConditionVariable(&rwlock->writerCv);
+  }
+  ReleaseSRWLockExclusive(&rwlock->gate);
   return 0;
 #else
   int32_t code = pthread_rwlock_unlock(rwlock);
@@ -694,8 +775,22 @@ int32_t taosThreadRwlockUnlock(TdThreadRwlock *rwlock) {
 int32_t taosThreadRwlockWrlock(TdThreadRwlock *rwlock) {
   OS_PARAM_CHECK(rwlock);
 #ifdef __USE_WIN_THREAD
-  AcquireSRWLockExclusive(&rwlock->lock);
-  atomic_store_8(&rwlock->excl, 1);
+  int32_t code = 0;
+  AcquireSRWLockExclusive(&rwlock->gate);
+  if (rwlock->state != 0) {
+    rwlock->nWriterWait += 1;
+    while (rwlock->state != 0) {
+      code = taosWinRwlockWait(rwlock, &rwlock->writerCv);
+      if (code != 0) {
+        rwlock->nWriterWait -= 1;
+        ReleaseSRWLockExclusive(&rwlock->gate);
+        return code;
+      }
+    }
+    rwlock->nWriterWait -= 1;
+  }
+  rwlock->state |= TD_WIN_RWLOCK_WRITER_BIT;
+  ReleaseSRWLockExclusive(&rwlock->gate);
   return 0;
 #else
   int32_t code = pthread_rwlock_wrlock(rwlock);
@@ -736,6 +831,9 @@ int32_t taosThreadRwlockAttrGetPshared(const TdThreadRwlockAttr *attr, int32_t *
 
 int32_t taosThreadRwlockAttrInit(TdThreadRwlockAttr *attr) {
 #ifdef __USE_WIN_THREAD
+  OS_PARAM_CHECK(attr);
+  /* Same default as pthread_rwlockattr_init: reader-prefer. */
+  *attr = 0;
   return 0;
 #else
   OS_PARAM_CHECK(attr);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,10 @@
 
 #ifndef PARSER_TEST_UTIL_H
 #define PARSER_TEST_UTIL_H
+
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
 
 #include <gtest/gtest.h>
 
@@ -40,6 +46,23 @@ class ParserTestBase : public testing::Test {
   void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Exec mode produced by the last successful internal parse/translate/
+  // calculateConstant pipeline.  Used to assert the empty-result shortcut.
+  int32_t getLastExecMode() const;
+  // Parse-only check (no translate/catalog). For grammar that cannot be
+  // exercise through the full translate path in the unit-test mock catalog
+  // (e.g. virtual tables), or when only the parse tree is of interest.
+  void runParseOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS);
+  // EXT tests need async-only mode because the sync translate path never consults
+  // the SParseMetaCache (which is where mock EXT source/table meta lives).
+  void runAsyncOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
+                    ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Translates a CLONE of the parsed AST instead of the AST itself. Both the
+  // view expansion path (clientView.c) and the prepared statement bind path
+  // (qStmtBindParams) do exactly this, so a clone that loses parse time
+  // fields turns a valid statement into a translate failure there.
+  void runClonedAst(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
+                    ParserStage checkStage = PARSER_STAGE_TRANSLATE);
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage);
 
@@ -65,7 +88,11 @@ class ParserDdlTest : public ParserTestBase {
 
 extern bool g_dump;
 
+// Idempotent; required before any code path that reaches tGetToken(), which
+// otherwise reports every keyword as TK_NK_ILLEGAL.
+extern void    initKeywordsTableOnce();
 extern void    setAsyncFlag(const char* pArg);
+extern bool    getAsyncFlag();
 extern void    setLogLevel(const char* pArg);
 extern int32_t getLogLevel();
 extern void    setSkipSqlNum(const char* pArg);

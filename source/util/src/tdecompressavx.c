@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,7 +23,8 @@ char tsSIMDEnable = 1;
 char tsSIMDEnable = 0;
 #endif
 
-int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type) {
+int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, const int32_t nelements,
+                               char *const output, const char type) {
 #ifdef __AVX512F__
   int32_t word_length = getWordLength(type);
 
@@ -30,11 +33,15 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
 
   const char *ip = input + 1;
+  const char *ip_end = input + ninput;
   int32_t     count = 0;
   int32_t     _pos = 0;
   int64_t     prevValue = 0;
 
   while (_pos < nelements) {
+    if (ip + LONG_BYTES > ip_end) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     uint64_t w = *(uint64_t *)ip;
 
     char    selector = (char)(w & INT64MASK(4));       // selector = 4
@@ -181,6 +188,13 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
           }
         }
       } break;
+
+      // No case above means the type is not handled here. Without this default the loop would spin
+      // forever: _pos would never advance, so the caller's element count would never be reached.
+      default: {
+        uError("unsupported integer decompress type:%d", type);
+        return TSDB_CODE_INVALID_MSG;
+      }
     }
 
     ip += LONG_BYTES;
@@ -341,6 +355,49 @@ int32_t tsDecompressDoubleImpAvx2(const char *input, const int32_t nelements, ch
 #endif
 }
 
+int32_t tsDecodeDoubleBssAvx2(const char *const input, const int32_t nelements, char *const output) {
+#ifdef __AVX2__
+  const int32_t batchElements = nelements - nelements % DOUBLE_BYTES;
+  const char   *in[DOUBLE_BYTES];
+
+  for (int32_t byte = 0; byte < DOUBLE_BYTES; ++byte) {
+    in[byte] = input + byte * nelements;
+  }
+
+  for (int32_t i = 0; i < batchElements; i += DOUBLE_BYTES) {
+    __m128i p0 = _mm_loadl_epi64((const __m128i *)(in[0] + i));
+    __m128i p1 = _mm_loadl_epi64((const __m128i *)(in[1] + i));
+    __m128i p2 = _mm_loadl_epi64((const __m128i *)(in[2] + i));
+    __m128i p3 = _mm_loadl_epi64((const __m128i *)(in[3] + i));
+    __m128i p4 = _mm_loadl_epi64((const __m128i *)(in[4] + i));
+    __m128i p5 = _mm_loadl_epi64((const __m128i *)(in[5] + i));
+    __m128i p6 = _mm_loadl_epi64((const __m128i *)(in[6] + i));
+    __m128i p7 = _mm_loadl_epi64((const __m128i *)(in[7] + i));
+
+    // Transpose eight byte streams into eight consecutive DOUBLE values.
+    __m128i t0 = _mm_unpacklo_epi8(p0, p1);
+    __m128i t1 = _mm_unpacklo_epi8(p2, p3);
+    __m128i t2 = _mm_unpacklo_epi8(p4, p5);
+    __m128i t3 = _mm_unpacklo_epi8(p6, p7);
+    __m128i u0 = _mm_unpacklo_epi16(t0, t1);
+    __m128i u1 = _mm_unpackhi_epi16(t0, t1);
+    __m128i u2 = _mm_unpacklo_epi16(t2, t3);
+    __m128i u3 = _mm_unpackhi_epi16(t2, t3);
+
+    char *out = output + i * DOUBLE_BYTES;
+    _mm_storeu_si128((__m128i *)out, _mm_unpacklo_epi32(u0, u2));
+    _mm_storeu_si128((__m128i *)(out + sizeof(__m128i)), _mm_unpackhi_epi32(u0, u2));
+    _mm_storeu_si128((__m128i *)(out + 2 * sizeof(__m128i)), _mm_unpacklo_epi32(u1, u3));
+    _mm_storeu_si128((__m128i *)(out + 3 * sizeof(__m128i)), _mm_unpackhi_epi32(u1, u3));
+  }
+
+  return batchElements * DOUBLE_BYTES;
+#else
+  uError("unable run %s without avx2 instructions", __func__);
+  return -1;
+#endif
+}
+
 int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelements, char *const output,
                                   bool bigEndian) {
 #ifdef __AVX512VL__
@@ -485,8 +542,8 @@ int32_t tsDecompressTimestampAvx2(const char *const input, const int32_t nelemen
 #endif
 }
 
-int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelements, char *const output,
-                                    bool UNUSED_PARAM(bigEndian)) {
+int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t ninput, const int32_t nelements,
+                                    char *const output, bool UNUSED_PARAM(bigEndian)) {
 #ifdef __AVX512VL__
   int64_t *ostream = (int64_t *)output;
   int32_t  ipos = 1, opos = 0;
@@ -501,10 +558,17 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
   int32_t i = 0;
   if (numOfBatch > 1) {
     // first loop
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
+
+    // Both counts must fit an 8-byte accumulator and both payloads must be inside the input, which the
+    // two masked loads below read across. No log here: the scalar decoder validates the same records and
+    // reports the diagnostic when this path bails out.
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
 
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
@@ -538,10 +602,15 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
 
   // the remain
   for (; i < numOfBatch; ++i) {
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
     uint8_t flags = input[ipos++];
 
     int8_t nbytes1 = flags & INT8MASK(4);  // range of nbytes starts from 0 to 7
     int8_t nbytes2 = (flags >> 4) & INT8MASK(4);
+
+    // both counts must fit an 8-byte accumulator and both payloads must be inside the input
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
 
     __m128i data1 = _mm_maskz_loadu_epi8(mask2[nbytes1], (const void *)(input + ipos));
     __m128i data2 = _mm_maskz_loadu_epi8(mask2[nbytes2], (const void *)(input + ipos + nbytes1));
@@ -575,18 +644,22 @@ int32_t tsDecompressTimestampAvx512(const char *const input, const int32_t nelem
 
   if (remainder > 0) {
     uint64_t dd = 0;
-    uint8_t  flags = input[ipos++];
+    if (ipos >= ninput) return TSDB_CODE_INVALID_MSG;
+    uint8_t flags = input[ipos++];
 
-    int32_t nbytes = flags & INT8MASK(4);
+    int32_t nbytes1 = flags & INT8MASK(4);  // the trailing value uses this one
+    int32_t nbytes2 = (flags >> 4) & INT8MASK(4);
+    // the odd trailing value carries no second one, but validating the whole record keeps one rule
+    if (nbytes1 > LONG_BYTES || nbytes2 > LONG_BYTES || nbytes1 + nbytes2 > ninput - ipos)
+      return TSDB_CODE_INVALID_MSG;
+
     int64_t deltaOfDelta = 0;
-    if (nbytes == 0) {
-      deltaOfDelta = 0;
-    } else {
-      memcpy(&dd, input + ipos, nbytes);
+    if (nbytes1 != 0) {
+      memcpy(&dd, input + ipos, nbytes1);
       deltaOfDelta = ZIGZAG_DECODE(int64_t, dd);
     }
 
-    ipos += nbytes;
+    ipos += nbytes1;
     if (opos == 0) {
       ostream[opos++] = deltaOfDelta;
     } else {

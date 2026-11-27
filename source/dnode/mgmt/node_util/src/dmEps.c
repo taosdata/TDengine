@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,18 +21,9 @@
 #include "tjson.h"
 #include "tmisce.h"
 
-typedef struct {
-  int32_t  id;
-  uint16_t oldPort;
-  uint16_t newPort;
-  char     oldFqdn[TSDB_FQDN_LEN];
-  char     newFqdn[TSDB_FQDN_LEN];
-} SDnodeEpPair;
-
 static void    dmPrintEps(SDnodeData *pData);
 static bool    dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
 static void    dmResetEps(SDnodeData *pData, SArray *dnodeEps);
-static int32_t dmReadDnodePairs(SDnodeData *pData);
 
 void dmGetDnodeEp(void *data, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
   SDnodeData *pData = data;
@@ -114,6 +107,18 @@ void dmSplitStr(char **arr, char *str, const char *del) {
   }
 }
 
+// ep.json used to map old endpoints to new ones at startup. Endpoints are now
+// rewritten offline, so the file is ignored and only reported.
+static void dmWarnEpJson(void) {
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  if (!taosCheckExistFile(file)) return;
+  dWarn("file %s is ignored because ep.json no longer takes effect, delete it. To change the endpoint "
+        "of a dnode, stop every dnode and run 'taosd [-c <cfgDir>] --rewrite-endpoints-precheck <dir> "
+        "--map '<oldFQDN:oldPort=newFQDN:newPort>' on each dnode, collect the precheck files, then run "
+        "'taosd [-c <cfgDir>] --rewrite-endpoints-apply <dir>' on each dnode", file);
+}
+
 int32_t dmReadEps(SDnodeData *pData) {
   int32_t   code = -1;
   char     *content = NULL;
@@ -129,7 +134,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("dnode file:%s not exist", file);
+    dInfo("dnode file:%s does not exist", file);
 
 #if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
     if (strlen(tsEncryptAlgorithm) > 0) {
@@ -184,6 +189,10 @@ int32_t dmReadEps(SDnodeData *pData) {
           pData->encryptScope |= DND_CS_MNODE_WAL;
           success = true;
         }
+        if (strcasecmp(str, "query_spill") == 0 || strcasecmp(str, "all") == 0) {
+          pData->encryptScope |= DND_CS_QUERY_SPILL;
+          success = true;
+        }
 
         if (!success) {
           terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
@@ -224,7 +233,7 @@ int32_t dmReadEps(SDnodeData *pData) {
   }
 
   code = 0;
-  dInfo("succceed to read dnode file %s", file);
+  dInfo("successfully read dnode file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
@@ -246,15 +255,17 @@ _OVER:
     }
   }
 
-  if ((code = dmReadDnodePairs(pData)) != 0) {
-    return terrno = code;
-  }
+  dmWarnEpJson();
 
   dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
-  if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
+  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+    dError("localEp %s different with %s and need to be reconfigured, stop taosd and run "
+           "'taosd -c <cfgDir> --rewrite-endpoints-precheck <dir> --map "
+           "'<oldFQDN:oldPort=newFQDN:newPort>' on every dnode, then run "
+           "'taosd -c <cfgDir> --rewrite-endpoints-apply <dir>' on every dnode",
+           tsLocalEp, file);
     code = TSDB_CODE_INVALID_CFG;
     return terrno = code;
   }
@@ -497,19 +508,6 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
 
   (void)taosThreadRwlockRdlock(&pData->lock);
 
-  if (pData->oldDnodeEps != NULL) {
-    int32_t size = (int32_t)taosArrayGetSize(pData->oldDnodeEps);
-    for (int32_t i = 0; i < size; ++i) {
-      SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-      if (strcmp(pair->oldFqdn, fqdn) == 0 && pair->oldPort == *port) {
-        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pair->newFqdn, pair->newPort);
-        tstrncpy(fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        *port = pair->newPort;
-        updated = true;
-      }
-    }
-  }
-
   if (did != NULL && dnodeId <= 0) {
     int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
     for (int32_t i = 0; i < size; ++i) {
@@ -539,143 +537,60 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
   return updated;
 }
 
-static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
-  int32_t code = 0;
+// Verify that every endpoint of pEpSet names a dnode this node knows to be part of the cluster,
+// and that nodeId - when given - resolves to one of them.
+//
+// Node management requests (TDMT_DND_CREATE_SNODE / ALTER_SNODE / ...) carry attacker-reachable
+// epsets that the receiving dnode persists and then uses as replication targets, and the dnode
+// has no way to authenticate the sender. Constraining the epsets to endpoints already recorded
+// in the local dnode table means a forged request cannot point stream checkpoint replication at
+// a host outside the cluster.
+//
+// Returns TSDB_CODE_SUCCESS when the epset is empty or when the local dnode table is still
+// empty (the cluster has not formed yet and there is nothing to check against).
+int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
-  SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
-  if (dnodes == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
-  int32_t numOfDnodes = tjsonGetArraySize(dnodes);
-
-  for (int32_t i = 0; i < numOfDnodes; ++i) {
-    SJson *dnode = tjsonGetArrayItem(dnodes, i);
-    if (dnode == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
-
-    SDnodeEpPair pair = {0};
-    tjsonGetInt32ValueFromDouble(dnode, "id", pair.id, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue1(dnode, "fqdn", pair.oldFqdn, sizeof(pair.oldFqdn));
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    tjsonGetUInt16ValueFromDouble(dnode, "port", pair.oldPort, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue1(dnode, "new_fqdn", pair.newFqdn, sizeof(pair.newFqdn));
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-
-    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return terrno;
+  if (pEpSet == NULL || pEpSet->numOfEps <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pEpSet->numOfEps > TSDB_MAX_REPLICA) {
+    dError("invalid epset with %d eps for node:%d", pEpSet->numOfEps, nodeId);
+    return TSDB_CODE_INVALID_OPTION;
   }
 
+  (void)taosThreadRwlockRdlock(&pData->lock);
+
+  int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
+  if (size <= 0) {
+    goto _exit;
+  }
+
+  if (nodeId > 0 && taosHashGet(pData->dnodeHash, &nodeId, sizeof(int32_t)) == NULL) {
+    dError("node:%d is not a known cluster dnode", nodeId);
+    code = TSDB_CODE_INVALID_OPTION;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    const SEp *pEp = &pEpSet->eps[i];
+    bool       found = false;
+    for (int32_t j = 0; j < size; ++j) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
+      if (pDnodeEp != NULL && strcmp(pDnodeEp->ep.fqdn, pEp->fqdn) == 0 && pDnodeEp->ep.port == pEp->port) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      dError("node:%d, ep:%s:%u is not a known cluster dnode endpoint", nodeId, pEp->fqdn, pEp->port);
+      code = TSDB_CODE_INVALID_OPTION;
+      goto _exit;
+    }
+  }
+
+_exit:
+  (void)taosThreadRwlockUnlock(&pData->lock);
   return code;
 }
 
-void dmRemoveDnodePairs(SDnodeData *pData) {
-  char file[PATH_MAX] = {0};
-  char bak[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  dInfo("dnode file:%s is rename to bak file", file);
-  if (taosRenameFile(file, bak) != 0) {
-    dError("failed to rename dnode file:%s to bak file:%s since %s", file, bak, tstrerror(terrno));
-  }
-}
-
-static int32_t dmReadDnodePairs(SDnodeData *pData) {
-  int32_t   code = -1;
-  char     *content = NULL;
-  int32_t   contentLen = 0;
-  SJson    *pJson = NULL;
-  char      file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-
-  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = terrno;
-    dDebug("dnode file:%s not exist, reason:%s", file, tstrerror(code));
-    code = 0;
-    goto _OVER;
-  }
-
-  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
-  code = taosReadCfgFile(file, &content, &contentLen);
-  if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  pJson = tjsonParse(content);
-  if (pJson == NULL) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
-  if (pData->oldDnodeEps == NULL) {
-    code = terrno;
-    dError("failed to calloc dnodeEp array since %s", strerror(ERRNO));
-    goto _OVER;
-  }
-
-  if (dmDecodeEpPairs(pJson, pData) < 0) {
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  code = 0;
-  dInfo("succceed to read dnode file %s", file);
-
-_OVER:
-  if (content != NULL) taosMemoryFree(content);
-  if (pJson != NULL) cJSON_Delete(pJson);
-
-  if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
-    return code;
-  }
-
-  // update old fqdn and port
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (pDnodeEp->id == pair->id) {
-        tstrncpy(pair->oldFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
-        pair->oldPort = pDnodeEp->ep.port;
-      }
-    }
-  }
-
-  // check new fqdn and port
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (pDnodeEp->id != pair->id &&
-          (strcmp(pDnodeEp->ep.fqdn, pair->newFqdn) == 0 && pDnodeEp->ep.port == pair->newPort)) {
-        dError("dnode:%d, can't update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
-               pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
-        taosArrayDestroy(pData->oldDnodeEps);
-        pData->oldDnodeEps = NULL;
-        code = TSDB_CODE_INVALID_CFG;
-        return code;
-      }
-    }
-  }
-
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort) {
-        dInfo("dnode:%d, will update ep:%s:%u to %s:%u", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port,
-              pair->newFqdn, pair->newPort);
-        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        pDnodeEp->ep.port = pair->newPort;
-      }
-    }
-  }
-
-  pData->dnodeVer = 0;
-  return 0;
-}

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,27 +25,35 @@
 
 SStreamMgmtInfo gStreamMgmt = {0};
 
-void streamSetSnodeEnabled(  SMsgCb* msgCb) {
-  if (tsDisableStream) {
-    return;
+void streamGetMnodeEpset(SEpSet *pEpSet) {
+  if (pEpSet == NULL) return;
+  if (gStreamMgmt.getMnode != NULL) {
+    (*gStreamMgmt.getMnode)(gStreamMgmt.dnode, pEpSet);
+  } else {
+    memset(pEpSet, 0, sizeof(*pEpSet));
   }
-  
-  gStreamMgmt.snodeEnabled = true;
+}
+
+bool streamMgmtInited(void) {
+  bool inited = gStreamMgmt.vgLeaders != NULL && gStreamMgmt.taskMap != NULL && gStreamMgmt.vgroupMap != NULL;
+  stTrace("stream mgmt inited:%d", inited);
+  return inited;
+}
+
+void streamSetSnodeEnabled(SMsgCb* msgCb) {
   gStreamMgmt.msgCb = *msgCb;
+  streamHbResetReaderRole(&gStreamMgmt.hb, true);
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(bool cleanup) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   stInfo("snode disabled");
-  gStreamMgmt.snodeEnabled = false;
+  streamHbResetReaderRole(&gStreamMgmt.hb, false);
   smUndeploySnodeTasks(cleanup);
 }
 
 void streamMgmtCleanup() {
+  streamHbResetReaderRole(&gStreamMgmt.hb, false);
   taosArrayDestroy(gStreamMgmt.vgLeaders);
   gStreamMgmt.vgLeaders = NULL;
   taosHashCleanup(gStreamMgmt.taskMap);
@@ -57,10 +67,6 @@ void streamMgmtCleanup() {
 }
 
 void streamCleanup(void) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   stInfo("stream cleanup start");
 
   // Phase 1: stop the hb timer up-front and wait until every callback that was
@@ -83,20 +89,24 @@ void streamCleanup(void) {
   stTriggerTaskEnvCleanup();
   streamTimerCleanUp();
   smUndeployAllTasks();
+  streamNoticeQueueCleanup();
   destroyDataSinkMgr();
+  streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
   streamMgmtCleanup();
   destroyInserterGrpInfo();
   stInfo("stream cleanup end");
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
-  if (tsDisableStream) {
-    stInfo("stream disabled");
-    return TSDB_CODE_SUCCESS;
-  }
-  
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
+  // Always initialize the runtime, even when disableStream is set: STOP/DROP STREAM must keep
+  // working for streams created before the config was turned on, which needs the mgmt state, data
+  // sink and notify workers. Only streamHbInit() is skipped under disableStream, so no new
+  // deployment is triggered. Trade-off: disableStream blocks (re)deployment only and no longer
+  // reduces the stream subsystem's resident resources (notify worker threads / param pool).
+  stInfo("stream init start, disableStream:%d", tsDisableStream);
 
   gStreamMgmt.dnode = pDnode;
   gStreamMgmt.getMnode = getMnode;
@@ -130,6 +140,9 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
 
   TAOS_CHECK_EXIT(initStreamDataSink());
 
+  TAOS_CHECK_EXIT(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, tsStreamNotifyWorkerNum));
+  TAOS_CHECK_EXIT(streamNoticeQueueInit());
+
 _exit:
 
   if (code) {
@@ -155,10 +168,6 @@ int32_t streamVgIdSort(void const *lp, void const *rp) {
 
 
 void streamRemoveVnodeLeader(int32_t vgId) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   int32_t idx = taosArraySearchIdx(gStreamMgmt.vgLeaders, &vgId, streamVgIdSort, TD_EQ);
   if (idx >= 0) {
@@ -169,17 +178,13 @@ void streamRemoveVnodeLeader(int32_t vgId) {
   if (idx >= 0) {
     stInfo("remove vgroup %d from vgroupLeaders succeed", vgId);
   } else {
-    stWarn("remove vgroup %d from vgroupLeaders failed since not exists", vgId);
+    stWarn("remove vgroup %d from vgroupLeaders failed since it does not exist", vgId);
   }
 
   smUndeployVgTasks(vgId, false);
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   int32_t code = TSDB_CODE_SUCCESS;
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);
@@ -204,7 +209,7 @@ int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask
 
   SStreamTask** task = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stsWarn("task %" PRIx64 " not exists in taskMap", taskId);
+    stsWarn("task %" PRIx64 " does not exist in taskMap", taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
@@ -251,11 +256,11 @@ int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** 
   int32_t gid = STREAM_GID(streamId);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
+  SHashObj* pGrp = atomic_load_ptr(&gStreamMgmt.stmGrp[gid]);
 
   SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    stsWarn("stream %" PRIx64 " not exists when acquire trigger task", streamId);
+    stsWarn("stream %" PRIx64 " does not exist when acquiring trigger task", streamId);
     return TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
 
@@ -278,11 +283,10 @@ void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
 
   SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stError("stream %" PRIx64 " task %" PRIx64 " not exists in taskMap", streamId, taskId);
+    stError("stream %" PRIx64 " task %" PRIx64 " does not exist in taskMap", streamId, taskId);
     return;
   }
 
   atomic_store_32(&(*task)->errorCode, errCode);
   atomic_store_32((int32_t*)&(*task)->status, STREAM_STATUS_FAILED);
 }
-

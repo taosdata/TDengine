@@ -1,4 +1,19 @@
 
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import taos
 import sys
 import time
@@ -6,6 +21,7 @@ import socket
 import os
 import threading
 from enum import Enum
+from taos.tmq import Consumer
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
 
@@ -35,60 +51,6 @@ class TestCase:
         cur=con.cursor()
         print(cur)
         return cur
-
-    def initConsumerTable(self,cdbName='cdb'):
-        tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("drop database if exists %s "%(cdbName))
-        tdSql.query("create database %s vgroups 1 wal_retention_period 3600"%(cdbName))
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
-
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
-        tdSql.query("create table %s.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"%cdbName)
-
-    def initConsumeContentTable(self,id=0,cdbName='cdb'):
-        tdSql.query("drop table if exists %s.content_%d "%(cdbName, id))
-        tdSql.query("create table %s.content_%d (ts timestamp, contentOfRow binary(1024))"%cdbName, id)
-
-    def initConsumerInfoTable(self,cdbName='cdb'):
-        tdLog.info("drop consumeinfo table")
-        tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
-        tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"%cdbName)
-
-    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,cdbName='cdb'):
-        sql = "insert into %s.consumeinfo values "%cdbName
-        sql += "(now, %d, '%s', '%s', %d, %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
-        tdLog.info("consume info sql: %s"%sql)
-        tdSql.query(sql)
-
-    def selectConsumeResult(self,expectRows,cdbName='cdb'):
-        resultList=[]
-        while 1:
-            tdSql.query("select * from %s.consumeresult"%cdbName)
-            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
-            if tdSql.getRows() == expectRows:
-                break
-            else:
-                time.sleep(5)
-
-        for i in range(expectRows):
-            tdLog.info ("consume id: %d, consume msgs: %d, consume rows: %d"%(tdSql.getData(i , 1), tdSql.getData(i , 2), tdSql.getData(i , 3)))
-            resultList.append(tdSql.getData(i , 3))
-
-        return resultList
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        shellCmd = 'nohup '
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-        shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
@@ -212,6 +174,72 @@ class TestCase:
         tdLog.debug("insert data ............ [OK]")
         return
 
+    def consume_topic_rows(self, consumer, expected_rows, timeout_seconds=20):
+        rows = []
+        deadline = time.time() + timeout_seconds
+        while len(rows) < expected_rows and time.time() < deadline:
+            result = consumer.poll(1)
+            if not result:
+                continue
+            error = result.error()
+            if error is not None:
+                tdLog.exit(f"TMQ poll failed: {error}")
+            value = result.value()
+            if value is None:
+                continue
+            for block in value:
+                rows.extend(block.fetchall())
+        if len(rows) != expected_rows:
+            tdLog.exit(f"Expected {expected_rows} TMQ rows, got {len(rows)}")
+        return rows
+
+    def do_query_topic_column_expansion(self):
+        database = "db_query_topic_expand"
+        table = "ntb_query_topic_expand"
+        topic = "topic_query_topic_expand"
+        initial_value = "a" * 32
+        expanded_value = "b" * 40
+
+        consumer = None
+        try:
+            tdSql.execute(f"drop database if exists {database}")
+            tdSql.execute(f"create database {database} vgroups 1 wal_retention_period 3600")
+            tdSql.execute(f"create table {database}.{table} (ts timestamp, value binary(32))")
+            tdSql.execute(f"create topic {topic} as select ts, value from {database}.{table}")
+
+            consumer = Consumer({
+                "group.id": "query_topic_expand_group",
+                "td.connect.user": "root",
+                "td.connect.pass": "taosdata",
+                "enable.auto.commit": "false",
+                "auto.offset.reset": "earliest",
+            })
+            consumer.subscribe([topic])
+            tdLog.debug("Inserting initial query topic row with current timestamp")
+            tdSql.execute(f"insert into {database}.{table} values(now, '{initial_value}')")
+            initial_rows = self.consume_topic_rows(consumer, 1)
+            if len(initial_rows[0][1]) != len(initial_value):
+                tdLog.exit(f"Expected initial value length {len(initial_value)}, got {len(initial_rows[0][1])}")
+
+            tdSql.execute(f"alter table {database}.{table} modify column value binary(40)")
+            tdLog.debug("Inserting expanded query topic row one second after the initial row")
+            tdSql.execute(f"insert into {database}.{table} values(now+1s, '{expanded_value}')")
+            expanded_rows = self.consume_topic_rows(consumer, 1)
+            if len(expanded_rows[0][1]) != len(expanded_value):
+                tdLog.exit(f"Expected expanded value length {len(expanded_value)}, got {len(expanded_rows[0][1])}")
+        finally:
+            # consume_topic_rows exits via SystemExit on failure, so the topic and the database are
+            # dropped here as well: they must be removed even when the consumer cannot be created
+            # or closed, otherwise they leak into the shared test instance.
+            try:
+                if consumer is not None:
+                    consumer.close()
+            finally:
+                tdSql.execute(f"drop topic if exists {topic}")
+                tdSql.execute(f"drop database if exists {database}")
+
+        print("query topic column expansion ........ [passed]")
+
     def prepareEnv(self, **parameterDict):
         # create new connector for my thread
         tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
@@ -267,7 +295,10 @@ class TestCase:
         tdSql.execute("alter table %s.%s modify column c2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("alter table %s.%s modify tag t2 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # Renaming a column that IS part of the topic is allowed: the topic binds by colId, which the
+        # rename preserves. This matches both the tag rename on the next line and the normal-table
+        # path further down, which has always allowed the same statement.
+        tdSql.execute("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
 
         # alter actions allowed: drop column/tag, modify column/tag type, rename column/tag not included in topic
@@ -375,22 +406,25 @@ class TestCase:
         tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # RENAME COLUMN on a super table is supported since 3.4.3.0, and a topic binds its columns
+        # by colId (which a rename preserves), so these are allowed just like the tag renames below.
+        tdSql.query("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
+        # the columns were renamed just above, so drop them under their new names
+        tdSql.query("alter table %s.%s drop column c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -446,22 +480,25 @@ class TestCase:
         tdSql.query("alter table %s.%s modify tag t4 binary(40)"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s modify tag t5 nchar(40)"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.error("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.error("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
+        # RENAME COLUMN on a super table is supported since 3.4.3.0, and a topic binds its columns
+        # by colId (which a rename preserves), so these are allowed just like the tag renames below.
+        tdSql.query("alter table %s.%s rename column c1 c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c2 c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c3 c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c4 c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s rename column c5 c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t1 t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t2 t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t3 t3new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t4 t4new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s rename tag t5 t5new"%(parameterDict['dbName'], parameterDict['stbName']))
 
-        tdSql.query("alter table %s.%s drop column c1"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c2"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c3"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c4"%(parameterDict['dbName'], parameterDict['stbName']))
-        tdSql.query("alter table %s.%s drop column c5"%(parameterDict['dbName'], parameterDict['stbName']))
+        # the columns were renamed just above, so drop them under their new names
+        tdSql.query("alter table %s.%s drop column c1new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c2new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c3new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c4new"%(parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.query("alter table %s.%s drop column c5new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t1new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t2new"%(parameterDict['dbName'], parameterDict['stbName']))
         tdSql.query("alter table %s.%s drop tag t3new"%(parameterDict['dbName'], parameterDict['stbName']))
@@ -477,17 +514,19 @@ class TestCase:
         2. Add column during consumption
         3. Drop column during consumption
         4. Modify column type
-        5. Verify schema evolution handled
-        6. Check backward compatibility
+        5. Consume values written after a queried column is expanded
+        6. Verify schema evolution handled
+        7. Check backward compatibility
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
         History:
             - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_schema.py
+            - 2026-09-20 Mingming Wang Added query topic column expansion regression coverage.
 
         """
         tdSql.prepare()
@@ -500,6 +539,7 @@ class TestCase:
         cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdLog.info("cfgPath: %s" % cfgPath)
 
+        self.do_query_topic_column_expansion()
         self.tmqCase1(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
@@ -507,4 +547,3 @@ class TestCase:
 
 
 event = threading.Event()
-

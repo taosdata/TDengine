@@ -1,0 +1,65 @@
+case_id	rule_name	branch_sig	sql	key_assert
+SEL_001	select_statement	SELECT hint + projection	select /*+ batch_scan() */ v from t1;	hint=batch_scan;select_len=1;from_kind=table
+SEL_001A	query_expression	query_simple order_by slimit limit	select v from t1 order by v limit 1;	from_kind=table;order_len=1
+SEL_002	query_specification	SELECT ... FROM ... WHERE ...	select distinct v from t1 where v > 1;	distinct=true;from_kind=table;has_where=true
+SEL_003	select_item	NK_STAR	select * from t1;	select_len=1
+SEL_004	select_item	table_name . *	select t1.* from t1;	select_len=1
+SEL_005	select_item	common_expression AS alias	select v as x from t1;	select_len=1
+SEL_006	from_clause_opt	FROM table_reference_list	select v from db1.t1;	from_kind=table
+SEL_007	table_primary	subquery alias	select x.v from (select v from t1) x;	from_kind=subquery
+SEL_008	joined_table	inner join	select a.v from t1 a join t2 b on a.id = b.id;	from_kind=join;join_type=inner
+SEL_009	joined_table	left join	select a.v from t1 a left join t2 b on a.id = b.id;	from_kind=join;join_type=left
+SEL_010	joined_table	right join	select a.v from t1 a right join t2 b on a.id = b.id;	from_kind=join;join_type=right
+SEL_011	joined_table	full join	select a.v from t1 a full join t2 b on a.id = b.id;	from_kind=join;join_type=full
+SEL_012	joined_table	left semi join	select a.v from t1 a left semi join t2 b on a.id = b.id;	from_kind=join;join_type=left_semi
+SEL_013	joined_table	right semi join	select a.v from t1 a right semi join t2 b on a.id = b.id;	from_kind=join;join_type=right_semi
+SEL_014	joined_table	left anti join	select a.v from t1 a left anti join t2 b on a.id = b.id;	from_kind=join;join_type=left_anti
+SEL_015	joined_table	right anti join	select a.v from t1 a right anti join t2 b on a.id = b.id;	from_kind=join;join_type=right_anti
+SEL_016	joined_table	left asof join	select a.v from t1 a left asof join t2 b on a.id = b.id jlimit 10;	from_kind=join;join_type=left_asof
+SEL_017	joined_table	left window join	select a.v from t1 a left window join t2 b on a.id = b.id window_offset(1s, -2s) jlimit 10;	from_kind=join;join_type=left_window
+SEL_018	where_clause_opt	WHERE	select v from t1 where v > 1;	has_where=true
+SEL_019	group_by_clause_opt	GROUP BY	select v from t1 group by v;	has_group_by=true
+SEL_020	having_clause_opt	HAVING	select v from t1 group by v having v > 1;	has_having=true
+SEL_021	range_opt	RANGE (expr)	select v from t1 range(1);	range_kind=range_1
+SEL_022	range_opt	RANGE (expr,expr)	select v from t1 range(1,2);	range_kind=range_2
+SEL_023	range_opt	RANGE (expr,expr,expr)	select v from t1 range(1,2,3);	range_kind=range_3
+SEL_024	every_opt	EVERY(duration)	select v from t1 every(10s);	from_kind=table
+SEL_025	order_by_clause_opt	ORDER BY	select v from t1 order by v desc nulls first;	order_len=1
+SEL_026	limit_clause_opt	LIMIT n OFFSET m	select v from t1 limit 10 offset 5;	from_kind=table
+SEL_027	limit_clause_opt	LIMIT m,n	select v from t1 limit 5,10;	from_kind=table
+SEL_028	slimit_clause_opt	SLIMIT n	select v from t1 slimit 10;	from_kind=table
+SEL_029	slimit_clause_opt	SLIMIT n SOFFSET m	select v from t1 slimit 10 soffset 2;	from_kind=table
+SEL_030	partition_by_clause_opt	PARTITION BY list	select v from t1 partition by c1 as p1, c2 p2;	has_partition=true
+SEL_031	twindow_clause_opt	INTERVAL	select v from t1 interval(10s) sliding(5s);	window_mode=interval
+SEL_032	twindow_clause_opt	SESSION	select v from t1 session(c1, 10s);	window_mode=session
+SEL_033	twindow_clause_opt	STATE_WINDOW	select v from t1 state_window(v, 1, 'z') true_for(10s);	window_mode=state
+SEL_034	twindow_clause_opt	EVENT_WINDOW	select v from t1 event_window start with v > 1 end with v < 1 true_for(10s);	window_mode=event
+SEL_035	twindow_clause_opt	COUNT_WINDOW	select v from t1 count_window(10, 2, c1, c2);	window_mode=count
+SEL_036	twindow_clause_opt	ANOMALY_WINDOW	select v from t1 anomaly_window(v, 'strict');	window_mode=anomaly
+SEL_037	union_query_expression	UNION ALL	select v from t1 union all select v from t2 order by v limit 5;	set_op=union;set_all=true
+SEL_038	predicate	IN list	select v in (1,2,3) from t1;	expr_kind=in
+SEL_040	predicate	BETWEEN	select v between 1 and 2 from t1;	expr_kind=between
+SEL_041	predicate	IS NULL	select v is null from t1;	expr_kind=is_null
+SEL_042	function_expression	CAST	select cast(v as varchar(10)) from t1;	expr_kind=cast
+SEL_043	function_expression	TRIM	select trim(a from b) from t1;	expr_kind=trim_ext
+SEL_044	function_expression	POSITION	select position(a in b) from t1;	expr_kind=position
+SEL_045	function_expression	IF	select if(v>1,2,3) from t1;	expr_kind=if
+SEL_046	function_expression	COALESCE	select coalesce(v,1,2) from t1;	expr_kind=coalesce
+SEL_047	function_expression	NULLIF	select nullif(v,1) from t1;	expr_kind=nullif
+SEL_048	function_expression	IFNULL	select ifnull(v,1) from t1;	expr_kind=ifnull
+SEL_049	function_expression	JSON arrow	select v->'x' from t1;	expr_kind=json
+SEL_050	function_expression	CASE WHEN	select case when v>1 then 1 else 0 end from t1;	expr_kind=case_when
+SEL_051	query_or_subquery	query_expression	select v from t1;	from_kind=table
+SEL_052	query_simple	query_specification	select v from t1;	from_kind=table
+SEL_053	query_simple_or_subquery	query_simple	select v from t1;	from_kind=table
+SEL_054	hint_list	single_hint	select /*+ batch_scan() */ v from t1;	hint=batch_scan
+SEL_055	set_quantifier_opt	ALL	select all v from t1;	distinct=false
+SEL_056	alias_opt	AS identifier	select a.v from t1 as a;	from_kind=table
+SEL_057	join_on_clause_opt	ON condition	select a.v from t1 a join t2 b on a.id=b.id;	from_kind=join;join_has_on=true
+SEL_058	jlimit_clause_opt	JLIMIT n	select a.v from t1 a left asof join t2 b on a.id=b.id jlimit 3;	from_kind=join;join_has_jlimit=true
+SEL_059	ordering_specification_opt	DESC	select v from t1 order by v desc;	order_len=1
+SEL_060	null_ordering_opt	NULLS LAST	select v from t1 order by v nulls last;	order_len=1
+SEL_061	subquery	parenthesized_query	select x.v from (select v from t1) as x;	from_kind=subquery
+SEL_062	count_window_args	with_cols	select v from t1 count_window(10, 2, c1, c2);	window_mode=count;count_cols_len=2
+SEL_063	compare_op	GE	select v from t1 where v >= 1;	has_where=true
+SEL_064	in_op	IN_LIST	select v in (1,2) from t1;	expr_kind=in

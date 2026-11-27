@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -262,13 +264,13 @@ _OVER:
 }
 
 static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  int32_t          code = -1;
+  SMnode  *pMnode = pReq->info.node;
+  int32_t  code = -1;
+
+#if defined(LINUX) || defined(WINDOWS)
   SBnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateBnodeReq createReq = {0};
-
-  #ifdef LINUX
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateBnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 

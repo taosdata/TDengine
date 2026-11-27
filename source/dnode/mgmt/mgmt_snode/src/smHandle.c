@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -150,6 +152,22 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  // The snodeId check above is the only authorization this handler has, and the id is a small
+  // sequential integer. Constrain the attacker-reachable part - the leader/replica epsets - to
+  // endpoints already known to be cluster dnodes, before they are written to snode.json or used
+  // by streamSyncAllCheckpoints to push every local checkpoint file to replica.epSet.
+  code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[0].nodeId, &createReq.leaders[0].epSet);
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[1].nodeId, &createReq.leaders[1].epSet);
+  }
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.replica.nodeId, &createReq.replica.epSet);
+  }
+  if (code != 0) {
+    dError("failed to create snode %d since its epsets are not cluster endpoints", createReq.snodeId);
+    goto _exit;
+  }
+
   bool deployed = true;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
@@ -256,16 +274,36 @@ SArray *smGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT_RSP, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_DELETE_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP_SNODE, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_RUNNER, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_CACHE, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_DROP, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
+  /* Route EXT reader PULL requests to the runner queue; sndProcessStreamMsg
+   * handles them via TDMT_STREAM_TRIGGER_PULL_EXT case. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  /* P4-E1: route runner -> reader EXT fetch requests to the runner queue.
+   * The runner queue worker dispatches TDMT_STREAM_FETCH_EXT to
+   * handleExtFetchReq, which invokes the ETR task's extConnector. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
+  /*
+   * The trigger responses below carry the send handle allocated by the trigger
+   * task (msg.info.ahandle), so they must be released on every path that drops
+   * them.  Every type registered here with smPutMsgToTriggerQueue() must also
+   * be listed in tmsgIsStreamTriggerRsp() (include/common/tmsg.h), which drives
+   * the release in dmProcessRpcMsg() and smFreeRpcQitem().
+   */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
+  /* Route EXT PULL responses back to the trigger task queue so that
+   * stTriggerTaskProcessRsp can dispatch TDMT_STREAM_TRIGGER_PULL_EXT_RSP
+   * to stRealtimeContextProcExtPullRsp. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_DROP_RSP, smPutMsgToTriggerQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_SNODE_DROP_TABLE_RSP, smPutMsgToTriggerQueue, 1) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_VALIDATE_RESULT, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SND_BATCH_META, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
 
   code = 0;

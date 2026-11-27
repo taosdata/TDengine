@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -70,6 +72,9 @@ typedef struct {
   int32_t retryMaxInterval;  // retry max interval
   int32_t retryMaxTimeout;
 
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
+
   int32_t failFastThreshold;
   int32_t failFastInterval;
 
@@ -81,6 +86,7 @@ typedef struct {
   void (*destroyFp)(void* ahandle);
   bool (*failFastFp)(tmsg_t msgType);
   bool (*noDelayFp)(tmsg_t msgType);
+  bool (*overloadRetryFp)(int32_t code, tmsg_t msgType);
 
   int32_t       connLimitNum;
   int8_t        connLimitLock;  // 0: no lock. 1. lock
@@ -133,6 +139,9 @@ typedef struct {
   int32_t retryMaxInterval;  // retry max interval
   int32_t retryMaxTimeout;
 
+  int32_t retryOnOverloadBaseInterval;   // base interval (ms) for overload retry, doubles each attempt
+  int32_t retryOnOverloadTimeout; // max total duration (ms) for overload retry
+
   int32_t failFastThreshold;
   int32_t failFastInterval;
 
@@ -144,6 +153,7 @@ typedef struct {
   void (*destroyFp)(void* ahandle);
   bool (*failFastFp)(tmsg_t msgType);
   bool (*noDelayFp)(tmsg_t msgType);
+  bool (*overloadRetryFp)(int32_t code, tmsg_t msgType);
 
   int32_t       connLimitNum;
   int8_t        connLimitLock;  // 0: no lock. 1. lock

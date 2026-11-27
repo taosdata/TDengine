@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -50,6 +52,13 @@ typedef struct SSortSource {
   int64_t fetchNum;
 } SSortSource;
 
+// Values of SMsortComparParam.fastKeyState.
+enum {
+  TSORT_FASTKEY_UNKNOWN = 0,   // shape not decided yet (retry on the next comparison)
+  TSORT_FASTKEY_ENABLED = 1,   // slot/kind/order cached, typed comparison usable
+  TSORT_FASTKEY_DISABLED = 2,  // shape is definitively ineligible
+};
+
 typedef struct SMsortComparParam {
   void**  pSources;
   int32_t numOfSources;
@@ -62,6 +71,22 @@ typedef struct SMsortComparParam {
   int32_t tsOrder;
   __compar_fn_t cmpTsFn;
   void* pPkOrder; // SBlockOrderInfo*
+  // Lazy single fixed-length key fast path for the generic merge comparator:
+  // the slot and comparison kind are resolved once, from the first compared
+  // pair that can answer. The kind is re-validated against the current pair's
+  // column type and width on every comparison; it is never cached by block
+  // address, because a merge can recycle an address for a block with a
+  // different shape.
+  // The lazy fields are written from the comparator, so the whole param (and
+  // the handle owning it) must be driven by a single thread: the executor
+  // merges one handle from its task thread and never shares it.
+  int32_t fastKeySlotId;
+  // State machine of the lazy fast path. Every SSortHandle is created with
+  // taosMemoryCalloc (tsortCreateSortHandle), so UNKNOWN is the zero value and
+  // no explicit initialization is needed.
+  int8_t  fastKeyState;  // TSORT_FASTKEY_* values above
+  int8_t  fastKeyKind;   // typed comparison kind, 0 = none
+  bool    fastKeyDesc;
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
@@ -82,7 +107,19 @@ int32_t tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize
                               SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
                               uint32_t pqSortBufSize, SSortHandle** pHandle);
 
+/*
+ * The setters below all accept a NULL handle and become a no-op, so callers
+ * that treat the sort handle as optional do not need their own guard.
+ */
 void tsortSetForceUsePQSort(SSortHandle* pHandle);
+
+void tsortSetTsPkSort(SSortHandle* pHandle);
+
+/* Trust the plan's full-key input order contract: after the first strict
+ * threshold rejection the rest of the block is skipped without re-validation
+ * in release builds; with trace logging enabled the suffix is re-validated so
+ * a broken contract is reported instead of silently dropping rows. */
+void tsortSetInputOrdered(SSortHandle* pHandle);
 
 /**
  *
@@ -159,6 +196,15 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
+// Expose the block and row the handle currently points at so hot callers can
+// copy values directly instead of going through the per-column accessors.
+// Contract: the block is owned by the sort handle and is only valid until the
+// next tsortNextTuple() call; callers must not cache it across tuples. Callers
+// must treat the block as possibly NULL: tsortNextTuple() only returns a
+// non-NULL handle once a row is available, but a handle whose source has been
+// exhausted carries an empty block internally, and the accessors below assume
+// a real block.
+void tsortGetTuplePos(const STupleHandle* pVHandle, const SSDataBlock** ppBlock, int32_t* pRowIndex);
 
 /**
  *
@@ -198,6 +244,16 @@ int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pB
  * @return
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
+
+/*
+ * return the cumulative time (us) spent pulling raw data from sources via the
+ * fetch callback.  For a multiway merge this is the operator's "input wait":
+ * time blocked on downstream operators rather than on the merge itself.
+ *
+ * @param pHandle
+ * @return cumulative fetch time in microseconds, 0 if pHandle is NULL
+ */
+int64_t tsortGetFetchRawDataTime(SSortHandle* pHandle);
 
 /**
  * get proper sort buffer pages according to the row size

@@ -1,0 +1,178 @@
+
+taos> use test_ext_fill_having_order;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 |                   777 |
+         1701600060000 |                    10 |
+         1701600120000 |                   777 |
+         1701600180000 |                    30 |
+         1701600240000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(null) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 | NULL                  |
+         1701600060000 |                    10 |
+         1701600120000 | NULL                  |
+         1701600180000 |                    30 |
+         1701600240000 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_empty external_window((select ts, endtime, mark from win) w) fill(value_f, 777) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 |                   777 |
+         1701600060000 |                   777 |
+         1701600120000 |                   777 |
+         1701600180000 |                   777 |
+         1701600240000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_empty external_window((select ts, endtime, mark from win) w) fill(null_f) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 | NULL                  |
+         1701600060000 | NULL                  |
+         1701600120000 | NULL                  |
+         1701600180000 | NULL                  |
+         1701600240000 | NULL                  |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 777) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1701600000000 |                   777 |
+           1 |         1701600060000 |                    10 |
+           1 |         1701600120000 |                   777 |
+           1 |         1701600180000 |                    30 |
+           1 |         1701600240000 |                   777 |
+           2 |         1701600000000 |                    20 |
+           2 |         1701600060000 |                   777 |
+           2 |         1701600120000 |                   777 |
+           2 |         1701600180000 |                   777 |
+           2 |         1701600240000 |                    40 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) order by ws;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600000000 |         301 |                   777 |
+         1701600060000 |         302 |                    10 |
+         1701600120000 |         303 |                   777 |
+         1701600180000 |         304 |                    30 |
+         1701600240000 |         305 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) = 777) order by ws;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600000000 |         301 |                   777 |
+         1701600120000 |         303 |                   777 |
+         1701600240000 |         305 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(prev) having(sum(v) is not null) order by ws;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600060000 |         302 |                    10 |
+         1701600120000 |         303 |                    10 |
+         1701600180000 |         304 |                    30 |
+         1701600240000 |         305 |                    30 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src_empty external_window((select ts, endtime, mark from win) w) fill(null_f) order by ws;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600000000 |         301 | NULL                  |
+         1701600060000 |         302 | NULL                  |
+         1701600120000 |         303 | NULL                  |
+         1701600180000 |         304 | NULL                  |
+         1701600240000 |         305 | NULL                  |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src_empty external_window((select ts, endtime, mark from win) w) fill(value_f, 777) order by ws;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600000000 |         301 |                   777 |
+         1701600060000 |         302 |                   777 |
+         1701600120000 |         303 |                   777 |
+         1701600180000 |         304 |                   777 |
+         1701600240000 |         305 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 777) order by ws, sv;
+          ws           |    mark     |          sv           |
+==============================================================
+         1701600000000 |         301 |                    20 |
+         1701600000000 |         301 |                   777 |
+         1701600060000 |         302 |                    10 |
+         1701600060000 |         302 |                   777 |
+         1701600120000 |         303 |                   777 |
+         1701600120000 |         303 |                   777 |
+         1701600180000 |         304 |                    30 |
+         1701600180000 |         304 |                   777 |
+         1701600240000 |         305 |                    40 |
+         1701600240000 |         305 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(prev) having(sum(v) is not null) order by ws;
+          ws           |          sv           |
+================================================
+         1701600060000 |                    10 |
+         1701600120000 |                    10 |
+         1701600180000 |                    30 |
+         1701600240000 |                    30 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(prev) having(sum(v) > 100) order by ws;
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(prev) having(sum(v) > 20) order by ws;
+          ws           |          sv           |
+================================================
+         1701600180000 |                    30 |
+         1701600240000 |                    30 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) >= 100) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 |                   777 |
+         1701600120000 |                   777 |
+         1701600240000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) = 777) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 |                   777 |
+         1701600120000 |                   777 |
+         1701600240000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) != 777) order by ws;
+          ws           |          sv           |
+================================================
+         1701600060000 |                    10 |
+         1701600180000 |                    30 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) <= 777) order by ws;
+          ws           |          sv           |
+================================================
+         1701600000000 |                   777 |
+         1701600060000 |                    10 |
+         1701600120000 |                   777 |
+         1701600180000 |                    30 |
+         1701600240000 |                   777 |
+
+taos> select cast(_wstart as bigint) as ws, sum(v) as sv from src_1 external_window((select ts, endtime, mark from win) w) fill(null) having(sum(v) is not null) order by ws;
+          ws           |          sv           |
+================================================
+         1701600060000 |                    10 |
+         1701600180000 |                    30 |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(prev) having(sum(v) > 20) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1701600180000 |                    30 |
+           1 |         1701600240000 |                    30 |
+           2 |         1701600240000 |                    40 |
+
+taos> select t1, cast(_wstart as bigint) as ws, sum(v) as sv from src partition by t1 external_window((select ts, endtime, mark from win) w) fill(value, 777) having(sum(v) = 777) order by t1, ws;
+     t1      |          ws           |          sv           |
+==============================================================
+           1 |         1701600000000 |                   777 |
+           1 |         1701600120000 |                   777 |
+           1 |         1701600240000 |                   777 |
+           2 |         1701600060000 |                   777 |
+           2 |         1701600120000 |                   777 |
+           2 |         1701600180000 |                   777 |
+

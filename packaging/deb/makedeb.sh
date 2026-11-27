@@ -1,6 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate deb package for ubuntu
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 # set -x
 
@@ -131,6 +145,7 @@ cp ${community_packaging_dir}/tools/startPre.sh    ${pkg_dir}${install_home_path
 cp ${community_packaging_dir}/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${community_packaging_dir}/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
 cp ${internal_packaging_dir}/start-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/reconcile-tsdb-nodes.sh  ${pkg_dir}${install_home_path}/bin
 cp ${internal_packaging_dir}/stop-all.sh  ${pkg_dir}${install_home_path}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/stop-all.sh
@@ -173,7 +188,26 @@ cp ${top_dir}/include/util/taoserror.h       ${pkg_dir}${install_home_path}/incl
 cp ${top_dir}/include/util/tdef.h            ${pkg_dir}${install_home_path}/include
 cp ${top_dir}/include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
-cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
+# Example code was consolidated into docs/examples, but the layout inside the
+# package is frozen: the shipped subset and the historical directory names
+# (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
+examples_dir="${top_dir}/docs/examples"
+examples_manifest="${top_dir}/packaging/examples-manifest.txt"
+while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    if [ "${ex_group}" != all ] && [ "${ex_group}" != debrpm ]; then
+        continue
+    fi
+    if [ ! -f "${examples_dir}/${ex_src}" ]; then
+        echo "ERROR: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+        exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p ${pkg_dir}${install_home_path}/examples/${ex_dst}/$(dirname "${ex_rel}")
+    cp "${examples_dir}/${ex_src}" ${pkg_dir}${install_home_path}/examples/${ex_dst}/${ex_rel}
+done < "${examples_manifest}"
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector

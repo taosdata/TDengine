@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,8 @@
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
 #if defined(TD_ENTERPRISE) && defined(LINUX)
 #define MND_ENCRYPT_ALGR_LAST_ID 6
+#elif defined(TD_ENTERPRISE) && defined(WINDOWS)
+#define MND_ENCRYPT_ALGR_LAST_ID 2
 #else
 #define MND_ENCRYPT_ALGR_LAST_ID 1
 #endif
@@ -302,7 +306,7 @@ int32_t mndSendCreateBuiltinReq(SMnode *pMnode) {
 
   code = tmsgSendReq(&epSet, &rpcMsg);
   if (code != 0) {
-    mError("failed to send builtin encrypt algr req, since %s", tstrerror(code));
+    mError("failed to send builtin encrypt algorithm req, since %s", tstrerror(code));
   }
   return code;
 }
@@ -312,13 +316,16 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode) {
   STrans *pTrans = NULL;
 
   mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr
-#if defined(TD_ENTERPRISE) && defined(LINUX)
+#if defined(TD_ENTERPRISE)
                                     ,
-                                    mndSetAESEncryptAlgr,
+                                    mndSetAESEncryptAlgr
+#if defined(LINUX)
+                                    ,
                                     mndSetSM3EncryptAlgr,
                                     mndSetSHAEncryptAlgr,
                                     mndSetSM2EncryptAlgr,
                                     mndSetRSAEncryptAlgr
+#endif
 #endif
   };
 
@@ -376,7 +383,7 @@ static int32_t mndProcessBuiltinRsp(SRpcMsg *pRsp) {
 static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
-  mInfo("upgrade builtin encrypt algr, current version:%d, target version:%d", version,
+  mInfo("upgrade builtin encrypt algorithm, current version:%d, target version:%d", version,
         TSDB_MNODE_BUILTIN_DATA_VERSION);
   return mndSendCreateBuiltinReq(pMnode);
 }
@@ -487,7 +494,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_INVALID_MSG, &lino, _OVER);
   }
 
-  mInfo("algr:%s, start to create, ossl_name:%s", createReq.algorithmId, createReq.osslAlgrName);
+  mInfo("algorithm:%s, start to create, ossl_name:%s", createReq.algorithmId, createReq.osslAlgrName);
 
   // TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_USER), &lino, _OVER);
 
@@ -546,7 +553,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   return code;
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("algr:%s, failed to create at line %d since %s", createReq.algorithmId, lino, tstrerror(code));
+    mError("algorithm:%s, failed to create at line %d since %s", createReq.algorithmId, lino, tstrerror(code));
   }
 
   tFreeSCreateEncryptAlgrReq(&createReq);
@@ -557,10 +564,10 @@ _OVER:
 static int32_t mndDropEncryptAlgr(SMnode *pMnode, SRpcMsg *pReq, SEncryptAlgrObj *pAlgr) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-encrypt-algr");
   if (pTrans == NULL) {
-    mError("algr:%s, failed to drop since %s", pAlgr->algorithm_id, terrstr());
+    mError("algorithm:%s, failed to drop since %s", pAlgr->algorithm_id, terrstr());
     TAOS_RETURN(terrno);
   }
-  mInfo("trans:%d, used to drop algr:%s", pTrans->id, pAlgr->algorithm_id);
+  mInfo("trans:%d, used to drop algorithm:%s", pTrans->id, pAlgr->algorithm_id);
 
   SSdbRaw *pCommitRaw = mndEncryptAlgrActionEncode(pAlgr);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -594,7 +601,7 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(tDeserializeSDropEncryptAlgrReq(pReq->pCont, pReq->contLen, &dropReq), &lino, _OVER);
 
-  mInfo("algr:%s, start to drop", dropReq.algorithmId);
+  mInfo("algorithm:%s, start to drop", dropReq.algorithmId);
   // TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_USER), &lino, _OVER);
 
   if (dropReq.algorithmId[0] == 0) {
@@ -604,6 +611,15 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
   pObj = mndAcquireEncryptAlgrByAId(pMnode, dropReq.algorithmId);
   if (pObj == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST, &lino, _OVER);
+  }
+
+  // Do not delete built-in encryption algorithms.
+  // Built-in algorithms are registered during system initialization, for example SM4-CBC, AES-128-CBC, and SM3.
+  // Deletion would prevent databases encrypted with them from finding the algorithm definition after restart or recovery.
+  // Only user-defined algorithms may be deleted.
+  if (pObj->source == ENCRYPT_ALGR_SOURCE_BUILTIN) {
+    mError("algorithm:%s, cannot drop built-in encryption algorithm", dropReq.algorithmId);
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_BUILTIN, &lino, _OVER);
   }
 
   bool    exist = false;
@@ -640,7 +656,7 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
 
 _OVER:
   if (code < 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("algr:%s, failed to drop at line %d since %s", dropReq.algorithmId, lino, tstrerror(code));
+    mError("algorithm:%s, failed to drop at line %d since %s", dropReq.algorithmId, lino, tstrerror(code));
   }
 
   mndReleaseEncryptAlgr(pMnode, pObj);
@@ -800,4 +816,3 @@ void mndReleaseEncryptAlgr(SMnode *pMnode, SEncryptAlgrObj *pObj) {
   sdbRelease(pSdb, pObj);
   pObj = NULL;
 }
-

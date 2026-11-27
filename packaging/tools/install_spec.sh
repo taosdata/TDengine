@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -25,7 +37,6 @@ productName="TDengine"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
 
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
@@ -169,13 +180,13 @@ service_config_dir="/etc/systemd/system"
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -254,6 +265,7 @@ function install_bin() {
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/reconcile-tsdb-nodes.sh ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
@@ -304,7 +316,6 @@ function install_lib() {
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
-
   ${csudo}mkdir -p ${bin_link_dir}
   ${csudo}mkdir -p ${lib_link_dir}
   ${csudo}mkdir -p ${inc_link_dir}
@@ -512,7 +523,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
   while true; do
     if [ ! -z "$localFqdn" ]; then
@@ -943,10 +954,6 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
@@ -954,7 +961,6 @@ function updateProduct() {
     dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
-  tar -zxf ${tarName}
   # install_jemalloc
 
   echo "Start to update ${productName}..."
@@ -1045,11 +1051,6 @@ function updateProduct() {
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-  tar -zxf ${tarName}
 
   echo "Start to install ${productName}..."
 
@@ -1134,7 +1135,6 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 
 
   if grep -q "export PATH=\$bin_link_dir:\$PATH" ~/.bashrc; then
@@ -1143,7 +1143,7 @@ function installProduct() {
   else
     echo -e  "\n# taos bin env\nexport PATH=$bin_link_dir:\$PATH\n" >> ~/.bashrc
   fi
-  if grep -q "export LD_LIBRARY_PATH=\$lib_link_dir" ~/.bashrc; then
+  if grep -q "export LD_LIBRARY_PATH=$lib_link_dir" ~/.bashrc; then
     echo "taos lib env has been added to LD_LIBRARY_PATH"
     return
   else
@@ -1153,22 +1153,21 @@ function installProduct() {
 
 check_java_env() {
   if ! command -v java &>/dev/null; then
-    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    echo -e "\033[31mWarning: Java command not found. Version 17+ is required.\033[0m"
     return
   fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_major=$(echo "$java_version" | cut -d"." -f1 | tr -cd '0-9')
   java_version_ok=false
-  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
-    java_version_ok=true
-  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+  if [ -n "$java_major" ] && [ "$java_major" -ge 17 ]; then
     java_version_ok=true
   fi
 
   if $java_version_ok; then
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
-    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+    echo -e "\033[31mWarning: Java Version 17+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 

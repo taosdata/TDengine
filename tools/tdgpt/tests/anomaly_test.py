@@ -1,35 +1,144 @@
-# encoding:utf-8
-# pylint: disable=c0103
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """anomaly detection unit test"""
-import unittest, sys, os.path
+
+import os.path
+import sys
+import unittest
+
 import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.anomaly import draw_anomaly_results
-from taosanalytics.service_registry import loader
-from taosanalytics.log import setup_log_info
+from lib.log import setup_log_info
+from lib.service_registry import loader
+from lib.taosanalytics.handlers.anomaly import draw_anomaly_results
+
 
 class AnomalyDetectionTest(unittest.TestCase):
-    """ anomaly detection unit test class"""
+    """anomaly detection unit test class"""
+
     input_list = [5, 14, 15, 15, 14, 19, 17, 16, 20, 22, 8, 21, 28, 11, 9, 29, 40]
     large_list = [
-        13, 14, 8, 10, 16, 26, 32, 27, 18, 32, 36, 24,
-        22, 23, 22, 18, 25, 21, 21, 14, 8, 11, 14, 23,
-        18, 17, 19, 20, 22, 19, 13, 26, 13, 14, 22, 24,
-        21, 22, 26, 21, 23, 24, 27, 41, 31, 27, 35, 26,
-        28, 36, 39, 21, 17, 22, 17, 19, 15, 34, 10, 15,
-        22, 18, 15, 20, 15, 22, 19, 16, 30, 27, 29, 23,
-        20, 16, 21, 21, 25, 16, 18, 15, 18, 14, 10, 15,
-        8, 15, 6, 11, 8, 7, 13, 10, 23, 16, 15, 25,
-        22, 20, 16
+        13,
+        14,
+        8,
+        10,
+        16,
+        26,
+        32,
+        27,
+        18,
+        32,
+        36,
+        24,
+        22,
+        23,
+        22,
+        18,
+        25,
+        21,
+        21,
+        14,
+        8,
+        11,
+        14,
+        23,
+        18,
+        17,
+        19,
+        20,
+        22,
+        19,
+        13,
+        26,
+        13,
+        14,
+        22,
+        24,
+        21,
+        22,
+        26,
+        21,
+        23,
+        24,
+        27,
+        41,
+        31,
+        27,
+        35,
+        26,
+        28,
+        36,
+        39,
+        21,
+        17,
+        22,
+        17,
+        19,
+        15,
+        34,
+        10,
+        15,
+        22,
+        18,
+        15,
+        20,
+        15,
+        22,
+        19,
+        16,
+        30,
+        27,
+        29,
+        23,
+        20,
+        16,
+        21,
+        21,
+        25,
+        16,
+        18,
+        15,
+        18,
+        14,
+        10,
+        15,
+        8,
+        15,
+        6,
+        11,
+        8,
+        7,
+        13,
+        10,
+        23,
+        16,
+        15,
+        25,
+        22,
+        20,
+        16,
     ]
 
     @classmethod
     def setUpClass(cls):
-        """ set up environment for unit test, set the log file path """
+        """set up environment for unit test, set the log file path"""
         setup_log_info("unit_test.log")
-        loader.register_all_services()
+        loader.load_all_services()
 
     def test_ksigma(self):
         """
@@ -44,7 +153,9 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"k": 2})
 
         r = s.execute()
-        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code, "ksigma")
+        draw_anomaly_results(
+            AnomalyDetectionTest.input_list, r, "ksigma", s.valid_code, "ksigma"
+        )
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -64,7 +175,9 @@ class AnomalyDetectionTest(unittest.TestCase):
             self.assertEqual(1, 0, e)
 
         r = s.execute()
-        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "iqr", s.valid_code, "iqr")
+        draw_anomaly_results(
+            AnomalyDetectionTest.input_list, r, "iqr", s.valid_code, "iqr"
+        )
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -82,7 +195,9 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_params({"alpha": 0.95})
 
         r = s.execute()
-        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code, "grubbs")
+        draw_anomaly_results(
+            AnomalyDetectionTest.input_list, r, "grubbs", s.valid_code, "grubbs"
+        )
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(len(r), len(AnomalyDetectionTest.input_list))
@@ -107,7 +222,9 @@ class AnomalyDetectionTest(unittest.TestCase):
             s.set_input_list(AnomalyDetectionTest.input_list, None)
 
             r = s.execute()
-            draw_anomaly_results(AnomalyDetectionTest.input_list, r, "shesd", s.valid_code, "shesd")
+            draw_anomaly_results(
+                AnomalyDetectionTest.input_list, r, "shesd", s.valid_code, "shesd"
+            )
 
             self.assertEqual(r[-1], -1)
 
@@ -123,7 +240,9 @@ class AnomalyDetectionTest(unittest.TestCase):
         s.set_input_list(AnomalyDetectionTest.input_list, None)
 
         r = s.execute()
-        draw_anomaly_results(AnomalyDetectionTest.input_list, r, "lof", s.valid_code, "lof")
+        draw_anomaly_results(
+            AnomalyDetectionTest.input_list, r, "lof", s.valid_code, "lof"
+        )
 
         self.assertEqual(r[-1], -1)
         self.assertEqual(r[-2], -1)
@@ -169,13 +288,54 @@ class AnomalyDetectionTest(unittest.TestCase):
         s = loader.get_service("lof")
 
         with self.assertRaises(ValueError):
-            s.set_input_list([
-                [1.0, 2.0, 3.0, 4.0],
-                [1.0, 2.0, 3.0]
-            ], None)
+            s.set_input_list([[1.0, 2.0, 3.0, 4.0], [1.0, 2.0, 3.0]], None)
+
+    def test_pyod_statistical_algorithms(self):
+        """Test PyOD statistical anomaly detection algorithms."""
+        algos = ("ecod", "hbos", "copod", "iforest", "pca")
+        services = {algo: loader.get_service(algo) for algo in algos}
+
+        feature_1 = [1.0 + (i % 5) * 0.02 for i in range(40)] + [20.0, 22.0]
+        feature_2 = [2.0 + (i % 5) * 0.03 for i in range(40)] + [35.0, 40.0]
+
+        for algo, service in services.items():
+            with self.subTest(algo=algo):
+                self.assertTrue(service is not None, f"failed to get {algo} service")
+                service.set_input_list([feature_1, feature_2], None)
+                service.set_params({"contamination": 0.1})
+
+                result = service.execute()
+
+                self.assertEqual(len(result), len(feature_1))
+                self.assertTrue(all(x in (-1, service.valid_code) for x in result))
+                self.assertEqual(result[-1], -1)
+                self.assertEqual(result[-2], -1)
+
+    def test_pyod_parameter_validation(self):
+        """Test PyOD parameter validation."""
+        s = loader.get_service("ecod")
+        self.assertTrue(s is not None, "failed to get ecod service")
+
+        with self.assertRaises(ValueError):
+            s.set_params({"contamination": 0})
+
+        s = loader.get_service("hbos")
+        self.assertTrue(s is not None, "failed to get hbos service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_bins": 1})
+
+        s = loader.get_service("iforest")
+        self.assertTrue(s is not None, "failed to get iforest service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_estimators": 0})
+
+        s = loader.get_service("pca")
+        self.assertTrue(s is not None, "failed to get pca service")
+        with self.assertRaises(ValueError):
+            s.set_params({"n_components": 0})
 
     def test_multithread_safe(self):
-        """ Test the multithread safe function"""
+        """Test the multithread safe function"""
         s1 = loader.get_service("ksigma")
         s2 = loader.get_service("ksigma")
 
@@ -185,8 +345,10 @@ class AnomalyDetectionTest(unittest.TestCase):
     def __load_remote_data_for_ad(self):
         """load the remote data for anomaly detection"""
 
-        url = ("https://raw.githubusercontent.com/numenta/NAB/master/data/artificialWithAnomaly/"
-               "art_daily_jumpsup.csv")
+        url = (
+            "https://raw.githubusercontent.com/numenta/NAB/master/data/artificialWithAnomaly/"
+            "art_daily_jumpsup.csv"
+        )
 
         remote_data = pd.read_csv(url, parse_dates=True, index_col="timestamp")
         k = remote_data.values.ravel().tolist()
@@ -194,7 +356,7 @@ class AnomalyDetectionTest(unittest.TestCase):
 
     def test_autoencoder_ad(self):
         """for local test only, disabled it in github action"""
-        pass 
+        pass
         # data = self.__load_remote_data_for_ad()
         #
         # s = loader.get_service("sample_ad_model")
@@ -218,5 +380,5 @@ class AnomalyDetectionTest(unittest.TestCase):
         loader.get_anomaly_algo_list()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, AutoGen
 import platform
 
@@ -21,15 +36,10 @@ class TestBasic:
         cls.childtable_count = 10
 
     def supports_encryption_on_current_platform(self):
-        # TAOSK only supports encryption on Linux and enterprise edition
+        # Windows exposes SM4/AES; the remaining registry entries are Linux-only.
         return platform.system().lower() != "windows"
     
     def create_encrypt_sm4_db(self):        
-        if not self.supports_encryption_on_current_platform():
-            tdLog.info("Skip encrypted database creation on Windows because "
-                "encryption keys are not initialized there")
-            return
-        
         autoGen = AutoGen()
         autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'SM4-CBC'")
         tdSql.execute(f"use {self.db}")
@@ -46,11 +56,6 @@ class TestBasic:
         self.checkInsertCorrect()           
 
     def create_encrypt_aes_db(self):        
-        if not self.supports_encryption_on_current_platform():
-            tdLog.info("Skip encrypted database creation on Windows because "
-                "encryption keys are not initialized there")
-            return
-        
         autoGen = AutoGen()
         self.db = "test2"
         autoGen.create_db(self.db, 2, 1, "ENCRYPT_ALGORITHM 'AES-128-CBC'")
@@ -77,14 +82,14 @@ class TestBasic:
         if self.supports_encryption_on_current_platform():
             tdSql.checkRows(6)
         else:
-            tdSql.checkRows(1)
+            tdSql.checkRows(2)
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(0, 1, "SM4-CBC")
         tdSql.checkData(0, 6, "SM4-CBC:SM4")
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(1, 1, "AES-128-CBC")
+        tdSql.checkData(1, 6, "AES-128-CBC")
         if self.supports_encryption_on_current_platform():
-            tdSql.checkData(1, 0, 2)
-            tdSql.checkData(1, 1, "AES-128-CBC")
-            tdSql.checkData(1, 6, "AES-128-CBC")
             tdSql.checkData(2, 0, 3)
             tdSql.checkData(2, 1, "SM3")
             tdSql.checkData(2, 6, "SM3")
@@ -109,7 +114,7 @@ class TestBasic:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional,security
 
         Jira: None
 

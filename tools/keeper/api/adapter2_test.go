@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -182,6 +197,19 @@ func TestAdapter_tableName(t *testing.T) {
 	assert.Equal(t, wantWS, gotWS)
 
 	assert.NotEqual(t, gotRest, gotWS)
+}
+
+func TestAdapter_parseSql_EscapesEndpoint(t *testing.T) {
+	a := &Adapter{}
+	report := AdapterReport{
+		Timestamp: 1690000000,
+		Endpoint:  "ep', 0) values (now, 0) x using adapter_requests tags ('y",
+	}
+	sql := a.parseSql(report)
+	escaped := util.EscapeSQLString(report.Endpoint)
+	assert.NotEqual(t, report.Endpoint, escaped)
+	assert.Contains(t, sql, "tags ('"+escaped+"', 0)")
+	assert.Contains(t, sql, "tags ('"+escaped+"', 1)")
 }
 
 func TestAdapter_handleFunc_NoConnection_Returns500(t *testing.T) {

@@ -1,4 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e 
 
 function usage() {
@@ -87,6 +103,13 @@ else
     BUILD_HTTP_OPT="-DBUILD_HTTP=true"
 fi
 
+# Bundle provider dependencies for enterprise tests, including versioned libs
+# such as libltdl.so.7. Existing 0.4 images need libltdl7 in the build container.
+BUILD_FQ_RUNTIME_OPT=""
+if [ $ent -ne 0 ]; then
+    BUILD_FQ_RUNTIME_OPT="-DINSTALL_FQ_RUNTIME_LIBS=ON"
+fi
+
 date 
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
@@ -98,20 +121,18 @@ if [[ -d ${WORKDIR}/debugSan ]] ;then
     rm -rf  ${WORKDIR}/debugSan
 fi
 
+# Keep Go/Cargo caches in each disposable container. Writable host caches
+# would let one source-tree build affect later PR or nightly builds.
 if [ "$build_no_asan" = "true" ]; then
     docker run \
         -v $REP_MOUNT_PARAM \
-        -v /root/.cargo/registry:/root/.cargo/registry \
-        -v /root/.cargo/git:/root/.cargo/git \
-        -v /root/go/pkg/mod:/root/go/pkg/mod \
-        -v /root/.cache/go-build:/root/.cache/go-build \
         -v /root/.cos-local.1:/root/.cos-local.2 \
         -v ${REP_REAL_PATH}/enterprise/contrib/grant-lib:${REP_DIR}/enterprise/contrib/grant-lib \
         -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
         -v ${WORKDIR}/security:/security:ro \
-        --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DBUILD_CONTRIB=false ;make -j|| exit 1"
+        --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DBUILD_CONTRIB=false && make -j || exit 1"
     # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
 
@@ -127,17 +148,13 @@ fi
 
 docker run \
     -v $REP_MOUNT_PARAM \
-    -v /root/.cargo/registry:/root/.cargo/registry \
-    -v /root/.cargo/git:/root/.cargo/git \
-    -v /root/go/pkg/mod:/root/go/pkg/mod \
-    -v /root/.cache/go-build:/root/.cache/go-build \
     -v /root/.cos-local.1:/root/.cos-local.2 \
     -v ${REP_REAL_PATH}/enterprise/contrib/grant-lib:${REP_DIR}/enterprise/contrib/grant-lib \
     -v ${REP_REAL_PATH}/community/tools/taosadapter:${REP_DIR}/community/tools/taosadapter \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
     -v ${WORKDIR}/security:/security:ro \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff -y;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false;make -j|| exit 1 "
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.5} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT -DCOVER=true -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false && make -j || exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 date

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -47,6 +49,8 @@ typedef struct SCacheRowsScanInfo {
   SArray*         pFuncTypeList;
   int32_t         numOfPks;
   SColumnInfo     pkCol;
+  int32_t         bufferedRowIndex;
+  bool            batchMultiTableRead;
   bool            gotAll;
 } SCacheRowsScanInfo;
 
@@ -54,6 +58,8 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static void    destroyCacheScanOperator(void* param);
 static int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds,
                                       int32_t** pDstSlotIds);
+static int32_t buildBatchTableResult(SCacheRowsScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int32_t* pLino,
+                                     SSDataBlock** ppRes);
 
 #define SCAN_ROW_TYPE(_t) ((_t) ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW)
 
@@ -185,6 +191,11 @@ int32_t createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandl
   // partition by tbname
   if (oneTableForEachGroup(pTableListInfo) || (totalTables == 1)) {
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | SCAN_ROW_TYPE(pScanNode->ignoreNull);
+    pInfo->batchMultiTableRead =
+        totalTables > 1 && pScanNode->batchMultiTableRead && oneTableForEachGroup(pTableListInfo);
+    if (pInfo->batchMultiTableRead) {
+      pInfo->retrieveType |= CACHESCAN_RETRIEVE_BATCH_ALL;
+    }
 
     STableKeyInfo* pList = tableListGetInfo(pTableListInfo, 0);
     if (totalTables) QUERY_CHECK_NULL(pList, code, lino, _error, terrno);
@@ -254,6 +265,56 @@ _error:
   return code;
 }
 
+static int32_t buildBatchTableResult(SCacheRowsScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int32_t* pLino,
+                                     SSDataBlock** ppRes) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      startRow = pInfo->bufferedRowIndex;
+  int64_t*     pUid = taosArrayGet(pInfo->pUidList, startRow);
+  SSDataBlock* pResult = NULL;
+
+  QUERY_CHECK_NULL(pUid, code, *pLino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  while (pInfo->bufferedRowIndex < taosArrayGetSize(pInfo->pUidList)) {
+    int64_t* pCurrentUid = taosArrayGet(pInfo->pUidList, pInfo->bufferedRowIndex);
+    QUERY_CHECK_NULL(pCurrentUid, code, *pLino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    if (*pCurrentUid != *pUid) {
+      break;
+    }
+    ++pInfo->bufferedRowIndex;
+  }
+
+  int32_t rowCount = pInfo->bufferedRowIndex - startRow;
+  if (pInfo->bufferedRowIndex > pInfo->pBufferedRes->info.rows) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _end;
+  }
+
+  code = blockDataExtractBlock(pInfo->pBufferedRes, startRow, rowCount, &pResult);
+  QUERY_CHECK_CODE(code, *pLino, _end);
+
+  blockDataDestroy(pInfo->pRes);
+  pInfo->pRes = pResult;
+  pResult = NULL;
+  pInfo->pRes->info.id.uid = *pUid;
+  pInfo->pRes->info.scanFlag = MAIN_SCAN;
+
+  SExprSupp* pSup = &pInfo->pseudoExprSup;
+  code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+                                pInfo->pRes->info.rows, pTaskInfo, pInfo->pTableList, NULL);
+  QUERY_CHECK_CODE(code, *pLino, _end);
+
+  code = tableListGetTableGroupId(pInfo->pTableList, pInfo->pRes->info.id.uid, &pInfo->pRes->info.id.groupId,
+                                  &pInfo->pRes->info.id.baseGId);
+  QUERY_CHECK_CODE(code, *pLino, _end);
+
+  *ppRes = pInfo->pRes;
+
+_end:
+  if (NULL != pResult) {
+    blockDataDestroy(pResult);
+  }
+  return code;
+}
+
 static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -287,9 +348,23 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
     }
 
+    if (pInfo->batchMultiTableRead && pInfo->bufferedRowIndex < pBufRes->info.rows) {
+      code = buildBatchTableResult(pInfo, pTaskInfo, &lino, ppRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      return code;
+    }
+
+    if (pInfo->batchMultiTableRead && pInfo->gotAll &&
+        pInfo->bufferedRowIndex >= pBufRes->info.rows) {
+      setOperatorCompleted(pOperator);
+      (*ppRes) = NULL;
+      return code;
+    }
+
     if (!pInfo->gotAll) {
       blockDataCleanup(pBufRes);
       taosArrayClear(pInfo->pUidList);
+      pInfo->bufferedRowIndex = 0;
 
       code = pReaderFn->retrieveRows(pInfo->pLastrowReader, pBufRes, pInfo->pSlotIds, pInfo->pDstSlotIds,
                                      pInfo->pUidList, &pInfo->gotAll);
@@ -299,6 +374,16 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     SSDataBlock* pRes = pInfo->pRes;
 
     if (pBufRes->info.rows > 0) {
+      if (pInfo->batchMultiTableRead) {
+        if (pBufRes->info.rows != taosArrayGetSize(pInfo->pUidList)) {
+          code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          goto _end;
+        }
+        code = buildBatchTableResult(pInfo, pTaskInfo, &lino, ppRes);
+        QUERY_CHECK_CODE(code, lino, _end);
+        return code;
+      }
+
       code = copyDataBlock(pRes, pBufRes);
       QUERY_CHECK_CODE(code, lino, _end);
 
@@ -311,7 +396,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
       SExprSupp* pSup = &pInfo->pseudoExprSup;
       code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes, pRes->info.rows,
-                                    pTaskInfo, NULL);
+                                    pTaskInfo, pTableList, NULL);
       QUERY_CHECK_CODE(code, lino, _end);
 
       code = tableListGetTableGroupId(pTableList, pRes->info.id.uid, &pRes->info.id.groupId, &pRes->info.id.baseGId);
@@ -367,6 +452,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
         STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pList)[0];
         pInfo->pRes->info.id.groupId = pKeyInfo->groupId;
+        pInfo->pRes->info.id.baseGId = pKeyInfo->baseGId;
 
         if (taosArrayGetSize(pInfo->pUidList) > 0) {
           void* pUid = taosArrayGet(pInfo->pUidList, 0);
@@ -374,7 +460,7 @@ static int32_t doScanCacheNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
           pInfo->pRes->info.id.uid = *(tb_uid_t*)pUid;
           if (pInfo->pseudoExprSup.numOfExprs > 0) {
             code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
-                                          pInfo->pRes->info.rows, pTaskInfo, NULL);
+                                          pInfo->pRes->info.rows, pTaskInfo, pInfo->pTableList, NULL);
             QUERY_CHECK_CODE(code, lino, _end);
           }
         }

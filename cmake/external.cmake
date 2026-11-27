@@ -1,6 +1,29 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 option(EXTERNALS_USE_CCACHE "Use ccache for ExternalProject builds (set OFF if ccache corrupts .o files)" ON)
+
+include(ProcessorCount)
+ProcessorCount(_td_externals_default_jobs)
+if(NOT _td_externals_default_jobs)
+    set(_td_externals_default_jobs 4)
+endif()
+set(TD_EXTERNALS_BUILD_JOBS "${_td_externals_default_jobs}" CACHE STRING
+    "Maximum parallel build jobs for heavy ExternalProject dependencies")
 
 # When EXTERNALS_USE_CCACHE is OFF, prepend CCACHE_DISABLE=1 to external
 # build commands so ccache passes compilations through without caching.
@@ -187,6 +210,9 @@ macro(INIT_EXT name)               # {
             if("z${name}" STREQUAL "zext_gtest")
                 target_compile_features(${tgt} PUBLIC cxx_std_11)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
+                # Optional: resolve the engine from libtaosd_shared.so instead of
+                # statically embedding it into every test binary.
+                td_test_link_shared_engine(${tgt})
             endif()
         else()
             if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
@@ -208,6 +234,12 @@ macro(INIT_EXT name)               # {
             foreach(v ${${name}_libs})
                 target_link_libraries(${tgt} PRIVATE "${v}")
             endforeach()
+            if("z${name}" STREQUAL "zext_curl" AND NOT TD_WINDOWS)
+                target_link_libraries(${tgt} PRIVATE ${ext_ssl_libs} ${ext_zlib_libs})
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_ssl ext_zlib)
+                endif()
+            endif()
             if(NOT TD_WINDOWS)       # {
               if("z${name}" STREQUAL "zext_libuv")
                   target_link_libraries(${tgt} PUBLIC dl)
@@ -302,6 +334,65 @@ macro(get_from_local_if_exists url)                       # {
   endif()
 endmacro()                                                # }
 
+# ---------------------------------------------------------------------------
+# Build external static libs with function/data sections so that taosd's
+# --gc-sections (already applied to engine code via platform.cmake) can also
+# dead-strip unused code *inside* these third-party libs at final link.
+# Best-effort seed: a sub-project that sets its own CMAKE_C_FLAGS simply
+# overrides this (no harm); ones that append keep both.
+#
+# Keep the flag list empty unless the final link actually runs --gc-sections,
+# i.e. Linux Release (see the "Linux Release binary size optimization" block
+# in platform.cmake).  Reason:
+#   * -ffunction-sections/-fdata-sections are GCC/Clang-only; handing them to
+#     an MSVC ExternalProject (Windows) makes configure fail outright.
+#   * Darwin has no --gc-sections, so the flags would only slow the build down.
+# ---------------------------------------------------------------------------
+set(TD_EXT_DEADSTRIP_CFLAGS "")
+if(TD_LINUX AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(TD_EXT_DEADSTRIP_CFLAGS "-ffunction-sections -fdata-sections")
+endif()
+
+# Same flags for the few sites that append them to an existing option string
+# ("CFLAGS=-fPIC ..."): the separator lives here so that an empty flag list cannot
+# leave a stray trailing space in the configure environment.
+set(TD_EXT_DEADSTRIP_SUFFIX "")
+if(TD_EXT_DEADSTRIP_CFLAGS)
+    set(TD_EXT_DEADSTRIP_SUFFIX " ${TD_EXT_DEADSTRIP_CFLAGS}")
+endif()
+
+# ---------------------------------------------------------------------------
+# CFLAGS/CXXFLAGS for autotools externals built via `configure`
+# (mxml/apr/aprutil/sasl2/gsasl).
+# Setting CFLAGS in the configure environment *replaces* the package's own
+# default optimization/debug flags entirely, so do not hardcode e.g. -g -O2
+# (would override the per-config flags: a Debug build must stay unoptimized)
+# and do not pass -fPIC alone (would silently drop optimization -- see the
+# ext_tz note below).  Mirror the main project's per-config flags instead,
+# the same approach ext_tz uses for its hand-written Makefile.
+if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELEASE}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+else()
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
+# Never leave these libs unoptimized, even if the config flags are emptied.
+if(_td_ext_autotools_config_flags STREQUAL "")
+    set(_td_ext_autotools_config_flags "-O2")
+endif()
+if(_td_ext_autotools_cxx_config_flags STREQUAL "")
+    set(_td_ext_autotools_cxx_config_flags "-O2")
+endif()
+string(JOIN " " _td_ext_autotools_cflags "-fPIC" "${_td_ext_autotools_config_flags}")
+string(JOIN " " _td_ext_autotools_cxxflags "-fPIC" "${_td_ext_autotools_cxx_config_flags}")
+
 # zlib
 if(TD_LINUX)
     set(ext_zlib_static libz.a)
@@ -323,6 +414,8 @@ ExternalProject_Add(ext_zlib
     URL ${_url}
     URL_HASH SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DINSTALL_BIN_DIR:PATH=${_ins}/bin
@@ -472,7 +565,7 @@ if(BUILD_WCWIDTH)        # {
 endif()                     # }
 
 # wingetopt
-if(BUILD_WINGETOPT)      # {
+if(BUILD_WINGETOPT OR TD_WINDOWS)      # {
     if(TD_WINDOWS)
         set(ext_wingetopt_static wingetopt.lib)
     endif()
@@ -528,6 +621,7 @@ if(BUILD_TEST)           # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -554,15 +648,23 @@ if(BUILD_TEST)           # {
         INC_DIR          include
     )
     get_from_local_if_exists(
-        "https://github.com/coolxv/cpp-stub/archive/3137465194014d66a8402941e80d2bccc6346f51.tar.gz"
-        "cpp-stub-3137465.tar.gz"
+        "https://github.com/coolxv/cpp-stub/archive/e6bc1c3d5a6ae0c8903b6be65ac4e55509fef394.tar.gz"
+        "cpp-stub-e6bc1c3.tar.gz"
     )
+    set(_cppstub_patch_arg "")
+    if(TD_LINUX OR TD_DARWIN)
+        set(_cppstub_patch_arg
+            PATCH_COMMAND
+                COMMAND patch -p1 -i "${TD_SOURCE_DIR}/cmake/cppstub-x86-alias.patch"
+        )
+    endif()
     ExternalProject_Add(ext_cppstub
         URL ${_url}
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
+        ${_cppstub_patch_arg}
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
@@ -572,6 +674,20 @@ if(BUILD_TEST)           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
+
+    if(TD_DARWIN)
+        set(ext_cppstub_macos_enable_tool "${ext_cppstub_source}/tool/macos_enable_stub.sh")
+        macro(DEP_ext_cppstub tgt)
+            cmake_language(CALL DEP_ext_cppstub_INC ${tgt})
+            cmake_language(CALL DEP_ext_cppstub_LIB ${tgt})
+            target_link_libraries(${tgt} PUBLIC stdc++)
+            add_custom_command(TARGET ${tgt} POST_BUILD
+                COMMAND "${ext_cppstub_macos_enable_tool}" "$<TARGET_FILE:${tgt}>"
+                COMMENT "cppstub: enabling runtime patching for ${tgt}"
+                VERBATIM
+            )
+        endmacro()
+    endif()
 endif()        # }
 
 # lz4
@@ -596,6 +712,8 @@ ExternalProject_Add(ext_lz4
     URL_HASH SHA256=537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -630,6 +748,8 @@ ExternalProject_Add(ext_cjson
     URL ${_url}
     URL_HASH SHA256=1f0e45ff5c2dca61e88bbc47b2537b64fd8bceb02b4abbdcd85a6c7135e4bd75
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -674,6 +794,7 @@ ExternalProject_Add(ext_xz
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
     CMAKE_ARGS -DCREATE_LZMA_SYMLINKS:BOOL=OFF
     CMAKE_ARGS -DCREATE_XZ_SYMLINKS:BOOL=OFF
@@ -719,10 +840,21 @@ if(NOT TD_WINDOWS)        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/xxhash.Makefile Makefile
         CONFIGURE_COMMAND ""
+        # xxhash.Makefile only adds -fPIC to the shared-lib rule, so libxxhash.a
+        # comes out non-PIC and cannot be linked into -pie executables. MOREFLAGS
+        # appends to CFLAGS and keeps the Makefile's own defaults (-O3 + its
+        # warning set); a bare `CFLAGS=-fPIC` would replace them entirely.
+        #
+        # BUILD_ALWAYS: a flag-only change leaves the externals CI cache step
+        # stamps valid, so the rebuild is skipped and the stale non-PIC archive
+        # keeps being linked.  make -B is needed alongside it: the flags are not
+        # in xxhash.o's prerequisite list, so plain `make` sees the cached
+        # object as up-to-date and re-archives it without recompiling.
         BUILD_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins}
+            COMMAND ${_EXT_ENV_PREFIX} make -B DESTDIR=${_ins} MOREFLAGS=-fPIC
         INSTALL_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} install
+            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} MOREFLAGS=-fPIC install
+        BUILD_ALWAYS TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -803,6 +935,8 @@ if(BUILD_WITH_UV)        # {
         URL ${_url}
         URL_HASH SHA256=388ffcf3370d4cf7c4b3a3205504eea06c4be5f9e80d2ab32d19f8235accc1cf
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -823,23 +957,46 @@ endif()     # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
+        set(_c_flags_list -fPIC -DTHREAD_SAFE=1 -pthread)
     elseif(TD_DARWIN)
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
     endif()
+    # NOTE: tzcode(libtz.a) is built by tz's own hand-written Makefile via
+    #       `make "CFLAGS=${_c_flags}"`, NOT by CMake. So CMAKE_BUILD_TYPE never
+    #       reaches it, and the command-line CFLAGS overrides the Makefile
+    #       default -- without an explicit -O it compiles at -O0, which makes
+    #       mktime() about 2.2x slower than an optimized build.
+    #       Mirror the main project's per-config flags so libtz.a matches the
+    #       outer CMAKE_BUILD_TYPE (Release -> -O3 -DNDEBUG, Debug -> -g, ...)
+    if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    else()
+        set(_tz_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    endif()
+    # Never leave libtz.a unoptimized, even if the config flags are emptied.
+    if(_tz_config_flags STREQUAL "")
+        set(_tz_config_flags "-O2")
+    endif()
+    separate_arguments(_tz_config_flags_list UNIX_COMMAND "${_tz_config_flags}")
+    list(APPEND _c_flags_list ${_tz_config_flags_list})
     INIT_EXT(ext_tz
         INC_DIR          include
         LIB              usr/lib/${ext_tz_static}
     )
     string(JOIN " " _c_flags ${_c_flags_list})
     get_from_local_if_exists(
-        "https://github.com/eggert/tz/archive/refs/tags/2025a.tar.gz"
-        "tz-2025a.tar.gz"
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
     )
     ExternalProject_Add(ext_tz
         URL ${_url}
-        URL_HASH SHA256=d0f35d0a3b5ca1bb25539b159c1338135a4f59b0d423381ecafa31d0449caea5
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -857,6 +1014,37 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
+else()
+    INIT_EXT(ext_tz INC_DIR include LIB lib/tz.lib)
+    get_from_local_if_exists(
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
+    )
+    set(_tz_adapter "${TD_SUPPORT_DIR}/in/tz-windows")
+    ExternalProject_Add(ext_tz
+        URL ${_url}
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
+        PREFIX "${_base}"
+        SOURCE_SUBDIR "td-windows"
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${_tz_adapter}" "<SOURCE_DIR>/td-windows"
+        CMAKE_ARGS
+            -DTZ_SOURCE:PATH=<SOURCE_DIR>
+            -DWINGETOPT_ROOT:PATH=${ext_wingetopt_install}
+            -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            -DCMAKE_INSTALL_PREFIX:PATH=${_ins}
+            -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        BUILD_COMMAND
+            "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}"
+        DEPENDS ext_wingetopt
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_tz)
 endif()    # }
 
 # jemalloc
@@ -998,6 +1186,15 @@ if(NOT TD_WINDOWS)       # {
     # _EXT_CCACHE_EXPORT conditionally sets CCACHE_DISABLE=1.
     # MAKEFLAGS is unset to prevent the parent cmake make's flags (e.g. -s -j1)
     # from leaking into OpenSSL's own make invocation.
+    #
+    # The section flags below are passed as bare trailing arguments, which
+    # Configure collects into %useradd{CFLAGS}/%useradd{CXXFLAGS} and appends
+    # to the target flags -- the documented "./Configure [options] [flags...]"
+    # form (Configure: "push @{$useradd{CFLAGS}}, $_" for any arg that is not a
+    # known option).  Do NOT additionally set CFLAGS=/CXXFLAGS= here: Configure
+    # aborts with "Mixing make variables and additional compiler/linker flags
+    # as configure command line option is not permitted", and it ignores the
+    # environment entirely once %useradd is non-empty.
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
@@ -1007,6 +1204,7 @@ if(NOT TD_WINDOWS)       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
+                    ${TD_EXT_DEADSTRIP_CFLAGS}
         BUILD_COMMAND
             COMMAND sh -c "unset MAKEFLAGS && ${_EXT_CCACHE_EXPORT}make -j4"
         INSTALL_COMMAND
@@ -1020,7 +1218,7 @@ endif()    # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC -Wno-implicit-function-declaration)
+        set(_c_flags_list -fPIC -Wno-implicit-function-declaration ${TD_EXT_DEADSTRIP_CFLAGS})
     elseif(TD_DARWIN)
         set(ext_curl_static libcurl.a)
         set(_c_flags_list -Wno-implicit-function-declaration)
@@ -1039,15 +1237,15 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1055,12 +1253,26 @@ if(${TD_WINDOWS})
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         CMAKE_ARGS -DBUILD_CURL_EXE:BOOL=OFF
-        CMAKE_ARGS -DENABLE_WEBSOCKETS:BOOL=ON
+        # curl 8.23.0 no longer has ENABLE_WEBSOCKETS (it was a no-op and made CMake
+        # warn about an unused variable); websockets are on unless
+        # CURL_DISABLE_WEBSOCKETS is set. The engine calls curl_ws_send, so state the
+        # requirement explicitly instead of relying on the default.
+        CMAKE_ARGS -DCURL_DISABLE_WEBSOCKETS:BOOL=OFF
         CMAKE_ARGS -DCURL_USE_SCHANNEL:BOOL=ON
         CMAKE_ARGS -DCURL_USE_OPENSSL:BOOL=OFF
         CMAKE_ARGS -DCURL_ZLIB:BOOL=OFF
         CMAKE_ARGS -DCURL_DISABLE_LDAP:BOOL=ON
         CMAKE_ARGS -DCURL_DISABLE_LDAPS:BOOL=ON
+        # Keep in sync with the Linux/macOS autotools configure below
+        # (--without-libpsl --without-libidn2 --without-nghttp2).
+        # curl 8.23.0 turned CURL_USE_LIBPSL into `find_package(Libpsl MODULE REQUIRED)`
+        # (8.11.1 only warned when libpsl was missing), so without this flag the
+        # Windows ExternalProject configure step fails on runners that have no libpsl.
+        CMAKE_ARGS -DCURL_USE_LIBPSL:BOOL=OFF
+        # Do not import a host MinGW Zstd package into the MSVC build.
+        CMAKE_ARGS -DCURL_ZSTD:STRING=OFF
+        CMAKE_ARGS -DUSE_LIBIDN2:BOOL=OFF
+        CMAKE_ARGS -DUSE_NGHTTP2:BOOL=OFF
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1070,15 +1282,37 @@ if(${TD_WINDOWS})
     )
 else()
     string(JOIN " " _c_flags ${_c_flags_list})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    set(_ext_curl_configure_env
+        "CFLAGS=${_c_flags}"
+        "CXXFLAGS=${_c_flags}"
+    )
+    if(TD_DARWIN)
+        # curl rewrites OpenSSL's -I flag to -isystem. On Intel macOS that
+        # lets /usr/local/include win, mixing Homebrew headers with ext_ssl.
+        set(_ext_curl_ssl_include_alias "${ext_curl_base}/ssl-include")
+        set(_ext_curl_prepare_ssl_include
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${ext_ssl_inc_dir}/openssl"
+                "${_ext_curl_ssl_include_alias}/openssl"
+        )
+        list(APPEND _ext_curl_configure_env
+            "CC=cc -I${_ext_curl_ssl_include_alias}"
+            "CXX=c++ -I${_ext_curl_ssl_include_alias}"
+        )
+    else()
+        set(_ext_curl_prepare_ssl_include "")
+    endif()
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
@@ -1086,12 +1320,16 @@ else()
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
+            ${_ext_curl_prepare_ssl_include}
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env ${_ext_curl_configure_env} ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
-                    --without-librtmp #--enable-debug
+                    --without-libgsasl #--enable-debug
+                    # --without-libgsasl: prevent curl's configure from auto-detecting a
+                    # system libgsasl-dev and baking an undeclared dependency into
+                    # libcurl.a (would break final link with undefined gsasl_* refs).
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make -j4
         INSTALL_COMMAND
@@ -1128,6 +1366,8 @@ if(BUILD_GEOS)           # {
         URL ${_url}
         URL_HASH SHA256=0b4fca58fc09677e6230bc8aef527fd2d7cdf9ff55b4ef3af75a775cb8d76e89
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1253,14 +1493,17 @@ if(BUILD_PCRE2)          # {
         INC_DIR          include
         LIB              lib/${ext_pcre2_static}
     )
+    # CVE-2025-58050: heap buffer over-read in (*scs:...)/(*ACCEPT) combo fixed in 10.46
     get_from_local_if_exists(
-        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.45.tar.gz"
-        "pcre2-pcre2-10.45.tar.gz"
+        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.47.tar.gz"
+        "pcre2-pcre2-10.47.tar.gz"
     )
     ExternalProject_Add(ext_pcre2
         URL ${_url}
-        URL_HASH SHA256=35ce7d21f511c4a81d7079164077d25fbc41af00f19e1b547801df905c5f0fab
+        URL_HASH SHA256=409c443549b13b216da40049850a32f3e6c57d4224ab11553ab5a786878a158e
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1310,6 +1553,8 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
             URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
             # GIT_SHALLOW TRUE
             PREFIX "${_base}"
+            CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+            CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1422,6 +1667,24 @@ if(TD_TAOS_TOOLS)
         "https://github.com/google/snappy/archive/32ded457c0b1fe78ceb8397632c416568d6714a0.tar.gz"
         "snappy-32ded457c0b1.tar.gz"
     )
+    # Snappy's CMakeLists.txt auto-detects SNAPPY_HAVE_BMI2/SNAPPY_HAVE_X86_CRC32
+    # via check_cxx_source_compiles() on <immintrin.h> intrinsics. Under MSVC
+    # these intrinsics compile successfully regardless of /arch:, unlike
+    # GCC/Clang which gate them behind target attributes — so on Windows the
+    # probe bakes BMI2 (BZHI) and SSE4.2 CRC32 instructions into snappy.lib
+    # even though SNAPPY_REQUIRE_AVX2 is OFF and no /arch:AVX2 was requested.
+    # Executing BZHI on a CPU without BMI2 (e.g. Intel Atom "Goldmont") raises
+    # STATUS_ILLEGAL_INSTRUCTION during taosdump avro/snappy decompression.
+    # Force both probes off on Windows so the build stays on the portable,
+    # CPU-baseline codepath; skip on Linux/macOS where the probe already
+    # correctly reports 0 without an explicit -mbmi2/-msse4.2 flag.
+    set(_ext_snappy_windows_args "")
+    if(TD_WINDOWS)
+        list(APPEND _ext_snappy_windows_args
+            -DSNAPPY_HAVE_BMI2:STRING=0
+            -DSNAPPY_HAVE_X86_CRC32:STRING=0
+        )
+    endif()
     ExternalProject_Add(ext_snappy
         URL ${_url}
         URL_HASH SHA256=677d1dd8172bac1862e6c8d7bbe1fe9fb2320cfd11ee04756b1ef8b3699c6135
@@ -1437,6 +1700,7 @@ if(TD_TAOS_TOOLS)
         # CMAKE_ARGS -DINSTALL_GTEST:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_BENCHMARKS:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_TESTS:BOOL=OFF
+        CMAKE_ARGS ${_ext_snappy_windows_args}
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1493,6 +1757,7 @@ if(TD_TAOS_TOOLS)
         CMAKE_ARGS -DJANSSON_INCLUDE_DIRS:STRING=${ext_jansson_install}/include
         CMAKE_ARGS -DJANSSON_LIBRARY_DIRS:STRING=${ext_jansson_install}/lib/${ext_jansson_static}
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_flags}"
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.CMakeLists.txt.in            ${ext_avro_source}/lang/c/CMakeLists.txt
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.src.avro.msinttypes.h.in     ${ext_avro_source}/lang/c/src/avro/msinttypes.h
@@ -1568,6 +1833,8 @@ ExternalProject_Add(ext_libxml2
     URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
     PREFIX "${_base}"
     DEPENDS ${_libxml2_depends}
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1601,7 +1868,7 @@ string(JOIN " " _ssl_libs ${ext_ssl_libs})
 set(_libs3_extra_args "")
 set(_libs3_depends ext_libxml2 ext_curl ext_zlib)
 if(TD_WINDOWS)
-    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC")
+    list(APPEND _libs3_extra_args "-DCMAKE_C_FLAGS:STRING=/DWIN32_LEAN_AND_MEAN /DLIBXML_STATIC /DCURL_STATICLIB")
     list(APPEND _libs3_extra_args "-DPTHREAD_INCLUDE:STRING=${ext_pthread_inc_dir}")
     list(APPEND _libs3_extra_args "-DPTHREAD_LIBS:STRING=${ext_pthread_libs}")
     list(APPEND _libs3_depends ext_pthread)
@@ -1621,6 +1888,8 @@ ExternalProject_Add(ext_libs3
     ${_libs3_ts_args}
     DEPENDS ${_libs3_depends}
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1634,6 +1903,7 @@ ExternalProject_Add(ext_libs3
     CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
     CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
     CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
@@ -1679,6 +1949,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
         CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
         BUILD_COMMAND
@@ -1744,9 +2015,10 @@ if(NOT TD_WINDOWS)        # {
           ${ext_mxml_source}/CHANGES.md
         WORKING_DIRECTORY ${ext_mxml_source}
         COMMAND pwd
-        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
+        COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install install
+        VERBATIM
     )
 
     add_custom_target(ext_mxml_post
@@ -1756,6 +2028,7 @@ if(NOT TD_WINDOWS)        # {
         COMMAND "${CMAKE_COMMAND}" -E echo ${ext_mxml_source}/install/lib/${ext_mxml_static}
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/include/mxml.h ${_ins}/include/mxml.h
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
+        VERBATIM
     )
     add_dependencies(build_externals ext_mxml_post)     # this is for github workflow in cache-miss step.
 
@@ -1788,7 +2061,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DAPR_BUILD_SHARED:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -1810,10 +2083,11 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include/apr-1
         LIB              lib/${ext_aprutil_static}
     )
-    # URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+    # This retired release is only available from the Apache archive.
+    # URL https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz
     # URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
     get_from_local_if_exists(
-        "https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz"
+        "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz"
         "apr-util-1.6.3.tar.gz"
     )
     ExternalProject_Add(ext_aprutil
@@ -1828,7 +2102,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -1909,8 +2183,8 @@ if(${BUILD_LIBSASL})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                CFLAGS=-Wno-missing-braces
-                CXXFLAGS=-Wno-missing-braces
+                "CFLAGS=${_td_ext_autotools_cflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CXXFLAGS=${_td_ext_autotools_cxxflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make
@@ -1921,6 +2195,1347 @@ if(${BUILD_LIBSASL})      # {
     )
     add_dependencies(build_externals ext_sasl2)     # this is for github workflow in cache-miss step.
 endif(${BUILD_LIBSASL})   # }
+endif()
+
+# GNU SASL (libgsasl) -- application-layer SCRAM-SHA-256 authentication.
+# This is INDEPENDENT of the Cyrus libsasl2 used by the transport layer above; it is
+# linked into mnode (server) and the client so the CONNECT handshake can negotiate SCRAM.
+# Built with the minimal flag set so it pulls NO external runtime deps (no libidn / no
+# libgcrypt / no openssl / no NLS): GNU SASL falls back to its bundled gnulib crypto.
+# NOTE: --without-stringprep is REQUIRED, not optional. --without-libidn-prefix only skips
+# a custom search prefix; it does NOT disable auto-detection of a system libidn in default
+# paths. On a host with libidn-dev installed, configure would otherwise set HAVE_LIBIDN=1 and
+# compile saslprep.o with calls to stringprep_profile / pr29_8z, leaving libtaos.so with
+# undefined references (no -lidn on its link line). --without-stringprep forces saslprep.c
+# into its ASCII-passthrough branch, which is what we want for SCRAM-SHA-256 usernames.
+# A post-install step (isolate_gsasl_syms.sh) renames the bundled gnulib symbols (base64_*,
+# md5_*, sha*_*, hmac_*, memxor, ...) to a tdgs_ prefix to avoid collisions with TDengine's
+# own base64_encode/base64_decode (source/util/src/tbase64.c) when statically linked.
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
+    INIT_EXT(ext_gsasl
+        INC_DIR          include
+        LIB              lib/libgsasl.a
+    )
+    # gsasl is the only dependency not hosted on github; the GNU official FTP
+    # (ftp.gnu.org) is frequently slow/unreachable from CN networks. Prefer a CN
+    # GNU mirror (Tsinghua TUNA) as the primary source and keep ftp.gnu.org as a
+    # fallback -- ExternalProject tries the URLs in order until one matches the
+    # SHA256 below, so overseas/CI networks still resolve if the mirror is stale.
+    # When LOCAL_URL is set, get_from_local_if_exists() rewrites to
+    # ${LOCAL_URL}/gsasl-2.2.2.tar.gz (explicit filename arg), unaffected here.
+    get_from_local_if_exists(
+        "https://mirrors.tuna.tsinghua.edu.cn/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        "gsasl-2.2.2.tar.gz"
+    )
+    ExternalProject_Add(ext_gsasl
+        URL ${_url} "https://ftp.gnu.org/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        URL_HASH SHA256=41e8e442648eccaf6459d9ad93d4b18530b96c8eaf50e3f342532ef275eff3ba
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E env
+                CC=gcc
+                CC_FOR_BUILD=gcc
+                "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
+                ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
+                    --disable-nls --enable-scram-sha256
+                    --without-stringprep
+                    --without-libidn-prefix --without-libgcrypt-prefix --without-libntlm-prefix
+                    --with-openssl=no --with-gssapi-impl=no
+                    --disable-gssapi --disable-gs2 --disable-ntlm --disable-cram-md5 --disable-digest-md5
+        # TDengine only links libgsasl; the top-level target also builds docs
+        # and can require host tools such as help2man.
+        BUILD_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib
+        INSTALL_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib install
+            COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/isolate_gsasl_syms.sh" "${_ins}/lib/libgsasl.a" "${CMAKE_NM}" "${CMAKE_OBJCOPY}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_gsasl)     # this is for github workflow in cache-miss step.
+endif()                      # }
+
+if(TD_ENTERPRISE)   # { ext connector client libraries
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # MariaDB Connector/C 3.3  (MySQL / MariaDB external source)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_MARIADB})
+        # Windows has no pkg-config; always build MariaDB Connector/C from the
+        # pinned source so the runtime does not depend on a machine-local install.
+        find_package(PkgConfig QUIET)
+        set(_mariadb_found FALSE)
+        if(PkgConfig_FOUND AND NOT TD_WINDOWS)
+            pkg_check_modules(MARIADB_PC QUIET libmariadb)
+            if(MARIADB_PC_FOUND)
+                set(_mariadb_found TRUE)
+                message(STATUS "[ext_mariadb] Using system MariaDB ${MARIADB_PC_VERSION} — skipping ExternalProject build")
+                # Record the real .so path for extconnector staging
+                find_library(_EXT_MARIADB_SO_REALPATH
+                    NAMES libmariadb.so.3
+                    HINTS ${MARIADB_PC_LIBDIR} ${MARIADB_PC_LIBRARY_DIRS}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_MARIADB_SO_REALPATH)
+                    set(_EXT_MARIADB_SO_REALPATH "${MARIADB_PC_LIBDIR}/libmariadb.so.3")
+                endif()
+                set(EXT_MARIADB_SO_SRCPATH "${_EXT_MARIADB_SO_REALPATH}" CACHE INTERNAL "")
+                macro(DEP_ext_mariadb tgt)
+                    cmake_language(CALL DEP_ext_mariadb_INC ${tgt})
+                    cmake_language(CALL DEP_ext_mariadb_LIB ${tgt})
+                endmacro()
+                macro(DEP_ext_mariadb_INC tgt)
+                    target_include_directories(${tgt} PRIVATE ${MARIADB_PC_INCLUDE_DIRS})
+                    add_definitions(-D_ext_mariadb)
+                endmacro()
+                macro(DEP_ext_mariadb_LIB tgt)
+                    target_link_libraries(${tgt} PRIVATE ${MARIADB_PC_LIBRARIES})
+                    add_definitions(-D_ext_mariadb)
+                endmacro()
+            endif()
+        endif()
+        if(NOT _mariadb_found)
+            if(TD_LINUX)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.so)
+            elseif(TD_DARWIN)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.dylib)
+            elseif(TD_WINDOWS)
+                set(_ext_mariadb_lib lib/mariadb/libmariadb.lib)
+            endif()
+            INIT_EXT(ext_mariadb
+                INC_DIR  include/mariadb
+                LIB      ${_ext_mariadb_lib}
+            )
+            get_from_local_if_exists(
+                "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v3.3.10.tar.gz"
+                "mariadb-connector-c-v3.3.10.tar.gz"
+            )
+            ExternalProject_Add(ext_mariadb
+                URL            ${_url}
+                URL_HASH       SHA256=0a79088af2fbde4dbe6655dbc51bbb272b606c0d9116745697e08879e70198a7
+                DEPENDS        ext_zlib
+                PREFIX         "${_base}"
+                CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+                CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+                CMAKE_ARGS     -DCMAKE_INSTALL_LIBDIR:PATH=lib
+                CMAKE_ARGS     -DWITH_UNIT_TESTS:BOOL=OFF
+                CMAKE_ARGS     -DWITH_SSL:STRING=$<IF:$<BOOL:${TD_WINDOWS}>,SCHANNEL,OPENSSL>
+                CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
+                CMAKE_ARGS     -DWITH_EXTERNAL_ZLIB:BOOL=ON
+                CMAKE_ARGS     -DZLIB_USE_STATIC_LIBS:BOOL=ON
+                CMAKE_ARGS     -DZLIB_ROOT:PATH=${ext_zlib_install}
+                CMAKE_ARGS     -DZLIB_INCLUDE_DIR:PATH=${ext_zlib_install}/include
+                CMAKE_ARGS     -DZLIB_LIBRARY:FILEPATH=${ext_zlib_install}/lib/${ext_zlib_static}
+                BUILD_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                INSTALL_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            # macOS: MariaDB builds with bare install_name "libmariadb.3.dylib" which
+            # prevents dyld from resolving via RPATH. Fix to @rpath/libmariadb.3.dylib
+            # so the linker records the correct reference in downstream binaries.
+            if(TD_DARWIN)
+                ExternalProject_Add_Step(ext_mariadb fix_darwin_install_name
+                    COMMAND install_name_tool -id "@rpath/libmariadb.3.dylib"
+                        "${_ins}/lib/mariadb/libmariadb.3.dylib"
+                    DEPENDEES install
+                    COMMENT "Fixing libmariadb install_name for macOS RPATH resolution"
+                )
+            endif()
+            add_dependencies(build_externals ext_mariadb)
+        endif()  # NOT _mariadb_found
+    endif()  # BUILD_WITH_MARIADB
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # libpq 16  (PostgreSQL external source, covers PG 14/15/16/17)
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_LIBPQ})
+        # Windows: the provider only needs libpq's headers at compile time and
+        # its DLLs at run time.  When a prebuilt PostgreSQL binary package is
+        # provided (EXT_LIBPQ_ROOT — e.g. the EnterpriseDB zip the federated
+        # query tests install, which contains include/libpq-fe.h and
+        # bin/libpq.dll), use it instead of building libpq with Meson, so the
+        # Windows build host does not need OpenSSL + meson + ninja.
+        set(_ext_libpq_prebuilt "")
+        if(TD_WINDOWS)
+            if(DEFINED EXT_LIBPQ_ROOT AND EXISTS "${EXT_LIBPQ_ROOT}/include/libpq-fe.h")
+                set(_ext_libpq_prebuilt "${EXT_LIBPQ_ROOT}")
+            elseif(DEFINED ENV{EXT_LIBPQ_ROOT} AND EXISTS "$ENV{EXT_LIBPQ_ROOT}/include/libpq-fe.h")
+                set(_ext_libpq_prebuilt "$ENV{EXT_LIBPQ_ROOT}")
+            endif()
+        endif()
+        if(_ext_libpq_prebuilt)
+            message(STATUS "[ext_libpq] Using prebuilt PostgreSQL runtime at ${_ext_libpq_prebuilt}")
+            set(EXT_LIBPQ_DLL_DIR "${_ext_libpq_prebuilt}/bin" CACHE INTERNAL "" FORCE)
+            macro(DEP_ext_libpq tgt)
+                cmake_language(CALL DEP_ext_libpq_INC ${tgt})
+                cmake_language(CALL DEP_ext_libpq_LIB ${tgt})
+            endmacro()
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE "${_ext_libpq_prebuilt}/include")
+                add_definitions(-D_ext_libpq)
+            endmacro()
+            macro(DEP_ext_libpq_LIB tgt)
+                # Runtime loading: no link-time dependency on libpq.
+                add_definitions(-D_ext_libpq)
+            endmacro()
+        else()
+        # Windows without EXT_LIBPQ_ROOT: build the pinned libpq via Meson
+        # (see below) instead of binding to whatever PostgreSQL happens to be
+        # installed.
+        if(NOT TD_WINDOWS)
+            find_package(PostgreSQL QUIET)
+        endif()
+        if(PostgreSQL_FOUND)
+            message(STATUS "[ext_libpq] Using system PostgreSQL ${PostgreSQL_VERSION_STRING} — skipping ExternalProject build")
+            # Record real shared lib path for extconnector staging
+            get_filename_component(_pg_lib_dir "${PostgreSQL_LIBRARIES}" DIRECTORY)
+            if(TD_DARWIN)
+                find_library(_EXT_LIBPQ_SO_REALPATH
+                    NAMES libpq.5.dylib
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_LIBPQ_SO_REALPATH)
+                    set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.5.dylib")
+                endif()
+            else()
+                find_library(_EXT_LIBPQ_SO_REALPATH
+                    NAMES libpq.so.5
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
+                    NO_DEFAULT_PATH)
+                if(NOT _EXT_LIBPQ_SO_REALPATH)
+                    set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.so.5")
+                endif()
+            endif()
+
+            set(EXT_LIBPQ_SO_SRCPATH "${_EXT_LIBPQ_SO_REALPATH}" CACHE INTERNAL "")
+            macro(DEP_ext_libpq tgt)
+                cmake_language(CALL DEP_ext_libpq_INC ${tgt})
+                cmake_language(CALL DEP_ext_libpq_LIB ${tgt})
+            endmacro()
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE ${PostgreSQL_INCLUDE_DIRS})
+                add_definitions(-D_ext_libpq)
+            endmacro()
+            macro(DEP_ext_libpq_LIB tgt)
+                target_link_libraries(${tgt} PRIVATE ${PostgreSQL_LIBRARIES})
+                add_definitions(-D_ext_libpq)
+            endmacro()
+        else()
+            if(TD_LINUX)
+                set(_ext_libpq_lib lib/libpq.so)
+            elseif(TD_DARWIN)
+                set(_ext_libpq_lib lib/libpq.dylib)
+            elseif(TD_WINDOWS)
+                set(_ext_libpq_lib lib/libpq.lib)
+            endif()
+            INIT_EXT(ext_libpq
+                INC_DIR  include
+                LIB      ${_ext_libpq_lib}
+            )
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE
+                    ${ext_libpq_inc_dir}
+                    ${ext_libpq_source}/src/include
+                    ${ext_libpq_source}/src/interfaces/libpq)
+                add_definitions(-D_ext_libpq)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_libpq)
+                endif()
+            endmacro()
+            # REL_16_3 ≡ PostgreSQL 16.3；使用官方源码 tarball，避免 CI 从 GitHub git clone 不稳定
+            get_from_local_if_exists(
+                "https://ftp.postgresql.org/pub/source/v16.3/postgresql-16.3.tar.gz"
+                "postgresql-16.3.tar.gz"
+            )
+            if(TD_WINDOWS)
+                find_package(Python3 COMPONENTS Interpreter REQUIRED)
+                find_program(_EXT_LIBPQ_NINJA_EXECUTABLE NAMES ninja ninja.exe)
+                if(NOT _EXT_LIBPQ_NINJA_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires ninja. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ ninja")
+                endif()
+                execute_process(
+                    COMMAND "${Python3_EXECUTABLE}" -c "import mesonbuild"
+                    RESULT_VARIABLE _ext_libpq_meson_check
+                    OUTPUT_QUIET
+                    ERROR_QUIET)
+                if(NOT _ext_libpq_meson_check EQUAL 0)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires meson. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ meson")
+                endif()
+
+                set(_ext_libpq_meson "${Python3_EXECUTABLE}" -m mesonbuild.mesonmain)
+                if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
+                    set(_ext_libpq_buildtype debug)
+                else()
+                    set(_ext_libpq_buildtype release)
+                endif()
+                if(NOT OpenSSL_FOUND OR NOT OPENSSL_INCLUDE_DIR)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires OpenSSL with MSVC libraries. "
+                        "Install/provide OpenSSL before configuring libpq.")
+                endif()
+                get_filename_component(_ext_libpq_openssl_root "${OPENSSL_INCLUDE_DIR}" DIRECTORY)
+                set(_ext_libpq_configure_env
+                    "OPENSSL_ROOT_DIR=${_ext_libpq_openssl_root}"
+                    "CMAKE_PREFIX_PATH=${_ext_libpq_openssl_root}"
+                    "PKG_CONFIG_LIBDIR=${_ext_libpq_openssl_root}/lib/pkgconfig"
+                    "LDFLAGS=crypt32.lib ws2_32.lib advapi32.lib user32.lib"
+                )
+                ExternalProject_Add(ext_libpq
+                    URL ${_url}
+                    URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
+                    PREFIX         "${_base}"
+                    PATCH_COMMAND
+                        COMMAND "${CMAKE_COMMAND}"
+                            -DPOSTGRESQL_SOURCE_DIR=<SOURCE_DIR>
+                            -P "${TD_SUPPORT_DIR}/patch_postgresql_meson_release.cmake"
+                    CONFIGURE_COMMAND
+                        COMMAND "${CMAKE_COMMAND}" -E env ${_ext_libpq_configure_env}
+                            ${_ext_libpq_meson} setup <BINARY_DIR> <SOURCE_DIR>
+                            --prefix=${_ins}
+                            --buildtype=${_ext_libpq_buildtype}
+                            -Dssl=openssl
+                            -Dldap=disabled
+                            -Dgssapi=disabled
+                            -Dnls=disabled
+                            -Dreadline=disabled
+                            -Dicu=disabled
+                            -Dzlib=disabled
+                            -Dlibxml=disabled
+                    BUILD_COMMAND
+                        COMMAND ${_ext_libpq_meson} compile -C <BINARY_DIR> libpq:shared_library
+                    INSTALL_COMMAND
+                        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/bin" "${_ins}/lib" "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.dll
+                            "${_ins}/bin/libpq.dll"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.lib
+                            "${_ins}/lib/libpq.lib"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                            <SOURCE_DIR>/src/include
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/include/pg_config.h
+                            <BINARY_DIR>/src/include/pg_config_ext.h
+                            <BINARY_DIR>/src/include/pg_config_os.h
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-fe.h
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-events.h
+                            "${_ins}/include"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                find_program(_EXT_LIBPQ_MAKE_EXECUTABLE NAMES gmake make)
+                if(NOT _EXT_LIBPQ_MAKE_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON requires GNU Make for the PostgreSQL autoconf build.")
+                endif()
+                set(_ext_libpq_configure_env
+                    "CPPFLAGS=-I${ext_ssl_inc_dir}"
+                    "LDFLAGS=-L${ext_ssl_install}/lib"
+                    "PKG_CONFIG_PATH=${ext_ssl_install}/lib/pkgconfig"
+                )
+                if(TD_DARWIN)
+                    # macOS SDK availability can exceed the configured deployment target.
+                    # Use PostgreSQL's local fallback to keep libpq compatible with it.
+                    list(APPEND _ext_libpq_configure_env "ac_cv_func_strchrnul=no")
+                    message(STATUS "[ext_libpq] macOS: using the local strchrnul fallback for deployment-target compatibility")
+                    set(_ext_libpq_patch_refs_command
+                        COMMAND perl -0pi -e "s/grep -v __cxa_atexit \\| grep exit/grep -v __cxa_atexit | grep -v _atexit | grep exit/"
+                            src/interfaces/libpq/Makefile
+                        # Recent macOS SDKs declare strchrnul even for older deployment
+                        # targets, so give PostgreSQL's local fallback a distinct name.
+                        COMMAND perl -0pi -e "s/static inline const char \\*\\nstrchrnul\\(/static inline const char *\\npg_strchrnul(/"
+                            src/port/snprintf.c
+                        COMMAND perl -0pi -e "s/const char \\*next_pct = strchrnul\\(/const char *next_pct = pg_strchrnul(/"
+                            src/port/snprintf.c)
+                else()
+                    set(_ext_libpq_patch_refs_command "")
+                endif()
+                ExternalProject_Add(ext_libpq
+                    URL ${_url}
+                    URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
+                    PREFIX         "${_base}"
+                    DEPENDS        ext_ssl
+                    BUILD_IN_SOURCE TRUE
+                    CONFIGURE_COMMAND
+                        COMMAND ${CMAKE_COMMAND} -E env ${_ext_libpq_configure_env} ./configure
+                            --prefix=${_ins}
+                            --without-readline
+                            --without-icu
+                            --without-llvm
+                            --without-gssapi
+                            --disable-nls
+                            --enable-shared
+                            --with-openssl
+                    BUILD_COMMAND
+                        ${_ext_libpq_patch_refs_command}
+                        # BUILD_IN_SOURCE reuses the cached PostgreSQL source tree across
+                        # CI runs. Clean libpq objects so old non-SSL fe-secure.o is not
+                        # linked together with fe-secure-openssl.o after enabling OpenSSL.
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq clean
+                        COMMAND perl src/backend/utils/generate-errcodes.pl
+                            --outfile src/include/utils/errcodes.h
+                            src/backend/utils/errcodes.txt
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/catalog
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/nodes
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/utils
+                            distprep generated-header-symlinks
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend
+                            generated-headers
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq
+                    INSTALL_COMMAND
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq install
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/include install
+                            prefix=${_ins}
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
+            # macOS: libpq's autoconf build embeds the absolute install prefix as
+            # install_name, which breaks when the binary is run from a different
+            # location. Fix to @rpath/ so dyld resolves via RPATH.
+            if(TD_DARWIN)
+                ExternalProject_Add_Step(ext_libpq fix_darwin_install_name
+                    COMMAND install_name_tool -id "@rpath/libpq.5.dylib"
+                        "${_ins}/lib/libpq.5.dylib"
+                    DEPENDEES install
+                    COMMENT "Fixing libpq install_name for macOS RPATH resolution"
+                )
+            endif()
+            add_dependencies(build_externals ext_libpq)
+        endif()  # NOT PostgreSQL_FOUND
+        endif()  # _ext_libpq_prebuilt
+    endif()  # BUILD_WITH_LIBPQ
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # unixODBC 2.3.12  (SQL Server external source, covers the ODBC driver
+    # manager; the Microsoft driver itself ships with the dependency package).
+    # Build-time use is header-only, matching the libpq / MariaDB pattern: the
+    # provider resolves the ODBC entry points at runtime.
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_ODBC})
+        find_package(ODBC QUIET)
+        if(ODBC_FOUND)
+            if(TD_WINDOWS)
+                message(STATUS "[ext_odbc] Using the Windows SDK ODBC driver manager (odbc32) — skipping ExternalProject build")
+            else()
+                message(STATUS "[ext_odbc] Using system unixODBC — skipping ExternalProject build")
+            endif()
+            # Record the driver-manager path for extconnector runtime staging.
+            if(DEFINED ODBC_LIBRARIES AND ODBC_LIBRARIES)
+                set(EXT_ODBC_SO_SRCPATH "${ODBC_LIBRARIES}" CACHE INTERNAL "")
+            endif()
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ODBC_INCLUDE_DIRS})
+                add_definitions(-D_ext_odbc)
+            endmacro()
+        else()
+            INIT_EXT(ext_odbc
+                INC_DIR  include
+                LIB      lib/libodbc.so
+            )
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ext_odbc_inc_dir})
+                add_definitions(-D_ext_odbc)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_odbc)
+                endif()
+            endmacro()
+            get_from_local_if_exists(
+                "https://www.unixodbc.org/unixODBC-2.3.12.tar.gz"
+                "unixODBC-2.3.12.tar.gz"
+            )
+            ExternalProject_Add(ext_odbc
+                URL ${_url}
+                URL_HASH SHA256=f210501445ce21bf607ba51ef8c125e10e22dffdffec377646462df5f01915ec
+                PREFIX "${_base}"
+                BUILD_IN_SOURCE TRUE
+                CONFIGURE_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" -E env
+                        "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
+                        ./configure --prefix=${_ins} --with-pic
+                            --enable-shared --disable-static
+                            --with-iconv=no
+                BUILD_COMMAND
+                    # Build only the driver-manager chain, in unixODBC's own
+                    # SUBDIRS dependency order (libodbcinst needs log/lst/ini).
+                    # exe/ (isql) and Drivers/ are not needed and pull extra
+                    # host dependencies such as readline.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C extras
+                    COMMAND ${_EXT_ENV_PREFIX} make -C log
+                    COMMAND ${_EXT_ENV_PREFIX} make -C lst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C ini
+                    # libltdl is not referenced by DriverManager/Makefile.am;
+                    # skipping it also avoids its autotools-regeneration rule.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager
+                INSTALL_COMMAND
+                    COMMAND ${_EXT_ENV_PREFIX} make -C include install
+                    # sqltypes.h includes the configure-generated unixodbc.h
+                    # (and unixodbc_conf.h); make install does not ship them.
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        <SOURCE_DIR>/unixodbc.h <SOURCE_DIR>/unixodbc_conf.h
+                        ${_ins}/include
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager install
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst install
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_odbc)
+        endif()  # NOT ODBC_FOUND
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Microsoft ODBC Driver 18 for SQL Server — prebuilt artifact.
+        # The driver is a Microsoft binary (no source build).  Resolution order:
+        #   1. EXT_MSODBC_SO_SRCPATH      — explicit driver .so path (or its dir)
+        #   2. standard system installs   — /opt/microsoft/msodbcsql18/...
+        #   3. the mirrored artifact      — unpacked when INSTALL_FQ_RUNTIME_LIBS
+        #      is ON (dependency-package / test builds) and LOCAL_URL is set.
+        # The tarball carries the official package contents (lib64/, include/,
+        # share/resources/, doc/) repackaged from msodbcsql18_18.7.1.1-1.
+        # ──────────────────────────────────────────────────────────────────────
+        set(_msodbc_artifact "")
+        set(_msodbc_artifact_hash "")
+        set(_msodbc_deb_arch "")
+        set(_msodbc_msi_url "")
+        if(TD_WINDOWS)
+            # Windows has no portable driver DLL: the ODBC driver manager
+            # resolves drivers through its registry registration, so the FQ
+            # dependency package ships the official MSI instead of a library.
+            # The direct (version-pinned) Microsoft URL is the fallback; a
+            # mirror can provide msodbcsql18-18.7.1.1-windows-<arch>.msi.
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-windows-arm64.msi")
+                set(_msodbc_msi_url
+                    "https://download.microsoft.com/download/92f6c111-1489-4538-8d7e-b35218b0675b/arm64/1033/msodbcsql.msi")
+            else()
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-windows-amd64.msi")
+                set(_msodbc_msi_url
+                    "https://download.microsoft.com/download/d624e1c6-293b-4d6f-91b8-6e515a5d6a77/amd64/1033/msodbcsql.msi")
+            endif()
+        elseif(NOT ${TD_DARWIN})
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-amd64.tar.gz")
+                set(_msodbc_artifact_hash "60a45737ed2a9d619e9966f95246d1fc5bed4bc8e91405ad3a2f040b1948d132")
+                set(_msodbc_deb_arch "amd64")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-arm64.tar.gz")
+                set(_msodbc_artifact_hash "e23fe31dbf1e73d80d547f7f07d7b7d1739dab8a5eeaf6db9885b4893a47269c")
+                set(_msodbc_deb_arch "arm64")
+            endif()
+        endif()
+
+        set(_msodbc_prebuilt "")
+        if(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
+            set(_msodbc_prebuilt "${EXT_MSODBC_SO_SRCPATH}")
+        elseif(NOT TD_WINDOWS)
+            foreach(_msodbc_dir
+                    "/opt/microsoft/msodbcsql18/lib64" "/opt/microsoft/msodbcsql18/lib"
+                    "/opt/microsoft/msodbcsql/lib64"   "/opt/microsoft/msodbcsql/lib")
+                file(GLOB _msodbc_found "${_msodbc_dir}/libmsodbcsql-18.*")
+                if(_msodbc_found)
+                    list(GET _msodbc_found 0 _msodbc_prebuilt)
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(TD_WINDOWS)
+            if(DEFINED EXT_MSODBC_MSI AND NOT "${EXT_MSODBC_MSI}" STREQUAL "")
+                message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver MSI: ${EXT_MSODBC_MSI}")
+            elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+                message(STATUS
+                    "[ext_msodbc] Windows: the ODBC Driver 18 is registered with the system driver "
+                    "manager (installed by the MSI); pass EXT_MSODBC_MSI (or enable "
+                    "INSTALL_FQ_RUNTIME_LIBS with LOCAL_URL) to put it in the FQ dependency package")
+            elseif("z${LOCAL_URL}" STREQUAL "z")
+                message(STATUS
+                    "[ext_msodbc] Windows FQ dependency package: LOCAL_URL is not configured, so the "
+                    "Microsoft ODBC Driver MSI is not packaged (pass EXT_MSODBC_MSI to override)")
+            else()
+                INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+                get_from_local_if_exists("${_msodbc_msi_url}" "${_msodbc_artifact}")
+                # The internal mirror does not necessarily carry the Windows
+                # MSI; keep Microsoft's official pinned download as a fallback
+                # so the dependency package can still be built.
+                set(_msodbc_urls "${_url}")
+                if(NOT "${_url}" STREQUAL "${_msodbc_msi_url}")
+                    list(APPEND _msodbc_urls "${_msodbc_msi_url}")
+                endif()
+                ExternalProject_Add(ext_msodbc
+                    URL ${_msodbc_urls}
+                    DOWNLOAD_NO_EXTRACT TRUE
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND} -E make_directory "${_ins}/lib"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "<DOWNLOADED_FILE>" "${_ins}/lib/msodbcsql18.msi"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+                add_dependencies(build_externals ext_msodbc)
+                set(EXT_MSODBC_MSI "${_ins}/lib/msodbcsql18.msi" CACHE INTERNAL "")
+                message(STATUS "[ext_msodbc] Microsoft ODBC Driver MSI staged for the FQ dependency package")
+            endif()
+        elseif(_msodbc_prebuilt)
+            message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver: ${_msodbc_prebuilt}")
+            set(EXT_MSODBC_SO_SRCPATH "${_msodbc_prebuilt}" CACHE INTERNAL "")
+        elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_msodbc] No Microsoft ODBC Driver found (set EXT_MSODBC_SO_SRCPATH to the "
+                "driver .so or its directory); the driver is staged only with INSTALL_FQ_RUNTIME_LIBS=ON")
+        elseif("z${LOCAL_URL}" STREQUAL "z" OR "z${_msodbc_artifact}" STREQUAL "z")
+            message(STATUS
+                "[ext_msodbc] Microsoft ODBC Driver artifact unavailable for this platform/mirror "
+                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+        else()
+            INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+            get_from_local_if_exists(
+                "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/msodbcsql18_18.7.1.1-1_${_msodbc_deb_arch}.deb"
+                "${_msodbc_artifact}"
+            )
+            ExternalProject_Add(ext_msodbc
+                URL ${_url}
+                URL_HASH SHA256=${_msodbc_artifact_hash}
+                PREFIX "${_base}"
+                CONFIGURE_COMMAND ""
+                BUILD_COMMAND ""
+                INSTALL_COMMAND
+                    COMMAND ${CMAKE_COMMAND} -E make_directory
+                        "${_ins}/lib" "${_ins}/include" "${_ins}/share"
+                        "${_ins}/share/doc/msodbcsql18"
+                    COMMAND cp -a "<SOURCE_DIR>/lib64/." "${_ins}/lib/"
+                    COMMAND cp -a "<SOURCE_DIR>/include/." "${_ins}/include/"
+                    COMMAND cp -a "<SOURCE_DIR>/share/." "${_ins}/share/"
+                    COMMAND cp -a "<SOURCE_DIR>/doc/." "${_ins}/share/doc/msodbcsql18/"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_msodbc)
+        endif()  # Microsoft ODBC Driver resolution
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Oracle Instant Client ODBC driver — prebuilt artifact.
+        # The Instant Client is a binary-only distribution (no source build).
+        # Resolution order, same three steps as ext_msodbc:
+        #   1. EXT_ORACLE_SO_SRCPATH      — explicit driver .so path (or its dir)
+        #   2. standard system installs   — /usr/lib/oracle/*/client64/lib, ...
+        #   3. the mirrored artifact      — unpacked when INSTALL_FQ_RUNTIME_LIBS
+        #      is ON (dependency-package / test builds) and LOCAL_URL is set.
+        # The artifact bundles the two official packages (oracle-instantclient-
+        # basic + oracle-instantclient-odbc) unpacked into one directory: the
+        # driver resolves its base libraries by soname from the same directory,
+        # so a split layout does not work (Oracle DS 3.3).  Oracle's license
+        # allows verbatim redistribution but forbids modification, so the file
+        # contents are shipped exactly as published (DS 9.1.7).
+        #
+        # Step 3 is gated on a pinned SHA256 rather than fetched
+        # unconditionally.  The artifact is a release deliverable published to
+        # the dependency mirror separately, so the build must neither assume it
+        # is there (an ExternalProject with a dead URL fails the whole
+        # build_externals target, taking every other external source down with
+        # it) nor download it unverified.  The hash is pinned per architecture
+        # below, the way ext_msodbc pins its artifacts; EXT_ORACLE_ARTIFACT_SHA256
+        # overrides it (an architecture without a published artifact keeps an
+        # empty hash and the driver is skipped with a status message).
+        # ──────────────────────────────────────────────────────────────────────
+        set(_oracle_artifact "")
+        set(_oracle_artifact_hash "")
+        # Windows-only: the two official zips the merged artifact is made of.
+        # They are the fallback when LOCAL_URL is empty or its artifact does
+        # not match the pinned hash (see download_oracle_instantclient_windows.cmake).
+        set(_oracle_windows_basic_url "")
+        set(_oracle_windows_basic_hash "")
+        set(_oracle_windows_odbc_url "")
+        set(_oracle_windows_odbc_hash "")
+        # SQL*Plus travels with the client only for the FQ test harness: the
+        # 11g server runs in a Linux container (no Windows 11.2.0.4 media
+        # exists) and the harness executes its admin SQL locally.  Small public
+        # package, fetched even when the client itself comes from the mirror.
+        set(_oracle_windows_sqlplus_url "")
+        set(_oracle_windows_sqlplus_hash "")
+        if(TD_WINDOWS)
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
+                # Published 2026-10-28: instantclient-basic-windows.x64-23.26.4.0.0.zip
+                # + instantclient-odbc-windows.x64-23.26.4.0.0.zip unpacked into
+                # one instantclient_23_26/ directory and repacked verbatim.
+                set(_oracle_artifact_hash
+                    "8b5ff789f4d115ff450135cf42c1e5616783e4c19074b0fc23bab57dc83c3594")
+                set(_oracle_windows_basic_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-basic-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_basic_hash
+                    "09e9b81cd492f5ce6f671317c23a0e1f5dee5e786258149d216321c3dad3023f")
+                set(_oracle_windows_odbc_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-odbc-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_odbc_hash
+                    "621ed172606c2c1e6af9b5d13f0567e536d0960ea47aadbef8208a0e86d81548")
+                set(_oracle_windows_sqlplus_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-sqlplus-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_sqlplus_hash
+                    "e3600a5a56cf174232731f0874cf9f9cb4a6b0334a68fae9b585dc40ab244b05")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                # Oracle publishes no ARM64 Windows Instant Client; leaving the
+                # artifact empty makes the resolution below skip the driver
+                # with a status message instead of failing the build.
+            endif()
+        elseif(NOT ${TD_DARWIN})
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-amd64.tar.gz")
+                # Published 2026-10-28: instantclient-basic + instantclient-odbc
+                # zips (23.26) unpacked into one directory, contents unmodified,
+                # plus the runtime dependency libaio.so.1 (LGPL-2.1, with its
+                # copyright file).  The Instant Client libraries link libaio and
+                # the CI test image does not ship it; neither does every build
+                # container, so the driver chain would fail to load with
+                # "Can't open lib ... : file not found".
+                set(_oracle_artifact_hash
+                    "b3ed09bb03fb423857bd1a91a3a87d0a012c40025dba7d1c5ab060d7a57cc864")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-arm64.tar.gz")
+                # Published from the ARM64 client validated in the 1101 release.
+                set(_oracle_artifact_hash
+                    "c50d3db1894870038d598b1e7e62e708e6ac2e4cdb0a9e7e4cf88f88d2b16b09")
+            endif()
+        endif()
+
+        # The ExternalProject branch caches its staged lib directory as the
+        # driver path, and that value keeps its $<CONFIG> expressions until
+        # generate time.  It is not a user-supplied prebuilt driver: treating
+        # it as one on a re-configure silently drops the ext_oracle target.
+        set(_oracle_prebuilt "")
+        set(_oracle_srcpath_is_prebuilt FALSE)
+        if(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+            string(FIND "${EXT_ORACLE_SO_SRCPATH}" "$<" _oracle_srcpath_genexpr)
+            if(_oracle_srcpath_genexpr EQUAL -1)
+                set(_oracle_srcpath_is_prebuilt TRUE)
+            endif()
+        endif()
+        if(_oracle_srcpath_is_prebuilt)
+            set(_oracle_prebuilt "${EXT_ORACLE_SO_SRCPATH}")
+        elseif(NOT TD_WINDOWS)
+            # Windows has no standard Instant Client install location: the
+            # driver is always registered with the system driver manager by
+            # the setup script, and the provider resolves it through that
+            # registration, so only the prebuilt and artifact paths apply.
+            file(GLOB _oracle_candidates
+                    "/usr/lib/oracle/*/client64/lib"
+                    "/usr/lib/oracle/*/client/lib"
+                    "/opt/oracle/instantclient*"
+                    "/usr/lib/instantclient*")
+            foreach(_oracle_dir ${_oracle_candidates})
+                file(GLOB _oracle_found "${_oracle_dir}/libsqora.so.*")
+                if(_oracle_found)
+                    list(GET _oracle_found 0 _oracle_prebuilt)
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(_oracle_prebuilt)
+            message(STATUS "[ext_oracle] Using prebuilt Oracle Instant Client ODBC driver: ${_oracle_prebuilt}")
+            set(EXT_ORACLE_SO_SRCPATH "${_oracle_prebuilt}" CACHE INTERNAL "")
+        elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_oracle] No Oracle Instant Client ODBC driver found (set EXT_ORACLE_SO_SRCPATH "
+                "to the libsqora .so / sqora DLL or its directory); the Oracle external source will "
+                "report TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT at connect time")
+        elseif("z${_oracle_artifact}" STREQUAL "z")
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact unavailable for this platform "
+                "(processor=${CMAKE_SYSTEM_PROCESSOR}); the packaged driver will be missing")
+        elseif("z${LOCAL_URL}" STREQUAL "z" AND NOT TD_WINDOWS)
+            # Windows deliberately does not require LOCAL_URL: when the mirror
+            # artifact is absent the download script falls back to the two
+            # official zips (each hash-pinned), so a public build stays usable.
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact unavailable for this platform/mirror "
+                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+        elseif("z${EXT_ORACLE_ARTIFACT_SHA256}" STREQUAL "z" AND "z${_oracle_artifact_hash}" STREQUAL "z")
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact ${_oracle_artifact} is not published for "
+                "this architecture yet (no pinned SHA256); the packaged driver will be missing. "
+                "Set EXT_ORACLE_ARTIFACT_SHA256 to a published tarball's SHA256 to stage it")
+        else()
+            set(_oracle_sha256 "${EXT_ORACLE_ARTIFACT_SHA256}")
+            if("z${_oracle_sha256}" STREQUAL "z")
+                set(_oracle_sha256 "${_oracle_artifact_hash}")
+            endif()
+            INIT_DIRS(ext_oracle ${TD_EXTERNALS_BASE_DIR})
+            if(TD_WINDOWS)
+                # No ExternalProject URL: the merged mirror artifact and the
+                # official zips have different shapes, so a build-time script
+                # resolves and unpacks whichever is available.  <SOURCE_DIR>
+                # is populated with instantclient_23_26/ and the shared
+                # install script stages its contents into ${_ins}/lib.
+                set(_oracle_src_dir "${_base}/src/ext_oracle")
+                set(_oracle_mirror_url "")
+                if(NOT "z${LOCAL_URL}" STREQUAL "z")
+                    set(_oracle_mirror_url "${LOCAL_URL}/${_oracle_artifact}")
+                endif()
+                ExternalProject_Add(ext_oracle
+                    PREFIX "${_base}"
+                    SOURCE_DIR "${_oracle_src_dir}"
+                    DOWNLOAD_COMMAND ${CMAKE_COMMAND}
+                        -Dwork_dir=${_oracle_src_dir}
+                        -Dmirror_url=${_oracle_mirror_url}
+                        -Dmirror_sha256=${_oracle_sha256}
+                        -Dartifact_name=${_oracle_artifact}
+                        -Dbasic_url=${_oracle_windows_basic_url}
+                        -Dbasic_sha256=${_oracle_windows_basic_hash}
+                        -Dodbc_url=${_oracle_windows_odbc_url}
+                        -Dodbc_sha256=${_oracle_windows_odbc_hash}
+                        -Dsqlplus_url=${_oracle_windows_sqlplus_url}
+                        -Dsqlplus_sha256=${_oracle_windows_sqlplus_hash}
+                        -P "${CMAKE_CURRENT_LIST_DIR}/download_oracle_instantclient_windows.cmake"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=${_oracle_src_dir}
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                get_from_local_if_exists(
+                    "https://download.oracle.com/otn_software/linux/instantclient/${_oracle_artifact}"
+                    "${_oracle_artifact}"
+                )
+                ExternalProject_Add(ext_oracle
+                    URL ${_url}
+                    URL_HASH SHA256=${_oracle_sha256}
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    # The layout picker runs as a build-time CMake script: a
+                    # multi-line `bash -c` argument here is split on its newlines by
+                    # the generated makefile and never copies anything.
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=<SOURCE_DIR>
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
+            add_dependencies(build_externals ext_oracle)
+            set(EXT_ORACLE_SO_SRCPATH "${_ins}/lib" CACHE INTERNAL "")
+        endif()  # Oracle Instant Client resolution
+
+        # 19c Instant Client: the client generation that supports 11g R2.
+        # The bundle is the two official zips (Basic + ODBC) unpacked into one
+        # directory plus libaio.so.1, repacked verbatim; Oracle's license allows
+        # verbatim redistribution but forbids modification (Oracle DS 9.1.7).
+        # It is published to the dependency mirror under the same package as
+        # the 23ai bundle, so the mirror URL is the default and the pinned hash
+        # is the only thing a build trusts.  EXT_ORACLE_19C_ARTIFACT /
+        # _SHA256 override both for a different mirror.
+        set(_oracle19c_artifact "")
+        set(_oracle19c_artifact_hash "")
+        if(TD_WINDOWS)
+            # Windows publishes the same Basic + ODBC packages; the merged
+            # mirror artifact keeps the Linux naming with -windows-amd64.
+            # Oracle offers no anonymous direct URL for 19c, so the artifact
+            # comes from the dependency mirror; EXT_ORACLE_19C_ARTIFACT_SHA256
+            # pins a hash when the publisher provides one.
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-windows-amd64.zip")
+            set(_oracle19c_artifact_hash "")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
+            set(_oracle19c_artifact_hash
+                "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-arm64.tar.gz")
+            set(_oracle19c_artifact_hash
+                "6bc83967b00622ec82662c5000ceccfc43343526c0190be975c984aed6edb9a6")
+        endif()
+        set(EXT_ORACLE_19C_ARTIFACT "" CACHE STRING
+            "URL of the 19c Instant Client bundle (Basic + ODBC)")
+        set(EXT_ORACLE_19C_ARTIFACT_SHA256 "" CACHE STRING
+            "SHA256 of the 19c Instant Client bundle")
+        set(_oracle19c_url "${EXT_ORACLE_19C_ARTIFACT}")
+        set(_oracle19c_sha "${EXT_ORACLE_19C_ARTIFACT_SHA256}")
+        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL ""
+           AND NOT "z${_oracle19c_artifact}" STREQUAL "z")
+            set(_oracle19c_url "${LOCAL_URL}/${_oracle19c_artifact}")
+            set(_oracle19c_sha "${_oracle19c_artifact_hash}")
+        endif()
+        if(NOT TD_DARWIN
+           AND NOT "z${_oracle19c_url}" STREQUAL "z"
+           AND (NOT "z${_oracle19c_sha}" STREQUAL "z" OR TD_WINDOWS))
+            INIT_DIRS(ext_oracle_19c ${TD_EXTERNALS_BASE_DIR})
+            if(TD_WINDOWS)
+                set(_oracle19c_src_dir "${_base}/src/ext_oracle_19c")
+                ExternalProject_Add(ext_oracle_19c
+                    PREFIX "${_base}"
+                    SOURCE_DIR "${_oracle19c_src_dir}"
+                    DOWNLOAD_COMMAND ${CMAKE_COMMAND}
+                        -Dwork_dir=${_oracle19c_src_dir}
+                        -Dmirror_url=${_oracle19c_url}
+                        -Dmirror_sha256=${_oracle19c_sha}
+                        -Dartifact_name=${_oracle19c_artifact}
+                        -Dbasic_url=
+                        -Dbasic_sha256=
+                        -Dodbc_url=
+                        -Dodbc_sha256=
+                        -Dsqlplus_url=https://download.oracle.com/otn_software/nt/instantclient/1928000/instantclient-sqlplus-windows.x64-19.28.0.0.0dbru.zip
+                        -Dsqlplus_sha256=db93e57711219f6eeffa66a4c9267879a741f3005f97a9eb8ababdaa2ba6b295
+                        -P "${CMAKE_CURRENT_LIST_DIR}/download_oracle_instantclient_windows.cmake"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=${_oracle19c_src_dir}
+                            -Ddst=${_ins}/lib
+                            -Dallow_missing=ON
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                ExternalProject_Add(ext_oracle_19c
+                    URL "${_oracle19c_url}"
+                    URL_HASH SHA256=${_oracle19c_sha}
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=<SOURCE_DIR>
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
+            add_dependencies(build_externals ext_oracle_19c)
+            set(EXT_ORACLE_19C_SO_SRCPATH "${_ins}/lib" CACHE INTERNAL "")
+        elseif(INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_oracle_19c] 19c Instant Client bundle not configured "
+                "(EXT_ORACLE_19C_ARTIFACT / _SHA256, or a dependency mirror); "
+                "the 11g client tree will be missing")
+        endif()
+    endif()  # BUILD_WITH_ODBC
+
+endif()   # } TD_ENTERPRISE ext connector client libraries
+
+
+# Shared Arrow source definition used by both the federated-query shared build
+# and taosdump's static parquet support.
+set(TD_ARROW_VERSION "19.0.1")
+set(TD_ARROW_GIT_TAG "apache-arrow-${TD_ARROW_VERSION}")
+set(TD_ARROW_ARCHIVE_URL "https://github.com/apache/arrow/archive/refs/tags/${TD_ARROW_GIT_TAG}.tar.gz")
+set(TD_ARROW_ARCHIVE_NAME "arrow-${TD_ARROW_GIT_TAG}.tar.gz")
+
+function(td_prepare_arrow_external arrow_build_profile)
+    # Platform-specific cmake args for the Arrow sub-build
+    set(ARROW_EXTRA_CMAKE_ARGS "")
+    set(_arrow_dependencies "")
+    if(NOT ${TD_WINDOWS})
+        set(_arrow_dependencies ext_ssl)
+        # Arrow forwards CMAKE_PROJECT_INCLUDE to its bundled sub-builds.
+        # Pin both headers and archives there, including stale Thrift caches.
+        # Resolve TD_CONFIG_NAME at generation time for multi-config builds.
+        set(_arrow_openssl_config
+            "${CMAKE_CURRENT_BINARY_DIR}/ext_arrow_${arrow_build_profile}-openssl-${TD_CONFIG_NAME}.cmake")
+        file(GENERATE OUTPUT "${_arrow_openssl_config}" CONTENT
+"set(OPENSSL_ROOT_DIR \"${ext_ssl_install}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_INCLUDE_DIR \"${ext_ssl_inc_dir}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_SSL_LIBRARY \"${ext_ssl_lib_ssl}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_CRYPTO_LIBRARY \"${ext_ssl_lib_crypto}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL \"\" FORCE)
+")
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_PROJECT_INCLUDE:FILEPATH=${_arrow_openssl_config}"
+            -DARROW_OPENSSL_USE_SHARED:BOOL=OFF
+        )
+        set(_arrow_c_flags "-ffunction-sections -fdata-sections")
+        if(${TD_DARWIN})
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+        else()
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+        endif()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
+            "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+        )
+        # -O1 avoids GCC 14 debug-build failures in Arrow's vendored xxhash
+        # SSE2 helpers while keeping the output debuggable.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
+            "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
+        )
+        # Arrow's CHECKIN warning level appends -Werror in debug builds.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
+        )
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+            )
+        endif()
+    else()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            -DARROW_USE_STATIC_CRT:BOOL=OFF
+            -DARROW_USE_CCACHE:BOOL=OFF
+            -DARROW_USE_SCCACHE:BOOL=OFF
+            "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+            "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+            "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+            "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+            "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+        )
+        if("${arrow_build_profile}" STREQUAL "shared")
+            # Federated query keeps its historical shared-build MSVC flags.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
+            )
+        else()
+            # taosdump's static build needs the newer MSVC C++17 and warning
+            # workarounds used by Arrow 19.0.1 and its bundled dependencies.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_STANDARD:STRING=17"
+                "-DCMAKE_CXX_STANDARD_REQUIRED:BOOL=ON"
+                "-DCMAKE_CXX_EXTENSIONS:BOOL=OFF"
+                "-DCMAKE_CXX_FLAGS:STRING=/Zc:__cplusplus"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zc:__cplusplus /FIarray /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob0 /Od /RTC1"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Ob2 /DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Od /RTC1"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /DNDEBUG"
+            )
+        endif()
+    endif()
+
+    set(_arrow_ts_args "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+        list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    endif()
+
+    # Arrow's bundled third-party downloads happen in its own CMake sub-build,
+    # so patch ThirdpartyToolchain.cmake directly when using an internal mirror.
+    set(_arrow_patch_commands "")
+    if(NOT "${LOCAL_URL}" STREQUAL "")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                "-DARROW_THIRDPARTY_TOOLCHAIN:FILEPATH=<SOURCE_DIR>/cpp/cmake_modules/ThirdpartyToolchain.cmake"
+                "-DLOCAL_URL:STRING=${LOCAL_URL}"
+                -P "${TD_SOURCE_DIR}/cmake/patch_arrow_thirdparty_mirror.cmake"
+        )
+    endif()
+
+    set(_arrow_configure_env "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        set(_arrow_configure_env "${CMAKE_COMMAND}" -E env CMAKE_POLICY_VERSION_MINIMUM=3.5)
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-cmake4-mimalloc-fix.cmake"
+        )
+    endif()
+    list(APPEND _arrow_patch_commands
+        COMMAND "${CMAKE_COMMAND}"
+            -DARROW_SOURCE_DIR=<SOURCE_DIR>
+            -P "${CMAKE_CURRENT_LIST_DIR}/arrow-absl-gcc13-stdint-fix.cmake"
+    )
+
+    if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-macos-libtool-fix.cmake"
+        )
+    endif()
+
+    if(_arrow_patch_commands)
+        # The Arrow sub-build may already have generated vendored dependency
+        # download scripts (snappy_ep, thrift_ep, ...).  After patching
+        # ThirdpartyToolchain.cmake, force Arrow's configure step to regenerate
+        # those scripts so cached build dirs do not keep using public URLs.
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}" -E remove -f <BINARY_DIR>/CMakeCache.txt
+            COMMAND "${CMAKE_COMMAND}" -E remove_directory <BINARY_DIR>/CMakeFiles
+        )
+    endif()
+
+    set(_arrow_generator_args "")
+    list(APPEND _arrow_generator_args -G "${CMAKE_GENERATOR}")
+    if(CMAKE_GENERATOR_PLATFORM)
+        list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
+    endif()
+    if(CMAKE_GENERATOR_TOOLSET)
+        list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
+    endif()
+
+    if(_arrow_patch_commands)
+        set(_arrow_patch_arg PATCH_COMMAND ${_arrow_patch_commands})
+    else()
+        set(_arrow_patch_arg "")
+    endif()
+
+    set(ARROW_EXTRA_CMAKE_ARGS "${ARROW_EXTRA_CMAKE_ARGS}" PARENT_SCOPE)
+    set(_arrow_dependencies "${_arrow_dependencies}" PARENT_SCOPE)
+    set(_arrow_ts_args "${_arrow_ts_args}" PARENT_SCOPE)
+    set(_arrow_configure_env "${_arrow_configure_env}" PARENT_SCOPE)
+    set(_arrow_generator_args "${_arrow_generator_args}" PARENT_SCOPE)
+    set(_arrow_patch_arg "${_arrow_patch_arg}" PARENT_SCOPE)
+endfunction()
+
+# Apache Arrow Flight SQL — used by the InfluxDB federated query path.
+# Guard: only included when BUILD_WITH_ARROW=ON (enterprise builds on Linux/macOS).
+# On Windows Arrow Flight SQL is unavailable, and the InfluxDB provider is built
+# with its HTTP transport only (see extconnector/CMakeLists.txt), so the Arrow
+# external projects are skipped there.
+if(${BUILD_WITH_ARROW} AND NOT TD_WINDOWS)
+    # Prefer system-installed Arrow (e.g. via apt libarrow-dev + libarrow-flight-sql-dev)
+    # over building from source.  This avoids the long ExternalProject build when the
+    # system already provides a compatible Arrow >= 16.
+    find_package(Arrow       QUIET CONFIG)
+    find_package(ArrowFlight QUIET CONFIG)
+    find_package(ArrowFlightSql QUIET CONFIG)
+    find_package(Parquet      QUIET CONFIG)
+
+    if(Arrow_FOUND AND ArrowFlight_FOUND AND ArrowFlightSql_FOUND AND Parquet_FOUND)
+        message(STATUS "[ext_arrow] Using system Arrow ${Arrow_VERSION} — skipping ExternalProject build")
+        # Record the system Arrow lib directory for extconnector staging
+        get_target_property(_arrow_so_loc Arrow::arrow_shared LOCATION)
+        get_filename_component(_arrow_so_dir "${_arrow_so_loc}" DIRECTORY)
+        set(EXT_ARROW_SYSTEM_LIBDIR "${_arrow_so_dir}" CACHE INTERNAL "" FORCE)
+        # Arrow SO version: 24.0.0 → SOVERSION 2400
+        string(REGEX MATCH "^([0-9]+)" _arrow_major "${Arrow_VERSION}")
+        math(EXPR _arrow_sover "${_arrow_major} * 100")
+        set(EXT_ARROW_SO_SUFFIX "so.${_arrow_sover}" CACHE INTERNAL "" FORCE)
+        # Create DEP_ext_arrow / DEP_ext_arrow_INC / DEP_ext_arrow_LIB macros that
+        # mirror the interface produced by INIT_EXT, so extconnector/CMakeLists.txt
+        # can call DEP_ext_arrow(extconnector) without knowing the source.
+        macro(DEP_ext_arrow tgt)
+            cmake_language(CALL DEP_ext_arrow_INC ${tgt})
+            cmake_language(CALL DEP_ext_arrow_LIB ${tgt})
+            if(NOT TD_WINDOWS)
+                target_link_libraries(${tgt} PUBLIC stdc++)
+            endif()
+        endmacro()
+        macro(DEP_ext_arrow_INC tgt)
+            target_include_directories(${tgt} PRIVATE ${ARROW_INCLUDE_DIR})
+            add_definitions(-D_ext_arrow)
+        endmacro()
+        macro(DEP_ext_arrow_LIB tgt)
+            target_link_libraries(${tgt} PRIVATE
+                Arrow::arrow_shared
+                ArrowFlight::arrow_flight_shared
+                ArrowFlightSql::arrow_flight_sql_shared
+                Parquet::parquet_shared)
+            add_definitions(-D_ext_arrow)
+        endmacro()
+    else()
+        # System Arrow not found — fall back to building from source via ExternalProject.
+        if(TD_LINUX)
+            set(_ext_arrow_libs
+                lib/libparquet.so
+                lib/libarrow_flight_sql.so
+                lib/libarrow_flight.so
+                lib/libarrow.so)
+        elseif(TD_DARWIN)
+            set(_ext_arrow_libs
+                lib/libparquet.dylib
+                lib/libarrow_flight_sql.dylib
+                lib/libarrow_flight.dylib
+                lib/libarrow.dylib)
+        elseif(TD_WINDOWS)
+            set(_ext_arrow_libs lib/parquet.lib lib/arrow.lib)
+        endif()
+        INIT_EXT(ext_arrow
+            INC_DIR  include
+            LIB      ${_ext_arrow_libs}
+        )
+    endif()  # Arrow_FOUND
+    if(NOT Arrow_FOUND OR NOT ArrowFlight_FOUND OR NOT ArrowFlightSql_FOUND OR NOT Parquet_FOUND)
+    # Build from source — only reached when system Arrow was NOT found above.
+    get_from_local_if_exists(
+        "${TD_ARROW_ARCHIVE_URL}"
+        "${TD_ARROW_ARCHIVE_NAME}"
+    )
+    td_prepare_arrow_external(shared)
+    if(TD_WINDOWS)
+        set(_arrow_flight_flag
+            -DARROW_FLIGHT:BOOL=OFF
+            -DARROW_FLIGHT_SQL:BOOL=OFF)
+    else()
+        set(_arrow_flight_flag
+            -DARROW_FLIGHT:BOOL=ON
+            -DARROW_FLIGHT_SQL:BOOL=ON)
+    endif()
+    set(_arrow_shared_cmake_args
+        -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+        -DCMAKE_CXX_STANDARD:STRING=17
+        -DARROW_BUILD_STATIC:BOOL=OFF
+        -DARROW_BUILD_SHARED:BOOL=ON
+        ${_arrow_flight_flag}
+        -DARROW_IPC:BOOL=ON
+        -DARROW_PARQUET:BOOL=ON
+        -DARROW_WITH_SNAPPY:BOOL=ON
+        -DARROW_COMPUTE:BOOL=OFF
+        -DARROW_DATASET:BOOL=OFF
+        -DARROW_FILESYSTEM:BOOL=OFF
+        -DARROW_S3:BOOL=OFF
+        -DARROW_WITH_ZLIB:BOOL=OFF
+        -DARROW_WITH_ZSTD:BOOL=OFF
+        -DARROW_WITH_LZ4:BOOL=OFF
+        -DARROW_WITH_BZ2:BOOL=OFF
+        -DARROW_WITH_RE2:BOOL=OFF
+        -DARROW_WITH_UTF8PROC:BOOL=OFF
+        -DARROW_BUILD_TESTS:BOOL=OFF
+        -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+        -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+        -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+        -DARROW_JEMALLOC:BOOL=OFF
+        -DARROW_MIMALLOC:BOOL=OFF
+        -DARROW_BUILD_UTILITIES:BOOL=OFF
+        -DARROW_USE_GLOG:BOOL=OFF
+        -DARROW_SIMD_LEVEL:STRING=NONE
+        -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+        ${ARROW_EXTRA_CMAKE_ARGS}
+    )
+    ExternalProject_Add(ext_arrow
+        URL            ${_url}
+        URL_HASH       SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+        DEPENDS        ${_arrow_dependencies}
+        ${_arrow_ts_args}
+        PREFIX         "${_base}"
+        STAMP_DIR      "${_base}/src/ext_arrow-url-stamp"
+        SOURCE_SUBDIR  cpp
+        CMAKE_ARGS     ${_arrow_shared_cmake_args}
+        CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" ${_arrow_generator_args} <SOURCE_DIR>/cpp ${_arrow_shared_cmake_args}
+        ${_arrow_patch_arg}
+        BUILD_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                    --parallel "${TD_EXTERNALS_BUILD_JOBS}"
+        INSTALL_COMMAND
+            COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_arrow)
+    endif()  # NOT Arrow_FOUND
+
+endif()  # BUILD_WITH_ARROW
+
+if(TD_TAOS_TOOLS)
+# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
+# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
+if(${TD_WINDOWS})
+    INIT_EXT(ext_arrow_static
+        INC_DIR  include
+        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
+    )
+else()
+    INIT_EXT(ext_arrow_static
+        INC_DIR  include
+        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+    )
+endif()
+# Source: https://github.com/apache/arrow tag ${TD_ARROW_GIT_TAG}
+get_from_local_if_exists(
+    "${TD_ARROW_ARCHIVE_URL}"
+    "${TD_ARROW_ARCHIVE_NAME}"
+)
+td_prepare_arrow_external(static)
+# Collect all Arrow cmake arguments into one list so we can wrap the configure
+# command with an environment prefix when necessary.
+set(_arrow_cmake_args
+    -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    -DCMAKE_CXX_STANDARD:STRING=17
+    -DARROW_BUILD_STATIC:BOOL=ON
+    -DARROW_BUILD_SHARED:BOOL=OFF
+    -DARROW_PARQUET:BOOL=ON
+    -DARROW_IPC:BOOL=ON
+    -DARROW_COMPUTE:BOOL=OFF
+    -DARROW_DATASET:BOOL=OFF
+    -DARROW_FLIGHT:BOOL=OFF
+    -DARROW_FILESYSTEM:BOOL=OFF
+    -DARROW_S3:BOOL=OFF
+    -DARROW_WITH_SNAPPY:BOOL=ON
+    -DARROW_WITH_ZLIB:BOOL=OFF
+    -DARROW_WITH_ZSTD:BOOL=OFF
+    -DARROW_WITH_LZ4:BOOL=OFF
+    -DARROW_WITH_BZ2:BOOL=OFF
+    -DARROW_BUILD_TESTS:BOOL=OFF
+    -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+    -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+    -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+    -DARROW_JEMALLOC:BOOL=OFF
+    -DARROW_MIMALLOC:BOOL=OFF
+    -DARROW_BUILD_UTILITIES:BOOL=OFF
+    -DARROW_USE_GLOG:BOOL=OFF
+    -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
+    -DARROW_SIMD_LEVEL:STRING=NONE
+    -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+    -DBUILD_WARNING_LEVEL:STRING=PRODUCTION
+    ${ARROW_EXTRA_CMAKE_ARGS}
+)
+
+set(ext_arrow_static_install_byproducts_available FALSE)
+set(_arrow_install_byproducts "")
+if(NOT TD_EXTERNALS_USE_ONLY AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
+    set(ext_arrow_static_install_byproducts_available TRUE)
+    set(_arrow_install_byproducts INSTALL_BYPRODUCTS ${ext_arrow_static_libs})
+endif()
+
+ExternalProject_Add(ext_arrow_static
+    URL ${_url}
+    URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    DEPENDS        ${_arrow_dependencies}
+    ${_arrow_ts_args}
+    PREFIX         "${_base}"
+    SOURCE_SUBDIR  cpp
+    CMAKE_ARGS     ${_arrow_cmake_args}
+    CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" ${_arrow_generator_args} <SOURCE_DIR>/cpp ${_arrow_cmake_args}
+    ${_arrow_patch_arg}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                --parallel "${TD_EXTERNALS_BUILD_JOBS}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    ${_arrow_install_byproducts}
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_arrow_static)     # this is for github workflow in cache-miss step.
 endif()
 
 if(BUILD_PYUDF)

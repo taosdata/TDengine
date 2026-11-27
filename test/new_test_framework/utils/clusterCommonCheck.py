@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -18,6 +22,7 @@ import threading
 import requests
 import time
 import taos
+import os
 
 from .log import *
 from .sql import *
@@ -37,6 +42,8 @@ class ClusterComCheck:
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkDnodes(self, dnodeNum, timeout=100):
+        if os.environ.get("CI_ASAN_BUILD", "0") == "1":
+            timeout = max(timeout, timeout * 2)
         count = 0
 
         while count < timeout:
@@ -326,69 +333,51 @@ class ClusterComCheck:
             tdLog.debug(tdSql.queryResult)
             tdLog.exit(f"{mnodeNum} mnodes not ready in {count}s")
 
-    def check3mnodeoff(self, offlineDnodeNo, mnodeNum=3):
-        count = 0
-        while count < 30:
-            time.sleep(1)
-            tdSql.query("select * from information_schema.ins_mnodes;")
-            if tdSql.checkRows(mnodeNum):
-                tdLog.success("cluster has %d mnodes" % mnodeNum)
+    def check3mnodeoff(self, offlineDnodeNo, mnodeNum=3, timeout=30):
+        started = time.monotonic()
+        deadline = started + timeout
+        last_state = None
+        last_error = None
+        attempt = 0
+        while time.monotonic() < deadline:
+            attempt += 1
+            error = None
+            try:
+                # Keep the native connection and let the next query use its mnode endpoints.
+                # The outer deadline owns retries, including in ASAN runs.
+                tdSql.query("select * from information_schema.ins_mnodes;", queryTimes=1)
+            except taos.error.ProgrammingError as exc:
+                # TSDB_CODE_RPC_NETWORK_UNAVAIL observed during leader failover.
+                if exc.errno & 0xFFFF != 0x000B:
+                    raise
+                error = last_error = exc
             else:
-                tdLog.exit("mnode number is correct")
-            if offlineDnodeNo == 1:
-                if tdSql.queryResult[0][2] == "offline":
-                    if tdSql.queryResult[1][2] == "leader":
-                        if tdSql.queryResult[2][2] == "follower":
-                            tdLog.success(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                    elif tdSql.queryResult[1][2] == "follower":
-                        if tdSql.queryResult[2][2] == "leader":
-                            tdLog.debug(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                count += 1
-            elif offlineDnodeNo == 2:
-                if tdSql.queryResult[1][2] == "offline":
-                    if tdSql.queryResult[0][2] == "leader":
-                        if tdSql.queryResult[2][2] == "follower":
-                            tdLog.debug(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                    elif tdSql.queryResult[0][2] == "follower":
-                        if tdSql.queryResult[2][2] == "leader":
-                            tdLog.debug(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                count += 1
-            elif offlineDnodeNo == 3:
-                if tdSql.queryResult[2][2] == "offline":
-                    if tdSql.queryResult[0][2] == "leader":
-                        if tdSql.queryResult[1][2] == "follower":
-                            tdLog.debug(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                    elif tdSql.queryResult[0][2] == "follower":
-                        if tdSql.queryResult[1][2] == "leader":
-                            tdLog.debug(
-                                "stop mnodes  on dnode %d  successfully in 10s"
-                                % offlineDnodeNo
-                            )
-                            return True
-                count += 1
-        else:
-            tdLog.debug(tdSql.queryResult)
-            tdLog.exit(f"stop mnodes  on dnode {offlineDnodeNo}  failed in 10s ")
+                last_state = tdSql.queryResult
+
+            elapsed = time.monotonic() - started
+            tdLog.info(
+                f"mnode failover: stopped={offlineDnodeNo}, attempt={attempt}, "
+                f"elapsed={elapsed:.3f}s/{timeout}s, state={last_state!r}, error={error!r}"
+            )
+            # A synchronous native query can return after the deadline; never accept it late.
+            if time.monotonic() >= deadline:
+                break
+            if error is None and len(last_state) == mnodeNum:
+                roles = {row[0]: row[2] for row in last_state}
+                if roles.get(offlineDnodeNo) == "offline" and sorted(
+                    role for node, role in roles.items() if node != offlineDnodeNo
+                ) == ["follower", "leader"]:
+                    tdLog.success(f"mnode on dnode {offlineDnodeNo} offline after {elapsed:.3f}s")
+                    return True
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(1, remaining))
+
+        raise TimeoutError(
+            f"mnode failover timed out: stopped={offlineDnodeNo}, timeout={timeout}s, "
+            f"elapsed={time.monotonic() - started:.3f}s, "
+            f"last_state={last_state!r}, last_error={last_error!r}"
+        ) from last_error
 
     def check3mnode2off(self, mnodeNum=3):
         count = 0

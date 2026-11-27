@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,18 @@
  */
 
 #define _DEFAULT_SOURCE
+// the opensocket callback below creates the connection socket itself
+#define ALLOW_FORBID_FUNC
+#include "os.h"
+#include "tdTestSeam.h"
 #include "tanalytics.h"
+#include <math.h>
+
+#include "os.h"
+#include "osTime.h"
+#include "tglobal.h"
 #include "ttypes.h"
 #include "tutil.h"
-#include "osTime.h"
 
 #ifdef USE_ANALYTICS
 
@@ -57,6 +67,12 @@ const char *taosAnalysisAlgoType(EAnalyAlgoType type) {
       return "classification";
     case ANALY_ALGO_TYPE_MOTIF:
       return "moti-discovery";
+    case ANALY_ALGO_TYPE_REGRESSION:
+      return "regression";
+    case ANALY_ALGO_TYPE_CLUSTERING:
+      return "clustering";
+    case ANALY_ALGO_TYPE_SERIES_DIAGNOSIS:
+      return "series-diagnosis";
     default:
       return "unknown";
   }
@@ -76,6 +92,12 @@ const char *taosAnalyAlgoUrlStr(EAnalyAlgoType type) {
       return "classification";
     case ANALY_ALGO_TYPE_MOTIF:
       return "moti-discovery";
+    case ANALY_ALGO_TYPE_REGRESSION:
+      return "regression";
+    case ANALY_ALGO_TYPE_CLUSTERING:
+      return "clustering";
+    case ANALY_ALGO_TYPE_SERIES_DIAGNOSIS:
+      return "series-diagnosis";
     default:
       return "unknown";
   }
@@ -134,6 +156,7 @@ void taosAnalyticsCleanup() {
 }
 
 void taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {
+  TD_SEAM_VOID(taosAnalyUpdate, void (*)(int64_t, SHashObj *), (newVer, pHash));
   if (newVer > tsAlgos.ver) {
     if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
       SHashObj *hash = tsAlgos.hash;
@@ -263,6 +286,25 @@ int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url
 
 int64_t taosAnalyGetVersion() { return tsAlgos.ver; }
 
+// Reject connections to private/internal addresses before they are established.
+// CURLOPT_OPENSOCKETFUNCTION runs before connect() and is handed the resolved peer
+// address, the very sockaddr libcurl then passes to connect(), so rejecting it here
+// closes the DNS rebinding window that the URL level check in taosIsPrivateUrl() can not
+// cover. CURLOPT_SOCKOPTFUNCTION can not be used for this: it also runs before connect(),
+// where getpeername() reports no peer yet.
+// The caller installs this callback only while internal urls are forbidden and passes the
+// request url as CURLOPT_OPENSOCKETDATA for the log line.
+static curl_socket_t taosCurlOpensocketCb(void *clientp, curlsocktype purpose, struct curl_sockaddr *address) {
+  const char *url = (const char *)clientp;
+
+  if (purpose == CURLSOCKTYPE_IPCXN && taosIsPrivateIp((const struct sockaddr *)&address->addr)) {
+    uError("blocked connection to a private/internal address, url:%s", url != NULL ? url : "");
+    return CURL_SOCKET_BAD;
+  }
+
+  return socket(address->family, address->socktype, address->protocol);
+}
+
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;
   if (contLen == 0 || nmemb == 0 || pCont == NULL) {
@@ -317,9 +359,15 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   }
 
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000L) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -332,7 +380,7 @@ _OVER:
   return code;
 }
 
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int64_t bufLen, int64_t timeout,
                                    const char *id) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
@@ -347,16 +395,23 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
   if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
+  // timeout is in seconds, see taosAnalysisParseTimout() and ANALY_DEFAULT_TIMEOUT.
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)timeout) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POST, 1L) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)bufLen) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
 
-  uDebugL("%s curl post request will sent, url:%s len:%d content:%s", id, url, bufLen, buf);
+  uDebugL("%s curl post request will sent, url:%s len:%" PRId64 " content:%s", id, url, bufLen, buf);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("%s failed to perform curl action, code:%d", id, code);
@@ -528,7 +583,7 @@ static int32_t tsosAnalyJsonBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols, const
     pCol->filePtr =
         taosOpenFile(pCol->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
     if (pCol->filePtr == NULL) {
-      uError("%s failed to open tmp file for keep forecast history data, code：%s", pId, tstrerror(terrno));
+      uError("%s failed to open tmp file for keep forecast history data, code:%s", pId, tstrerror(terrno));
       return terrno;
     }
   }
@@ -540,6 +595,11 @@ static int32_t taosAnalyJsonBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex
   char buf[128] = {0};
   bool first = (colIndex == 0);
   bool last = (colIndex == pBuf->numOfCols - 1);
+
+  if (colType < 0 || colType >= TSDB_DATA_TYPE_MAX) {
+    uError("taosAnalyJsonBufWriteColMeta: invalid colType %d, must be in [0, %d)", colType, TSDB_DATA_TYPE_MAX);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (first) {
     if (taosAnalyJsonBufWriteStr(pBuf, "\"schema\": [\n", 0) != 0) {
@@ -601,6 +661,7 @@ static int32_t taosAnalyJsonBufWriteColEnd(SAnalyticBuf *pBuf, int32_t colIndex)
 static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex, int32_t colType, void *colValue) {
   char    buf[64];
   int32_t bufLen = 0;
+  int32_t valueLen = 0;
 
   if (pBuf->pCols[colIndex].numOfRows != 0) {
     buf[bufLen] = ',';
@@ -609,47 +670,66 @@ static int32_t taosAnalyJsonBufWriteColData(SAnalyticBuf *pBuf, int32_t colIndex
     bufLen += 2;
   }
 
-  switch (colType) {
-    case TSDB_DATA_TYPE_BOOL:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int8_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint8_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int16_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint16_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%d", *(int32_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%u", *(uint32_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRId64, *(int64_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%" PRIu64, *(uint64_t *)colValue);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_FLOAT_VAL(colValue));
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      bufLen += snprintf(buf + bufLen, sizeof(buf) - bufLen, "%f", GET_DOUBLE_VAL(colValue));
-      break;
-    default:
-      buf[bufLen] = '\0';
+  char  *pNumber = buf + bufLen;
+  size_t capacity = sizeof(buf) - bufLen;
+
+  // Missing and non-finite values have no JSON numeric representation.
+  if (colValue == NULL || (colType == TSDB_DATA_TYPE_FLOAT && !isfinite(GET_FLOAT_VAL(colValue))) ||
+      (colType == TSDB_DATA_TYPE_DOUBLE && !isfinite(GET_DOUBLE_VAL(colValue)))) {
+    valueLen = snprintf(pNumber, capacity, "null");
+  } else {
+    switch (colType) {
+      case TSDB_DATA_TYPE_BOOL:
+        valueLen = snprintf(pNumber, capacity, "%d", (*((int8_t *)colValue) == 1) ? 1 : 0);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int8_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint8_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int16_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint16_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        valueLen = snprintf(pNumber, capacity, "%d", *(int32_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        valueLen = snprintf(pNumber, capacity, "%u", *(uint32_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        valueLen = snprintf(pNumber, capacity, "%" PRId64, *(int64_t *)colValue);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        valueLen = snprintf(pNumber, capacity, "%" PRIu64, *(uint64_t *)colValue);
+        break;
+      // %g uses scientific notation when needed; 9/17 digits preserve float/double precision.
+      case TSDB_DATA_TYPE_FLOAT:
+        valueLen = snprintf(pNumber, capacity, "%.9g", GET_FLOAT_VAL(colValue));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        valueLen = snprintf(pNumber, capacity, "%.17g", GET_DOUBLE_VAL(colValue));
+        break;
+      default:
+        return TSDB_CODE_INVALID_PARA;
+    }
   }
 
-  pBuf->pCols[colIndex].numOfRows++;
-  return taosAnalyJsonBufWriteStrUseCol(pBuf, buf, bufLen, colIndex);
+  // snprintf returns the required length, which may exceed the stored bytes.
+  if (valueLen < 0 || (size_t)valueLen >= capacity) {
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
+  bufLen += valueLen;
+  int32_t code = taosAnalyJsonBufWriteStrUseCol(pBuf, buf, bufLen, colIndex);
+  if (code == TSDB_CODE_SUCCESS) {
+    pBuf->pCols[colIndex].numOfRows++;
+  }
+  return code;
 }
 
 static int32_t taosAnalyJsonBufWriteDataEnd(SAnalyticBuf *pBuf) {
@@ -866,7 +946,13 @@ int32_t taosAnalysisParseAlgo(const char* pOpt, char* pAlgoName, char* pUrl, int
     return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
-  tstrncpy(pAlgoName, pAlgo, taosHashGetValueSize(pAlgo) + 1);
+  int32_t algoLen = taosHashGetValueSize(pAlgo);
+  if (algoLen >= TSDB_ANALYTIC_ALGO_NAME_LEN) {
+    uError("%s analysis algorithm name length %d exceeds maximum %d", id, algoLen, TSDB_ANALYTIC_ALGO_NAME_LEN - 1);
+    return TSDB_CODE_ANA_ALGO_NOT_FOUND;
+  }
+
+  tstrncpy(pAlgoName, pAlgo, algoLen+1);
 
   if (taosAnalyGetAlgoUrl(pAlgoName, type, pUrl, len) != 0) {
     uError("%s failed to get analysis algorithm url from %s", id, pAlgoName);

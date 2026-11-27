@@ -1,31 +1,47 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
+import glob
 import os
 import json
 import subprocess
+from new_test_framework.utils.eutil import start_test_process, signal_test_process
 
 
 class TestBenchmarkQueryMain:
 
-    def runSeconds(self, command, timeout = 180):
+    def runSeconds(self, command, timeout=None):
+        if timeout is None:
+            timeout = 1800 if os.name == "nt" else 180
         tdLog.info(f"runSeconds {command} ...")
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.wait(timeout)
-
-        # get output
-        output = process.stdout.read().decode(encoding="gbk")
-        error  = process.stderr.read().decode(encoding="gbk")
+        process = start_test_process(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            signal_test_process(process)
+            stdout, stderr = process.communicate(timeout=10)
+            tdLog.exit(f"benchmark timed out after {timeout}s: {command} "
+                       f"stdout={stdout!r} stderr={stderr!r}")
+        output = stdout.decode(encoding="gbk", errors="replace")
+        error = stderr.decode(encoding="gbk", errors="replace")
+        if process.returncode:
+            tdLog.exit(f"benchmark failed: rc={process.returncode} "
+                       f"(0x{process.returncode & 0xffffffff:08X}), "
+                       f"command={command}, stdout={output}, stderr={error}")
         return output, error
 
     def getKeyValue(self, content, key, end):
@@ -232,6 +248,37 @@ class TestBenchmarkQueryMain:
         self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchNoMix.json")
         self.expectFailed(f"{benchmark} -f  {os.path.dirname(__file__)}/json/queryErrorBatchRest.json")
 
+    def checkFileLines(self, fileName, expectedLines):
+        if not os.path.exists(fileName):
+            tdLog.exit(f"result file does not exist: {fileName}")
+
+        with open(fileName, "r") as file:
+            lines = file.readlines()
+
+        if len(lines) != expectedLines:
+            tdLog.exit(f"unexpected line count in {fileName}, expect:{expectedLines}, real:{len(lines)}, content:{lines}")
+
+        return lines
+
+    def do_mixed_batch_query_result_file(self, benchmark, tbRow):
+        for fileName in glob.glob("query_mix_result_switch*.txt-*"):
+            os.remove(fileName)
+
+        jsonFile = f"{os.path.dirname(__file__)}/json/queryModeSpecMixBatchResult.json"
+        output, error = self.runSeconds(f"{benchmark} -f {jsonFile}")
+        if "completed total queries: 3" not in output:
+            tdLog.exit(f"mixed batch query failed, output:\n{output}\nerror:\n{error}")
+
+        countLines = self.checkFileLines("query_mix_result_switch_count.txt-0", 1)
+        if countLines[0].strip() != str(tbRow):
+            tdLog.exit(f"unexpected count result: {countLines}")
+
+        lastLines = self.checkFileLines("query_mix_result_switch_last.txt-0", 1)
+        if len(lastLines[0].strip().split()) < 2:
+            tdLog.exit(f"unexpected last row result: {lastLines}")
+
+        print("mixed batch query result file ......................... [passed]")
+
     def test_query_main(self):
         """taosBenchmark query basic
 
@@ -241,11 +288,12 @@ class TestBenchmarkQueryMain:
             2) specified table mixed query
             3) super table query
         3. Validate the output of each query mode to ensure correct execution.
-        4. Perform exception tests to verify error handling.
+        4. Validate mixed batch query result files switch with each SQL.
+        5. Perform exception tests to verify error handling.
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -265,10 +313,10 @@ class TestBenchmarkQueryMain:
 
         # query mode test
         self.threeQueryMode(benchmark, tbCnt, tbRow)
+        self.do_mixed_batch_query_result_file(benchmark, tbRow)
 
         # exception test
         self.exceptTest(benchmark, tbCnt, tbRow);
-
 
 
 

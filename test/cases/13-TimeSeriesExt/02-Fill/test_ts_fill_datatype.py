@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import math
 from random import randrange
 import random
@@ -799,7 +814,7 @@ class TableInserter:
         self.columns = columns
 
     def insert(self, rows: int, start_ts: int, step: int, flush_database: bool = False):
-        step = random.randint(step / 2, step * 1.5)
+        step = random.randint(step // 2, step * 3 // 2)
         pre_insert = f"insert into {self.dbName}.{self.tbName} values"
         sql = pre_insert
         for i in range(rows):
@@ -1417,7 +1432,7 @@ class TestFill2:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

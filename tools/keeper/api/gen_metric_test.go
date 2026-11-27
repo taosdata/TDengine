@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -156,7 +171,7 @@ func TestGenMetric(t *testing.T) {
 		expect string
 	}{
 		name:   "1",
-		tbname: []string{"taosd_cluster_info", "taosd_dnodes_info"},
+		tbname: []string{"taosd_cluster_info", "taosd_dnodes_info", "taosd_stream_failure"},
 		ts:     []int64{1703226836761, 1703226836762},
 		data: `[{
 			"ts": "1703226836761",
@@ -195,6 +210,24 @@ func TestGenMetric(t *testing.T) {
 					}, {
 						"name": "cpu_engine",
 						"value": 0
+					}]
+				}]
+			}, {
+				"name": "taosd_stream_failure",
+				"metric_groups": [{
+					"tags": [{
+						"name": "cluster_id",
+						"value": "1397715317673023180"
+					}, {
+						"name": "stream_id",
+						"value": "9223372036854775001"
+					}, {
+						"name": "stream_name",
+						"value": "1.db.stream_b"
+					}],
+					"metrics": [{
+						"name": "error_code",
+						"value": -2147454964
 					}]
 				}]
 			}]
@@ -237,6 +270,24 @@ func TestGenMetric(t *testing.T) {
 						"value": 0
 					}]
 				}]
+			}, {
+				"name": "taosd_stream_failure",
+				"metric_groups": [{
+					"tags": [{
+						"name": "cluster_id",
+						"value": "1397715317673023180"
+					}, {
+						"name": "stream_id",
+						"value": "9223372036854775000"
+					}, {
+						"name": "stream_name",
+						"value": "1.db.stream_a"
+					}],
+					"metrics": [{
+						"name": "error_code",
+						"value": -2147454963
+					}]
+				}]
 			}]
 		}]`,
 		expect: "1397715317673023180",
@@ -263,6 +314,24 @@ func TestGenMetric(t *testing.T) {
 				assert.Equal(t, testcfg.expect, data.Data[0][1])
 			}
 		}
+
+		data, err := conn.Query(
+			context.Background(),
+			fmt.Sprintf("select _ts, error_code, cluster_id, stream_id, stream_name from %s.taosd_stream_failure order by _ts", gm.database),
+			util.GetQidOwn(config.Conf.InstanceID),
+		)
+		assert.NoError(t, err)
+		assert.Len(t, data.Data, 2)
+		assert.Equal(t, testcfg.ts[0], data.Data[0][0].(time.Time).UnixMilli())
+		assert.Equal(t, float64(-2147454964), data.Data[0][1])
+		assert.Equal(t, "1397715317673023180", data.Data[0][2])
+		assert.Equal(t, "9223372036854775001", data.Data[0][3])
+		assert.Equal(t, "1.db.stream_b", data.Data[0][4])
+		assert.Equal(t, testcfg.ts[1], data.Data[1][0].(time.Time).UnixMilli())
+		assert.Equal(t, float64(-2147454963), data.Data[1][1])
+		assert.Equal(t, "1397715317673023180", data.Data[1][2])
+		assert.Equal(t, "9223372036854775000", data.Data[1][3])
+		assert.Equal(t, "1.db.stream_a", data.Data[1][4])
 	})
 }
 
@@ -293,6 +362,26 @@ func TestGetSubTableName(t *testing.T) {
 			want:    "task_123_example_789",
 		},
 		{
+			stbName: "taosx_rpc",
+			tagMap:  map[string]string{"taosx_id": "123", "action": "xnode_plan_task", "outcome": "success"},
+			want:    "rpc_123_xnode_plan_task_success",
+		},
+		{
+			stbName: "taosx_rpc",
+			tagMap:  map[string]string{"taosx_id": "123", "action": "xnode_plan_task"},
+			want:    "",
+		},
+		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{"taosx_id": "123"},
+			want:    "resource_123",
+		},
+		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{},
+			want:    "",
+		},
+		{
 			stbName: "taosd_cluster_info",
 			tagMap:  map[string]string{"cluster_id": "123"},
 			want:    "cluster_123",
@@ -311,6 +400,37 @@ func TestGetSubTableName(t *testing.T) {
 			stbName: "taosd_dnodes_status",
 			tagMap:  map[string]string{"cluster_id": "123", "dnode_id": "123"},
 			want:    "dstatus_123_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_id":   "456",
+				"stream_name": "1.db.stream_a",
+			},
+			want: "stream_failure_456_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_id":   "789",
+				"stream_name": "1.db.stream_b",
+			},
+			want: "stream_failure_789_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_name": "1.db.stream_a",
+			},
+			want: "",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap:  map[string]string{"stream_id": "456"},
+			want:    "",
 		},
 		{
 			stbName: "taosd_dnodes_log_dirs",

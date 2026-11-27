@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -40,7 +42,7 @@ static void vmFreeVnodeObj(SVnodeObj **ppVnode) {
 
   int32_t refCount = atomic_load_32(&pVnode->refCount);
   while (refCount > 0) {
-    dWarn("vgId:%d, vnode is refenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
+    dWarn("vgId:%d, vnode is referenced, retry to free in 200ms, vnode:%p, ref:%d", pVnode->vgId, pVnode, refCount);
     taosMsleep(200);
     refCount = atomic_load_32(&pVnode->refCount);
   }
@@ -501,13 +503,17 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode, bool commitAndRemoveWal,
         taosQueueGetThreadId(pVnode->pFetchQ));
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
 
+    dInfo("vgId:%d, wait for vnode backup queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pBackupQ,
+      taosQueueGetThreadId(pVnode->pBackupQ));
+    while (!taosQueueEmpty(pVnode->pBackupQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
 
   dInfo("vgId:%d, wait for vnode stream reader queue:%p is empty", pVnode->vgId, pVnode->pStreamReaderQ);
   while (!taosQueueEmpty(pVnode->pStreamReaderQ)) taosMsleep(10);
 
-  dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
+  dInfo("vgId:%d, all vnode queues are empty", pVnode->vgId);
 
   dInfo("vgId:%d, post close", pVnode->vgId);
   vnodePostClose(pVnode->pImpl);
@@ -602,6 +608,7 @@ static void *vmOpenVnodeInThread(void *param) {
 
   dInfo("thread:%d, start to open or destroy %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("open-vnodes");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SWrapperCfg *pCfg = &pThread->pCfgs[v];
@@ -873,6 +880,7 @@ static void *vmCloseVnodeInThread(void *param) {
 
   dInfo("thread:%d, start to close %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("close-vnodes");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];
@@ -1014,7 +1022,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   taosMemoryFree(pMgmt);
 }
 
-static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
+static void vmCheckVnodeTimeouts(SVnodeMgmt *pMgmt) {
   int32_t     code = 0;
   int32_t     numOfVnodes = 0;
   SVnodeObj **ppVnodes = NULL;
@@ -1029,6 +1037,7 @@ static void vmCheckSyncTimeout(SVnodeMgmt *pMgmt) {
       SVnodeObj *pVnode = ppVnodes[i];
       if (!pVnode->failed) {
         vnodeSyncCheckTimeout(pVnode->pImpl);
+        vnodeCheckBackupSnapTimeout(pVnode->pImpl);
       }
       vmReleaseVnode(pMgmt, pVnode);
     }
@@ -1040,6 +1049,7 @@ static void *vmThreadFp(void *param) {
   SVnodeMgmt *pMgmt = param;
   int64_t     lastTime = 0;
   setThreadName("vnode-timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     lastTime++;
@@ -1049,7 +1059,7 @@ static void *vmThreadFp(void *param) {
 
     int64_t sec = lastTime / 10;
     if (sec % (VNODE_TIMEOUT_SEC / 2) == 0) {
-      vmCheckSyncTimeout(pMgmt);
+      vmCheckVnodeTimeouts(pMgmt);
     }
   }
 
@@ -1187,6 +1197,7 @@ static void *vmRestoreVnodeInThread(void *param) {
 
   dInfo("thread:%d, start to restore %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("restore-vnodes");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     SVnodeObj *pVnode = pThread->ppVnodes[v];

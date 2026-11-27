@@ -1,6 +1,20 @@
 #!/bin/bash
 
-# Run cleanup function on exit
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 trap cleanup EXIT
 
 # define default timezone
@@ -768,7 +782,7 @@ install_python() {
     if echo "$INSTALLED_VERSION" | grep -q "$MAJOR_MINOR_VERSION"; then
         echo -e "${GREEN}Python $MAJOR_MINOR_VERSION installed successfully.${NO_COLOR}"
     else
-        echo -e "${YELLOW}Python version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Python version does not match.${NO_COLOR}"
         exit 1
     fi
 }
@@ -959,7 +973,7 @@ install_java() {
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
         SOURCE_RESULTS+="source /root/.bashrc  # For openjdk\n"
     else
-        echo -e "${YELLOW}Java version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Java version does not match.${NO_COLOR}"
         exit 1
     fi
 }
@@ -1034,7 +1048,7 @@ install_python_via_pyenv() {
     if [ -n "$1" ]; then
         DEFAULT_PYTHON_VERSION="$1"
     else
-        DEFAULT_PYTHON_VERSION="3.10.12"
+        DEFAULT_PYTHON_VERSION="3.12.16"
     fi
     install_pyenv
     enable_pyenv
@@ -1982,7 +1996,7 @@ clone_repos() {
 
 new_funcs() {
     echo "Adding test..."
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.16
     install_java_via_sdkman 21.0.2
     install_node 16.20.2
     install_maven_via_sdkman 3.2.5
@@ -2005,7 +2019,7 @@ TDinternal() {
     install_java_via_sdkman 17
     install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.16
     install_via_pip pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml taospy taos-ws-py
 }
 

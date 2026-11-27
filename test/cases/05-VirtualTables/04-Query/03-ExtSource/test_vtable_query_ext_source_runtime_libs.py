@@ -1,0 +1,569 @@
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+import glob
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from contextlib import contextmanager
+
+from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
+
+_DDL_EXT_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "01-DDL", "03-ExtSource")
+)
+if _DDL_EXT_DIR not in sys.path:
+    sys.path.insert(0, _DDL_EXT_DIR)
+
+_FQ_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "..", "09-DataQuerying", "19-FederatedQuery")
+)
+if _FQ_DIR not in sys.path:
+    sys.path.insert(0, _FQ_DIR)
+
+from ext_source_helpers import (  # noqa: E402
+    ExtSrcEnv,
+    create_ext_source,
+    create_influx_measurement,
+    create_mysql_table,
+    create_oracle_table,
+    create_pg_table,
+    create_remote_db,
+    create_sqlserver_table,
+)
+from federated_query_common import _code  # noqa: E402
+
+
+TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT = _code("TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT")
+
+_LOCAL_DB = "vt_runtime_libs_local"
+_MYSQL_DB = "vt_runtime_libs_mysql_db"
+_MYSQL_SRC = "vt_runtime_libs_mysql_src"
+_PG_DB = "vt_runtime_libs_pg_db"
+_PG_SRC = "vt_runtime_libs_pg_src"
+_INFLUX_DB = "vt_runtime_libs_influx_db"
+_INFLUX_SRC = "vt_runtime_libs_influx_src"
+_INFLUX_HTTP_SRC = "vt_runtime_libs_influx_http_src"
+_SQLSERVER_DB = "vt_runtime_libs_sqlserver_db"
+_SQLSERVER_SRC = "vt_runtime_libs_sqlserver_src"
+_ORACLE_SRC = "vt_runtime_libs_oracle_src"
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_SCHEMA_REF = "`" + _ORACLE_SCHEMA + "`"
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_PREFIX = "vt_runtime_libs_"
+_T0 = 1704067200000000000
+
+_PROVIDER_RUNTIME_PATTERNS = {
+    "mysql": ("libmariadb*", "libmysqlclient*"),
+    "postgresql": ("libpq*",),
+    "influxdb": ("libtaos_ext_influx_arrow*", "libarrow*", "libparquet*"),
+    # SQL Server loads unixODBC at runtime and resolves the Microsoft ODBC
+    # Driver 18 from the same runtime dir (both are staged like the other
+    # providers' client libraries, DS 3.3).
+    "sqlserver": ("libodbc*", "libmsodbcsql*"),
+    # Oracle likewise goes through unixODBC and loads the Instant Client base
+    # libraries (OCI, NLS, network, ODM and the time-zone/character-set data
+    # modules) from the runtime dir.
+    "oracle": ("libodbc*", "libsqora*", "libclntsh*", "libnnz*", "libons*",
+               "libnfsodm*", "liborazt*", "libociei*"),
+}
+# Windows stages the provider client libraries next to the executables as
+# DLLs (build\bin) instead of build\lib, so both the location and the file
+# patterns differ from the Unix build.
+_PROVIDER_RUNTIME_PATTERNS_WINDOWS = {
+    "mysql": ("libmariadb*.dll", "libmysqlclient*.dll"),
+    "postgresql": ("libpq*.dll",),
+    "influxdb": ("taos_ext_influx_arrow*.dll", "libtaos_ext_influx_arrow*.dll"),
+    # Oracle on Windows resolves the registered ODBC driver name; the driver
+    # itself (SQORA32.DLL) and the Instant Client DLLs it loads live in
+    # build\bin, so they are the files this check moves aside.
+    "oracle": ("sqora*.dll", "oci*.dll", "oraociei*.dll", "oraons*.dll",
+               "orannz*.dll", "orasql*.dll", "oraocci*.dll", "legacy*.dll",
+               "extks*.dll", "pkcs11*.dll", "sqres*.dll", "fips*.dll"),
+}
+_PROVIDER_PLUGIN_PATTERNS = {
+    "influxdb": ("libtaos_ext_influx_arrow*",),
+}
+_PROVIDER_PLUGIN_PATTERNS_WINDOWS = {
+    "influxdb": ("taos_ext_influx_arrow*.dll",),
+}
+_PROVIDER_RESOLVED_DEP_PREFIXES = {
+    "influxdb": ("libarrow", "libparquet"),
+}
+
+
+def _runtime_lib_dir():
+    override = getattr(_runtime_lib_dir, "override", None)
+    if override:
+        return override
+    taos_bin_path = os.environ.get("TAOS_BIN_PATH")
+    if sys.platform == "win32":
+        if taos_bin_path:
+            return os.path.abspath(taos_bin_path)
+        return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "bin"))
+    if taos_bin_path:
+        return os.path.abspath(os.path.join(taos_bin_path, "..", "lib"))
+    return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "lib"))
+
+
+def _existing_runtime_files(paths):
+    files = []
+    seen = set()
+    for path in paths:
+        normalized = os.path.normpath(os.path.abspath(path))
+        if normalized in seen or not os.path.lexists(normalized):
+            continue
+        seen.add(normalized)
+        files.append(normalized)
+    return sorted(files)
+
+
+def _path_is_under(path, root):
+    try:
+        return os.path.commonpath(
+            [os.path.abspath(path), os.path.abspath(root)]
+        ) == os.path.abspath(root)
+    except ValueError:
+        return False
+
+
+def _oracle_windows_client_root():
+    """Versioned Instant Client tree that the ODBC registration points into.
+
+    Windows resolves the Oracle driver through ODBCINST.INI, whose Driver
+    value names an absolute path under ``build\\driver\\oracle\\<client>``.
+    That directory carries its own copies of the base DLLs, so hiding only
+    ``build\\bin`` leaves the provider fully loadable and the negative check
+    meaningless.
+    """
+    build_root = os.path.dirname(_runtime_lib_dir())
+    root = os.path.join(build_root, "driver", "oracle")
+    return root if os.path.isdir(root) else None
+
+
+def _hidden_runtime_roots():
+    """Directories extConnectorLoadRuntimeLibrary() can resolve a provider from.
+
+    The loader probes the bundled lib/ and driver/ directories first and then
+    the hard-coded /usr/local/lib fallback.  A client left in that fallback
+    (or a link there pointing at a system copy) keeps the provider usable
+    after the build-tree hide, so the same files are hidden there too.
+    """
+    roots = [_runtime_lib_dir()]
+    if sys.platform != "win32" and os.path.isdir("/usr/local/lib"):
+        roots.append("/usr/local/lib")
+    return roots
+
+
+def _provider_runtime_files(provider):
+    files = []
+    if sys.platform == "win32":
+        patterns = _PROVIDER_RUNTIME_PATTERNS_WINDOWS[provider]
+    else:
+        patterns = _PROVIDER_RUNTIME_PATTERNS[provider]
+    roots = _hidden_runtime_roots()
+    if sys.platform == "win32" and provider == "oracle":
+        client_root = _oracle_windows_client_root()
+        if client_root:
+            roots.append(client_root)
+    for root in roots:
+        for pattern in patterns:
+            files.extend(glob.glob(os.path.join(root, pattern)))
+            files.extend(glob.glob(os.path.join(root, "**", pattern), recursive=True))
+    files.extend(_resolved_runtime_dep_files(provider))
+    return _existing_runtime_files(
+        path for path in files if any(_path_is_under(path, root) for root in roots)
+    )
+
+
+def _provider_plugin_files(provider):
+    runtime_dir = _runtime_lib_dir()
+    files = []
+    if sys.platform == "win32":
+        patterns = _PROVIDER_PLUGIN_PATTERNS_WINDOWS.get(provider, ())
+    else:
+        patterns = _PROVIDER_PLUGIN_PATTERNS.get(provider, ())
+    for pattern in patterns:
+        files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
+    return _existing_runtime_files(
+        path for path in files if _path_is_under(path, runtime_dir)
+    )
+
+
+def _parse_ldd_resolved_files(output, prefixes):
+    files = []
+    for line in output.splitlines():
+        resolved = None
+        if "=>" in line:
+            fields = line.split("=>", 1)[1].strip().split()
+            if fields:
+                resolved = fields[0]
+        else:
+            fields = line.strip().split()
+            if fields:
+                resolved = fields[0]
+        if not resolved or not os.path.isabs(resolved) or not os.path.lexists(resolved):
+            continue
+        if os.path.basename(resolved).startswith(prefixes):
+            files.append(resolved)
+    return files
+
+
+def _runtime_dep_search_dirs(plugin):
+    plugin_dir = os.path.dirname(plugin)
+    dirs = [plugin_dir]
+    if sys.platform == "darwin":
+        return dirs
+
+    proc = subprocess.run(
+        ["readelf", "-d", plugin],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="ignore",
+    )
+    for line in proc.stdout.splitlines():
+        if "RUNPATH" not in line and "RPATH" not in line:
+            continue
+        start = line.find("[")
+        end = line.find("]", start + 1)
+        if start < 0 or end <= start:
+            continue
+        for raw_dir in line[start + 1:end].split(":"):
+            dep_dir = raw_dir.replace("$ORIGIN", plugin_dir)
+            dep_dir = os.path.normpath(os.path.abspath(dep_dir))
+            if os.path.isdir(dep_dir):
+                dirs.append(dep_dir)
+    return dirs
+
+
+def _resolved_runtime_dep_files(provider):
+    prefixes = _PROVIDER_RESOLVED_DEP_PREFIXES.get(provider)
+    if not prefixes or sys.platform in ("darwin", "win32"):
+        # ldd/readelf are not available on Windows, and Arrow is not built
+        # there (the InfluxDB plugin uses the HTTP transport), so there are no
+        # resolved Arrow/Parquet dependencies to track.
+        return []
+
+    files = []
+    for plugin in _provider_plugin_files(provider):
+        for dep_dir in _runtime_dep_search_dirs(plugin):
+            for prefix in prefixes:
+                files.extend(glob.glob(os.path.join(dep_dir, f"{prefix}*")))
+        proc = subprocess.run(
+            ["ldd", plugin],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="ignore",
+        )
+        files.extend(_parse_ldd_resolved_files(proc.stdout, prefixes))
+    return files
+
+
+@contextmanager
+def _without_provider_runtime_libs(provider):
+    runtime_dir = _runtime_lib_dir()
+    hidden_dir = tempfile.mkdtemp(prefix=".fq-runtime-hidden.", dir=runtime_dir)
+    moved = []
+    path_backup = None
+    try:
+        for path in _provider_runtime_files(provider):
+            hidden_path = os.path.join(hidden_dir, f"{len(moved)}-{os.path.basename(path)}")
+            shutil.move(path, hidden_path)
+            moved.append((hidden_path, path))
+        if not moved:
+            raise AssertionError(f"no runtime libraries found in {runtime_dir} for {provider}")
+        if sys.platform == "win32":
+            # The Windows DLL search order also walks PATH.  The client keeps
+            # its own copies in the Python directory (and finds them through
+            # its application directory), but the engine started inside this
+            # context must not pick them up from PATH either, otherwise the
+            # hidden directory has no effect.
+            path_backup = os.environ.get("PATH", "")
+            patterns = _PROVIDER_RUNTIME_PATTERNS_WINDOWS.get(provider, ())
+            keep = []
+            for entry in path_backup.split(os.pathsep):
+                if not entry:
+                    continue
+                try:
+                    hit = any(glob.glob(os.path.join(entry, pat)) for pat in patterns)
+                except OSError:
+                    hit = False
+                if not hit:
+                    keep.append(entry)
+            os.environ["PATH"] = os.pathsep.join(keep)
+        yield
+    finally:
+        if path_backup is not None:
+            os.environ["PATH"] = path_backup
+        for hidden_path, path in reversed(moved):
+            if os.path.lexists(hidden_path) and not os.path.lexists(path):
+                shutil.move(hidden_path, path)
+        try:
+            os.rmdir(hidden_dir)
+        except OSError:
+            pass
+
+
+def _runtime_dir_is_writable():
+    runtime_dir = _runtime_lib_dir()
+    try:
+        fd, path = tempfile.mkstemp(prefix=".fq-write-check.", dir=runtime_dir)
+        os.close(fd)
+        os.unlink(path)
+        return True
+    except OSError:
+        return False
+
+
+@contextmanager
+def _writable_runtime_copy_if_needed():
+    if _runtime_dir_is_writable():
+        yield
+        return
+
+    runtime_dir = _runtime_lib_dir()
+    build_dir = os.path.dirname(runtime_dir)
+    original_taosd = tdDnodes.dnodes[0].binPath
+    copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.")
+    copy_build = os.path.join(copy_root, "build")
+    copy_bin_dir = os.path.join(copy_build, "bin")
+    copy_lib_dir = os.path.join(copy_build, "lib")
+    old_override = getattr(_runtime_lib_dir, "override", None)
+    try:
+        shutil.copytree(os.path.join(build_dir, "bin"), copy_bin_dir, symlinks=True)
+        shutil.copytree(runtime_dir, copy_lib_dir, symlinks=True)
+        _runtime_lib_dir.override = copy_lib_dir
+        tdDnodes.binPath = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
+        for dnode in tdDnodes.dnodes:
+            dnode.binPath = tdDnodes.binPath
+        yield
+    finally:
+        if old_override is None:
+            if hasattr(_runtime_lib_dir, "override"):
+                delattr(_runtime_lib_dir, "override")
+        else:
+            _runtime_lib_dir.override = old_override
+        tdDnodes.binPath = original_taosd
+        for dnode in tdDnodes.dnodes:
+            dnode.binPath = original_taosd
+        _restart_taosd()
+        shutil.rmtree(copy_root, ignore_errors=True)
+
+
+def _restart_taosd():
+    tdDnodes.stop(1)
+    tdDnodes.start(1)
+
+
+def _check_count(sql, expected):
+    tdSql.query(sql)
+    tdSql.checkData(0, 0, expected)
+
+
+def _create_influx_source(src, protocol):
+    token = ExtSrcEnv._get_influx_token(ExtSrcEnv.INFLUX_VERSIONS[0])
+    tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
+    options = (ExtSrcEnv.influx_source_options() if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8" else
+               f"'api_token'='{token}','protocol'='{protocol}'")
+    tdSql.execute(
+        f"CREATE EXTERNAL SOURCE {src} TYPE='influxdb' "
+        f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
+        f"USER='{ExtSrcEnv.influx_source_credentials()[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials()[1]}' DATABASE={_INFLUX_DB} OPTIONS({options})"
+    )
+
+
+class TestVtableQueryExtSourceRuntimeLibs:
+    @classmethod
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.ensure_qnode()
+
+        create_remote_db("mysql", _MYSQL_DB)
+        create_mysql_table(
+            _MYSQL_DB,
+            "r_mysql",
+            "ts DATETIME(3) NOT NULL PRIMARY KEY, v INT",
+            ["('2024-01-01 00:00:00.000', 11)", "('2024-01-01 00:00:01.000', 12)"],
+        )
+        create_ext_source(_MYSQL_SRC, "mysql", _MYSQL_DB)
+
+        create_remote_db("postgresql", _PG_DB)
+        create_pg_table(
+            _PG_DB,
+            "r_pg",
+            "ts TIMESTAMP PRIMARY KEY, v INTEGER",
+            ["('2024-01-01 00:00:00', 21)", "('2024-01-01 00:00:01', 22)"],
+        )
+        create_ext_source(_PG_SRC, "postgresql", _PG_DB)
+
+        create_remote_db("influxdb", _INFLUX_DB)
+        create_influx_measurement(
+            _INFLUX_DB,
+            [f"r_influx v=31i {_T0}", f"r_influx v=32i {_T0 + 1000000000}"],
+        )
+        create_ext_source(_INFLUX_SRC, "influxdb", _INFLUX_DB)
+        _create_influx_source(_INFLUX_HTTP_SRC, "http")
+
+        create_remote_db("sqlserver", _SQLSERVER_DB)
+        create_sqlserver_table(
+            _SQLSERVER_DB,
+            "r_sqlserver",
+            "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
+            ["('2024-01-01 00:00:00.000', 41)", "('2024-01-01 00:00:01.000', 42)"],
+        )
+        create_ext_source(_SQLSERVER_SRC, "sqlserver", _SQLSERVER_DB)
+
+        create_oracle_table(
+            f"{_ORACLE_TABLE_PREFIX}r_oracle",
+            "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+            ["(TIMESTAMP '2024-01-01 00:00:00.000', 51)",
+             "(TIMESTAMP '2024-01-01 00:00:01.000', 52)"],
+        )
+        create_ext_source(_ORACLE_SRC, "oracle", ExtSrcEnv.ORACLE_SERVICE)
+
+        tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.execute(
+            f"CREATE VTABLE v_mysql (ts timestamp, v int FROM {_MYSQL_SRC}.{_MYSQL_DB}.r_mysql.v)"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE v_pg (ts timestamp, v int FROM {_PG_SRC}.{_PG_DB}.r_pg.v)"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE v_influx (ts timestamp, v bigint FROM {_INFLUX_SRC}.{_INFLUX_DB}.r_influx.v)"
+        )
+        tdSql.execute(
+            "CREATE VTABLE v_influx_http "
+            f"(ts timestamp, v bigint FROM {_INFLUX_HTTP_SRC}.{_INFLUX_DB}.r_influx.v)"
+        )
+        tdSql.execute(
+            "CREATE VTABLE v_sqlserver "
+            f"(ts timestamp, v int FROM {_SQLSERVER_SRC}.{_SQLSERVER_DB}.dbo.r_sqlserver.v)"
+        )
+        tdSql.execute(
+            "CREATE VTABLE v_oracle "
+            f"(ts timestamp, v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA_REF}."
+            f"{_ORACLE_TABLE_PREFIX}r_oracle.v)"
+        )
+
+    @classmethod
+    def teardown_class(cls):
+        tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_MYSQL_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_HTTP_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SQLSERVER_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_ORACLE_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INFLUX_DB)
+
+    def setup_method(self, method):
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def _check_vtable_fails_without_runtime_libs(self, provider, tables):
+        if isinstance(tables, str):
+            tables = (tables,)
+        for table in tables:
+            _check_count(f"SELECT count(*) FROM {table}", 2)
+        def check_without_runtime(table):
+            if provider == "influxdb" and ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+                # The built-in HTTP provider must work with every 3.x/Arrow
+                # shared library removed, including after a server restart.
+                _check_count(f"SELECT count(*) FROM {table}", 2)
+            else:
+                tdSql.error(f"SELECT count(*) FROM {table}",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+
+        with _writable_runtime_copy_if_needed():
+            if sys.platform == "win32":
+                # Windows keeps a loaded DLL locked, so taosd has to release
+                # the provider libraries before they can be moved aside (and
+                # again before they are restored).
+                tdDnodes.stop(1)
+                with _without_provider_runtime_libs(provider):
+                    try:
+                        _restart_taosd()
+                        tdSql.execute(f"USE {_LOCAL_DB}")
+                        for table in tables:
+                            check_without_runtime(table)
+                    finally:
+                        tdDnodes.stop(1)
+                _restart_taosd()
+                tdSql.execute(f"USE {_LOCAL_DB}")
+            else:
+                try:
+                    with _without_provider_runtime_libs(provider):
+                        _restart_taosd()
+                        tdSql.execute(f"USE {_LOCAL_DB}")
+                        for table in tables:
+                            check_without_runtime(table)
+                finally:
+                    _restart_taosd()
+                    tdSql.execute(f"USE {_LOCAL_DB}")
+        for table in tables:
+            _check_count(f"SELECT count(*) FROM {table}", 2)
+
+    def do_missing_runtime_libs_fail_vtable_queries(self):
+        self._check_vtable_fails_without_runtime_libs("mysql", "v_mysql")
+        self._check_vtable_fails_without_runtime_libs("postgresql", "v_pg")
+        self._check_vtable_fails_without_runtime_libs(
+            "influxdb", ("v_influx", "v_influx_http")
+        )
+        if sys.platform != "win32":
+            # SQL Server resolves the system ODBC driver (odbc32.dll in
+            # System32) on Windows; it is not staged in the runtime directory
+            # and therefore cannot be hidden by this check.
+            self._check_vtable_fails_without_runtime_libs("sqlserver", "v_sqlserver")
+        self._check_vtable_fails_without_runtime_libs("oracle", "v_oracle")
+        print("missing runtime libraries fail vtable queries ......................... [ passed ]")
+
+    def test_missing_runtime_libs_fail_vtable_queries(self):
+        """Check ext-source virtual table queries fail when provider runtime libraries are missing
+
+        1. Create MySQL, PostgreSQL, InfluxDB, SQL Server and Oracle external-source virtual tables
+        2. Verify each virtual table query succeeds while runtime libraries exist
+        3. Hide the provider runtime libraries and restart taosd
+        4. Verify each virtual table query fails with provider-not-initialized error
+        5. Restore the runtime libraries and verify each virtual table query recovers
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-07-04 Codex Add ext-source virtual table missing runtime coverage
+
+        """
+        self.do_missing_runtime_libs_fail_vtable_queries()

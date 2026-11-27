@@ -1,6 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
-import taos
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdStream
 import random
+import re
 import time
 
 
@@ -151,6 +166,14 @@ class TestShowTableDistributed:
                     tdLog.debug("stt_rows_num: %s" % stt_rows_num)
         return mem_rows_num, stt_rows_num
 
+    def getBlockDistMetric(self, queryRes, name):
+        pattern = re.compile(rf"{re.escape(name)}=\[([^\]]+)\]")
+        for item in queryRes:
+            match = pattern.search(item[0])
+            if match:
+                return float(match.group(1).split()[0])
+        raise AssertionError(f"{name} not found in block distribution result: {queryRes}")
+
     def do_show_table_distributed(self):
         self.initData()
         tdSql.query(f"show table distributed {self.stname};")
@@ -158,6 +181,7 @@ class TestShowTableDistributed:
         mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
         tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
         assert(99 == mem_rows_num and 0 == stt_rows_num)
+        assert self.getBlockDistMetric(tdSql.queryResult, "Total_Size") == 0
 
         tdSql.execute(f"flush database {self.dbname};")
         time.sleep(1)
@@ -166,11 +190,154 @@ class TestShowTableDistributed:
         mem_rows_num, stt_rows_num = self.checkRes(tdSql.queryResult)
         tdLog.debug("mem_rows_num: %s, stt_rows_num: %s" % (mem_rows_num, stt_rows_num))
         assert(0 == mem_rows_num and 99 == stt_rows_num)
+        assert self.getBlockDistMetric(tdSql.queryResult, "Total_Size") == 0
 
         # remove the user
         tdSql.execute(f'drop database {self.dbname};')
 
         print("do show table distributed ............. [passed]")
+
+    #
+    # --------- ins_table_fixed_distributed tests ----------
+    #
+    def do_fixed_distributed(self):
+        tdLog.info("========== start ins_table_fixed_distributed tests")
+        db = "fixed_dist_db"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 4")
+        tdSql.execute(f"use {db}")
+
+        # create supertable, child tables, and a normal table
+        tdSql.execute(f"create table st (ts timestamp, v int) tags (t int)")
+        for i in range(4):
+            tdSql.execute(f"create table ct_{i} using st tags({i})")
+        tdSql.execute(f"create table nt (ts timestamp, v int)")
+
+        # insert data
+        rows = 1000
+        for i in range(4):
+            sql = f"insert into ct_{i} values "
+            for j in range(rows):
+                sql += f"(now+{j+1}s, {j})"
+            tdSql.execute(sql)
+        sql = f"insert into nt values "
+        for j in range(rows):
+            sql += f"(now+{j+1}s, {j})"
+        tdSql.execute(sql)
+
+        tdSql.execute(f"flush database {db}")
+        time.sleep(2)
+
+        tdSql.execute(f"compact database {db}")
+        while True:
+            time.sleep(1)
+            rows_left = tdSql.query("show compacts")
+            if rows_left == 0:
+                break
+
+        # --- 1. basic query on supertable ---
+        tdLog.info("fixed_dist step1: query supertable")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='st'")
+        tdSql.checkCols(23)
+        tdSql.checkNotEqual(tdSql.getRows(), 0)
+        # db_name and table_name should match
+        for i in range(tdSql.getRows()):
+            tdSql.checkData(i, 0, db)
+            tdSql.checkData(i, 1, "st")
+
+        # --- 2. query on normal table ---
+        tdLog.info("fixed_dist step2: query normal table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='nt'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "nt")
+        assert tdSql.queryResult[0][2] > 0, f"expected total_blocks > 0, got {tdSql.queryResult[0][2]}"
+        assert tdSql.queryResult[0][6] == rows, f"expected block_rows={rows}, got {tdSql.queryResult[0][6]}"
+        assert tdSql.queryResult[0][14] == 1, f"expected total_vgroups=1, got {tdSql.queryResult[0][14]}"
+
+        # --- 3. query on child table ---
+        tdLog.info("fixed_dist step3: query child table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='ct_0'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "ct_0")
+        assert tdSql.queryResult[0][6] == rows, f"expected block_rows={rows}, got {tdSql.queryResult[0][6]}"
+
+        # --- 4. aggregation across vgroups for supertable ---
+        tdLog.info("fixed_dist step4: supertable aggregation")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='st'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, db)
+        tdSql.checkData(0, 1, "st")
+        assert tdSql.queryResult[0][6] == rows * 4, f"expected block_rows={rows * 4}, got {tdSql.queryResult[0][6]}"
+
+        super_table_row = tdSql.queryResult[0]
+        super_total_blocks = super_table_row[2]
+        super_total_size = super_table_row[3]
+        assert super_total_blocks > 0, f"expected total_blocks > 0, got {super_total_blocks}"
+        assert super_total_size > 0, f"expected total_size > 0, got {super_total_size}"
+        child_total_blocks = 0
+        child_total_size = 0
+        for i in range(4):
+            tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                        f"where db_name='{db}' and table_name='ct_{i}'")
+            tdSql.checkRows(1)
+            child_total_blocks += tdSql.queryResult[0][2]
+            child_total_size += tdSql.queryResult[0][3]
+        assert super_total_blocks == child_total_blocks, \
+            f"expected total_blocks={child_total_blocks}, got {super_total_blocks}"
+        assert super_total_size == child_total_size, \
+            f"expected total_size={child_total_size}, got {super_total_size}"
+
+        tdSql.query(f"show table distributed {db}.st")
+        show_table_count = self.getBlockDistMetric(tdSql.queryResult, "Total_Tables")
+        show_total_size_kib = self.getBlockDistMetric(tdSql.queryResult, "Total_Size")
+        assert show_table_count == 4, f"expected Total_Tables=4, got {show_table_count}"
+        assert abs(show_total_size_kib - super_total_size / 1024) <= 0.01, \
+            f"expected Total_Size={super_total_size / 1024:.2f} KiB, got {show_total_size_kib:.2f} KiB"
+
+        # --- 5. error: missing table_name ---
+        tdLog.info("fixed_dist step5: error without table_name")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}'")
+
+        # --- 6. error: missing db_name ---
+        tdLog.info("fixed_dist step6: error without db_name")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where table_name='st'")
+
+        # --- 7. error: no WHERE at all ---
+        tdLog.info("fixed_dist step7: error without WHERE")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed")
+
+        # --- 8. error: OR condition ---
+        tdLog.info("fixed_dist step8: error with OR condition")
+        tdSql.error(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' or table_name='st'")
+
+        # --- 9. non-existent table returns empty ---
+        tdLog.info("fixed_dist step9: non-existent table")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='no_such_table'")
+        tdSql.checkRows(0)
+
+        # --- 10. histogram buckets sum to total_blocks ---
+        tdLog.info("fixed_dist step10: histogram consistency")
+        tdSql.query(f"select * from information_schema.ins_table_fixed_distributed "
+                     f"where db_name='{db}' and table_name='nt'")
+        row = tdSql.queryResult[0]
+        total_blocks = row[2]
+        hist_sum = sum(row[15:23])  # block_dist_64 .. block_dist_other
+        assert hist_sum == total_blocks, \
+            f"histogram sum ({hist_sum}) != total_blocks ({total_blocks})"
+
+        # --- cleanup ---
+        tdSql.execute(f"drop database {db}")
+        print("do fixed distributed .................. [passed]")
 
     #
     # ------------------- main ----------------
@@ -188,6 +355,11 @@ class TestShowTableDistributed:
         8. Confirms accurate row counts in various scenarios
         9. Validates functionality across different cluster configurations
         10. Assesses performance impact of show table distributed command
+        11. Tests ins_table_fixed_distributed for supertable, child table, normal table
+        12. Verifies mandatory WHERE db_name AND table_name conditions
+        13. Checks histogram bucket consistency with total_blocks
+        14. Verifies supertable block sizes equal subtable totals and SHOW output
+        15. Confirms in-memory and STT rows do not contribute to Total_Size
 
 
         Catalog:
@@ -195,7 +367,7 @@ class TestShowTableDistributed:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: TS-6908
 
@@ -203,7 +375,10 @@ class TestShowTableDistributed:
             - 2025-7-23 Ethan liu adds test for show table distributed
             - 2025-4-28 Simon Guan Migrated from tsim/compute/block_dist.sim
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_show_table_distributed.py
+            - 2026-04-08 Bomin Zhang Added ins_table_fixed_distributed tests
+            - 2026-10-09 Bomin Zhang Added verification for supertable disk-size aggregation
 
         """
         self.do_sim_show_table_distributed()
         self.do_show_table_distributed()
+        self.do_fixed_distributed()

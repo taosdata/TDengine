@@ -1,0 +1,46 @@
+
+taos> drop database if exists test_wp_edge;
+Drop OK, 0 row(s) affected 
+
+taos> create database test_wp_edge vgroups 1;
+Create OK, 0 row(s) affected 
+
+taos> use test_wp_edge;
+Database changed.
+
+taos> create table meters (ts timestamp, current float, voltage int, phase float) tags(location nchar(64), groupid int);
+Create OK, 0 row(s) affected 
+
+taos> create table d_empty using meters tags('Empty', 9);
+Create OK, 0 row(s) affected 
+
+taos> create table d_single using meters tags('Single', 9);
+Create OK, 0 row(s) affected 
+
+taos> insert into d_single values('2024-01-01 00:00:00', 1.5, 220, 0.3);
+Insert OK, 1 row(s) affected 
+
+taos> select _wstart, ts from d_empty interval(3s);
+
+taos> select _wstart, ts, current from d_single interval(3s);
+         _wstart         |           ts            |       current        |
+===========================================================================
+ 2024-01-01 00:00:00.000 | 2024-01-01 00:00:00.000 |                  1.5 |
+
+taos> select _wstart, ts, current from d_single session(ts, 3s);
+         _wstart         |           ts            |       current        |
+===========================================================================
+ 2024-01-01 00:00:00.000 | 2024-01-01 00:00:00.000 |                  1.5 |
+
+taos> select _wstart, ts, voltage from d_single state_window(voltage);
+         _wstart         |           ts            |   voltage   |
+==================================================================
+ 2024-01-01 00:00:00.000 | 2024-01-01 00:00:00.000 |         220 |
+
+taos> select _wstart, ts, current from d_single count_window(3);
+         _wstart         |           ts            |       current        |
+===========================================================================
+ 2024-01-01 00:00:00.000 | 2024-01-01 00:00:00.000 |                  1.5 |
+
+taos> select _wstart, ts, current from d_single event_window start with current >= 1.0 end with current >= 2.0;
+

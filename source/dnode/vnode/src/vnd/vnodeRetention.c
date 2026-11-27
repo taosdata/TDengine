@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "vnd.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncRetention(STsdb *tsdb, STimeWindow tw, int8_t optrType, int8_t triggerType);
 extern int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray *fidArr);
@@ -76,6 +79,7 @@ _exit:
   return 0;
 
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -140,6 +144,7 @@ _exit:
   return 0;
 
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -150,9 +155,12 @@ int32_t vnodeAsyncSsMigrateFileSet(SVnode *pVnode, SSsMigrateFileSetReq *pReq) {
   // async migration
 #ifdef USE_SHARED_STORAGE
   if (tsSsEnabled) {
+    vInfo(KEYOP("ss-migrate", "START") "vgId:%d, ssMigrateId:%d, fid:%d, scheduling ss migrate file set",
+          TD_VID(pVnode), pReq->ssMigrateId, pReq->fid);
     return tsdbAsyncSsMigrateFileSet(pVnode->pTsdb, pReq);
   }
 #endif
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -162,6 +170,7 @@ int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 #ifdef USE_SHARED_STORAGE
   return tsdbUpdateSsMigrateProgress(pVnode->pTsdb, pReq);
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }
@@ -170,9 +179,12 @@ int32_t vnodeFollowerSsMigrate(SVnode *pVnode, SSsMigrateProgress *pReq) {
 
 extern int32_t vnodeKillSsMigrate(SVnode *pVnode, SVnodeKillSsMigrateReq *pReq) {
 #ifdef USE_SHARED_STORAGE
+  vInfo(KEYOP("ss-migrate", "KILLED") "vgId:%d, ssMigrateId:%d, kill ss migrate requested", TD_VID(pVnode),
+        pReq->ssMigrateId);
   tsdbStopSsMigrateTask(pVnode->pTsdb, pReq->ssMigrateId);
   return TSDB_CODE_SUCCESS;
 #else
+  vError("%s failed since shared storage is not enabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "transComm.h"
+#include "tdTestSeam.h"
 #include "transTLS.h"
 
 #ifndef TD_ASTRA_RPC
@@ -35,6 +38,7 @@ static int32_t transValidLocalFqdn(const char* localFqdn, SIpAddr* addr) {
   return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
+  TD_SEAM_RET(rpcOpen, void* (*)(const SRpcInit*), (pInit));
   int32_t code = rpcInit();
   if (code != 0) {
     TAOS_CHECK_GOTO(code, NULL, _end);
@@ -64,6 +68,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryMaxInterval = pInit->retryMaxInterval;
   pRpc->retryMaxTimeout = pInit->retryMaxTimeout;
 
+  pRpc->retryOnOverloadBaseInterval = pInit->retryOnOverloadBaseInterval;
+  pRpc->retryOnOverloadTimeout = pInit->retryOnOverloadTimeout;
+
   pRpc->failFastThreshold = pInit->failFastThreshold;
   pRpc->failFastInterval = pInit->failFastInterval;
 
@@ -74,6 +81,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
   pRpc->noDelayFp = pInit->noDelayFp;
+  pRpc->overloadRetryFp = pInit->retryOnOverloadFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;
@@ -215,8 +223,11 @@ void rpcCloseImpl(void* arg) {
 
 void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
-  if (size >= TRANS_PACKET_LIMIT) {
-    tError("failed to malloc msg, size:%" PRId64 " exceeds limit:%d", size, TRANS_PACKET_LIMIT);
+  // Devon scan item 195: a negative contLen used to slip through the TRANS_PACKET_LIMIT check
+  // (size wraps into [0, TRANS_MSG_OVERHEAD)) and return a pointer past a tiny allocation.
+  if (contLen < 0 || size >= TRANS_PACKET_LIMIT) {
+    tError("failed to malloc msg, contLen:%" PRId64 ", size:%" PRId64 " exceeds limit:%d", contLen, size,
+           TRANS_PACKET_LIMIT);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
@@ -232,7 +243,16 @@ void* rpcMallocCont(int64_t contLen) {
   return start + TRANS_MSG_OVERHEAD;
 }
 
-void rpcFreeCont(void* cont) { transFreeMsg(cont); }
+void rpcFreeCont(void* cont) {
+  TD_SEAM_VOID(rpcFreeCont, void (*)(void*), (cont));
+  transFreeMsg(cont);
+}
+
+#ifdef BUILD_TEST_SEAM
+/* Test-only entry that skips the seam check: a replacement still has to free
+ * the container, and calling rpcFreeCont() from it would re-enter the seam. */
+void tdSeamReal_rpcFreeCont(void* cont) { transFreeMsg(cont); }
+#endif
 
 void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);
@@ -252,6 +272,7 @@ void* rpcReallocCont(void* ptr, int64_t contLen) {
 }
 
 int32_t rpcSendRequest(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
+  TD_SEAM_RET(rpcSendRequest, int32_t (*)(void*, const SEpSet*, SRpcMsg*, int64_t*), (pInit, pEpSet, pMsg, pRid));
   return transSendRequest(pInit, pEpSet, pMsg, NULL);
 }
 int32_t rpcSendRequestWithCtx(void* pInit, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
@@ -275,7 +296,10 @@ int32_t rpcSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcM
 }
 int32_t rpcFreeConnById(void* pInit, int64_t connId) { return transFreeConnById(pInit, connId); }
 
-int32_t rpcSendResponse(const SRpcMsg* pMsg) { return transSendResponse(pMsg); }
+int32_t rpcSendResponse(const SRpcMsg* pMsg) {
+  TD_SEAM_RET(rpcSendResponse, int32_t (*)(const SRpcMsg*), (pMsg));
+  return transSendResponse(pMsg);
+}
 
 void rpcRefHandle(void* handle, int8_t type) { (*taosRefHandle[type])(handle); }
 
@@ -286,15 +310,23 @@ int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
   return (*transReleaseHandle[type])(handle, status);
 }
 
+int32_t rpcCloseConnSync(void* handle) { return transCloseConnSync(handle); }
+
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
   return transSetDefaultAddr(thandle, ip, fqdn);
 }
 // server only
-int32_t rpcSetIpWhite(void* thandle, void* arg) { return transSetIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetIpWhite(void* thandle, void* arg) {
+  TD_SEAM_RET(rpcSetIpWhite, int32_t (*)(void*, void*), (thandle, arg));
+  return transSetIpWhiteList(thandle, arg, NULL);
+}
 
-int32_t rpcSetTimeIpWhite(void* thandle, void* arg) { return transSetTimeIpWhiteList(thandle, arg, NULL); }
+int32_t rpcSetTimeIpWhite(void* thandle, void* arg) {
+  TD_SEAM_RET(rpcSetTimeIpWhite, int32_t (*)(void*, void*), (thandle, arg));
+  return transSetTimeIpWhiteList(thandle, arg, NULL);
+}
 int32_t rpcReloadTlsConfig(void* handle, int8_t type) { return transReloadTlsConfig(handle, type); }
 
 int32_t rpcAllocHandle(int64_t* refId) { return transAllocHandle(refId); }
@@ -375,6 +407,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retryMaxInterval = pInit->retryMaxInterval;
   pRpc->retryMaxTimeout = pInit->retryMaxTimeout;
 
+  pRpc->retryOnOverloadBaseInterval = pInit->retryOnOverloadBaseInterval;
+  pRpc->retryOnOverloadTimeout = pInit->retryOnOverloadTimeout;
+
   pRpc->failFastThreshold = pInit->failFastThreshold;
   pRpc->failFastInterval = pInit->failFastInterval;
 
@@ -385,6 +420,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->destroyFp = pInit->dfp;
   pRpc->failFastFp = pInit->ffp;
   pRpc->noDelayFp = pInit->noDelayFp;
+  pRpc->overloadRetryFp = pInit->retryOnOverloadFp;
   pRpc->connLimitNum = pInit->connLimitNum;
   if (pRpc->connLimitNum == 0) {
     pRpc->connLimitNum = 20;
@@ -587,6 +623,8 @@ int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
 int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
   return (*transReleaseHandle[type])(handle, status);
 }
+
+int32_t rpcCloseConnSync(void* handle) { return transCloseConnSync(handle); }
 
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {

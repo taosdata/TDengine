@@ -1,0 +1,267 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""configuration model definition"""
+
+import importlib.util
+import logging
+import os.path
+import platform
+from pathlib import Path
+
+from lib.custom_algorithms import custom_directory
+
+os.environ.setdefault("KERAS_BACKEND", "torch")
+try:
+    import torch
+except Exception:  # pragma: no cover
+    torch = None
+
+try:
+    import keras
+except Exception:  # pragma: no cover
+    keras = None
+
+
+class Configure:
+    """configuration class (singleton)"""
+
+    _instance = None
+    _lock = __import__("threading").Lock()
+
+    def __new__(cls, conf_path: str | None = None):
+        with cls._lock:
+            if cls._instance is None:
+                instance = super().__new__(cls)
+                instance._conf = instance._get_default_conf()
+                instance.custom_algo_explicit = False
+                env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
+                if env_resource_base_url:
+                    instance._conf["resource_base_url"] = env_resource_base_url
+                instance.path = None
+
+                if conf_path is not None and os.path.exists(conf_path):
+                    instance.path = conf_path
+                else:
+                    instance.path = instance._conf["conf_path"]
+                    if conf_path is not None:
+                        print(
+                            f"Input configuration file not available. Use default config file: {instance.path}"
+                        )
+
+                if os.path.exists(instance.path):
+                    instance.reload()
+                else:
+                    print(
+                        f"Configuration file {instance.path} is not available, start by using minimum config variables"
+                    )
+
+                cls._instance = instance
+        return cls._instance
+
+    @classmethod
+    def init(cls, conf_path: str | None = None) -> "Configure":
+        """Initialize the singleton with an explicit config path. Must be called before get_instance()."""
+        with cls._lock:
+            cls._instance = None
+        return cls(conf_path)
+
+    @classmethod
+    def get_instance(cls) -> "Configure":
+        """Return the singleton instance, creating it with defaults if not yet initialized."""
+        if cls._instance is None:
+            cls()
+        return cls._instance
+
+
+    def _get_default_conf_impl(self, base_path: str):
+        return {
+            "log_dir": os.path.join(base_path, "log"),
+            "log_file": "taosanode.app.log",
+            "model_dir": os.path.join(base_path, "model"),
+            "dynamic_model_dir": os.path.join(base_path, "model", "dynamic"),
+            "img_dir": os.path.join(base_path, "img"),
+            "resource_dir": os.path.join(base_path, "data", "resource"),
+            "data_dir": os.path.join(base_path, "data"),
+            "install_dir": base_path,
+            "conf_path": os.path.join(base_path, "cfg", "taosanode.config.py"),
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
+            "resource_base_url": "https://downloads.taosdata.com",
+            "tsfm_resource_exec_timeout": 120,
+            "tsfm_query_exec_timeout": 120,
+            "tsfm_model_start_timeout": 300,
+        }
+
+    def _get_default_conf_linux(self):
+        return {
+            "log_dir": "/var/log/taos/taosanode/",
+            "log_file": "taosanode.app.log",
+            "model_dir": "/usr/local/taos/taosanode/model/",
+            "dynamic_model_dir": "/usr/local/taos/taosanode/model/dynamic/",
+            "img_dir": "/usr/local/taos/taosanode/img/",
+            "resource_dir": "/var/lib/taos/taosanode/resource",
+            "data_dir": "/var/lib/taos/taosanode",
+            "install_dir": "/usr/local/taos/taosanode",
+            "resource_base_url": "https://downloads.taosdata.com",
+            "conf_path": "/etc/taos/taosanode.config.py",
+            "log_level": logging.DEBUG,
+            "draw_result": False,
+            "host": "0.0.0.0",
+            "port": 6035,
+            "tsfm_resource_exec_timeout": 120,
+            "tsfm_query_exec_timeout": 120,
+            "tsfm_model_start_timeout": 300,
+        }
+
+    def _get_default_conf(self) -> dict:
+        package_dir = Path(__file__).resolve().parent
+
+        if platform.system().lower() == "windows":
+            if package_dir.name == "lib":
+                base_path = str(package_dir.parent).replace("\\", "/")
+            elif package_dir.name == "taosanalytics" and package_dir.parent.name == "lib":
+                base_path = str(package_dir.parent.parent).replace("\\", "/")
+            else:
+                # default installation directory in windows
+                base_path = "c:/TDengine/taosanode"
+
+            default = self._get_default_conf_impl(base_path)
+        else:
+            if os.environ.get("GITHUB_ACTIONS") and package_dir.name == "taosanalytics":
+                base_path = str(package_dir.parent).replace("\\", "/")
+                default = self._get_default_conf_impl(base_path)
+            else:
+                default = self._get_default_conf_linux()
+
+        return default
+
+    def get_log_path(self) -> str:
+        """return log file full path"""
+        return os.path.join(str(self._conf["log_dir"]), str(self._conf["log_file"]))
+
+    def get_log_dir(self) -> str:
+        return self._conf["log_dir"]
+
+    def get_log_level(self):
+        """return the log level specified by configuration file"""
+        return self._conf["log_level"]
+
+    def get_model_directory(self):
+        """return model directory"""
+        return os.environ.get("TDGPT_MODEL_DIR", self._conf["model_dir"])
+
+    def get_custom_algo_directory(self):
+        """Return the persistent Python plugin directory (environment overrides config)."""
+        defaults = self._get_default_conf()
+        return str(custom_directory(
+            self._conf, os.path.join(defaults["data_dir"], "custom"),
+            self._conf.get("base_dir", defaults["install_dir"]),
+        ))
+
+    def get_dynamic_model_directory(self):
+        """return dynamic model directory, which is a subdirectory under model directory"""
+        return os.path.join(self._conf["dynamic_model_dir"])
+
+    def get_tsfm_service(self, service_name):
+        return self._conf.get(service_name, None)
+
+    def get_draw_result_option(self):
+        """get the option for draw results or not"""
+        return self._conf["draw_result"]
+
+    def get_tsfm_exec_timeout(self) -> int:
+        return int(self._conf.get("tsfm_query_exec_timeout", 120))
+
+    def get_server_bind(self) -> tuple:
+        """return (host, port) for the HTTP server"""
+        return self._conf["host"], self._conf["port"]
+
+    def get_img_dir(self) -> str:
+        return self._conf["img_dir"]
+
+    def reload(self):
+        """load the info from config file"""
+        spec = importlib.util.spec_from_file_location("gunicorn_config", self.path)
+        config_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(config_module)
+
+        conf_vars = {}
+        for key in dir(config_module):
+            if not key.startswith("__"):
+                value = getattr(config_module, key)
+                if not callable(value):  # exclude the Python functions
+                    conf_vars[key] = value
+
+        if "app_log" in conf_vars:
+            self._conf["log_dir"] = os.path.dirname(conf_vars["app_log"])
+            self._conf["log_file"] = os.path.basename(conf_vars["app_log"])
+            conf_vars.pop("app_log")
+
+        if "log_level" in conf_vars:
+            log_flag = {
+                "DEBUG": logging.DEBUG,
+                "INFO": logging.INFO,
+                "CRITICAL": logging.CRITICAL,
+                "ERROR": logging.ERROR,
+                "WARN": logging.WARNING,
+            }
+
+            log_level = conf_vars["log_level"].upper()
+            if log_level in log_flag:
+                self._conf["log_level"] = log_flag[log_level]
+
+            conf_vars.pop("log_level")
+
+        if "model_dir" in conf_vars:
+            self._conf["model_dir"] = conf_vars["model_dir"]
+            conf_vars.pop("model_dir")
+
+        if "draw_result" in conf_vars:
+            self._conf["draw_result"] = conf_vars["draw_result"]
+            conf_vars.pop("draw_result")
+
+        if "bind" in conf_vars:
+            host, _, port = conf_vars["bind"].partition(":")
+            if host:
+                self._conf["host"] = host
+            if port.isdigit():
+                self._conf["port"] = int(port)
+            conf_vars.pop("bind")
+
+        self.custom_algo_explicit = "custom_algo_dir" in conf_vars
+        self._conf.update(conf_vars)
+
+        # Container/deployment configuration must override stale persisted URLs.
+        env_resource_base_url = os.environ.get("TDGPT_RESOURCE_BASE_URL", "").strip()
+        if env_resource_base_url:
+            self._conf["resource_base_url"] = env_resource_base_url
+
+        # Auto-derive model service URLs from models configuration.
+        # This makes models[x]["port"] + models[x]["endpoint"] the single
+        # source of truth; no need to maintain separate URL constants.
+        models = self._conf.get("models")
+        if models:
+            for model_name, model_cfg in models.items():
+                port = model_cfg.get("port")
+                endpoint = model_cfg.get("endpoint", "/ds_predict")
+                ip = model_cfg.get("ip", "127.0.0.1")
+                if port:
+                    # Use algo_name as config key if specified (for SQL-visible names
+                    # like tdtsfm_1, timemoe-fc), otherwise use the model key.
+                    conf_key = model_cfg.get("algo_name", model_name)
+                    self._conf[conf_key] = f"http://{ip}:{port}{endpoint}"

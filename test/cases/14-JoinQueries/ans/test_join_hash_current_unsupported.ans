@@ -1,0 +1,240 @@
+
+taos> USE hash_join_snap;
+Database changed.
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+ cast(a.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660800000 | d1                 |          10 |         100 |
+         1735660801000 | d1                 |          11 |         110 |
+         1735660802000 | d2                 |          20 |         200 |
+         1735660803000 | d3                 |          30 | NULL        |
+         1735660804000 | NULL               |          40 | NULL        |
+         1735664400000 | d1                 |          12 | NULL        |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+ cast(b.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660800000 | d1                 |          10 |         100 |
+         1735660801000 | d1                 |          11 |         110 |
+         1735660802000 | d2                 |          20 |         200 |
+         1735660803000 | dx                 | NULL        |         999 |
+         1735660804000 | NULL               | NULL        |         400 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4;
+ cast(a.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660800000 | d1                 |          10 |         100 |
+         1735660801000 | d1                 |          11 | NULL        |
+         1735660802000 | d2                 |          20 |         200 |
+         1735660803000 | d3                 |          30 | NULL        |
+         1735660804000 | NULL               |          40 | NULL        |
+         1735664400000 | d1                 |          12 | NULL        |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3, 4;
+ cast(b.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660800000 | d1                 | NULL        |         100 |
+         1735660801000 | d1                 |          11 |         110 |
+         1735660802000 | d2                 |          20 |         200 |
+         1735660803000 | dx                 | NULL        |         999 |
+         1735660804000 | NULL               | NULL        |         400 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE b.metric IS NULL ORDER BY 1, 2, 3, 4;
+ cast(a.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660803000 | d3                 |          30 | NULL        |
+         1735660804000 | NULL               |          40 | NULL        |
+         1735664400000 | d1                 |          12 | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM sl a LEFT JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+ cast(a.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735747200000 | ddup               |           1 |          10 |
+         1735747200000 | ddup               |           1 |          20 |
+         1735747200000 | ddup               |           2 |          10 |
+         1735747200000 | ddup               |           2 |          20 |
+         1735747201000 | dleft              |           3 | NULL        |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, a.val, b.metric FROM sl a RIGHT JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+ cast(b.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735747200000 | ddup               |           1 |          10 |
+         1735747200000 | ddup               |           1 |          20 |
+         1735747200000 | ddup               |           2 |          10 |
+         1735747200000 | ddup               |           2 |          20 |
+         1735747201000 | dright             | NULL        |          30 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a FULL JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |
+======================================================================================================================
+ NULL                  | NULL               | NULL        |         1735660803000 | dx                 |         999 |
+ NULL                  | NULL               | NULL        |         1735660804000 | NULL               |         400 |
+         1735660800000 | d1                 |          10 |         1735660800000 | d1                 |         100 |
+         1735660801000 | d1                 |          11 |         1735660801000 | d1                 |         110 |
+         1735660802000 | d2                 |          20 |         1735660802000 | d2                 |         200 |
+         1735660803000 | d3                 |          30 | NULL                  | NULL               | NULL        |
+         1735660804000 | NULL               |          40 | NULL                  | NULL               | NULL        |
+         1735664400000 | d1                 |          12 | NULL                  | NULL               | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric, b.status FROM l_norm a FULL JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4, 5, 6, 7;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |   status    |
+====================================================================================================================================
+ NULL                  | NULL               | NULL        |         1735660801000 | d1                 |         110 |           0 |
+ NULL                  | NULL               | NULL        |         1735660803000 | dx                 |         999 |           1 |
+ NULL                  | NULL               | NULL        |         1735660804000 | NULL               |         400 |           1 |
+         1735660800000 | d1                 |          10 |         1735660800000 | d1                 |         100 |           1 |
+         1735660801000 | d1                 |          11 | NULL                  | NULL               | NULL        | NULL        |
+         1735660802000 | d2                 |          20 |         1735660802000 | d2                 |         200 |           1 |
+         1735660803000 | d3                 |          30 | NULL                  | NULL               | NULL        | NULL        |
+         1735660804000 | NULL               |          40 | NULL                  | NULL               | NULL        | NULL        |
+         1735664400000 | d1                 |          12 | NULL                  | NULL               | NULL        | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM sl a FULL JOIN sr b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |
+======================================================================================================================
+ NULL                  | NULL               | NULL        |         1735747201000 | dright             |          30 |
+         1735747200000 | ddup               |           1 |         1735747200000 | ddup               |          10 |
+         1735747200000 | ddup               |           1 |         1735747200000 | ddup               |          20 |
+         1735747200000 | ddup               |           2 |         1735747200000 | ddup               |          10 |
+         1735747200000 | ddup               |           2 |         1735747200000 | ddup               |          20 |
+         1735747201000 | dleft              |           3 | NULL                  | NULL               | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4, 5, 6, 7;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |   status    |
+====================================================================================================================================
+ NULL                  | NULL               | NULL        |         1735833601000 | dpartial           |          20 |           0 |
+ NULL                  | NULL               | NULL        |         1735833602000 | NULL               |          40 |           1 |
+ NULL                  | NULL               | NULL        |         1735833603000 | rightonly          |          30 |           1 |
+         1735833600000 | dpartial           |           1 |         1735833600000 | dpartial           |          10 |           1 |
+         1735833601000 | dpartial           |           2 |         1735833600000 | dpartial           |          10 |           1 |
+         1735833602000 | leftonly           |           3 | NULL                  | NULL               | NULL        | NULL        |
+         1735833603000 | NULL               |           4 | NULL                  | NULL               | NULL        | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |       device       |     val     |
+===========================================================
+         1735660800000 | d1                 |          10 |
+         1735660801000 | d1                 |          11 |
+         1735660802000 | d2                 |          20 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |       device       |     val     |
+===========================================================
+         1735660803000 | d3                 |          30 |
+         1735660804000 | NULL               |          40 |
+         1735664400000 | d1                 |          12 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |       device       |     val     |
+===========================================================
+         1735660800000 | d1                 |          10 |
+         1735660802000 | d2                 |          20 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |       device       |     val     |
+===========================================================
+         1735660801000 | d1                 |          11 |
+         1735660803000 | d3                 |          30 |
+         1735660804000 | NULL               |          40 |
+         1735664400000 | d1                 |          12 |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+ cast(b.ts as bigint)  |       device       |   metric    |
+===========================================================
+         1735660800000 | d1                 |         100 |
+         1735660801000 | d1                 |         110 |
+         1735660802000 | d2                 |         200 |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3;
+ cast(b.ts as bigint)  |       device       |   metric    |
+===========================================================
+         1735660803000 | dx                 |         999 |
+         1735660804000 | NULL               |         400 |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3;
+ cast(b.ts as bigint)  |       device       |   metric    |
+===========================================================
+         1735660801000 | d1                 |         110 |
+         1735660802000 | d2                 |         200 |
+
+taos> SELECT CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > 10 ORDER BY 1, 2, 3;
+ cast(b.ts as bigint)  |       device       |   metric    |
+===========================================================
+         1735660800000 | d1                 |         100 |
+         1735660803000 | dx                 |         999 |
+         1735660804000 | NULL               |         400 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+ d1                 |          10 |         110 |
+ d1                 |          11 |         100 |
+ d1                 |          11 |         110 |
+ d1                 |          12 |         100 |
+ d1                 |          12 |         110 |
+ d2                 |          20 |         200 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.val > b.metric ORDER BY 1, 2, 3;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.val + 90 = b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = 'd1' ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+ d1                 |          11 |         110 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.val > b.metric ORDER BY 1, 2, 3;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.val + 90 = b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+ d2                 |          20 |         110 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = 'd1' ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+ d1                 |          10 |         110 |
+ d1                 |          10 |         200 |
+ d1                 |          10 |         400 |
+ d1                 |          10 |         999 |
+ d1                 |          11 |         100 |
+ d1                 |          11 |         110 |
+ d1                 |          11 |         200 |
+ d1                 |          11 |         400 |
+ d1                 |          11 |         999 |
+ d1                 |          12 |         100 |
+ d1                 |          12 |         110 |
+ d1                 |          12 |         200 |
+ d1                 |          12 |         400 |
+ d1                 |          12 |         999 |
+
+taos> SELECT a.ts, a.device, b.metric FROM l_norm a LEFT ASOF JOIN r_norm b ON a.ts = b.ts;
+           ts            |       device       |   metric    |
+=============================================================
+ 2025-01-01 00:00:00.000 | d1                 |         100 |
+ 2025-01-01 00:00:01.000 | d1                 |         110 |
+ 2025-01-01 00:00:02.000 | d2                 |         200 |
+ 2025-01-01 00:00:03.000 | d3                 |         999 |
+ 2025-01-01 00:00:04.000 | NULL               |         400 |
+ 2025-01-01 01:00:00.000 | d1                 | NULL        |
+
+taos> SELECT a.ts, a.device, b.metric FROM l_norm a LEFT WINDOW JOIN r_norm b ON a.device = b.device WINDOW_OFFSET(-1s, 1s) ORDER BY a.ts, b.ts;
+           ts            |       device       |   metric    |
+=============================================================
+ 2025-01-01 00:00:00.000 | d1                 |         100 |
+ 2025-01-01 00:00:00.000 | d1                 |         110 |
+ 2025-01-01 00:00:01.000 | d1                 |         100 |
+ 2025-01-01 00:00:01.000 | d1                 |         110 |
+ 2025-01-01 00:00:02.000 | d2                 |         200 |
+ 2025-01-01 00:00:03.000 | d3                 | NULL        |
+ 2025-01-01 00:00:04.000 | NULL               |         400 |
+ 2025-01-01 01:00:00.000 | d1                 | NULL        |
+

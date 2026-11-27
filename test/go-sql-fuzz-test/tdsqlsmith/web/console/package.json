@@ -1,0 +1,25 @@
+{
+  "name": "tdsqlsmith-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build --outDir ../../internal/serve/webdist",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.13.2",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^6.0.4",
+    "typescript": "^5.7.2",
+    "unplugin-vue-components": "^31.0.0",
+    "vite": "^7.3.1"
+  }
+}

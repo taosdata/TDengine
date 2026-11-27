@@ -186,9 +186,13 @@ python3 cold_upgrade_task.py \
     └── libtaos.so
 ```
 
+> **注意**：`libtaos.so` 是客户端库入口，所有版本都必须有。用新构建（thin dispatcher）发布出来的
+> green version 会同时带一个 `libtaosnative.so`（driver），两者必须成对存在；只带 `libtaos.so` 的
+> 老版本目录仍然可以用。
+
 ### 编译目录要求
 
-编译目录下须包含以下文件（至少满足其一）：
+编译目录下须包含以下文件：
 
 ```text
 <build-dir>/
@@ -196,11 +200,14 @@ python3 cold_upgrade_task.py \
     ├── bin/
     │   └── taosd
     └── lib/
-        ├── libtaosnative.so   ← 优先使用（重命名为 libtaos.so）
-        └── libtaos.so         ← 次选
+        ├── libtaos.so         ← dispatcher，导出公共 C API
+        └── libtaosnative.so   ← driver，仅导出 tdNativeApiTable
 ```
 
-> **注意**：若 `libtaosnative.so` 存在，会优先将其复制并重命名为 `libtaos.so`；若不存在则退回使用 `libtaos.so`；两者均不存在时脚本报错退出。
+> **注意**：两个库会**按原名一起复制**到 `/tmp/<版本号>/`。`libtaos.so` 导出公共 API，并在运行时
+> `dlopen()` 与自己同目录的 `libtaosnative.so`，所以少任何一个客户端都加载不起来（driver 隐藏了
+> `taos_*`，把它改名成 `libtaos.so` 同样拿不到函数）。仅当老构建没有 `libtaosnative.so` 时，才退回
+> “单文件（重命名为 libtaos.so）”模式；两者都不存在时脚本报错退出。
 
 ### 退出码
 

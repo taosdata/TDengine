@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,6 +26,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// libuv uses small negative errno-style values; TDengine codes are outside
+// this range. Call only on failure paths: zero becomes the module fallback.
+enum { TSDB_UV_ERRNO_MIN = -65536 };
+
+static inline int32_t tsdbMapUvErr(int32_t code, int32_t moduleErr) {
+  return (code == 0 || code > TSDB_UV_ERRNO_MIN) ? moduleErr : code;
+}
 
 int32_t strdequote(char *src);
 size_t  strtrim(char *src);

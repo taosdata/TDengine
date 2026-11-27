@@ -1,0 +1,31 @@
+# Windows third-round targeted regression inventory.
+# Prior commands are dispositioned; same-host Oracle lifecycle acceptance remains active.
+# Oracle missing-driver also accepted in job940043: 1 passed, 0 skipped.
+# Reliable successes from the 860-command closeout are intentionally omitted.
+# Completed commands stay as evidence comments; this private selection is not the default gate.
+# SMA handed to Defect7168750812; no further SMA runs this round.
+# ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
+# ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py -N 5 -M 3
+# The four non-Oracle providers passed in jobs920402/920548/920578/920606.
+# Oracle legs accepted in job940043: each selector 1 passed, 0 skipped.
+# 100,,y,.,env FQ_REQUIRED_SERVICES=oracle FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_001_period_trows
+# 100,,y,.,env FQ_REQUIRED_SERVICES=oracle FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_003_period_casted_localtime_bounds
+# 100,,n,.,env FQ_REQUIRED_SERVICES=oracle FQ_ORACLE_VERSIONS=26ai FQ_ORACLE_DRIVER_MISSING_TEST=1 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_23_runtime_missing_windows.py::TestFq23RuntimeMissingWindows::test_missing_oracle_driver_disables_oracle_source_only
+# FQ13 accepted in job939966: 1 passed, 0 skipped, 386.19s; SHA48091f7b5e3.
+# 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle FQ_INFLUX_VERSIONS=3.0 FQ_PG_VERSIONS=18.6 FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py::TestFq13Explain::test_explain_analyze_verbose
+
+# Same-host Oracle lifecycle acceptance: run on the Oracle host itself so the
+# helper can stop and restart OracleServiceFREE rather than a remote instance.
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle FQ_INFLUX_VERSIONS=3.0 FQ_PG_VERSIONS=18.6 FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_oracle_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle FQ_INFLUX_VERSIONS=3.0 FQ_PG_VERSIONS=18.6 FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_oracle_stable_query_fails_when_child_backend_down_and_recovers
+
+# Old 3.3.6 compatibility accepted across four selectors; no repeat.
+# Single selector: priv-native-confirm-junit.xml, 1 passed, 0 skipped.
+# Three multi-node selectors: priv-monitor-candidate-junit.xml, 3 passed, 0 skipped.
+# ,,n,.,pytest cases/25-Privileges/test_priv_upgrade.py
+
+# The remaining source-inapplicable and platform-skip rows stay in the
+# closeout ledger; they are not silently counted as passing in this round.
+
+# Grant accepted in job920581. Stream four non-Oracle providers accepted in
+# jobs920402/920548/920578/920606; Oracle legs accepted in job940043.

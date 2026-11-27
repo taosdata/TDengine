@@ -1,0 +1,265 @@
+taos> set max_binary_display_width 1024;
+taos> select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+     sum(local_v)      |     sum(remote_v)     |
+================================================
+                     6 |                  6000 |
+
+taos> explain verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+QUERY_PLAN |
+============
+ -> Merge (columns=2 width=16 input_order=unknown output_order=unknown mode=column) |
+       Output: columns=2 width=16 |
+    -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) (width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("v") AS "expr_2" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" |
+    -> Aggregate (functions=1 width=8 input_order=asc) |
+          Output: columns=1 width=8 blocking=1 |
+          Merge ResBlocks: True |
+       -> Data Exchange 1:1 (width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+
+taos> explain analyze verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18;
+QUERY_PLAN |
+============
+ -> Merge ( columns=2 width=16 input_order=unknown output_order=unknown mode=column) |
+       Output: columns=2 width=16 |
+    -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) ( width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("v") AS "expr_2" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" |
+          Remote rows=1, blocks=1, elapsed=<time> |
+    -> Aggregate ( functions=1 width=8 input_order=asc) |
+          Output: columns=1 width=8 blocking=1 |
+          Merge ResBlocks: True |
+       -> Data Exchange 1:1 ( width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values ( columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+ |
+ |
+ |
+
+taos> select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+     sum(local_v)      |     sum(remote_v)     |
+================================================
+                     5 |                  5000 |
+
+taos> explain verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=2 width=16 input_order=asc) |
+       Output: columns=2 width=16 blocking=1 |
+       Merge ResBlocks: True |
+    -> Virtual Table Scan on vt_influx18 (columns=2 width=12) |
+          Output: columns=2 width=12 |
+          Filter: conditions=(`vt_pushdown_agg`.`vt_influx18`.`local_v` > 1) |
+       -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) (width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+       -> Data Exchange 1:1 (width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+
+taos> explain analyze verbose true select sum(local_v),sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+QUERY_PLAN |
+============
+ -> Aggregate ( functions=2 width=16 input_order=asc) |
+       Output: columns=2 width=16 blocking=1 |
+       Merge ResBlocks: True |
+    -> Virtual Table Scan on vt_influx18 ( columns=2 width=12) |
+          Output: columns=2 width=12 |
+          Filter: conditions=(`vt_pushdown_agg`.`vt_influx18`.`local_v` > 1) |
+       -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) ( width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+             Remote rows=3, blocks=1, elapsed=<time> |
+       -> Data Exchange 1:1 ( width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values ( columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+ |
+ |
+ |
+
+taos> select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+     sum(remote_v)     |
+========================
+                  5000 |
+
+taos> explain verbose true select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=asc) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Virtual Table Scan on vt_influx18 (columns=2 width=12) |
+          Output: columns=2 width=12 |
+          Filter: conditions=(`vt_pushdown_agg`.`vt_influx18`.`local_v` > 1) |
+       -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) (width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+       -> Data Exchange 1:1 (width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+
+taos> explain analyze verbose true select sum(remote_v) from vt_pushdown_agg.vt_influx18 where local_v>1;
+QUERY_PLAN |
+============
+ -> Aggregate ( functions=1 width=8 input_order=asc) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Virtual Table Scan on vt_influx18 ( columns=2 width=12) |
+          Output: columns=2 width=12 |
+          Filter: conditions=(`vt_pushdown_agg`.`vt_influx18`.`local_v` > 1) |
+       -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) ( width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+             Remote rows=3, blocks=1, elapsed=<time> |
+       -> Data Exchange 1:1 ( width=12) |
+             Output: columns=2 width=12 |
+          -> Table Scan on local_values ( columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                Output: columns=2 width=12 |
+                Time Range: [-9223372036854775808, 9223372036854775807] |
+ |
+ |
+ |
+
+taos> select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+  cast(ts as bigint)   |   local_v   |       remote_v        |
+==============================================================
+   <middle_timestamp> |           2 |                  2000 |
+
+taos> explain verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+QUERY_PLAN |
+============
+ -> Projection (columns=3 width=20 input_order=asc) |
+       Output: columns=3 width=20 limit=1 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=asc output_order=asc  (columns=3 width=20) |
+          Output: columns=3 width=20 limit=2 offset=0 |
+       -> Virtual Table Scan on vt_influx18 (columns=3 width=20) |
+             Output: columns=3 width=20 |
+          -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) (width=16) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=2 width=16 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+          -> Data Exchange 1:1 (width=12) |
+                Output: columns=2 width=12 |
+             -> Table Scan on local_values (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                   Output: columns=2 width=12 |
+                   Time Range: [-9223372036854775808, 9223372036854775807] |
+
+taos> explain analyze verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vt_influx18 order by ts asc limit 1 offset 1;
+QUERY_PLAN |
+============
+ -> Projection ( columns=3 width=20 input_order=asc) |
+       Output: columns=3 width=20 limit=1 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=asc output_order=asc  ( columns=3 width=20) |
+          Sort Key: ts |
+          Output: columns=3 width=20 limit=2 offset=0 |
+       -> Virtual Table Scan on vt_influx18 ( columns=3 width=20) |
+             Output: columns=3 width=20 |
+          -> Federated Scan on vt_pushdown_agg_influx18_src.remote_values (influxdb-1.8) ( width=16) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=2 width=16 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC |
+                Remote rows=3, blocks=1, elapsed=<time> |
+          -> Data Exchange 1:1 ( width=12) |
+                Output: columns=2 width=12 |
+             -> Table Scan on local_values ( columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                   Output: columns=2 width=12 |
+                   Time Range: [-9223372036854775808, 9223372036854775807] |
+ |
+ |
+ |
+
+taos> select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;
+  cast(ts as bigint)   |   local_v   |       remote_v        |
+==============================================================
+   <middle_timestamp> |           2 |                  2000 |
+
+taos> explain verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;
+QUERY_PLAN |
+============
+ -> Projection (columns=3 width=20 input_order=unknown) |
+       Output: columns=3 width=20 limit=1 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=asc output_order=asc  (columns=3 width=20) |
+          Output: columns=3 width=20 limit=2 offset=0 |
+       -> Dynamic Query Control for Virtual Stable Scan (columns=3 origin_vgroup_num=2 width=20 input_order=asc) |
+             Output: columns=3 width=20 limit=2 offset=0 |
+          -> Virtual Table Scan on vst_influx18 (columns=3 width=20) |
+                Output: columns=3 width=20 |
+             -> Data Exchange 2:1 (width=20) |
+                   Output: columns=3 width=20 |
+                -> Table Scan on vst_influx18 (columns=3 width=20 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                      Output: columns=3 width=20 |
+                      Time Range: [-9223372036854775808, 9223372036854775807] |
+             -> Federated Scan on vt_pushdown_agg_influx18_src. (influxdb-1.8) (width=20) |
+                   InfluxDB version=1.8 RP=(runtime) |
+                   Output: columns=3 width=20 |
+                   Source: <host>:<port> user=<user> |
+          -> Data Exchange 2:1 (width=804) |
+                Output: columns=10 width=804 |
+             -> System Table Scan on ins_virtual_child_columns (columns=10 width=804) |
+                   Output: columns=10 width=804 |
+
+taos> explain analyze verbose true select cast(ts as bigint),local_v,remote_v from vt_pushdown_agg.vst_influx18 order by ts asc limit 1 offset 1;
+QUERY_PLAN |
+============
+ -> Projection ( columns=3 width=20 input_order=unknown) |
+       Output: columns=3 width=20 limit=1 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=asc output_order=asc  ( columns=3 width=20) |
+          Sort Key: ts |
+          Output: columns=3 width=20 limit=2 offset=0 |
+       -> Dynamic Query Control for Virtual Stable Scan ( columns=3 origin_vgroup_num=2 width=20 input_order=asc) |
+             Output: columns=3 width=20 limit=2 offset=0 |
+          -> Virtual Table Scan on vst_influx18 ( columns=3 width=20) |
+                Output: columns=3 width=20 |
+             -> Data Exchange 2:1 ( width=20) |
+                   Output: columns=3 width=20 |
+                -> Table Scan on vst_influx18 ( columns=3 width=20 order=[asc|1 desc|0] mode=ts_order data_load=data) |
+                      Output: columns=3 width=20 |
+                      Time Range: [-9223372036854775808, 9223372036854775807] |
+ |
+             -> Federated Scan on vt_pushdown_agg_influx18_src. (influxdb-1.8) ( width=20) |
+                   InfluxDB version=1.8 RP=autogen |
+                   Output: columns=3 width=20 |
+                   Source: <host>:<port> user=<user> |
+                   Batch: sourceName=vt_pushdown_agg_influx18_src, batchTables=1, batchMode=true |
+                   Remote SQL: SELECT "time", "v" FROM "vt_pushdown_agg_ext"."autogen"."remote_values" ORDER BY time ASC LIMIT 2 |
+                   Remote rows=2, blocks=1, elapsed=<time> |
+          -> Data Exchange 2:1 ( width=804) |
+                Output: columns=10 width=804 |
+             -> System Table Scan on ins_virtual_child_columns ( columns=10 width=804) |
+                   Output: columns=10 width=804 |
+ |
+ |

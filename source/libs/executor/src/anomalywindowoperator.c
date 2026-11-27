@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#include <math.h>
 
 #include "executorInt.h"
 #include "filter.h"
@@ -84,6 +88,9 @@ static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper) {
 
   resetBasicOperatorState(&pInfo->binfo);
 
+  // Function cleanup may still access the aggregate result buffers.
+  cleanupExprSupp(&pOper->exprSupp);
+  pOper->exprSupp.hasWindowOrGroup = true;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
@@ -191,8 +198,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  pInfo->binfo.inputTsOrder = pAnomalyNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAnomalyNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAnomalyNode->window.node);
 
   pInfo->anomalyCols = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SColumn));
   pInfo->anomalyData = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SStateKeys));
@@ -201,10 +207,20 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  pInfo->bufSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize;
+  // pResultRow points to the beginning of the buffer, so only append the
+  // custom anomaly payload after the full flexible result-row bytes.
+  pInfo->bufSize = pInfo->aggSup.resultRowSize;
 
-  for (int32_t i = 0; i < LIST_LENGTH(pColNodes); ++i) {
-    SColumn node = extractColumnFromColumnNode((SColumnNode*)nodesListGetNode(pColNodes, i));
+  SListCell* pColNodeCell = NULL != pColNodes ? pColNodes->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pColNodes);
+       ++i, pColNodeCell = (NULL != pColNodeCell ? pColNodeCell->pNext : NULL)) {
+    SColumn node = extractColumnFromColumnNode((SColumnNode*)(NULL != pColNodeCell ? pColNodeCell->pNode : NULL));
+    if (!IS_MATHABLE_TYPE(node.type)) {
+      qError("%s invalid column type %d for anomaly_window, must be numeric or timestamp", id, node.type);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _error;
+    }
+
     if (i == 0) {
       tstrncpy(node.name, "val", sizeof(node.name) - 1);
     } else {
@@ -335,6 +351,14 @@ static int32_t anomalyAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     SSDataBlock* pBlock = getNextBlockFromDownstream(pOperator, 0);
     if (pBlock == NULL) {
       break;
+    }
+
+    // Anomaly keys may refer to slots reserved for scalar expressions. Compute
+    // them before caching the block and sending its values to the anode.
+    if (pInfo->scalarSup.pExprInfo != NULL) {
+      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
+                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
@@ -538,16 +562,27 @@ static int32_t anomalyParseJson(SJson* pJson, SArray* pWindows, SArray* pMasks, 
   return code;
 }
 
+static int32_t anomalyNumInputCols(const SAnomalyWindowOperatorInfo* pInfo) {
+  // These built-in algorithms consume only the first key. Keep all dimensions
+  // for multivariate and dynamically registered models.
+  if (strcasecmp(pInfo->algoName, "ksigma") == 0 || strcasecmp(pInfo->algoName, "iqr") == 0 ||
+      strcasecmp(pInfo->algoName, "grubbs") == 0 || strcasecmp(pInfo->algoName, "shesd") == 0) {
+    return 1;
+  }
+  return taosArrayGetSize(pInfo->anomalyCols);
+}
+
 static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   SAnomalyWindowOperatorInfo* pInfo = pOperator->info;
   SAnomalyWindowSupp*         pSupp = &pInfo->anomalySup;
   SJson*                      pJson = NULL;
   SAnalyticBuf                analyBuf = {.bufType = ANALYTICS_BUF_TYPE_JSON};
-  char                        dataBuf[64] = {0};
+  bool*                       pValidRows = NULL;
   int32_t                     code = 0;
   int64_t                     ts = taosGetTimestampNs();
   int32_t                     lino = 0;
   const char*                 pId = GET_TASKID(pOperator->pTaskInfo);
+  int32_t                     numOfCols = anomalyNumInputCols(pInfo);
 
   if(pSupp->cachedRows < ANALY_ANOMALY_WINDOW_MIN_ROWS) {
     qError("%s input rows for anomaly check not enough, min required:%d, current:%" PRId64, pId, ANALY_ANOMALY_WINDOW_MIN_ROWS,
@@ -555,9 +590,48 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
     return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
   }
 
+  int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
+  int64_t rowIndex = 0;
+  int64_t validRows = 0;
+  pValidRows = taosMemoryCalloc(pSupp->cachedRows, sizeof(bool));
+  TSDB_CHECK_NULL(pValidRows, code, lino, _OVER, terrno);
+
+  // Exclude incomplete rows from every consumed key together. Ignored keys do
+  // not affect validity; retain the cached blocks for window aggregation.
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
+    TSDB_CHECK_NULL(pBlock, code, lino, _OVER, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
+    TSDB_CHECK_NULL(pTsCol, code, lino, _OVER, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    for (int32_t j = 0; j < pBlock->info.rows; ++j, ++rowIndex) {
+      bool valid = !colDataIsNull_s(pTsCol, j);
+      for (int32_t k = 0; valid && k < numOfCols; ++k) {
+        SColumn*         pCol = taosArrayGet(pInfo->anomalyCols, k);
+        SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
+        TSDB_CHECK_NULL(pValCol, code, lino, _OVER, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        if (colDataIsNull_s(pValCol, j)) {
+          valid = false;
+        } else {
+          void* pValue = colDataGetData(pValCol, j);
+          valid = !(pValCol->info.type == TSDB_DATA_TYPE_FLOAT && !isfinite(GET_FLOAT_VAL(pValue))) &&
+                  !(pValCol->info.type == TSDB_DATA_TYPE_DOUBLE && !isfinite(GET_DOUBLE_VAL(pValue)));
+        }
+      }
+      pValidRows[rowIndex] = valid;
+      validRows += valid;
+    }
+  }
+
+  if (validRows < ANALY_ANOMALY_WINDOW_MIN_ROWS) {
+    qError("%s valid input rows for anomaly check not enough, min required:%d, current:%" PRId64, pId,
+           ANALY_ANOMALY_WINDOW_MIN_ROWS, validRows);
+    code = TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
+    goto _OVER;
+  }
+
   snprintf(analyBuf.fileName, sizeof(analyBuf.fileName), "%s/tdengine-anomaly-%" PRId64 "-%p-%" PRId64, tsTempDir, ts,
            pSupp, pSupp->groupId);
-  code = tsosAnalyBufOpen(&analyBuf, taosArrayGetSize(pInfo->anomalyCols) + 1, pId);
+  code = tsosAnalyBufOpen(&analyBuf, numOfCols + 1, pId);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   const char* prec = TSDB_TIME_PRECISION_MILLI_STR;
@@ -569,7 +643,7 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalyBufWriteColMeta(&analyBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, "ts");
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  for(int32_t i = 0; i < taosArrayGetSize(pInfo->anomalyCols); ++i) {
+  for(int32_t i = 0; i < numOfCols; ++i) {
     SColumn* pCol = taosArrayGet(pInfo->anomalyCols, i);
     code = taosAnalyBufWriteColMeta(&analyBuf, i + 1, pCol->type, pCol->name);
     QUERY_CHECK_CODE(code, lino, _OVER);
@@ -581,18 +655,18 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   code = taosAnalyBufWriteDataBegin(&analyBuf);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
-  int32_t numOfBlocks = (int32_t)taosArrayGetSize(pSupp->blocks);
-
   // timestamp
   code = taosAnalyBufWriteColBegin(&analyBuf, 0);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
+  rowIndex = 0;
   for (int32_t i = 0; i < numOfBlocks; ++i) {
     SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
     if (pBlock == NULL) break;
     SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
     if (pTsCol == NULL) break;
-    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+    for (int32_t j = 0; j < pBlock->info.rows; ++j, ++rowIndex) {
+      if (!pValidRows[rowIndex]) continue;
       code = taosAnalyBufWriteColData(&analyBuf, 0, TSDB_DATA_TYPE_TIMESTAMP, &((TSKEY*)pTsCol->pData)[j]);
       QUERY_CHECK_CODE(code, lino, _OVER);
     }
@@ -602,12 +676,13 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
   QUERY_CHECK_CODE(code, lino, _OVER);
 
   // data
-  for (int32_t k = 0; k < taosArrayGetSize(pInfo->anomalyCols); ++k) {
+  for (int32_t k = 0; k < numOfCols; ++k) {
     SColumn* pCol = taosArrayGet(pInfo->anomalyCols, k);
 
     code = taosAnalyBufWriteColBegin(&analyBuf, k + 1);
     QUERY_CHECK_CODE(code, lino, _OVER);
 
+    rowIndex = 0;
     for (int32_t i = 0; i < numOfBlocks; ++i) {
       SSDataBlock* pBlock = taosArrayGetP(pSupp->blocks, i);
       if (pBlock == NULL) {
@@ -617,8 +692,10 @@ static int32_t anomalyAnalysisWindow(SOperatorInfo* pOperator) {
       SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
       if (pValCol == NULL) break;
 
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-        code = taosAnalyBufWriteColData(&analyBuf, k + 1, pValCol->info.type, colDataGetData(pValCol, j));
+      for (int32_t j = 0; j < pBlock->info.rows; ++j, ++rowIndex) {
+        if (!pValidRows[rowIndex]) continue;
+        void* pValue = colDataGetData(pValCol, j);
+        code = taosAnalyBufWriteColData(&analyBuf, k + 1, pValCol->info.type, pValue);
         QUERY_CHECK_CODE(code, lino, _OVER);
       }
     }
@@ -658,6 +735,7 @@ _OVER:
     qError("%s failed to analysis window since %s, lino:%d", pId, tstrerror(code), lino);
   }
 
+  taosMemoryFree(pValidRows);
   taosAnalyBufDestroy(&analyBuf);
   if (pJson != NULL) tjsonDelete(pJson);
   return code;
@@ -766,13 +844,6 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
     if (code != 0) break;
 
-    // there is an scalar expression that needs to be calculated right before apply the group aggregation.
-    if (pInfo->scalarSup.pExprInfo != NULL) {
-      code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
-                                   pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
-      if (code != 0) break;
-    }
-
     // SColumnInfoData* pValCol = taosArrayGet(pBlock->pDataBlock, pInfo->anomalyCols.slotId);
     // if (pValCol == NULL) break;
 
@@ -850,6 +921,10 @@ static int32_t anomalyAggregateBlocks(SOperatorInfo* pOperator) {
     }
   }
 
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pOperator->pTaskInfo, isTaskKilled);
+  }
+
   code = doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
   QUERY_CHECK_CODE(code, lino, _OVER);
 
@@ -876,9 +951,9 @@ _OVER:
 
 int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                         SOperatorInfo** pOptrInfo) {
+  qError("createAnomalywindowOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void destroyForecastInfo(void* param) {}
 
 #endif
-

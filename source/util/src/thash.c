@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -677,7 +679,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 #ifdef _TD_LOONGARCH_64
   SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #else
-  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize + 1);
+  SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #endif
 
   if (pNewNode == NULL) {

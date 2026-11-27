@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -6,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -23,6 +39,12 @@ import (
 var auditLogger = log.GetLogger("AUD")
 
 const MAX_DETAIL_LEN = 50000
+
+// maxEscapedDetailLen is the parser's ceiling for one string token
+// (TSDB_MAX_BYTES_PER_ROW in tdef.h). TDengine refuses a string token at or
+// above it before decoding any escapes, so it bounds the escaped literal that
+// handleDetails builds, not the column width.
+const maxEscapedDetailLen = 65531
 
 type Audit struct {
 	username  string
@@ -182,7 +204,12 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 				return
 			}
 
-			sql = parseSql(audit)
+			sql, err = parseSql(audit)
+			if err != nil {
+				auditLogger.Errorf("invalid audit data, error:%s", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid audit data error: %s", err)})
+				return
+			}
 		} else {
 			var audit AuditInfoOld
 			if err := json.Unmarshal(data, &audit); err != nil {
@@ -203,6 +230,12 @@ func (a *Audit) handleFunc() gin.HandlerFunc {
 	}
 }
 
+// validAuditDBName matches plain TDengine database names. The db query
+// parameter ends up in the connection DSN; rejecting anything beyond a plain
+// name here fails the request with a clear 400 instead of a confusing
+// connect error.
+var validAuditDBName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) bool {
 	db := c.Query("db")
 	token := c.Query("token")
@@ -210,6 +243,10 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) 
 	isDefault := db == ""
 	if isDefault {
 		db = getAuditDBName(config.Conf)
+	} else if !validAuditDBName.MatchString(db) {
+		logger.Errorf("invalid audit db name: %q", db)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid db name"})
+		return false
 	}
 
 	logger.Tracef("prepare audit connection for db: %s, token is empty: %v", db, token == "")
@@ -219,6 +256,20 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) 
 		defer a.mu.Unlock()
 		if !a.inited || db != a.db || token != a.token {
 			logger.Infof("create audit connection for db: %s", db)
+
+			// Mark the cache unusable before rebuilding. The (db, token) pair
+			// is what the guard above treats as "what a.conn is", so without
+			// this a failed switch would look like a cache hit on the next
+			// identical request, which would then be written through the
+			// previous connection, into the previous database.
+			//
+			// The previous connector is deliberately left open rather than
+			// closed here: a concurrent request may already have read it into
+			// a local (the handlers do not hold a.mu while they write), and
+			// closing it would fail that request or hand it a nil. inited==false
+			// is what keeps it from being handed out again — it is only set
+			// back to true once a build for this key has succeeded.
+			a.inited = false
 			a.db = db
 			a.token = token
 
@@ -243,46 +294,112 @@ func (a *Audit) prepareConnectionAndTable(c *gin.Context, logger *logrus.Entry) 
 	return true
 }
 
+// handleDetails truncates details to the column width and escapes it for a
+// single-quoted SQL string literal. TDengine checks the column width against
+// the unescaped value, so truncating before escaping keeps the stored value
+// within the varchar(50000) column.
 func handleDetails(details string) string {
-	if strings.Contains(details, "'") {
-		details = strings.ReplaceAll(details, "'", "\\'")
+	out := util.EscapeTrunc(details, MAX_DETAIL_LEN)
+	if len(out) < maxEscapedDetailLen {
+		return out
 	}
-	if strings.Contains(details, "\"") {
-		details = strings.ReplaceAll(details, "\"", "\\\"")
-	}
-	if len(details) > MAX_DETAIL_LEN {
-		details = details[:MAX_DETAIL_LEN]
-	}
-	return details
+	// Escaping doubles a backslash or a quote, so details dominated by those
+	// characters can grow past the parser's per-token limit even though the
+	// raw text fits the column. Clamp the input to half the limit — which
+	// escaping can never exceed — rather than let the whole insert be refused.
+	return util.EscapeTrunc(details, maxEscapedDetailLen/2)
 }
 
-func parseSql(audit AuditInfo) string {
+// normalizeAuditTimestamp validates the v2 audit timestamp and returns its
+// canonical form. The value lands in a TIMESTAMP column (int64 microseconds),
+// so reject anything beyond math.MaxInt64 instead of failing at insert time.
+// Normalizing matters: ParseUint accepts leading zeros, which a C-based SQL
+// parser could read as octal, so the canonical form is what must reach the
+// statement.
+func normalizeAuditTimestamp(ts string) (string, error) {
+	v, err := strconv.ParseUint(ts, 10, 64)
+	if err != nil || v > math.MaxInt64 {
+		return "", fmt.Errorf("invalid timestamp %q", ts)
+	}
+	return strconv.FormatUint(v, 10), nil
+}
+
+// buildAuditValues builds one values tuple for the v2 audit format. All
+// request-controlled strings are truncated to their column widths
+// (user_name 25, operation 20, db 65, resource 193, client_address 64) and
+// escaped. The timestamp is normalized here so no caller can concatenate an
+// unchecked value into SQL.
+func buildAuditValues(audit AuditInfo) (string, error) {
+	normalizedTs, err := normalizeAuditTimestamp(audit.Timestamp)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf(
-		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f)",
-		getTableName(audit), audit.ClusterID, audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource,
-		audit.ClientAdd, handleDetails(audit.Details), audit.AffectedRows, audit.Duration)
+		"(%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f)",
+		normalizedTs,
+		util.EscapeTrunc(audit.User, 25),
+		util.EscapeTrunc(audit.Operation, 20),
+		util.EscapeTrunc(audit.Db, 65),
+		util.EscapeTrunc(audit.Resource, 193),
+		util.EscapeTrunc(audit.ClientAdd, 64),
+		handleDetails(audit.Details), audit.AffectedRows, audit.Duration), nil
+}
+
+// parseSql builds the insert for the v2 audit format. All request-controlled
+// strings are truncated to their column widths (user_name 25, operation 20,
+// db 65, resource 193, client_address 64, cluster_id tag 64) and escaped.
+func parseSql(audit AuditInfo) (string, error) {
+	values, err := buildAuditValues(audit)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf(
+		"insert into %s using operations tags ('%s') values %s",
+		getTableName(audit), util.EscapeTrunc(audit.ClusterID, 64),
+		values), nil
 }
 
 func parseSqlOld(audit AuditInfoOld) string {
 	return fmt.Sprintf(
 		"insert into %s using operations tags ('%s') values (%s, '%s', '%s', '%s', '%s', '%s', '%s', 0, 0)",
-		getTableNameOld(audit), audit.ClusterID, strconv.FormatInt(audit.Timestamp, 10)+"000000", audit.User,
-		audit.Operation, audit.Db, audit.Resource, audit.ClientAdd, handleDetails(audit.Details))
+		getTableNameOld(audit), util.EscapeTrunc(audit.ClusterID, 64),
+		strconv.FormatInt(audit.Timestamp, 10)+"000000",
+		util.EscapeTrunc(audit.User, 25),
+		util.EscapeTrunc(audit.Operation, 20),
+		util.EscapeTrunc(audit.Db, 65),
+		util.EscapeTrunc(audit.Resource, 193),
+		util.EscapeTrunc(audit.ClientAdd, 64),
+		handleDetails(audit.Details))
 }
 
 func handleBatchRecord(auditArray []AuditInfo, conn *db.Connector, qid uint64) error {
+	// Validate every record before building any SQL: buildAuditValues fails only
+	// on a timestamp that is not a valid int64 (see normalizeAuditTimestamp), so
+	// validating up front is enough to keep a bad record from rejecting the
+	// request after an earlier statement was already executed. The tuples are
+	// rebuilt in the flush loop below rather than held as a slice: this endpoint
+	// has no request body limit, so retaining every built tuple would make peak
+	// memory a multiple of an unbounded request body.
+	for _, audit := range auditArray {
+		if _, err := normalizeAuditTimestamp(audit.Timestamp); err != nil {
+			return err
+		}
+	}
+
 	var builder strings.Builder
 	var head = fmt.Sprintf(
 		"insert into %s using operations tags ('%s') values",
-		getTableName(auditArray[0]), auditArray[0].ClusterID)
+		getTableName(auditArray[0]), util.EscapeTrunc(auditArray[0].ClusterID, 64))
 
 	builder.WriteString(head)
 	var qid_counter uint8 = 0
 	for _, audit := range auditArray {
-		valuesStr := fmt.Sprintf(
-			"(%s, '%s', '%s', '%s', '%s', '%s', '%s', %d, %f) ",
-			audit.Timestamp, audit.User, audit.Operation, audit.Db, audit.Resource,
-			audit.ClientAdd, handleDetails(audit.Details), audit.AffectedRows, audit.Duration)
+		// cannot fail: every timestamp was validated above
+		values, err := buildAuditValues(audit)
+		if err != nil {
+			return err
+		}
+		valuesStr := values + " "
 
 		if (builder.Len() + len(valuesStr)) > MAX_SQL_LEN {
 			sql := builder.String()
@@ -307,11 +424,11 @@ func handleBatchRecord(auditArray []AuditInfo, conn *db.Connector, qid uint64) e
 }
 
 func getTableName(audit AuditInfo) string {
-	return fmt.Sprintf("t_operations_%s", audit.ClusterID)
+	return fmt.Sprintf("t_operations_%s", util.ToValidTableName(audit.ClusterID))
 }
 
 func getTableNameOld(audit AuditInfoOld) string {
-	return fmt.Sprintf("t_operations_%s", audit.ClusterID)
+	return fmt.Sprintf("t_operations_%s", util.ToValidTableName(audit.ClusterID))
 }
 
 func (a *Audit) createConnect() error {

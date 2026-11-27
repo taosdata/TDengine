@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -47,8 +49,9 @@ static int32_t createDataBlockForSchema(SRSchema *pRSchema, SSDataBlock **ppData
   for (int32_t i = 0; i < numOfCols; ++i) {
     STColumn       *pCol = pTSchema->columns + i;
     SColumnInfoData colInfoData = createColumnInfoData(pCol->type, pCol->bytes, pCol->colId);
-    if (pExtSchema && IS_DECIMAL_TYPE(pCol->type)) {
-      decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
+    if (pExtSchema && (IS_DECIMAL_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_TIMESTAMP)) {
+      extractTypeFromTypeMod(pCol->type, pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale,
+                             NULL);
     }
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
   }
@@ -75,8 +78,9 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
   }
   TAOS_CHECK_EXIT(createDataBlock(&pBlock));
   if (pExtSchema) ++pExtSchema;
-  for (int32_t i = 0; i < numOfCols; ++i) {  // the first timestamp column is not included in targets
-    STargetNode *pTargetNode = (STargetNode *)nodesListGetNode(pTargets, i);
+  SNode* pTargetNode2 = NULL;
+  FOREACH(pTargetNode2, pTargets) {  // the first timestamp column is not included in targets
+    STargetNode *pTargetNode = (STargetNode *)pTargetNode2;
     if (!pTargetNode) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
     }
@@ -94,9 +98,8 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
 
     SColumnInfoData colInfoData =
         createColumnInfoData(pFuncNode->node.resType.type, pFuncNode->node.resType.bytes, pColNode->colId);
-    if (pExtSchema && IS_DECIMAL_TYPE(pColNode->node.resType.type)) {
-      decimalFromTypeMod(pExtSchema[i].typeMod, &colInfoData.info.precision, &colInfoData.info.scale);
-    }
+    colInfoData.info.precision = pFuncNode->node.resType.precision;
+    colInfoData.info.scale = pFuncNode->node.resType.scale;
     TAOS_CHECK_EXIT(blockDataAppendColInfo(pBlock, &colInfoData));
   }
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pBlock, maxBufRows));
@@ -202,8 +205,9 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
     pColNode->node.resType.bytes = pCol->bytes;
     pColNode->node.resType.precision = 0;
     pColNode->node.resType.scale = 0;
-    if (pExtSchema && IS_DECIMAL_TYPE(pCol->type)) {
-      decimalFromTypeMod(pExtSchema[i].typeMod, &pColNode->node.resType.precision, &pColNode->node.resType.scale);
+    if (pExtSchema && (IS_DECIMAL_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_TIMESTAMP)) {
+      extractTypeFromTypeMod(pCol->type, pExtSchema[i].typeMod, &pColNode->node.resType.precision,
+                             &pColNode->node.resType.scale, NULL);
     }
 
     pColNode->colId = pCol->colId;
@@ -233,17 +237,24 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
       TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pPrimaryKeyColNode));
       pPrimaryKeyColNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
       pPrimaryKeyColNode->node.resType.bytes = sizeof(int64_t);
+      pPrimaryKeyColNode->node.resType.precision = precision;
       pPrimaryKeyColNode->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
       pPrimaryKeyColNode->colType = COLUMN_TYPE_COLUMN;
       pPrimaryKeyColNode->slotId = 0;  // put the timestamp column at the 1st position
       // (void)snprintf(pPrimaryKeyColNode->tableName, TSDB_TABLE_NAME_LEN, "%s", pRSchema->tbName);
-      (void)snprintf(pFuncNode->functionName, TSDB_FUNC_NAME_LEN, "%s", pFuncNode->functionName);
       TAOS_CHECK_EXIT(nodesListMakeAppend(&pFuncNode->pParameterList, (SNode *)pPrimaryKeyColNode));
       pPrimaryKeyColNode = NULL;
       if (hasPk) {
         TAOS_CHECK_EXIT(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&pCompositeKeyColNode));
         pCompositeKeyColNode->node.resType.type = pTSchema->columns[1].type;
         pCompositeKeyColNode->node.resType.bytes = pTSchema->columns[1].bytes;
+        if (pExtSchema &&
+            (IS_DECIMAL_TYPE(pCompositeKeyColNode->node.resType.type) ||
+             pCompositeKeyColNode->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP)) {
+          extractTypeFromTypeMod(pCompositeKeyColNode->node.resType.type, pExtSchema[1].typeMod,
+                                 &pCompositeKeyColNode->node.resType.precision,
+                                 &pCompositeKeyColNode->node.resType.scale, NULL);
+        }
         pCompositeKeyColNode->colId = pTSchema->columns[1].colId;
         pCompositeKeyColNode->colType = COLUMN_TYPE_COLUMN;
         pCompositeKeyColNode->slotId = 1;
@@ -285,7 +296,9 @@ int32_t tdRollupCtxInit(SRollupCtx *pCtx, SRSchema *pRSchema, int8_t precision, 
   pResultRow = doSetResultOutBufByKey(pAggSup->pResultBuf, pResultRowInfo, (char *)&groupId, sizeof(groupId), true,
                                       groupId, pTaskInfo, false, pAggSup, true);
   if (pResultRow == NULL || pTaskInfo->code != 0) {
-    TAOS_CHECK_EXIT(pTaskInfo->code);
+    code = pTaskInfo->code != TSDB_CODE_SUCCESS ? pTaskInfo->code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
   }
   pCtx->resultRow = pResultRow;
   int32_t rowSize = pAggSup->resultRowSize;

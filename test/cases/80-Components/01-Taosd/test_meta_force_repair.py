@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -18,6 +22,7 @@ import time
 from datetime import datetime
 import shlex
 import subprocess
+import tempfile
 
 
 class TestMetaForceRepair:
@@ -49,7 +54,7 @@ class TestMetaForceRepair:
 
     def _run_taosd(self, args):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path] + shlex.split(args)
+        cmd = [bin_path] + self._repair_arguments(args)
         tdLog.info("run cmd: %s" % " ".join(cmd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")
@@ -84,6 +89,19 @@ class TestMetaForceRepair:
 
     def _get_cfg_dir(self):
         return tdDnodes.dnodes[0].cfgDir
+
+    def _repair_arguments(self, args):
+        arguments = shlex.split(args)
+        if os.name == 'nt':
+            # Log routing is a Linux CLI option; these tests exercise repair.
+            while '--log-output' in arguments:
+                index = arguments.index('--log-output')
+                del arguments[index:index + 2]
+        return arguments
+
+    def _default_backup_root(self):
+        # Match TD_TMP_DIR_PATH in include/os/osDir.h.
+        return 'C:/Windows/Temp' if os.name == 'nt' else '/tmp'
 
     def _get_primary_data_dir(self):
         data_dir = tdDnodes.dnodes[0].dataDir
@@ -130,7 +148,7 @@ class TestMetaForceRepair:
 
     def _start_repair_process(self, args):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path, "-c", self._get_cfg_dir()] + shlex.split(args)
+        cmd = [bin_path, "-c", self._get_cfg_dir()] + self._repair_arguments(args)
         tdLog.info("run repair cmd: %s" % " ".join(cmd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")
@@ -139,30 +157,38 @@ class TestMetaForceRepair:
                 "detect_leaks=0" if not asan_options else asan_options + ":detect_leaks=0"
             )
         env.setdefault("LSAN_OPTIONS", "detect_leaks=0")
-        return subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            encoding="utf-8",
-            env=env,
-        )
+        # Repair stays alive while paths are inspected. A PIPE can fill before
+        # repair creates its backup, especially with Windows console logging.
+        output_file = tempfile.TemporaryFile(mode="w+b")
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=output_file,
+                stderr=subprocess.STDOUT,
+                env=env,
+            )
+        except BaseException:
+            output_file.close()
+            raise
+        proc._repair_output_file = output_file
+        return proc
 
     def _stop_repair_process(self, proc):
-        if proc.poll() is not None:
-            output = proc.stdout.read() if proc.stdout else ""
-            tdLog.info("repair proc exited early: %s" % output[:500].replace("\n", "\\n"))
-            return
-
-        proc.terminate()
+        output_file = proc._repair_output_file
         try:
-            proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=10)
-
-        output = proc.stdout.read() if proc.stdout else ""
-        tdLog.info("repair proc output=%s" % output[:500].replace("\n", "\\n"))
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+            output_file.seek(0)
+            output = output_file.read().decode("utf-8", errors="replace")
+            tdLog.info("repair proc returncode=%s output=%s" % (
+                proc.returncode, output[-4000:].replace("\n", "\\n")))
+        finally:
+            output_file.close()
 
     def _wait_for_path(self, path, timeout_sec=20):
         deadline = time.time() + timeout_sec
@@ -189,7 +215,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         cases = [
             ("default_strategy", f"-r --mode force --node-type vnode --repair-target {self._meta_target(3)} -V", 0, "version"),
@@ -219,7 +245,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = "meta_repair_real"
@@ -269,7 +295,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = f"meta_repair_exists_{int(time.time())}"
@@ -295,7 +321,7 @@ class TestMetaForceRepair:
             tdDnodes.stop(1)
             time.sleep(2)
             code, output = self._run_taosd(
-                f"-c {self._get_cfg_dir()} -r --mode force --node-type vnode "
+                f"-c {shlex.quote(self._get_cfg_dir())} -r --mode force --node-type vnode "
                 f"--backup-path {backup_root} --repair-target {self._meta_target(vnode_id)} --log-output stdout"
             )
         finally:
@@ -317,7 +343,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = f"meta_repair_default_{int(time.time())}"
@@ -331,11 +357,11 @@ class TestMetaForceRepair:
         vnode_id = self._get_vnode_id_for_db(dbname)
         date_str = datetime.now().strftime("%Y%m%d")
         expected_backup_dir = os.path.join(
-            "/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}", "meta"
+            self._default_backup_root(), f"taos_backup_{date_str}", f"vnode{vnode_id}", "meta"
         )
 
         if os.path.exists(expected_backup_dir):
-            shutil.rmtree(os.path.join("/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}"))
+            shutil.rmtree(os.path.join(self._default_backup_root(), f"taos_backup_{date_str}", f"vnode{vnode_id}"))
 
         proc = None
         try:
@@ -353,6 +379,6 @@ class TestMetaForceRepair:
             tdDnodes.start(1)
             time.sleep(2)
             tdSql.query("select * from information_schema.ins_databases")
-            vnode_backup_root = os.path.join("/tmp", f"taos_backup_{date_str}", f"vnode{vnode_id}")
+            vnode_backup_root = os.path.join(self._default_backup_root(), f"taos_backup_{date_str}", f"vnode{vnode_id}")
             if os.path.exists(vnode_backup_root):
                 shutil.rmtree(vnode_backup_root)

@@ -1,0 +1,193 @@
+
+taos> use correlated_scalar_positions;
+Database changed.
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select max(t.lim) from thresholds t where t.device = r.device) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select max(t.lim) from thresholds t where t.device = r.device ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select count(*) from thresholds t where t.device = r.device ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select count(*) from thresholds t where t.lim < sum(r.v) ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select min(t.lim) from thresholds t where t.device = r.device ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select sum(t.lim) from thresholds t where t.device = r.device ) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) order by r.device;
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select count(*) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) order by r.device;
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) from thresholds m limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select max(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select count(*) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select min(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select sum(t.lim) from thresholds t where t.lim < sum(r.v) ) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+
+taos> select r.device, sum(r.v) as total from readings r group by r.device having sum(r.v) > (select (select (select t.lim from thresholds t where t.lim < sum(r.v) order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) order by r.device;
+   device   |         total         |
+=====================================
+ d1         |                    30 |
+ d2         |                    30 |
+ d3         |                    40 |
+

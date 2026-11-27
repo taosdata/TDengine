@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import pytest,os,platform,time
 
 from new_test_framework.utils import (
@@ -91,13 +106,16 @@ class TestCompatibilityRollingUpgradeAll:
 
         Since: v3.3.7.0
 
-        Labels: common, ci
+        Labels: common,ci,integration,functional,compatibility
 
         Jira: None
 
         History:
             - 2025-07-23 Beryl migrated from system-test/0-others/compatibility_rolling_upgrade_all.py
             - Note: Maintains original cb.* calls but adapted for pytest framework
+            - 2026-11-18 AlexDuan Select the baseline like test-compat-upgrade's hot stage (lowest published
+              version in the same patch group); skip when the group has no package, fail when a
+              resolved baseline cannot be prepared
 
         """
 
@@ -111,21 +129,30 @@ class TestCompatibilityRollingUpgradeAll:
         tdSql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdSql.queryResult[0][0]
         tdLog.info(f"Now server version is {nowServerVersion}")
-        # get the last big version
-        lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
+        # Same rule as test-compat-upgrade's hot stage: roll inside one patch
+        # group, from its lowest published package.  A group without a published
+        # package skips; it must not fall through to a green run that never
+        # upgraded anything.
+        lastBigVersion = tdCb.resolveRollingUpgradeBaseline(nowServerVersion)
+        if lastBigVersion is None:
+            patchGroup = ".".join(nowServerVersion.split(".")[:3])
+            pytest.skip(f"no published {patchGroup}.* enterprise package for rolling upgrade")
         tdLog.info(f"Last big version is {lastBigVersion}")
 
         bPath = tdCom.getBuildPath()
         cPaths = self.getDnodePaths()
         
         # Stop all dnodes
-        tdCb.killAllDnodes()
+        tdCb.stopTaosdCompletely()
         
         # Install old version for rolling upgrade
         baseVersionExist = tdCb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
         if not baseVersionExist:
-            tdLog.info(f"Base version {lastBigVersion} does not exist")
-            
+            # The baseline was resolved to a published package above, so this is
+            # a real prepare/download failure - not a group without a package.
+            # Never fall through to a green run that upgraded nothing.
+            pytest.fail(f"Base version {lastBigVersion} could not be prepared")
+
         if baseVersionExist:
             # Create dnodes
             tdSql.execute(f"CREATE DNODE '{hostname}:6130'")

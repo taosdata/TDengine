@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,12 +16,16 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+#include "tanalytics.h"
+#include "ttypes.h"
+#include "tjson.h"
+#include "tglobal.h"
+#include "tutil.h"
 #include "mndAnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "tanalytics.h"
-#include "tjson.h"
 
 #ifdef USE_ANALYTICS
 
@@ -322,6 +328,16 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   if (anodeObj.url == NULL) goto _OVER;
   (void)memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
 
+  if (strncasecmp(anodeObj.url, "http://", 7) != 0 && strncasecmp(anodeObj.url, "https://", 8) != 0) {
+    code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    goto _OVER;
+  }
+
+  if (!tsAnodeAllowInternalUrl && taosIsPrivateUrl(anodeObj.url)) {
+    code = TSDB_CODE_MND_ANODE_BLOCKED_URL;
+    goto _OVER;
+  }
+
   code = mndGetAnodeAlgoList(anodeObj.url, &anodeObj);
   if (code != 0) goto _OVER;
 
@@ -375,7 +391,8 @@ static int32_t mndProcessCreateAnodeReq(SRpcMsg *pReq) {
   SAnodeObj       *pObj = NULL;
   SMCreateAnodeReq createReq = {0};
 
-  if ((code = grantCheck(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
+  // Only the anode count limit applies: an expired license must not block deploying TDgpt.
+  if ((code = grantCheck(TSDB_GRANT_TD_GPT_NUM)) != TSDB_CODE_SUCCESS) {
     mError("failed to create anode, code:%s", tstrerror(code));
     goto _OVER;
   }
@@ -468,11 +485,6 @@ static int32_t mndProcessUpdateAnodeReq(SRpcMsg *pReq) {
   int32_t          code = -1;
   SAnodeObj       *pObj = NULL;
   SMUpdateAnodeReq updateReq = {0};
-
-  if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
-    mError("failed to update anode, grant expired, code:%s", tstrerror(code));
-    goto _OVER;
-  }
 
   TAOS_CHECK_GOTO(tDeserializeSMUpdateAnodeReq(pReq->pCont, pReq->contLen, &updateReq), NULL, _OVER);
   TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_UPDATE_ANODE), NULL, _OVER);
@@ -602,12 +614,6 @@ static int32_t mndRetrieveAnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   char       buf[TSDB_ANALYTIC_ANODE_URL_LEN + VARSTR_HEADER_SIZE];
   char       status[64];
   int32_t    code = 0;
-
-  code = grantCheckExpire(TSDB_GRANT_TD_GPT);
-  if (code != 0) {
-    mError("TDgpt/anode grant expired");
-    return numOfRows;
-  }
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
@@ -755,18 +761,34 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
   char       buf[TSDB_ANALYTIC_ALGO_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
   int32_t    code = 0;
 
-  if ((code = grantCheckExpire(TSDB_GRANT_TD_GPT)) != TSDB_CODE_SUCCESS) {
-    mError("failed to retrieve anodes info, grant expired, code:%s", tstrerror(code));
-    return numOfRows;
-  }
-
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_ANODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL || pObj == NULL) {
       break;
     }
 
-    code = updateModelStatus(pObj);
+    // Keep the status failure out of code: code decides whether the row object is still held
+    // for the _end release below, and a failed refresh must not abort the whole retrieve.
+    int32_t statusCode = updateModelStatus(pObj);
+    if (statusCode != 0) {
+      mError("anode:%d, failed to update model status since %s", pObj->id, tstrerror(statusCode));
+    }
+
+    int32_t totalAlgos = 0;
+    for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
+      if (pObj->algos[t] != NULL) {
+        totalAlgos += (int32_t)taosArrayGetSize(pObj->algos[t]);
+      }
+    }
+
+    if (totalAlgos > 0) {
+      pBlock->info.rows = numOfRows;
+      code = blockDataEnsureCapacity(pBlock, numOfRows + totalAlgos);
+      if (code != 0) {
+        mError("anode:%d, failed to ensure block data capacity since %s", pObj->id, tstrerror(code));
+        break;
+      }
+    }
 
     for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
       SArray *algos = pObj->algos[t];
@@ -780,25 +802,25 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         if (code != 0) goto _end;
 
         // type
-        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, taosAnalysisAlgoType(t), sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // name
-        STR_TO_VARSTR(buf, algo->name);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->name, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // status
-        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // note
-        STR_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
@@ -835,6 +857,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
   code = tjsonGetDoubleValue(pJson, "version", &tmp);
   pObj->version = (int32_t)(tmp * 1000);
+
 #if 0
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   if (pObj->version <= 0) return TSDB_CODE_MND_ANODE_INVALID_VERSION;
@@ -859,10 +882,11 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
     code = tjsonGetStringValue2(detail, "type", buf, tListLen(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    EAnalyAlgoType type = taosAnalyAlgoInt(buf);
 
+    EAnalyAlgoType type = taosAnalyAlgoInt(buf);
     if (type < ANALY_ALGO_TYPE_ANOMALY_DETECT || type >= ANALY_ALGO_TYPE_END) {
-      return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+      mError("invalid algo type:%s for detail index:%d, discard and continue", buf, d);
+      continue;
     }
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");
@@ -1040,8 +1064,12 @@ _OVER:
 
 #else
 
-static int32_t mndProcessUnsupportReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+static int32_t mndProcessUnsupportReq(SRpcMsg *pReq) {
+  mError("failed to process unsupported req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 static int32_t mndRetrieveUnsupport(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  mError("failed to retrieve unsupported data since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

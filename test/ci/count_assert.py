@@ -1,6 +1,24 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import re
-from loguru import logger
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # List of source directories to search
 
@@ -84,6 +102,8 @@ def check_list_result(result_list,detaild_list):
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(float) == sizeof(uint32_t));",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(*pgno > 0 && *pgno <= pBt->pPager->dbFileSize, \"corrupted free pgno:%u, db file size:%u.\", *pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(next == 0 || (next <= pBt->pPager->dbFileSize && next != *pgno), \"corrupted next pgno:%u, self:%u, db file size:%u.\", next, *pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno != 0 && pgno <= pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE((vLeft == 0) || (pgno > 0 && pgno <= pBt->pPager->dbFileSize), \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno > 0 && pgno <= pBtc->pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBtc->pBt->pPager->dbFileSize);",
@@ -95,7 +115,7 @@ def check_list_result(result_list,detaild_list):
     expected_strings = [
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
         f"Total matches in {TD_project_path}/community/include/util/types.h:2",
-        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:12",
+        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:14",
         f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:2",
         f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:4"
         ]

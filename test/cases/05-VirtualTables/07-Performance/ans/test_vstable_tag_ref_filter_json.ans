@@ -1,0 +1,29 @@
+
+taos> USE vt_tag_filter_idmp;
+Database changed.
+
+taos> CREATE STABLE vt_tag_filter_source.json_src (ts TIMESTAMP, v INT) TAGS (j JSON);
+Create OK, 0 row(s) affected 
+
+taos> CREATE TABLE vt_tag_filter_source.json_data USING vt_tag_filter_source.json_src TAGS ('{"k":7}');
+Create OK, 0 row(s) affected 
+
+taos> INSERT INTO vt_tag_filter_source.json_data VALUES (1700000000000, 1);
+Insert OK, 1 row(s) affected 
+
+taos> CREATE STABLE json_vst (ts TIMESTAMP, v INT) TAGS (j JSON) VIRTUAL 1;
+Create OK, 0 row(s) affected 
+
+taos> CREATE VTABLE json_owned (v FROM vt_tag_filter_source.json_data.v) USING json_vst TAGS ('{"k":7}');
+Create OK, 0 row(s) affected 
+
+taos> SELECT DISTINCT tbname, j FROM json_vst ORDER BY tbname;
+             tbname             |               j                |
+==================================================================
+ json_owned                     | {"k":7}                        |
+
+taos> SELECT DISTINCT tbname FROM json_vst WHERE j->'k' = 7 ORDER BY tbname;
+             tbname             |
+=================================
+ json_owned                     |
+

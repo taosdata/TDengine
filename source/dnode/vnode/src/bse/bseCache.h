@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -64,6 +66,7 @@ typedef struct {
 int32_t blockCacheOpen(int32_t cap, CacheFreeFn fn, SBlockCache **p);
 int32_t blockCacheGet(SBlockCache *p, SSeqRange *key, void **pBlock);
 int32_t blockCachePut(SBlockCache *p, SSeqRange *key, void *pBlock);
+int32_t blockCachePutRef(SBlockCache *p, SSeqRange *key, void *pBlock, SCacheItem **ppItem);
 int32_t blockCacheRemove(SBlockCache *p, SSeqRange *key);
 void    blockCacheClose(SBlockCache *p);
 int32_t blockCacheClear(SBlockCache *p);

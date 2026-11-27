@@ -4,6 +4,14 @@
 
 This guide covers installation and usage of TDGPT on both Linux and Windows platforms.
 
+## Persistent user Python algorithms
+
+No manual configuration is required for a normal installation. The installer creates the default algorithm directory with `ad/`, `fc/`, `classification/`, `regression/` and `batch/`. Set `custom_algo_dir` only when choosing another persistent location. By default it follows `<data_dir>/custom`; changing `data_dir` does not require a separate algorithm path change. Move the existing data as part of relocating the data directory. The default is `/var/lib/taos/taosanode/custom` on Linux/Docker and `<install-directory>/data/custom` on Windows. Docker also supports the `TDGPT_CUSTOM_ALGO_DIR` environment override; bind-mount the host directory at that container path. Restart the main service after changing Python files. Plugins run in the main venv, separately from the official TSFM model runtime.
+
+`batch/` holds batch envelope algorithms used by `/api/v1/analysis/batch` (also `/tool/batch`). A module defines a class whose name starts with an underscore and exposes `name` plus `build(ts, values, windows, params)`, returning the `center`, `lower` and `upper` curves. An optional sidecar `<module>.json` declares a version and the accepted parameters; without it the request parameters are forwarded unvalidated. `GET /api/v1/analysis/batch/algos` lists the built-in `golden` pipeline together with the user algorithms. See [user-defined batch envelope algorithms](packaging/TDGPT-CUSTOM-BATCH-ALGORITHM-CN.md) for the development steps, parameter declarations and request examples.
+
+Installers migrate legacy `lib/taosanalytics/algo/custom` files with a backup, refuse conflicting files, and retire the old directory after verification. Backups and migration records are kept separately; later upgrades do not restore plugins removed from the new directory. Upgrade and default uninstall preserve the new directory. Before replacing an existing Docker container, export any unmounted legacy plugins and mount the persistent directory; do not delete the old container first. See the [Lite design](packaging/TDGPT-LITE-DESIGN-CN.md) for the complete directory and upgrade contract.
+
 ## Table of Contents
 
 - [System Requirements](#system-requirements)
@@ -21,12 +29,13 @@ This guide covers installation and usage of TDGPT on both Linux and Windows plat
 
 ### Supported Platforms
 
-- **Linux**: Ubuntu 18.04+, CentOS 7+, or other Linux distributions
+- **Linux Lite / shared TSFM runtime (x64 and ARM64)**: glibc 2.28 or later, for example Ubuntu 20.04+ or Debian 10+. Ubuntu 18.04 and CentOS 7 are below this baseline. Check the target host with `getconf GNU_LIBC_VERSION` before deployment.
 - **Windows**: Windows Server 2016+ or Windows 10/11
 
 ### Python Version
 
-- Python 3.10, 3.11, or 3.12 (required)
+- Source/online installation: Python 3.11 or 3.12.
+- This Lite offline release uses the supplied Python 3.12.16 runtime, Lite main venv 1.0.4, and optional shared TSFM runtime 1.0.1. Install TSFM separately; upgrading the product does not automatically replace an existing model runtime. Use the matching release manifest and SHA-256 values.
 
 ### Hardware Requirements
 
@@ -48,15 +57,15 @@ This guide covers installation and usage of TDGPT on both Linux and Windows plat
 
 ### Prerequisites
 
-1. Install Python 3.10+ (if not already installed):
+1. Install Python 3.11+ (if not already installed):
 
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install python3.10 python3.10-venv python3.10-dev
+sudo apt-get install python3.11 python3.11-venv python3.11-dev
 
 # CentOS/RHEL
-sudo yum install python310 python310-devel
+sudo yum install python311 python311-devel
 ```
 
 2. Ensure you have sudo privileges for system-wide installation.
@@ -76,12 +85,21 @@ cd tdgpt-linux-x.x.x
 # Standard installation
 bash install.sh
 
-# Offline installation (if wheels are included)
-bash install.sh -o
-
 # Custom installation directory
 bash install.sh -d /opt/tdgpt
 ```
+
+`-o` currently only sets an offline flag; the script does not use that flag to control main venv reinstallation. In system-python mode, pip installation may still run. An existing offline-resource installation rejects an invocation without offline resource parameters. Do not use `-o` alone for an offline upgrade.
+
+**Lite offline installation or upgrade**: verify and extract the supplied Python 3.12.16 runtime to a stable directory, then explicitly provide the matching Lite main venv 1.0.4 archive. For Linux x64, run this from the extracted Lite product directory, replacing the paths with the actual deployment paths:
+
+```bash
+sudo bash install.sh \
+  --python-home /opt/tdgpt-deps/python-runtime-3.12.16 \
+  --venv-package /opt/tdgpt-offline/tdengine-tdgpt-lite-venv-1.0.4-linux-x64.tar.xz
+```
+
+Use the `linux-arm64` archive on ARM64. Before upgrading, record configuration, resource versions, and running models, then stop all model workers and the main service in a maintenance window. Keep any Python directory referenced by the old TSFM runtime until that runtime is explicitly replaced. The main venv and TSFM are managed separately; this command does not automatically upgrade an installed shared TSFM runtime. For TSFM 1.0.1, follow the [upgrade sequence](packaging/TDGPT-LITE-DESIGN-CN.md#723-下一版产品与已有动态资源的升级顺序发布方案): stop workers, explicitly replace the runtime, verify it, and resume the previous models. Do not use `-a` as a substitute for the independent Lite TSFM resource upgrade.
 
 3. **Verify installation**:
 
@@ -152,7 +170,7 @@ sudo systemctl disable taosanode
 
 ### Prerequisites
 
-1. **Install Python 3.10+**:
+1. **Install Python 3.11+**:
    - Download from [python.org](https://www.python.org/downloads/)
    - During installation, check "Add Python to PATH"
    - Verify installation: `python --version`
@@ -366,17 +384,17 @@ model_dir = 'c:/TDengine/taosanode/model/'  # Windows
 # Model definitions
 models = {
     "tdtsfm": {
-        "script": "tdtsfm-server.py",
+        "script": "tdtsfm_server.py",
         "port": 6061,
         "required": True,  # Must exist
     },
     "timemoe": {
-        "script": "timemoe-server.py",
+        "script": "timemoe_server.py",
         "port": 6062,
         "required": True,  # Must exist
     },
     "chronos": {
-        "script": "chronos-server.py",
+        "script": "chronos_server.py",
         "port": 6063,
         "required": False,  # Optional
     },

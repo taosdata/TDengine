@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -89,8 +91,8 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
 
   tdbTrace("tdb/page-destroy: %p/%d %p", pPage, pPage->id, xFree);
 
-  if (pPage->isDirty) {
-    tdbError("tdb/page-destroy: dirty page: %" PRIu8 ".", pPage->isDirty);
+  if (tdbPageGetFlag(pPage, PAGE_FLAG_DIRTY)) {
+    tdbError("tdb/page-destroy: dirty page: %p", pPage);
     return;
   }
 

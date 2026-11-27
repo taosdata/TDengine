@@ -1,5 +1,20 @@
 #!/bin/bash
-# set -x
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 function usage() {
     echo "$0"
     echo -e "\t -m vm config file"
@@ -261,8 +276,16 @@ function transfer_debug_dirs() {
         i=$((i + 1))
     done
 
-    cd "$local_work_dir"
+    cd "$local_work_dir" || return 1
     rm -rf debug.tar.gz
+    # Oracle runtimes live outside build/lib; keep their relative layout.
+    local runtime_dirs=()
+    local runtime_dir
+    for runtime_dir in debugSan/build/driver debugNoSan/build/driver; do
+        if [ -d "$runtime_dir" ]; then
+            runtime_dirs+=("$runtime_dir")
+        fi
+    done
     tar -czf debug.tar.gz \
         debugSan/build/bin/taos* \
         debugSan/build/bin/tmq_* \
@@ -271,7 +294,7 @@ function transfer_debug_dirs() {
         debugSan/build/bin/replay_test \
         debugSan/build/bin/varbinary_test \
         debugSan/build/bin/write_raw_block_test \
-        debugSan/build/lib/*.so \
+        debugSan/build/lib/*.so* \
         debugSan/build/share \
         debugSan/build/include \
         debugNoSan/build/bin/taos* \
@@ -281,9 +304,10 @@ function transfer_debug_dirs() {
         debugNoSan/build/bin/replay_test \
         debugNoSan/build/bin/varbinary_test \
         debugNoSan/build/bin/write_raw_block_test \
-        debugNoSan/build/lib/*.so \
+        debugNoSan/build/lib/*.so* \
         debugNoSan/build/share \
-        debugNoSan/build/include
+        debugNoSan/build/include \
+        "${runtime_dirs[@]}"
 
     local index=0
     while [ $index -lt ${#hosts[*]} ]; do

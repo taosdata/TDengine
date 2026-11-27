@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "vnd.h"
+#include "tdTestSeam.h"
 #include "vnodeHash.h"
 
 typedef struct SVAsync    SVAsync;
@@ -220,6 +223,7 @@ static void *vnodeAsyncLoop(void *arg) {
   }
 
   setThreadName(async->label);
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   for (;;) {
     (void)taosThreadMutexLock(&async->mutex);
@@ -500,6 +504,8 @@ void vnodeAsyncClose() {
 
 int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *), void *arg,
                    SVATaskID *taskID) {
+  TD_SEAM_RET(vnodeAsync, int32_t (*)(int64_t, EVAPriority, int32_t (*)(void *), void (*)(void *), void *, SVATaskID *),
+              (async, priority, execute, complete, arg, taskID));
   SVAChannelID channelID = {
       .async = async,
       .id = 0,
@@ -871,4 +877,21 @@ bool vnodeATaskValid(SVATaskID *taskID) {
   (void)taosThreadMutexUnlock(&async->mutex);
 
   return ret == 0 && task != NULL;
+}
+
+bool vnodeAsyncHasQueuedTask(int64_t asyncID) {
+  if (asyncID < MIN_ASYNC_ID || asyncID > MAX_ASYNC_ID) return false;
+
+  SVAsync *async = GVnodeAsyncs[asyncID].async;
+  if (async == NULL) return false;
+
+  bool hasQueued = false;
+  (void)taosThreadMutexLock(&async->mutex);
+  // Tasks in queue = total tasks minus running tasks.
+  // Running tasks = launched workers - idle workers.
+  int32_t runningWorkers = async->numLaunchWorkers - async->numIdleWorkers;
+  hasQueued = (async->numTasks > runningWorkers);
+  (void)taosThreadMutexUnlock(&async->mutex);
+
+  return hasQueued;
 }

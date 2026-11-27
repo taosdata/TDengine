@@ -1,9 +1,24 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import time
 import platform
 import subprocess
 
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom
 from new_test_framework.utils.pathFinding import find_proj_path
 
 
@@ -57,17 +72,11 @@ class TestStreamUdfInWhere:
         projPath = find_proj_path(selfPath)
 
         if platform.system().lower() == "windows":
-            cmd = (
-                '(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'
-                % projPath
-            )
+            self.libudf1 = os.path.join(tdCom.getBuildPath(), "build", "bin", "udf1.dll").replace("\\", "/")
         else:
             cmd = 'find %s -name "libudf1.so" | grep lib | head -n1' % projPath
-
-        result = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        ).stdout.read().decode("utf-8")
-        self.libudf1 = result.replace("\r", "").replace("\n", "")
+            result = subprocess.check_output(cmd, shell=True).decode("utf-8")
+            self.libudf1 = result.strip()
         if not self.libudf1 or not os.path.isfile(self.libudf1):
             raise Exception(f"libudf1.so not found under {projPath}")
         tdLog.info(f"using udf lib: {self.libudf1}")

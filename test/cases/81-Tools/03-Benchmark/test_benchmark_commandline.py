@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 import os
@@ -293,61 +297,22 @@ class TestBenchmarkCommandline:
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 4000)
 
-        cmd = "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l" % binPath
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 2:
-            tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
-
-        cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 2>&1 | grep sleep | wc -l" % binPath
-        )
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 3:
-            tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
-
-        cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I sml 2>&1 | grep sleep | wc -l"
-            % binPath
-        )
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 2:
-            tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
-
-        cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I sml 2>&1 | grep sleep | wc -l"
-            % binPath
-        )
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 3:
-            tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
-
-        cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -I stmt 2>&1 | grep sleep | wc -l"
-            % binPath
-        )
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 2:
-            tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
-
-        cmd = (
-            "%s -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 -I stmt 2>&1 | grep sleep | wc -l"
-            % binPath
-        )
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if int(sleepTimes) != 3:
-            tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
+        # Count matching lines in Python so Windows needs no Unix shell tools.
+        for interface in (None, "sml", "stmt"):
+            for retry, expected in ((False, 2), (True, 3)):
+                command = [binPath, "-n", "3", "-t", "3", "-B", "2", "-i", "1",
+                           "-G", "-y", "-T", "1"]
+                if retry:
+                    command.extend(["-r", "1"])
+                if interface is not None:
+                    command.extend(["-I", interface])
+                tdLog.info("%s" % command)
+                output = subprocess.check_output(
+                    command, stderr=subprocess.STDOUT, timeout=1800)
+                tdLog.info(output.decode("utf-8", errors="replace"))
+                sleepTimes = sum(b"sleep" in line for line in output.splitlines())
+                if sleepTimes != expected:
+                    tdLog.exit("expected sleep times %d, actual %d" % (expected, sleepTimes))
 
         cmd = "%s -S 17 -n 3 -t 1 -y -x" % binPath
         tdLog.info("%s" % cmd)
@@ -566,7 +531,7 @@ class TestBenchmarkCommandline:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -680,7 +645,7 @@ class TestBenchmarkCommandline:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

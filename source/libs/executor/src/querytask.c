@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "query.h"
 #include "querynodes.h"
 #include "tfill.h"
 #include "tname.h"
@@ -30,6 +33,7 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "tconv.h"
 #include "storageapi.h"
 #include "thash.h"
 #include "ttypes.h"
@@ -86,6 +90,19 @@ int32_t getTaskCode(void* pTaskInfo) { return ((SExecTaskInfo*)pTaskInfo)->code;
 
 bool isTaskKilled(void* pTaskInfo) { return (0 != ((SExecTaskInfo*)pTaskInfo)->code); }
 
+const char* qGetExtErrMsg(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) return NULL;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo->extErrMsg[0] == '\0') return NULL;
+  return pTaskInfo->extErrMsg;
+}
+
+const SExtPushdownDiagnostic* qGetExtPushdownDiagnostic(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) return NULL;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (!pTaskInfo->hasExtPushdownDiag) return NULL;
+  return &pTaskInfo->extPushdownDiag;
+}
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
   (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
@@ -118,6 +135,9 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
   ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
+  if (readHandle != NULL && readHandle->streamRtInfo != NULL) {
+    ctx->streamGen = ((SStreamRuntimeInfo*)readHandle->streamRtInfo)->funcInfo.streamGen;
+  }
 
   *subEndPoints = NULL;
   
@@ -128,6 +148,11 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   }
   
   TAOS_CHECK_EXIT(tsem_init(&ctx->ready, 0, 0));
+
+  if (!ctx->isStream) {
+    ctx->subResCache = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    TSDB_CHECK_NULL(ctx->subResCache, code, lino, _exit, terrno);
+  }
 
   int64_t refId = taosAddRef(fetchObjRefPool, ctx);
   if (refId < 0) {
@@ -157,16 +182,23 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                            int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain) {
   int32_t code = doCreateTask(pPlan->id.queryId, taskId, vgId, model, &pHandle->api, pTaskInfo);
   if (*pTaskInfo == NULL || code != 0) {
+      qError("%s failed at line %d, code:0x%x, error:%s, qid:0x%" PRIx64 ", "
+             "tid:0x%" PRIx64 ", vgId:%d, task:%p",
+             __func__, __LINE__, code, tstrerror(code), pPlan->id.queryId,
+             taskId, vgId, *pTaskInfo);
     nodesDestroyNode((SNode*)pPlan);
     return code;
   }
 
   (*pTaskInfo)->pSubplan = pPlan;
+  (*pTaskInfo)->charsetCxt = pPlan->charsetName[0] ? taosConvInit(pPlan->charsetName) : NULL;
 
   if (NULL != sql) {
     (*pTaskInfo)->sql = taosStrdup(sql);
     if (NULL == (*pTaskInfo)->sql) {
       code = terrno;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, reason:copy sql",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo));
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
@@ -174,12 +206,23 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   }
 
   (*pTaskInfo)->pWorkerCb = pHandle->pWorkerCb;
+  (*pTaskInfo)->pMsgCb = pHandle->pMsgCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
+  (*pTaskInfo)->txnId = pHandle->txnId;
+  if (NULL != pHandle->pCorrelationSession && NULL != pHandle->pMsgCb &&
+      NULL != pHandle->pMsgCb->pCorrelationOps) {
+    (*pTaskInfo)->pCorrelationOps = pHandle->pMsgCb->pCorrelationOps;
+    (*pTaskInfo)->pCorrelationSession = pHandle->pCorrelationSession;
+    (*pTaskInfo)->pCorrelationOps->retainTaskSession((*pTaskInfo)->pCorrelationSession);
+  }
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
     if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, "
+             "reason:initTaskSubJobCtx",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo));
       doDestroyTask(*pTaskInfo);
       (*pTaskInfo) = NULL;
       return code;
@@ -192,6 +235,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
                         pPlan->dbFName, &((*pTaskInfo)->pRoot), model);
 
   if (NULL == (*pTaskInfo)->pRoot || code != 0) {
+    int32_t phyNodeType = (pPlan && pPlan->pNode) ? nodeType(pPlan->pNode) : -1;
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, root:%p, "
+             "phyNodeType:%d, qid:0x%" PRIx64 ", tid:0x%" PRIx64 ", vgId:%d",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(*pTaskInfo),
+             (*pTaskInfo)->pRoot, phyNodeType,
+           pPlan->id.queryId, taskId, vgId);
     doDestroyTask(*pTaskInfo);
     (*pTaskInfo) = NULL;
   }
@@ -216,7 +265,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
 
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
   int32_t code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,
@@ -297,8 +346,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
+  SNode* pScanColNode = NULL;
+  FOREACH(pScanColNode, pScanNode->pScanCols) {
+    STargetNode* pNode = (STargetNode*)pScanColNode;
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
     SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
@@ -309,8 +359,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   }
 
   // this the tags and pseudo function columns, we only keep the tag columns
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanPseudoCols, i);
+  SNode* pScanPseudoColNode = NULL;
+  FOREACH(pScanPseudoColNode, pScanNode->pScanPseudoCols) {
+    STargetNode* pNode = (STargetNode*)pScanPseudoColNode;
 
     int32_t type = nodeType(pNode->pExpr);
     if (type == QUERY_NODE_COLUMN) {
@@ -339,14 +390,13 @@ static void freeBlock(void* pParam) {
 
 
 void destroySubJobCtx(STaskSubJobCtx* pCtx) {
-  if (pCtx->transporterId > 0) {
-    int32_t ret = asyncFreeConnById(pCtx->rpcHandle, pCtx->transporterId);
-    if (ret != 0) {
-      qDebug("%s failed to free subQ rpc handle, code:%s", pCtx->idStr, tstrerror(ret));
-    }
-    pCtx->transporterId = -1;
+  if (pCtx == NULL) {
+    return;
   }
 
+  // Transport handles are owned by the individual fetch requests (see SScalarFetchParam), so the
+  // context no longer tracks or releases a shared handle here. Releasing whatever handle was the
+  // latest would risk dropping another in-flight fetch of the same sub-job.
   if (pCtx->subEndPoints != NULL) {
     size_t size = taosArrayGetSize(pCtx->subEndPoints);
     if (size > 0) {
@@ -354,7 +404,6 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       }
-      taosArrayDestroy(pCtx->subResNodes);
     }
     if (pCtx->isStream) {
       taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
@@ -364,13 +413,17 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     pCtx->subEndPoints = NULL;
   }
   
-  taosMemoryFreeClear(pCtx);  
+  taosArrayDestroy(pCtx->subResNodes);
+  taosArrayDestroyP(pCtx->subResCache, (FDelete)nodesDestroyNode);
+  taosMemoryFreeClear(pCtx);
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+  qFinishReaderGroupRead(pTaskInfo);
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
+  qClearReaderTableRanges(pTaskInfo);
 
   if (pTaskInfo->pSubJobCtx) {
     int32_t  code = taosRemoveRef(fetchObjRefPool, pTaskInfo->pSubJobCtx->subJobRefId);
@@ -405,6 +458,12 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     tDestroyStRtFuncInfo(pRt);
     taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
   }
+  if (NULL != pTaskInfo->pCorrelationSession && NULL != pTaskInfo->pCorrelationOps) {
+    pTaskInfo->pCorrelationOps->closeTaskSession(pTaskInfo->pCorrelationSession, pTaskInfo->code);
+    pTaskInfo->pCorrelationOps->releaseTaskSession(pTaskInfo->pCorrelationSession);
+    pTaskInfo->pCorrelationSession = NULL;
+  }
+  taosArrayDestroy(pTaskInfo->pCorrelationStats);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

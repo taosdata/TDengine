@@ -1,26 +1,43 @@
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool
 from new_test_framework.utils.sqlset import TDSetSql
 from decimal import Decimal
 import os
 import random
+import re
 import string
 import taos
-import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import shutil
 from new_test_framework.utils.pathFinding import find_proj_root
 
 class TestCase:
-    TDinternal = find_proj_root()
-    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    # Keep custom storage directories inside this run, including Windows CI.
+    simPath = os.environ.get("WORK_DIR") or os.path.join(find_proj_root(), "sim")
+    dnode1Path = os.path.join(simPath, "dnode1")
     configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
     hostPath = os.path.join(dnode1Path, "multi")
     hostPrimary = os.path.join(hostPath, "taos01")
     mountPath = os.path.join(dnode1Path, "mnt")
     mountPrimary = os.path.join(mountPath, "taos01")
-    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
+    localSSPath = os.path.join(simPath, "localSS") # shared storage path for local test
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {
         "debugFlag"        : 135,
@@ -32,7 +49,9 @@ class TestCase:
                                 f"%s%staos11 1 0" % (hostPath, os.sep),
                                 f"%s%staos12 1 0" % (hostPath, os.sep)],
         'clientCfg'        : clientCfgDict,
-        'ssAccessString'   : f"fs:baseDir={localSSPath}",
+        # The fs: access string is a URL, so the base directory has to use
+        # forward slashes; a Windows path with backslashes is not parsed.
+        'ssAccessString'   : "fs:baseDir=%s" % localSSPath.replace("\\", "/"),
         'ssEnabled'        : 1,
         'ssUploadDelaySec' : 2
     }
@@ -84,7 +103,7 @@ class TestCase:
         tdSql.execute("create rsma rsma1 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),last(c5)) interval(1m,5m)")
         
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5))")
-        tdSql.error("alter rsma rsma1_ function(min(c0))", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("alter rsma rsma1_ function(min(c0))", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(max(c0))", expectErrInfo=f"Rsma func already specified for column: c0", fullMatched=False)
 
         tdSql.execute("alter rsma rsma1 function(first(c4))")
@@ -104,8 +123,8 @@ class TestCase:
         tdSql.execute("create rsma rsma7 on d0.stb1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5),first(c6)) interval(1m,5m)")
 
         tdSql.error("create rsma rsma8 on d0.stb0 function(min(c0+1), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma, only one non-primary key column allowed: min", fullMatched=False)
-        tdSql.error("create rsma rsma9 on d0.stb0 function(min(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column not exist: min(c100)", fullMatched=False)
-        tdSql.error("create rsma rsma10 on d0.stb0 function(count(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column not exist: count(c100)", fullMatched=False)
+        tdSql.error("create rsma rsma9 on d0.stb0 function(min(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column does not exist: min(c100)", fullMatched=False)
+        tdSql.error("create rsma rsma10 on d0.stb0 function(count(c100), max(c1), avg(c2), sum(c3),first(c4),last(c5)) interval(1m,5m)", expectErrInfo=f"Invalid func param for rsma since column does not exist: count(c100)", fullMatched=False)
         tdSql.error("create rsma rsma11 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,5m)", expectErrInfo=f"Duplicated column not allowed for rsma: c0", fullMatched=False)
         tdSql.error("create rsma rsma12 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1m)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,60000", fullMatched=False)
         tdSql.error("create rsma rsma13 on d0.stb0 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c0)) interval(1m,1a)", expectErrInfo=f"Second interval value for rsma should be greater than first interval: 60000,1", fullMatched=False)
@@ -132,7 +151,7 @@ class TestCase:
         tdSql.checkRows(2)
         tdSql.query("select * from information_schema.ins_rsmas where db_name='d0'")
         tdSql.checkRows(2)
-        tdSql.error("show create rsma d0.rsma_not_exist", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("show create rsma d0.rsma_not_exist", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.query("show create rsma d0.rsma1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '`rsma1`')
@@ -428,9 +447,9 @@ class TestCase:
         tdSql.execute("flush database d0")
         # rollup again by vgroups
         time.sleep(5) # ensure commit is done00) 
-        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
-        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"Vgroup does not exist or not in db", fullMatched=False)
+        tdSql.error("rollup d0.vgroups in (1000)", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000)", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
+        tdSql.error("rollup vgroups in (2000,3000) start with '2025-12-30 10:00:00.000'", expectErrInfo=f"Vgroup does not exist or is not in the database", fullMatched=False)
         tdSql.query("show d0.vgroups")
         tdSql.checkRows(2)
         tdSql.execute(f"rollup d0.vgroups in (%d,%d) start with '2025-12-30 10:00:00.000'" % (tdSql.queryResult[0][0], tdSql.queryResult[1][0]))
@@ -548,7 +567,7 @@ class TestCase:
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4),last(c5))", expectErrInfo=f"Invalid func count for rsma, should be in range [1, 5]", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(min(c0), max(c1), avg(c2), sum(c3),first(c4))", expectErrInfo=f"Invalid func param for rsma since composite key column can only be first/last: min(c0)", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(last(c0)) interval(1m,5m)", expectErrInfo=f"syntax error near", fullMatched=False)
-        tdSql.error("alter rsma rsma1_ function(last(c0))", expectErrInfo=f"Rsma not exist", fullMatched=False)
+        tdSql.error("alter rsma rsma1_ function(last(c0))", expectErrInfo=f"RSMA does not exist", fullMatched=False)
         tdSql.error("alter rsma rsma1 function(last(c0))", expectErrInfo=f"Rsma func already specified for column: c0", fullMatched=False)
         tdSql.error("create rsma rsma1 on d0.stb0 function(avg(c3)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: avg(c3)", fullMatched=False)
         tdSql.error("create rsma rsma1 on d0.stb0 function(sum(c3)) interval(1m,5m)", expectErrInfo=f"Invalid function para type: sum(c3)", fullMatched=False)
@@ -767,29 +786,37 @@ class TestCase:
                 tdSql.checkData(row, 5, c4)
             row_offset += len(expected_data)
 
-    def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):        
+    def parallel_insert(self, db_name, table_name, ts_start, n_rows, binary_len, num_threads=10):
         def insert_rows(start_idx, end_idx):
             conn = taos.connect()
             cursor = conn.cursor()
-            cursor.execute(f"use {db_name}")
-            binary_data_cache = [''.join(random.choices(string.ascii_letters + string.digits, k=binary_len)) for _ in range(20)]
-            for i in range(start_idx, end_idx):
-                ts = ts_start + i * 1000  # interval 1s (1000ms)
-                binary_data = random.choice(binary_data_cache)
-                cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
-            cursor.close()
-            conn.close()
-        
+            # every row uses its own payload, do NOT reuse a small cache of values here: the data
+            # file is compressed (zstd through TSZ) and 'ssmigrate' only migrates a data file
+            # bigger than ss_chunkpages * tsdb_page_size. A redundant payload is
+            # deduplicated by the compressor, and the file size then depends on the compressor
+            # implementation instead of the number of rows, which can silently turn the migration
+            # into a no-op and break the s10/s11 assertions.
+            try:
+                cursor.execute(f"use {db_name}")
+                for i in range(start_idx, end_idx):
+                    ts = ts_start + i * 1000  # interval 1s (1000ms)
+                    binary_data = ''.join(random.choices(string.ascii_letters + string.digits, k=binary_len))
+                    cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
+            finally:
+                cursor.close()
+                conn.close()
+
         rows_per_thread = n_rows // num_threads
-        threads = []
-        for t_idx in range(num_threads):
-            start_idx = t_idx * rows_per_thread
-            end_idx = start_idx + rows_per_thread if t_idx < num_threads - 1 else n_rows
-            t = threading.Thread(target=insert_rows, args=(start_idx, end_idx))
-            threads.append(t)
-            t.start()
-        for t in threads:
-            t.join()
+        # Keep SQL payloads out of server debug logs and propagate writer failures.
+        with etool.data_write_log():
+            with ThreadPoolExecutor(max_workers=num_threads) as pool:
+                futures = []
+                for t_idx in range(num_threads):
+                    start_idx = t_idx * rows_per_thread
+                    end_idx = start_idx + rows_per_thread if t_idx < num_threads - 1 else n_rows
+                    futures.append(pool.submit(insert_rows, start_idx, end_idx))
+                for future in futures:
+                    future.result()
 
     def s10_check_localSS_content(self, path, min_size_mb=16):
         total_size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(path) for f in fn)
@@ -798,19 +825,32 @@ class TestCase:
             raise Exception(f"directory {path} size {total_size} bytes is less than the required minimum of {min_size_mb}MB ({min_size} bytes)")
         tdLog.info(f"directory {path} size: {total_size} bytes ({total_size / (1024 * 1024):.2f} MB)")
 
+    def ssmigrate_row_count(self):
+        tdSql.query("show create database d0")
+        ddl = tdSql.queryResult[0][1]
+        chunk_pages = int(re.search(r"\bSS_CHUNKPAGES\s+(\d+)", ddl, re.IGNORECASE)[1])
+        page_kb = int(re.search(r"\bTSDB_PAGESIZE\s+(\d+)", ddl, re.IGNORECASE)[1])
+        # Use the actual DDL threshold, including the fixture's 1 KiB pages.
+        # Allow for compression and keep an even number of rows for 2s rollup.
+        rows = max(1000, (2 * chunk_pages * page_kb * 1024 + 40959) // 40960)
+        rows = ((rows + 19) // 20) * 20
+        tdLog.info(f"ssmigrate fixture: chunk={chunk_pages * page_kb * 1024} bytes, rows={rows}")
+        return rows
+
     def s10_ssmigrate_without_rsma(self):
         tdLog.info("check ssmigrate without rsma")
         tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1 tsdb_pagesize 1")
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        n_rows = self.ssmigrate_row_count()
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         if os.path.exists(self.localSSPath):
             shutil.rmtree(self.localSSPath)
         os.makedirs(self.localSSPath, exist_ok=True)
@@ -822,7 +862,7 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=16)
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
@@ -833,15 +873,16 @@ class TestCase:
         tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
         tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1 tsdb_pagesize 1")
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        n_rows = self.ssmigrate_row_count()
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         if os.path.exists(self.localSSPath):
             shutil.rmtree(self.localSSPath)
         os.makedirs(self.localSSPath, exist_ok=True)
@@ -855,17 +896,17 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=0) # not upload to localSS since compacted data size is too small
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 500) # the data insert interval is 1s, and rsma downsampling interval is 2s
+        tdSql.checkData(0, 0, n_rows // 2) # the data insert interval is 1s, and rsma downsampling interval is 2s
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
         tdSql.checkRows(1)
         tdLog.info("insert more data to trigger ssmigrate upload to localSS")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601520400000, n_rows=1000, binary_len=40960, num_threads=20)
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000 + (n_rows + 2) * 1000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500)
+        tdSql.checkData(0, 0, n_rows * 3 // 2)
         time.sleep(10) # wait for upload delay take effect
         tdLog.info("execute ssmigrate again after more data inserted")
         tdSql.execute("ssmigrate database d0")
@@ -875,10 +916,10 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=16) # uploaded to localSS since more data inserted
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
+        tdSql.checkData(0, 0, n_rows * 3 // 2) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
         tdSql.query("select count(*) from d0.ctb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500)
+        tdSql.checkData(0, 0, n_rows * 3 // 2)
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
@@ -913,7 +954,7 @@ class TestCase:
 
         Since: v3.3.8.0
 
-        Lables: common,ci,rsma
+        Labels: common,ci,rsma,integration,functional
 
         Jira: TS-6113
 
@@ -921,6 +962,11 @@ class TestCase:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
             - 2026-03-04: Add ssmigrate test with/without rsma from Kaili Xu(6841578238).
+            - 2026-11-25: Bound migration fixtures with 1 KiB pages, reduce bulk-write logs,
+                          and propagate insert worker failures.
+            - 2026-09-24: Use a unique payload per row in the ssmigrate test, so that the data
+                          file is always larger than the 16MB migration threshold and does not
+                          depend on the compression ratio anymore.
         """
         self.s1_create_db_table()
         self.s2_create_rsma()

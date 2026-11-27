@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,11 +12,13 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
+#include "stream.h"
+#include "tdatablock.h"
 #include "tgrant.h"
 #include "thttp.h"
 #include "streamMsg.h"
@@ -30,10 +34,13 @@ static void dmFreeRpcQitem(void *pItem) {
   rpcFreeCont(pMsg->pCont);
 }
 
+static void dmFreeBackupTaskQitem(void *pItem) { taosFreeQitem(pItem); }
+
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     taosMsleep(50);
@@ -55,6 +62,7 @@ static void *dmConfigThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-config");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     taosMsleep(50);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped || tsConfigInited) break;
@@ -74,6 +82,7 @@ static void *dmKeySyncThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-keysync");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   // Wait a bit before first sync attempt
   taosMsleep(3000);
@@ -174,7 +183,10 @@ static void *dmKeySyncThreadFp(void *param) {
 static void *dmStatusInfoThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
+  int64_t     lastRecycleTrimTime = lastTime;
+  blockDataRecycleSetCurrentTime(lastTime);
   setThreadName("dnode-status-info");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   int32_t upTimeCount = 0;
   int64_t upTime = 0;
@@ -185,6 +197,14 @@ static void *dmStatusInfoThreadFp(void *param) {
 
     int64_t curTime = taosGetTimestampMs();
     if (curTime < lastTime) lastTime = curTime;
+    if (curTime < lastRecycleTrimTime) lastRecycleTrimTime = curTime;
+    blockDataRecycleSetCurrentTime(curTime);
+
+    if (curTime - lastRecycleTrimTime >= BLOCK_RECYCLE_TIMEOUT_MS) {
+      blockDataRecycleTrimExpired(curTime);
+      lastRecycleTrimTime = curTime;
+    }
+
     float interval = curTime - lastTime;
     if (interval >= tsStatusIntervalMs) {
       dmUpdateStatusInfo(pMgmt);
@@ -207,6 +227,7 @@ static void *dmNotifyThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-notify");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   if (tsem_init(&dmNotifyHdl.sem, 0, 0) != 0) {
     return NULL;
@@ -310,6 +331,7 @@ static void *dmMonitorThreadFp(void *param) {
   int64_t     lastTime = taosGetTimestampMs();
   int64_t     lastTimeForBasic = taosGetTimestampMs();
   setThreadName("dnode-monitor");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   static int32_t TRIM_FREQ = 20;
   int32_t        trimCount = 0;
@@ -345,6 +367,7 @@ static void *dmAuditThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-audit");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     taosMsleep(100);
@@ -368,6 +391,7 @@ static void *dmCrashReportThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-crashReport");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s%s.taosdCrashLog", tsLogDir, TD_DIRSEP);
   char     *pMsg = NULL;
@@ -446,6 +470,7 @@ static void *dmMetricsThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-metrics");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -720,6 +745,17 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CONFIG_DNODE:
       code = dmProcessConfigReq(pMgmt, pMsg);
       break;
+#ifdef TD_ENTERPRISE
+    case TDMT_DND_BACKUP:
+      code = dmProcessBackupReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_BACKUP_PROGRESS:
+      code = dmProcessBackupProgressReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_KILL_BACKUP:
+      code = dmProcessKillBackupReq(pMgmt, pMsg);
+      break;
+#endif
     case TDMT_MND_AUTH_RSP:
       code = dmProcessAuthRsp(pMgmt, pMsg);
       break;
@@ -771,10 +807,10 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_CREATE_ENCRYPT_KEY:
       code = dmProcessCreateEncryptKeyReq(pMgmt, pMsg);
       break;
-    case TDMT_MND_ALTER_ENCRYPT_KEY:
+    case TDMT_DND_ALTER_ENCRYPT_KEY:
       code = dmProcessAlterEncryptKeyReq(pMgmt, pMsg);
       break;
-    case TDMT_MND_ALTER_KEY_EXPIRATION:
+    case TDMT_DND_ALTER_KEY_EXPIRATION:
       code = dmProcessAlterKeyExpirationReq(pMgmt, pMsg);
       break;
     case TDMT_DND_RELOAD_DNODE_TLS:
@@ -808,14 +844,59 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void dmProcessBackupQueue(SQueueInfo *pInfo, SBackupTaskItem *pTaskItem) {
+  SDnodeMgmt *pMgmt = pInfo->ahandle;
+  SBackupTask *pTask = pTaskItem->pTask;
+  int32_t     code = dmProcessBackupTask(pMgmt, pTask);
+  bool        cancelled = false;
+  int64_t     chainId = 0;
+  int64_t     backupId = 0;
+
+  (void)taosThreadMutexLock(&pMgmt->backupMutex);
+  if (pMgmt->pBackupTask == pTask) {
+    cancelled = pTask->cancelled;
+    pTask->code = code;
+    pTask->endTime = taosGetTimestampMs();
+    pTask->running = false;
+
+    // Capture the task id fields while the mutex is still held
+    chainId = pTask->req.chainId;
+    backupId = pTask->req.backupId;
+
+    // Release the bulk data once the task finishes: the manifest was already
+    // written during execution and progress queries only read the scalar
+    // identity/counter fields, so the large request/artifact arrays are no
+    // longer needed. Free them under the mutex so no other path can observe
+    // them while they are torn down; the free functions are NULL-safe, and a
+    // later replacement/shutdown may free them again harmlessly.
+    tFreeSBackupDnodeReq(&pTask->req);
+    dmBackupFreeTaskArtifacts(pTask);
+  }
+  (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+
+  if (cancelled) {
+    dInfo("backup task chainId:%" PRId64 " backupId:%" PRId64 " cancelled", chainId, backupId);
+  } else if (code != 0) {
+    dError("backup task chainId:%" PRId64 " backupId:%" PRId64 " failed since %s", chainId, backupId, tstrerror(code));
+  }
+  taosFreeQitem(pTaskItem);
+}
+
 int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx) {
   SRpcMsg* pMsg = (SRpcMsg*)pParam;
   if (pMsg->code) {
     *pWorkerIdx = 0;
     return TSDB_CODE_SUCCESS;
   }
-  SStreamMsgGrpHeader* pHeader = (SStreamMsgGrpHeader*)pMsg->pCont;
-  *pWorkerIdx = pHeader->streamGid % tsNumOfStreamMgmtThreads;
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *pWorkerIdx = header.streamGid % tsNumOfStreamMgmtThreads;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -872,17 +953,47 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
   }
   taosQueueSetFreeFp(pMgmt->mgmtWorker.queue, dmFreeRpcQitem);
 
+  if ((code = taosThreadMutexInit(&pMgmt->backupMutex, NULL)) != 0) {
+    tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+    return code;
+  }
+
+  SSingleWorkerCfg backupCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "dnode-backup",
+      .fp = (FItem)dmProcessBackupQueue,
+      .param = pMgmt,
+  };
+  if ((code = tSingleWorkerInit(&pMgmt->backupWorker, &backupCfg)) != 0) {
+    dError("failed to start dnode-backup worker since %s", tstrerror(code));
+    (void)taosThreadMutexDestroy(&pMgmt->backupMutex);
+    tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+    return code;
+  }
+  taosQueueSetFreeFp(pMgmt->backupWorker.queue, dmFreeBackupTaskQitem);
+
   SDispatchWorkerPool* pStMgmtpool = &pMgmt->streamMgmtWorker;
   pStMgmtpool->max = tsNumOfStreamMgmtThreads;
   pStMgmtpool->name = "dnode-stream-mgmt";
   code = tDispatchWorkerInit(pStMgmtpool);
   if (code != 0) {
     dError("failed to start dnode-stream-mgmt worker since %s", tstrerror(code));
+    // tDispatchWorkerInit failed, so poolLock is not initialized and
+    // tDispatchWorkerCleanup must not be called here; still release the
+    // backup worker and mutex acquired above.
+    (void)taosThreadMutexDestroy(&pMgmt->backupMutex);
+    tSingleWorkerCleanup(&pMgmt->backupWorker);
+    tSingleWorkerCleanup(&pMgmt->mgmtWorker);
     return code;
   }
   code = tDispatchWorkerAllocQueue(pStMgmtpool, pMgmt, (FItem)dmProcessStreamMgmtQueue, dmDispatchStreamHbMsg);
   if (code != 0) {
     dError("failed to allocate dnode-stream-mgmt worker queue since %s", tstrerror(code));
+    tDispatchWorkerCleanup(pStMgmtpool);
+    (void)taosThreadMutexDestroy(&pMgmt->backupMutex);
+    tSingleWorkerCleanup(&pMgmt->backupWorker);
+    tSingleWorkerCleanup(&pMgmt->mgmtWorker);
     return code;
   }
 
@@ -891,7 +1002,21 @@ int32_t dmStartWorker(SDnodeMgmt *pMgmt) {
 }
 
 void dmStopWorker(SDnodeMgmt *pMgmt) {
+  // Stop the mgmt worker first: it is the producer of backup task/progress/kill
+  // messages and may enqueue into backupWorker.queue or lock backupMutex while
+  // processing them. tSingleWorkerCleanup joins the worker thread, so once it
+  // returns no backup message is in flight and the resources below are safe to
+  // tear down.
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
+  tSingleWorkerCleanup(&pMgmt->backupWorker);
+  (void)taosThreadMutexLock(&pMgmt->backupMutex);
+  if (pMgmt->pBackupTask != NULL) {
+    tFreeSBackupDnodeReq(&pMgmt->pBackupTask->req);
+    dmBackupFreeTaskArtifacts(pMgmt->pBackupTask);
+  }
+  taosMemoryFreeClear(pMgmt->pBackupTask);
+  (void)taosThreadMutexUnlock(&pMgmt->backupMutex);
+  (void)taosThreadMutexDestroy(&pMgmt->backupMutex);
   tDispatchWorkerCleanup(&pMgmt->streamMgmtWorker);
   dDebug("dnode workers are closed");
 }
@@ -900,6 +1025,10 @@ int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   return taosWriteQitem(pWorker->queue, pMsg);
+}
+
+int32_t dmPutBackupTaskToQueue(SDnodeMgmt *pMgmt, SBackupTaskItem *pTaskItem) {
+  return taosWriteQitem(pMgmt->backupWorker.queue, pTaskItem);
 }
 
 int32_t dmPutMsgToStreamMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

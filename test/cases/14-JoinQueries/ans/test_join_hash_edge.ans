@@ -1,0 +1,455 @@
+
+taos> USE hash_join_snap;
+Database changed.
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE a.note = 'l_null' ORDER BY 1, 2, 3, 4;
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device WHERE a.device = 'd3' ORDER BY 1, 2, 3, 4;
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_empty a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_empty b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3, 4;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ d1                 |          10 |         100 |
+ d1                 |          11 |         100 |
+ d1                 |          12 |         100 |
+ d2                 |          20 |         200 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.val > b.metric AND b.status = 1 ORDER BY 1, 2, 3;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               |          40 | NULL        |
+ d1                 |          10 | NULL        |
+ d1                 |          11 | NULL        |
+ d1                 |          12 | NULL        |
+ d2                 |          20 | NULL        |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               |          40 | NULL        |
+ d1                 |          10 |         100 |
+ d1                 |          11 |         100 |
+ d1                 |          12 |         100 |
+ d2                 |          20 |         200 |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               |          40 | NULL        |
+ d1                 |          10 | NULL        |
+ d1                 |          11 | NULL        |
+ d1                 |          12 | NULL        |
+ d2                 |          20 | NULL        |
+ d3                 |          30 | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_empty a LEFT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_empty b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+ cast(a.ts as bigint)  |       device       |     val     |   metric    |
+=========================================================================
+         1735660800000 | d1                 |          10 | NULL        |
+         1735660801000 | d1                 |          11 | NULL        |
+         1735660802000 | d2                 |          20 | NULL        |
+         1735660803000 | d3                 |          30 | NULL        |
+         1735660804000 | NULL               |          40 | NULL        |
+         1735664400000 | d1                 |          12 | NULL        |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_empty a RIGHT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |
+======================================================================================================================
+ NULL                  | NULL               | NULL        |         1735660800000 | d1                 |         100 |
+ NULL                  | NULL               | NULL        |         1735660801000 | d1                 |         110 |
+ NULL                  | NULL               | NULL        |         1735660802000 | d2                 |         200 |
+ NULL                  | NULL               | NULL        |         1735660803000 | dx                 |         999 |
+ NULL                  | NULL               | NULL        |         1735660804000 | NULL               |         400 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_norm a RIGHT JOIN r_empty b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+
+taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_empty a FULL JOIN r_norm b ON a.device = b.device;
+       count(*)        |     count(a.val)      |    count(b.metric)    |
+========================================================================
+                     5 |                     0 |                     5 |
+
+taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM l_norm a FULL JOIN r_empty b ON a.device = b.device;
+       count(*)        |     count(a.val)      |    count(b.metric)    |
+========================================================================
+                     6 |                     6 |                     0 |
+
+taos> SELECT a.device, a.val FROM l_empty a LEFT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT a.device, a.val FROM l_empty a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ NULL               |          40 |
+ d1                 |          10 |
+ d1                 |          11 |
+ d1                 |          12 |
+ d2                 |          20 |
+ d3                 |          30 |
+
+taos> SELECT b.device, b.metric FROM l_empty a RIGHT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT b.device, b.metric FROM l_empty a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ NULL               |         400 |
+ d1                 |         100 |
+ d1                 |         110 |
+ d2                 |         200 |
+ dx                 |         999 |
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_empty b ON a.device = b.device ORDER BY 1, 2;
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 |         100 |
+ d1                 |          10 |         110 |
+ d1                 |          11 |         100 |
+ d1                 |          11 |         110 |
+ d1                 |          12 |         100 |
+ d1                 |          12 |         110 |
+ d2                 |          20 |         200 |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.region, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+       device       |       region       |     val     |   metric    |
+======================================================================
+ NULL               | NULL               | NULL        |         400 |
+ NULL               | NULL               | NULL        |         999 |
+ NULL               | void               |          40 | NULL        |
+ d1                 | north              |          10 |         100 |
+ d1                 | north              |          10 |         110 |
+ d1                 | north              |          11 |         100 |
+ d1                 | north              |          11 |         110 |
+ d1                 | north              |          12 |         100 |
+ d1                 | north              |          12 |         110 |
+ d2                 | south              |          20 |         200 |
+ d3                 | west               |          30 | NULL        |
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ NULL               |          40 |
+ d3                 |          30 |
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ NULL               |         400 |
+ dx                 |         999 |
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ d1                 |          10 |
+ d1                 |          11 |
+ d1                 |          12 |
+ d2                 |          20 |
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ d1                 |         100 |
+ d1                 |         110 |
+ d2                 |         200 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.device, a.val, CAST(b.ts AS BIGINT), b.device, b.metric FROM l_full_null a FULL JOIN r_full_null b ON a.device = b.device ORDER BY 1, 2, 3, 4, 5, 6;
+ cast(a.ts as bigint)  |       device       |     val     | cast(b.ts as bigint)  |       device       |   metric    |
+======================================================================================================================
+ NULL                  | NULL               | NULL        |         1736092801000 | NULL               |           2 |
+         1736092800000 | NULL               |           1 | NULL                  | NULL               | NULL        |
+
+taos> SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+       device       |     val     |   metric    |   status    |
+===============================================================
+ dpartial           |           1 |          10 |           1 |
+ dpartial           |           1 |          20 |           0 |
+ dpartial           |           2 |          10 |           1 |
+ dpartial           |           2 |          20 |           0 |
+
+taos> SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a LEFT JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+       device       |     val     |   metric    |   status    |
+===============================================================
+ NULL               |           4 | NULL        | NULL        |
+ dpartial           |           1 |          10 |           1 |
+ dpartial           |           1 |          20 |           0 |
+ dpartial           |           2 |          10 |           1 |
+ dpartial           |           2 |          20 |           0 |
+ leftonly           |           3 | NULL        | NULL        |
+
+taos> SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a RIGHT JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+       device       |     val     |   metric    |   status    |
+===============================================================
+ NULL               | NULL        |          30 |           1 |
+ NULL               | NULL        |          40 |           1 |
+ dpartial           |           1 |          10 |           1 |
+ dpartial           |           1 |          20 |           0 |
+ dpartial           |           2 |          10 |           1 |
+ dpartial           |           2 |          20 |           0 |
+
+taos> SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+       device       |     val     |   metric    |   status    |
+===============================================================
+ NULL               | NULL        |          30 |           1 |
+ NULL               | NULL        |          40 |           1 |
+ NULL               |           4 | NULL        | NULL        |
+ dpartial           |           1 |          10 |           1 |
+ dpartial           |           1 |          20 |           0 |
+ dpartial           |           2 |          10 |           1 |
+ dpartial           |           2 |          20 |           0 |
+ leftonly           |           3 | NULL        | NULL        |
+
+taos> SELECT a.device, a.val, b.metric, b.status FROM l_full_partial a FULL JOIN r_full_partial b ON a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4;
+       device       |     val     |   metric    |   status    |
+===============================================================
+ NULL               | NULL        |          20 |           0 |
+ NULL               | NULL        |          30 |           1 |
+ NULL               | NULL        |          40 |           1 |
+ NULL               |           4 | NULL        | NULL        |
+ dpartial           |           1 |          10 |           1 |
+ dpartial           |           2 |          10 |           1 |
+ leftonly           |           3 | NULL        | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_full_partial a LEFT JOIN r_full_partial b ON a.device = b.device WHERE b.metric IS NULL ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               |           4 | NULL        |
+ leftonly           |           3 | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_full_partial a RIGHT JOIN r_full_partial b ON a.device = b.device WHERE a.val IS NULL ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |          30 |
+ NULL               | NULL        |          40 |
+
+taos> SELECT a.device, a.val FROM l_full_partial a LEFT SEMI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ dpartial           |           1 |
+ dpartial           |           2 |
+
+taos> SELECT a.device, a.val FROM l_full_partial a LEFT ANTI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ NULL               |           4 |
+ leftonly           |           3 |
+
+taos> SELECT b.device, b.metric FROM l_full_partial a RIGHT SEMI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ dpartial           |          10 |
+ dpartial           |          20 |
+
+taos> SELECT b.device, b.metric FROM l_full_partial a RIGHT ANTI JOIN r_full_partial b ON a.device = b.device ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ NULL               |          40 |
+ rightonly          |          30 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         100 |
+ NULL               | NULL        |         110 |
+ NULL               | NULL        |         200 |
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         100 |
+ NULL               | NULL        |         110 |
+ NULL               | NULL        |         200 |
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 | NULL        |
+ d1                 |          11 | NULL        |
+ d1                 |          12 | NULL        |
+ d2                 |          20 | NULL        |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ NULL               |          40 |
+ d1                 |          10 |
+ d1                 |          11 |
+ d1                 |          12 |
+ d2                 |          20 |
+ d3                 |          30 |
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ NULL               |         400 |
+ d1                 |         100 |
+ d1                 |         110 |
+ d2                 |         200 |
+ dx                 |         999 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         110 |
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 |         100 |
+ d1                 |          11 |         100 |
+ d1                 |          12 |         100 |
+ d2                 |          20 |         200 |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND (a.val > b.metric AND b.status = 1) ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         100 |
+ NULL               | NULL        |         110 |
+ NULL               | NULL        |         200 |
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 | NULL        |
+ d1                 |          11 | NULL        |
+ d1                 |          12 | NULL        |
+ d2                 |          20 | NULL        |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3 LIMIT 5;
+       device       |     val     |   metric    |
+=================================================
+ NULL               |          40 | NULL        |
+ d1                 |          10 |         100 |
+ d1                 |          10 |         110 |
+ d1                 |          11 |         100 |
+ d1                 |          11 |         110 |
+
+taos> SELECT a.device, a.val, b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3 LIMIT 6;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 |         100 |
+ d1                 |          10 |         110 |
+ d1                 |          11 |         100 |
+
+taos> SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2 LIMIT 3;
+       device       |     val     |
+===================================
+ NULL               |          40 |
+ d3                 |          30 |
+
+taos> SELECT b.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2 LIMIT 3;
+       device       |   metric    |
+===================================
+ NULL               |         400 |
+ dx                 |         999 |
+
+taos> SELECT COUNT(*), COUNT(a.val), COUNT(b.metric) FROM sl a FULL JOIN sr b ON a.device = b.device;
+       count(*)        |     count(a.val)      |    count(b.metric)    |
+========================================================================
+                     6 |                     5 |                     5 |
+
+taos> SELECT a.device, a.val, b.metric FROM sl a FULL JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |          10 |
+ NULL               | NULL        |          20 |
+ NULL               | NULL        |          30 |
+ ddup               |           1 | NULL        |
+ ddup               |           2 | NULL        |
+ dleft              |           3 | NULL        |
+
+taos> SELECT a.device, a.val FROM sl a LEFT SEMI JOIN sr b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ ddup               |           1 |
+ ddup               |           2 |
+
+taos> SELECT a.device, a.val FROM sl a LEFT ANTI JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ ddup               |           1 |
+ ddup               |           2 |
+ dleft              |           3 |
+
+taos> SELECT b.device, b.metric FROM sl a RIGHT SEMI JOIN sr b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ ddup               |          10 |
+ ddup               |          20 |
+
+taos> SELECT b.device, b.metric FROM sl a RIGHT ANTI JOIN sr b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ ddup               |          10 |
+ ddup               |          20 |
+ dright             |          30 |
+
+taos> SELECT a.device, COUNT(*) FROM sl a JOIN sr b ON a.device = b.device AND a.region = b.region WHERE a.device = 'dleft' PARTITION BY a.device ORDER BY 1;
+
+taos> SELECT a.device, a.val, b.metric FROM v_l_norm a FULL JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2, 3;
+       device       |     val     |   metric    |
+=================================================
+ NULL               | NULL        |         100 |
+ NULL               | NULL        |         110 |
+ NULL               | NULL        |         200 |
+ NULL               | NULL        |         400 |
+ NULL               | NULL        |         999 |
+ NULL               |          40 | NULL        |
+ d1                 |          10 | NULL        |
+ d1                 |          11 | NULL        |
+ d1                 |          12 | NULL        |
+ d2                 |          20 | NULL        |
+ d3                 |          30 | NULL        |
+
+taos> SELECT a.device, a.val FROM v_l_norm a LEFT ANTI JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |     val     |
+===================================
+ NULL               |          40 |
+ d1                 |          10 |
+ d1                 |          11 |
+ d1                 |          12 |
+ d2                 |          20 |
+ d3                 |          30 |
+
+taos> SELECT b.device, b.metric FROM v_l_norm a RIGHT ANTI JOIN v_r_norm b ON a.device = b.device AND a.val > b.metric ORDER BY 1, 2;
+       device       |   metric    |
+===================================
+ NULL               |         400 |
+ d1                 |         100 |
+ d1                 |         110 |
+ d2                 |         200 |
+ dx                 |         999 |
+

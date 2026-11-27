@@ -1,4 +1,20 @@
 # -*- coding: utf-8 -*-
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import numpy as np
 
 from new_test_framework.utils import tdLog, tdSql, tdStream, etool
@@ -454,6 +470,28 @@ class TestFunPercentile:
 
         print("do percentile ......................... [passed]\n")
 
+    def do_percentile_with_count_on_empty_table(self):
+        tdSql.execute("create database if not exists percentile_empty_regression")
+        tdSql.execute("create table percentile_empty_regression.t_empty (ts timestamp, v int)")
+        tdSql.query("select count(*), percentile(v, 50) from percentile_empty_regression.t_empty")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, None)
+        tdSql.execute("drop database percentile_empty_regression")
+
+    def test_percentile_with_count_on_empty_table(self):
+        """Return NULL percentile alongside zero count for an empty table.
+
+        Check that an empty input placeholder completes percentile without a type error.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        self.do_percentile_with_count_on_empty_table()
+
     #
     # ------------------ main ------------------
     #
@@ -468,7 +506,7 @@ class TestFunPercentile:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

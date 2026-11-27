@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import socket
 import struct
 import time
@@ -67,7 +82,10 @@ class TestDdosDefense:
     def do_failed_login_lockout(self):
         """Verify that repeated failed logins trigger account lockout"""
         tdLog.info("=== step1: create test user with FAILED_LOGIN_ATTEMPTS 3")
-        tdSql.execute("create user ddos_user1 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 3")
+        # PASSWORD_LOCK_TIME is explicit (unit: minutes) so the lockout window doesn't
+        # fall back to the 1-second default used when advanced security is disabled,
+        # which made the lockout check flaky around second boundaries.
+        tdSql.execute("create user ddos_user1 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 3 PASSWORD_LOCK_TIME 5")
 
         tdLog.info("=== step2: attempt 3 wrong password logins")
         for i in range(3):
@@ -339,7 +357,10 @@ class TestDdosDefense:
     def do_auth_brute_force_timing(self):
         """Verify failed auth attempts don't leak timing info and get rate-limited"""
         tdLog.info("=== step1: create test user")
-        tdSql.execute("create user ddos_user4 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 5")
+        # PASSWORD_LOCK_TIME is explicit (unit: minutes) so the lockout window doesn't
+        # fall back to the 1-second default used when advanced security is disabled,
+        # which made the lockout check flaky around second boundaries.
+        tdSql.execute("create user ddos_user4 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 5 PASSWORD_LOCK_TIME 1")
 
         tdLog.info("=== step2: measure timing of multiple failed logins")
         timings = []
@@ -398,8 +419,7 @@ class TestDdosDefense:
 
         Since: v3.3.0.0
 
-        Labels: common
-
+        Labels: common,integration,functional,security
         Jira: None
 
         History:

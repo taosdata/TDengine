@@ -1,0 +1,17 @@
+USE vt_tag_filter_idmp;
+
+# The unique local_tag=10000 belongs to the empty vt_000000 child.
+SELECT DISTINCT local_tag FROM vst ORDER BY local_tag;
+
+# Aggregates exclude empty children while metadata-only DISTINCT includes them.
+SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380%' ORDER BY tbname;
+SELECT tbname FROM vst GROUP BY tbname HAVING first(`手机`) LIKE '1380%' ORDER BY tbname;
+SELECT tbname FROM vst GROUP BY tbname HAVING last_row(`手机`) LIKE '1380%' ORDER BY tbname;
+SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380' ORDER BY tbname;
+SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) IS NULL ORDER BY tbname;
+
+# The two data sources contribute different timestamps to each nonempty child.
+SELECT tbname, count(*) FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380%' ORDER BY tbname;
+SELECT count(*) FROM vst WHERE `手机` LIKE '1380%';
+SELECT tbname, count(*) FROM vst WHERE `手机` LIKE '1380%' GROUP BY tbname ORDER BY tbname;
+SELECT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname LIMIT 20;

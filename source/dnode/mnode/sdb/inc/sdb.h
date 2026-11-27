@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -117,6 +119,8 @@ typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
+// Called after a row is logically dropped from SDB, before its ref-counted storage is freed.
+typedef int32_t (*SdbDropFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
 typedef int32_t (*SdbAfterRestoredFp)(SMnode *pMnode);
@@ -192,7 +196,12 @@ typedef enum {
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
   SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_TXN = 49,
+  SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
+  SDB_TXN_SEQ = 51,
+  SDB_EXT_SOURCE = 52,  // federated query: external data source metadata
+  SDB_BACKUP = 53,      // cluster-level backup records (SHOW BACKUPS history)
+  SDB_MAX = 54
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -218,7 +227,11 @@ typedef struct SSdb {
   char              *currDir;
   char              *tmpDir;
   char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
-  int32_t          (*persistEncryptedFlagFp)(void *pMnode);  // Callback to persist encrypted flag
+  // Callback to persist the encrypted flag to mnode.json. The `encrypted` argument carries the
+  // ACTUAL on-disk format of the just-written sdb.data so the callee can keep mnode.json consistent
+  // with the disk (true => encrypted, false => plaintext). Persisting the real value (instead of a
+  // hardcoded true) prevents a stale mnode.json from disagreeing with a plaintext snapshot.
+  int32_t          (*persistEncryptedFlagFp)(void *pMnode, bool encrypted);  // Callback to persist encrypted flag
   void              *pMnodeForCallback;  // Pointer to SMnode for callback
   int64_t            commitIndex;
   int64_t            commitTerm;
@@ -233,6 +246,7 @@ typedef struct SSdb {
   TdThreadRwlock     locks[SDB_MAX];
   SdbInsertFp        insertFps[SDB_MAX];
   SdbUpdateFp        updateFps[SDB_MAX];
+  SdbDropFp          dropFps[SDB_MAX];
   SdbDeleteFp        deleteFps[SDB_MAX];
   SdbDeployFp        deployFps[SDB_MAX];
   SdbAfterRestoredFp afterRestoredFps[SDB_MAX];
@@ -260,6 +274,7 @@ typedef struct {
   SdbDecodeFp        decodeFp;
   SdbInsertFp        insertFp;
   SdbUpdateFp        updateFp;
+  SdbDropFp          dropFp;
   SdbDeleteFp        deleteFp;
   SdbValidateFp      validateFp;
   SdbUpgradeFp       upgradeFp;
@@ -315,12 +330,40 @@ bool    sdbIsUpgraded(SSdb *pSdb);
 int32_t sdbAfterRestored(SSdb *pSdb);
 
 /**
+ * @brief Re-create default metadata objects missing after an interrupted first
+ *        deploy, by re-running each table's deployFp (skipping tables with their
+ *        own afterRestoredFp, which self-heal via that hook). Only meaningful on
+ *        a single-node deploy; a formed multi-replica cluster already has
+ *        complete data. deployFp MUST be idempotent per object, since it may
+ *        re-run against already-populated tables.
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, non-zero for failure.
+ */
+int32_t sdbEnsureDefaultData(SSdb *pSdb);
+
+/**
  * @brief Load sdb from file.
  *
  * @param pSdb The sdb object.
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbReadFile(SSdb *pSdb);
+// Visits a persisted snapshot without opening an SDB or migrating its files.
+int32_t sdbInspectFile(const char *path, bool encrypted, SSdb *pHead,
+                       int32_t (*visit)(SSdbRaw *, void *), void *param);
+typedef int32_t (*SdbRewriteFp)(SSdbRaw *pRaw, void *param, SSdbRaw **ppOut);
+// Rewrites a persisted snapshot in place. The callback receives each decrypted
+// row and may modify its payload in place, or decode its object, modify it and
+// re-encode it into *ppOut (owned by the callee). The header is copied as read.
+int32_t sdbRewriteFile(const char *path, bool encrypted, SdbRewriteFp rewrite,
+                       void *param);
+
+/**
+ * @brief Reset sdb, clearing all in-memory rows and header state.
+ *
+ * @param pSdb The sdb object.
+ */
+void sdbResetData(SSdb *pSdb);
 
 /**
  * @brief Write sdb file.

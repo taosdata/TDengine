@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,6 +31,9 @@
 #define IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) \
   (*((sql)-1) == SLASH && (*(sql) == COMMA || *(sql) == SPACE || *(sql) == EQUAL || *(sql) == SLASH))
 
+#define IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(sql, escapeChar) \
+  (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(sql) && ((sql) - 1 != escapeChar))
+
 #define PROCESS_SLASH_IN_FIELD_VALUE(key, keyLen)  \
   for (int i = 1; i < keyLen; ++i) {               \
     if (IS_SLASH_LETTER_IN_FIELD_VALUE(key + i)) { \
@@ -37,13 +42,18 @@
     }                                              \
   }
 
-#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)  \
-  for (int i = 1; i < keyLen; ++i) {                 \
-    if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(key + i)) { \
-      MOVE_FORWARD_ONE(key + i, keyLen - i);         \
-      keyLen--;                                      \
-    }                                                \
-  }
+#define PROCESS_SLASH_IN_TAG_FIELD_KEY(key, keyLen)                                                         \
+  do {                                                                                                      \
+    size_t in = 0, out = 0;                                                                                 \
+    while (in < keyLen) {                                                                                   \
+      if (key[in] == SLASH && in + 1 < keyLen &&                                                            \
+          (key[in + 1] == COMMA || key[in + 1] == SPACE || key[in + 1] == EQUAL || key[in + 1] == SLASH)) { \
+        ++in;                                                                                               \
+      }                                                                                                     \
+      key[out++] = key[in++];                                                                               \
+    }                                                                                                       \
+    keyLen = out;                                                                                           \
+  } while (0)
 
 #define BINARY_ADD_LEN (sizeof("\"\"")-1)    // "binary"   2 means length of ("")
 #define NCHAR_ADD_LEN  (sizeof("L\"\"")-1)   // L"nchar"   3 means length of (L"")
@@ -63,7 +73,7 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
 
   int64_t ts = smlGetTimeValue(data, len, fromPrecision, toPrecision);
   if (unlikely(ts == -1)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid timestamp", data);
+    smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid timestamp", data, len);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   return ts;
@@ -123,6 +133,7 @@ int32_t smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
     }
     return TSDB_CODE_TSC_INVALID_VALUE;
 #else
+    tscError("geometry (GEOS) is not supported in community edition");
     return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
   }
@@ -218,7 +229,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
@@ -226,7 +237,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
         (*sql)++;
         break;
       }
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
@@ -235,7 +246,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     }
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid key or key is too long than 64", key);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid key or key is too long than 64", key, keyLen);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -249,11 +260,11 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         break;
       } else if (unlikely(IS_EQUAL(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
 
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         valueLenEscaped++;
         valueEscaped = true;
@@ -264,7 +275,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     valueLen = *sql - value;
 
     if (unlikely(valueLen == 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid value", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -350,7 +361,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
@@ -358,7 +369,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
         (*sql)++;
         break;
       }
-      if (IS_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql)) {
+      if (IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(*sql, escapeChar)) {
         escapeChar = *sql;
         keyLenEscaped++;
         keyEscaped = true;
@@ -367,7 +378,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     }
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid key or key is too long than 64", key);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid key or key is too long than 64", key, keyLen);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -401,11 +412,11 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     valueLen = *sql - value;
 
     if (unlikely(quoteNum != 0 && quoteNum != 2)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line unbalanced quotes", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line unbalanced quotes", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (unlikely(valueLen == 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid value", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid value", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -484,6 +495,9 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if (unlikely(*sql == COMMA)) return TSDB_CODE_SML_INVALID_DATA;
   elements->measure = sql;
   // parse measure
+  // an escape is a backslash directly followed by ',', ' ' or '\'; count pairs,
+  // not individual bytes, so the unescaped length matches
+  // PROCESS_SLASH_IN_MEASUREMENT (a run of k backslashes must not shrink to ~1)
   size_t measureLenEscaped = 0;
   const char *escapeChar = NULL;
   while (sql < sqlEnd) {
@@ -491,11 +505,12 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
       break;
     }
 
-    if (unlikely((sql != elements->measure) && IS_SLASH_LETTER_IN_MEASUREMENT(sql))) {
+    if (unlikely(*sql == SLASH && sql + 1 < sqlEnd &&
+                 (*(sql + 1) == COMMA || *(sql + 1) == SPACE || *(sql + 1) == SLASH))) {
       elements->measureEscaped = true;
-      escapeChar = sql;
+      escapeChar = sql + 1;
       measureLenEscaped++;
-      sql++;
+      sql += 2;
       continue;
     }
     sql++;
@@ -512,7 +527,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
     if (unlikely(IS_SPACE(tmp,escapeChar))) {
       break;
     }
-    if(unlikely(IS_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp))){
+    if (unlikely(IS_NON_OVERLAPPING_SLASH_LETTER_IN_TAG_FIELD_KEY(tmp, escapeChar))) {
       escapeChar = tmp;
     }
     tmp++;
@@ -549,7 +564,7 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
 
   elements->colsLen = sql - elements->cols;
   if (unlikely(elements->colsLen == 0)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols is empty", NULL);
+    smlBuildInvalidDataMsg(&info->msgBuf, "SML line cols are empty", NULL);
     return TSDB_CODE_SML_INVALID_DATA;
   }
 

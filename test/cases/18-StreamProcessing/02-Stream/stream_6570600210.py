@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import random
@@ -64,7 +79,11 @@ class TestSnodeMgmt:
             cnt += 1
             time.sleep(1)
             
-        
+        tdSql.query(
+            f"SELECT external_sources FROM information_schema.ins_streams "
+        )
+        tdSql.checkData(0, 0, 0, show=True)
+
         sqls = [
             "insert into d1 values('2023-05-01 12:13:14', 1.2323);",
             "insert into d1 values('2023-05-01 12:13:16', 1.343);",

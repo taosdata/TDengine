@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,6 +32,9 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
 
   for (int32_t spos = 0, tpos = 0; spos < len && vpos < 4; ++spos) {
     if (vstr[spos] != '.') {
+      if (spos - tpos >= (int32_t)sizeof(tmp) - 1) {
+        return terrno = TSDB_CODE_INVALID_VERSION_STRING;
+      }
       tmp[spos - tpos] = vstr[spos];
     } else {
       code = taosStr2int32(tmp, &vnum[vpos]);

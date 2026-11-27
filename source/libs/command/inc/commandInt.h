@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,6 +30,7 @@ extern "C" {
 
 //newline area
 #define EXPLAIN_TAG_SCAN_FORMAT "Tag Scan on %s"
+#define EXPLAIN_TAG_REF_SOURCE_FORMAT "TagRefSource on %s.%s"
 #define EXPLAIN_VIRTUAL_TABLE_SCAN_FORMAT "Virtual Table Scan on %s"
 #define EXPLAIN_TBL_SCAN_FORMAT "Table Scan on %s"
 #define EXPLAIN_TBL_MERGE_SCAN_FORMAT "Table Merge Scan on %s"
@@ -53,14 +56,18 @@ extern "C" {
 #define EXPLAIN_SORT_FORMAT "Sort"
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
+#define EXPLAIN_INTERVAL_FORMAT_WITH_MODE "Interval on Column %s mode=%s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
+#define EXPLAIN_MERGE_INTERVAL_FORMAT_WITH_MODE "Merge Interval on Column %s mode=%s"
 #define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT_WITH_MODE "Merge Aligned Interval on Column %s mode=%s"
 #define EXPLAIN_EXTERNAL_FORMAT "External on Column %s"
+#define EXPLAIN_FEDERATED_SCAN_FORMAT "Federated Scan on %s.%s (%s)"
 #define EXPLAIN_MERGE_EXTERNAL_FORMAT "Merge External on Column %s"
 #define EXPLAIN_MERGE_ALIGNED_EXTERNAL_FORMAT "Merge Aligned External on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
-#define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
+#define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Columns %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
@@ -93,6 +100,9 @@ extern "C" {
 #define EXPLAIN_COUNT_INFO_FORMAT "Window Count Info"
 #define EXPLAIN_JOIN_EQ_LEFT_FORMAT "Left Equal Cond: "
 #define EXPLAIN_JOIN_EQ_RIGHT_FORMAT "Right Equal Cond: "
+
+/* Reserve space for trailing metadata appended after state key description. */
+#define EXPLAIN_STATE_KEY_DESC_RESERVED_SIZE 256
 #define EXPLAIN_COUNT_NUM_FORMAT "Window Count=%" PRId64
 #define EXPLAIN_COUNT_SLIDING_FORMAT "Window Sliding=%" PRId64
 #define EXPLAIN_TABLE_TIMERANGE_FORMAT "%s Table Time Range: [%" PRId64 ", %" PRId64 "]"
@@ -218,16 +228,18 @@ typedef struct SQueryExplainRowInfo {
 } SQueryExplainRowInfo;
 
 typedef struct SExplainPlanCtx {
-  int32_t      rootGroupId;
-  int32_t      groupNum;
-  int32_t      groupDoneNum;
-  SHashObj    *groupHash;     // Hash<SExplainGroup>
+  int32_t          rootGroupId;
+  int32_t          groupNum;
+  int32_t          groupDoneNum;
+  SHashObj        *groupHash;              // Hash<SExplainGroup>
+  const SNodeList *pCorrelationTemplates;  // Borrowed from the current query plan.
 } SExplainPlanCtx;
 
 typedef struct SExplainCtx {
   EExplainMode mode;
   double       ratio;
   bool         verbose;
+  timezone_t   tz;       /* session timezone for formatting timestamps */
 
   SRWLatch     lock;
   int32_t      dataSize;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -162,7 +164,35 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_TOTP_SECRET, "create-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TOTP_SECRET, "drop-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_KEY_EXPIRATION, "alter-key-expiration", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GET_STREAM_CREATE_SQL, "stream-get-create-sql", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_SNAP_SEND_PROGRESS, "dnode-query-snap-send-progress", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_CLOSE_VNODE, "close-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_OPEN_VNODE, "open-vnode", NULL, NULL)
+  // DND variant of alter encrypt key: after receiving TDMT_MND_ALTER_ENCRYPT_KEY from a client, mnode
+  // broadcasts this DND message to all dnodes for local key updates, as with TDMT_DND_CREATE_ENCRYPT_KEY.
+  // A distinct message type is required because every msgType has one defaultNtype in the transport routing
+  // table; TDMT_MND_ALTER_ENCRYPT_KEY cannot serve both the client-to-mnode and mnode-to-dnode hops.
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_ENCRYPT_KEY, "dnode-alter-encrypt-key", NULL, NULL)
+  // DND variant of alter key expiration: after receiving TDMT_MND_ALTER_KEY_EXPIRATION from a client,
+  // mnode broadcasts this DND message to all dnodes for local updates, as with alter encrypt key.
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_KEY_EXPIRATION, "dnode-alter-key-expiration", NULL, NULL)
+  // Cluster-level backup/restore messages (mnode msg overload segment).
+  // client -> mnode: start a backup / kill a backup chain
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP, "backup", SBackupReq, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_KILL_BACKUP, "kill-backup", SKillBackupReq, NULL)
+  // mnode internal timer for polling backup progress
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_TIMER, "backup-tmr", NULL, NULL)
+  // dnode backup agent -> mnode: pull mnode metadata (sdb.data + mnode.json + sync/)
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_META, "backup-meta", SBackupMetaReq, SBackupMetaRsp)
+  // mnode -> dnode: dispatch backup job to the target dnode agent
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP, "dnode-backup", SBackupDnodeReq, NULL)
+  // mnode -> dnode: query backup progress from the agent
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP_PROGRESS, "dnode-backup-progress", SBackupProgressReq, SBackupProgressRsp)
+  // mnode -> dnode: cancel an active backup agent task
+  TD_DEF_MSG_TYPE(TDMT_DND_KILL_BACKUP, "dnode-kill-backup", SBackupProgressReq, NULL)
+  // dnode backup agent -> SNode dnode: package requested stream checkpoints
+  TD_DEF_MSG_TYPE(TDMT_DND_BACKUP_SNODE, "dnode-backup-snode", SBackupSnodeReq, SBackupSnodeRsp)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -263,7 +293,9 @@
   TD_DEF_MSG_TYPE(TDMT_MND_STOP_STREAM, "stop-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_START_STREAM, "start-stream", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_RECALC_STREAM, "recalculate-stream", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED4, "mnd-unused4", NULL, NULL)
+  // dnode backup agent -> mnode: resolve the current leader for one vgroup
+  TD_DEF_MSG_TYPE(TDMT_MND_BACKUP_VGROUP_LEADER, "backup-vgroup-leader", SBackupVgroupLeaderReq,
+                  SBackupVgroupLeaderRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED5, "mnd-unused5", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED6, "mnd-unused6", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_TRIM_DB_TIMER, "trim-db-tmr", NULL, NULL)
@@ -286,7 +318,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_GET_TABLE_TSMA, "get-table-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GET_TSMA, "get-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TB_WITH_TSMA, "drop-tb-with-tsma", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED7, "mnd-unused7", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_VST_LEAVES, "get-vst-leaves", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED8, "mnd-unused8", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED9, "mnd-unused9", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSEDa, "mnd-unuseda", NULL, NULL)
@@ -311,8 +343,8 @@
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_STB, "vnode-create-stb", SVCreateStbReq, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_STB, "vnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_STB, "vnode-drop-stb", SVDropStbReq, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_UNUSED1, "vnode-unused1", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_UNUSED2, "vnode-unused2", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CHECK_HAS_CTB, "vnode-check-has-ctb", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CHECK_STB_ALTER_NAME, "vnode-check-stb-alter-name", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED3, "vnode-unused3", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED4, "vnode-unused4", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED5, "vnode-unused5", NULL, NULL)
@@ -368,6 +400,14 @@
   TD_DEF_MSG_TYPE(TDMT_VND_SET_KEEP_VERSION, "vnode-set-keep-version", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TRIM_WAL, "vnode-trim-wal", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_AUDIT_RECORD, "vnode-audit-record", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_VTABLE_REF_RESOLVE, "vnode-vtable-ref-resolve", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TXN_COMMIT, "vnode-txn-commit", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TXN_ROLLBACK, "vnode-txn-rollback", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_VTB_TAG_COND, "vnode-vtable-tag-cond", NULL, NULL)
+  // dnode backup agent -> vnode leader: manage a vnode snapshot for backup
+  TD_DEF_MSG_TYPE(TDMT_VND_BACKUP_SNAP, "vnode-backup-snap", SBackupVnodeSnapReq, SBackupVnodeSnapRsp)
+  // vnode leader write queue: establish a committed boundary
+  TD_DEF_MSG_TYPE(TDMT_VND_SYNC_COMMIT, "vnode-sync-commit", SVnodeSyncCommitReq, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8
@@ -413,11 +453,21 @@
   TD_DEF_MSG_TYPE(TDMT_STREAM_SYNC_CHECKPOINT, "stream-sync-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_DELETE_CHECKPOINT, "stream-delete-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_TRIGGER_DROP, "stream-trigger-drop", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TRIGGER_PULL_EXT, "stream-trigger-pull-ext", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_FETCH_EXT, "stream-fetch-ext", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_VALIDATE_RESULT, "stream-validate-result", NULL, NULL)
   
   TD_CLOSE_MSG_SEG(TDMT_STREAM_MSG)
 
-  TD_NEW_MSG_SEG(TDMT_MON_MSG)  //5 << 8
-  TD_CLOSE_MSG_SEG(TDMT_MON_MSG)
+  // Reserved EXCLUSIVELY for messages that must be defined
+  // identically  -  at the same in-segment offset  -  across legacy (3.3.6) and newer (3.4+)
+  // versions, so message numbers stay aligned and wire-compatible during rolling upgrades.
+  //
+  // CRITICAL: Do NOT add new-only feature messages here; append those to the tail of a new segment
+  // that legacy versions do not recognize.
+  TD_NEW_MSG_SEG(TDMT_COMPAT_MSG)  //5 << 8
+  TD_DEF_MSG_TYPE(TDMT_MND_ENSURE_DEFAULT, "ensure-default", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_COMPAT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SYNC_MSG) //6 << 8
   TD_DEF_MSG_TYPE(TDMT_SYNC_TIMEOUT, "sync-timer", NULL, NULL)
@@ -467,7 +517,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SUBSCRIBE, "vnode-tmq-subscribe", SMqRebVgReq, SMqRebVgRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DELETE_SUB, "vnode-tmq-delete-sub", SMqVDeleteReq, SMqVDeleteRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_COMMIT_OFFSET, "vnode-tmq-commit-offset", STqOffset, STqOffset)
-  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)      // no longer used
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_ADD_CHECKINFO, "vnode-tmq-add-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DEL_CHECKINFO, "vnode-del-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_CONSUME, "vnode-tmq-consume", SMqPollReq, SMqDataBlkRsp)
@@ -507,7 +557,24 @@
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_ROLE, "alter-role", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UPGRADE_USER, "upgrade-user", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UPGRADE_ROLE, "upgrade-role", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_EXT_SOURCE,  "create-ext-source",  NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_EXT_SOURCE,   "alter-ext-source",   NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_EXT_SOURCE,    "drop-ext-source",    NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_REFRESH_EXT_SOURCE, "refresh-ext-source", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_EXT_SOURCE,     "get-ext-source",     NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CLS_HB_TIMER, "cls-hb-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CLOSE_VNODE, "mnd-close-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_OPEN_VNODE, "mnd-open-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_BEGIN_TXN, "begin-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_COMMIT_TXN, "commit-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ROLLBACK_TXN, "rollback-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ALLOC_TXN_SEQ, "alloc-txn-seq", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_TXN_TIMER, "txn-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_AUTH_SASL, "auth-sasl", NULL, NULL)  // SCRAM-SHA-256 handshake round
+  TD_DEF_MSG_TYPE(TDMT_MND_FLUSH_MNODE, "flush-mnode", NULL, NULL)  // moved from TDMT_MND_MSG: that segment is full (see "mnode msg overload" note above)
+  // client parser -> mnode: check whether a column/tag is referenced by user/role privilege
+  // (RENAME COLUMN / RENAME TAG on normal / virtual-normal tables, which go to the vnode directly)
+  TD_DEF_MSG_TYPE(TDMT_MND_CHECK_COL_REF_BY_PRIV, "check-col-ref-by-priv", SMndCheckColRefReq, SMndCheckColRefRsp)
   TD_CLOSE_MSG_SEG(TDMT_MND_EXT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_XNODE_MSG)  //10 << 8
@@ -528,6 +595,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_REBALANCE_XNODE_JOBS_WHERE, "rebalance-xnode-jobs-where", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_XNODE_JOB, "drop-xnode-job", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UPDATE_XNODE_AGENT, "update-xnode-agent", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_RESTART_XNODE, "restart-xnode", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_MND_XNODE_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MAX_MSG)  // msg end mark

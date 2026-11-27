@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 import taos
@@ -18,9 +22,14 @@ import re
 import time
 import platform
 import subprocess
+import psutil
+import shutil
+import urllib.error
+import urllib.request
 
 import importlib
 from pathlib import Path
+from .compatibility_package import prepare_oss_package
 from .log import *
 from .sql import *
 from .server.dnodes import *
@@ -43,43 +52,6 @@ else:
     _downloader = None
 
 
-def _create_so_symlinks(lib_dir: str) -> None:
-    """为 lib_dir 内所有 libXXX.so.VER 创建不带版本号的符号链接 libXXX.so。
-
-    包里只提供 libtaos.so.3.3.7.9 这类带版本号的文件，但 taos 二进制链接的是
-    不带版本号的 libtaos.so 或 SONAME（如 libtaos.so.1）。若没有对应符号链接，
-    LD_LIBRARY_PATH 指向该目录时动态链接器无法找到库，会回退到系统路径。
-    """
-    import re as _re
-    import subprocess as _sp
-    p = Path(lib_dir)
-    for versioned in p.glob("lib*.so.*"):
-        if not versioned.is_file():
-            continue
-        name = versioned.name
-        dot_so = name.find(".so.")
-        if dot_so == -1:
-            continue
-        # 1. 不带版本号链接：libtaos.so -> libtaos.so.3.3.7.9
-        unversioned = p / (name[: dot_so + 3])
-        if not unversioned.exists():
-            unversioned.symlink_to(versioned.name)
-        # 2. SONAME 链接：libtaos.so.1 -> libtaos.so.3.3.5.0（旧版本 soname）
-        try:
-            out = _sp.run(
-                ["readelf", "-d", str(versioned)],
-                capture_output=True, text=True, timeout=10
-            ).stdout
-            for line in out.splitlines():
-                if "SONAME" in line:
-                    m = _re.search(r'\[([^\]]+)\]', line)
-                    if m:
-                        soname_link = p / m.group(1)
-                        if not soname_link.exists():
-                            soname_link.symlink_to(versioned.name)
-                    break
-        except Exception:
-            pass
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -107,19 +79,51 @@ stb = f"{dbname}.meters"
 
 class CompatibilityBase:
 
+    def _getProcessPids(self, processNameOrPid):
+        target = str(processNameOrPid).strip()
+        if not target:
+            return []
+
+        if target.isdigit():
+            result = subprocess.run(
+                ["ps", "-p", target, "-o", "pid="],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            return [line.strip() for line in result.stdout.splitlines()
+                    if line.strip()]
+
+        result = subprocess.run(
+            ["ps", "-eo", "pid=,comm="],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        pids = []
+        for line in result.stdout.splitlines():
+            parts = line.strip().split(None, 1)
+            if len(parts) != 2:
+                continue
+            pid, command = parts
+            if command == target:
+                pids.append(pid)
+        return pids
+
     def checkProcessPid(self,processName):
         tdLog.info(f"checkProcessPid {processName}")
         i=0
         while i<60:
             tdLog.info(f"wait stop {processName}")
-            processPid = subprocess.getstatusoutput(f'ps aux|grep {processName} |grep -v "grep"|awk \'{{print $2}}\'')[1]
+            processPids = self._getProcessPids(processName)
+            processPid = " ".join(processPids)
             tdLog.info(f"times:{i},{processName}-pid:{processPid}")
             if(processPid == ""):
                 break
             i += 1
             time.sleep(1)
         else:
-            tdLog.info(f'this processName is not stopped in 60s')
+            tdLog.error(f'{processName} is not stopped in 60s')
 
     def version_compare(self, version1, version2):
         """
@@ -141,6 +145,76 @@ class CompatibilityBase:
                 return -1
         return 0
 
+    # ------------------------------------------------------------------
+    # Rolling upgrade baseline selection
+    #
+    # Same rule as tools/cicd tsdb-test-pipeline's hot stage in
+    # source/taos-community/test/ci/run_upgrade_compat.sh: the LOWEST published
+    # version that shares the first three segments with the running build.
+    # Rolling upgrade only makes sense inside one major.minor.patch group -
+    # the client/server handshake compares exactly those three segments - and a
+    # freshly bumped group has no package until it is released.  Callers turn a
+    # None result into a skip, the same way test-compat-upgrade records
+    # "No rolling upgrade test needed" instead of failing.
+    # ------------------------------------------------------------------
+
+    def _patchGroup(self, version):
+        return ".".join(version.split(".")[:3])
+
+    def _baselinePackagePublished(self, version):
+        """Probe the enterprise package on the package server.
+
+        Only an explicit 403/404 means "not published yet"; any other outcome
+        (no downloader, network error, HEAD not allowed) is treated as
+        published so a transient problem surfaces as a download failure rather
+        than a silent skip.
+        """
+        get_name = getattr(_downloader, "get_package_name", None)
+        base_url = getattr(_downloader, "base_url", "")
+        if not get_name or not base_url:
+            return True
+        package = get_name(version, "enterprise")
+        major_minor = ".".join(version.split(".")[:2])
+        url = f"{base_url}/{major_minor}/v{version}/enterprise/{package}"
+        try:
+            request = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return 200 <= response.status < 300
+        except urllib.error.HTTPError as exc:
+            if exc.code in (403, 404):
+                tdLog.info(f"rolling baseline {version} not published: {url} -> HTTP {exc.code}")
+                return False
+            tdLog.info(f"cannot confirm rolling baseline {version} ({exc}); assuming published")
+            return True
+        except Exception as exc:
+            tdLog.info(f"cannot confirm rolling baseline {version} ({exc}); assuming published")
+            return True
+
+    def resolveRollingUpgradeBaseline(self, current_version):
+        """Baseline version for a rolling upgrade, or None when none is usable.
+
+        Args:
+            current_version: the running server version; only the first three
+                segments matter.
+
+        Returns:
+            The lowest published version in the same patch group, or None when
+            the group has no published package yet (caller skips) or no
+            enterprise downloader is available.
+        """
+        if _downloader is None:
+            return None
+        group = self._patchGroup(current_version)
+        candidates = [version for version in getattr(_downloader, "supported_versions", [])
+                      if self._patchGroup(version) == group]
+        candidates.sort(key=lambda version: [int(part) for part in version.split(".")])
+        for version in candidates:
+            if self._baselinePackagePublished(version):
+                tdLog.info(f"rolling upgrade baseline for {current_version}: {version}")
+                return version
+        tdLog.info(f"no published package in patch group {group} for rolling upgrade")
+        return None
+
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):
         tdLog.info(f"Downloading and extracting enterprise version {base_version} (no install)")
@@ -153,6 +227,9 @@ class CompatibilityBase:
         self.old_lib_dir = lib_dir
         extract_dir = os.path.dirname(bin_dir)
         tdLog.info(f"Extracted: bin={bin_dir}, lib={lib_dir}")
+
+        if os.name == "nt":
+            return self._start_windows_rolling_baseline(dnodePaths)
 
         for dnodePath in dnodePaths:
             tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {dnodePath}cfg/ > /dev/null 2>&1 &")
@@ -175,6 +252,79 @@ class CompatibilityBase:
             time.sleep(5)
         
         return True
+
+    def _start_windows_rolling_baseline(self, dnode_paths):
+        if not dnode_paths:
+            raise ValueError("No dnode paths provided for rolling baseline")
+        env = os.environ.copy()
+        env.pop("LD_PRELOAD", None)
+        env.pop("LD_LIBRARY_PATH", None)
+        env["PATH"] = self.old_bin_dir + os.pathsep + env.get("PATH", "")
+        processes = []
+        try:
+            for directory in dnode_paths:
+                node = Path(directory)
+                cfg = node / "cfg"
+                if not (cfg / "taos.cfg").is_file():
+                    raise FileNotFoundError(f"Missing baseline configuration: {cfg}")
+                # Only this node's data is reset; no global process-name kills.
+                data = node / "data"
+                if data.exists():
+                    shutil.rmtree(data)
+                data.mkdir()
+                (node / "log").mkdir(exist_ok=True)
+                with (node / "log" / "baseline-startup.log").open("ab") as output:
+                    process = subprocess.Popen(
+                        [os.path.join(self.old_bin_dir, "taosd.exe"), "-c", str(cfg)],
+                        env=env, stdout=output, stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    )
+                processes.append(process)
+                tdLog.info(f"Started Windows baseline pid={process.pid}, cfg={cfg}")
+            self._wait_old_server_ready(str(Path(dnode_paths[0]) / "cfg"))
+            for process in processes:
+                if process.poll() is not None:
+                    raise RuntimeError(f"Baseline taosd pid={process.pid} exited: {process.returncode}")
+        except BaseException:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=60)
+            raise
+        return True
+
+    def _wait_old_server_ready(self, cPath, timeout=120):
+        """Wait for the extracted server before starting compatibility data setup."""
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = self.old_lib_dir
+        program = "taos"
+        if os.name == "nt":
+            program += ".exe"
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = self.old_bin_dir + os.pathsep + env.get("PATH", "")
+        deadline = time.monotonic() + timeout
+        last_output = ""
+        while time.monotonic() < deadline:
+            try:
+                result = subprocess.run(
+                    [os.path.join(self.old_bin_dir, program), "-c", cPath,
+                     "-s", "show dnodes"],
+                    env=env, capture_output=True, text=True,
+                    timeout=min(10, max(0.1, deadline - time.monotonic())),
+                )
+                last_output = result.stdout + result.stderr
+                if result.returncode == 0 and re.search(
+                    r"\|\s*ready\s*\|", result.stdout, re.IGNORECASE
+                ):
+                    tdLog.info("Old-version dnode is ready")
+                    return
+            except subprocess.TimeoutExpired as exc:
+                last_output = str(exc)
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+        raise RuntimeError(
+            f"Old-version dnode did not become ready in {timeout}s: {last_output}"
+        )
 
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
@@ -200,37 +350,10 @@ class CompatibilityBase:
             # Determine download URL
             download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
             
-        tdLog.info(f"wget {download_url}")
-        
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            tdLog.info(f"{packageName} is not exists")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
-        else: 
-            tdLog.info(f"{packageName} has been exists")
-
-        # Compute extracted directory name and extract without running install.sh
-        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
-        extract_dir = os.path.join(packagePath, packageTPath)
-        if not Path(extract_dir).exists():
-            os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
-
-        # The outer archive contains package.tar.gz with the actual bin/ tree.
-        # Extract it if bin/ is not yet present.
-        bin_dir = os.path.join(extract_dir, "bin")
-        if not Path(bin_dir).exists():
-            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
-            if Path(inner_pkg).exists():
-                os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
-
-        self.old_bin_dir = bin_dir
-        # Libraries are in driver/ (not lib/) for this package layout.
-        lib_dir = os.path.join(extract_dir, "driver")
-        if not Path(lib_dir).exists():
-            lib_dir = os.path.join(extract_dir, "lib")
-        self.old_lib_dir = lib_dir
-        _create_so_symlinks(lib_dir)
+        self.old_bin_dir, self.old_lib_dir = prepare_oss_package(
+            packagePath, packageName, download_url
+        )
+        extract_dir = os.path.dirname(self.old_bin_dir)
 
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
@@ -254,7 +377,7 @@ class CompatibilityBase:
             os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
         else:
             tdLog.info(f"taosadapter.toml not found at {taosadapter_toml_src}, skipping taosadapter startup")
-        time.sleep(5)
+        self._wait_old_server_ready(cPath)
 
 
     def buildTaosd(self,bPath):
@@ -281,17 +404,38 @@ class CompatibilityBase:
         with open(file,"w",encoding="utf-8") as f:
             f.write(file_data)
 
-    def killAllDnodes(self):
-        tdLog.info("kill all dnodes")
-        tdLog.info("kill taosd")
-        os.system(f"pkill -9 taosd")
-        tdLog.info("kill taos")
-        os.system(f"pkill -9 taos") 
-        tdLog.info("check taosd")
+    def _hasProcess(self, processName):
+        return bool(self._getProcessPids(processName))
+
+    def stopTaosdCompletely(self):
+        """Stop taosd, taos and taosadapter processes for compatibility
+        tests.
+
+        Tries graceful shutdown first (systemctl stop, then up to 5
+        rounds of pkill), and falls back to SIGKILL plus freeing TCP
+        port 6030 via fuser if any process is still alive. Waits for
+        taosd and taosadapter to fully exit before returning.
+        """
+        tdLog.info("stop taosd service")
+        os.system("systemctl stop taosd 2>/dev/null || true")
+
+        for _ in range(5):
+            os.system("pkill taosd 2>/dev/null || true")
+            os.system("pkill taos 2>/dev/null || true")
+            os.system("pkill taosadapter 2>/dev/null || true")
+            if (not self._hasProcess("taosd") and
+                    not self._hasProcess("taos") and
+                    not self._hasProcess("taosadapter")):
+                break
+            time.sleep(1)
+        else:
+            tdLog.info("force kill remaining compatibility processes")
+            os.system("pkill -9 taosd 2>/dev/null || true")
+            os.system("pkill -9 taos 2>/dev/null || true")
+            os.system("pkill -9 taosadapter 2>/dev/null || true")
+            os.system("fuser -k -n tcp 6030 2>/dev/null || true")
+
         self.checkProcessPid("taosd")
-        tdLog.info("kill taosadapter")
-        os.system(f"pkill  -9   taosadapter")
-        tdLog.info("check taosadapter")
         self.checkProcessPid("taosadapter")
 
     def prepareDataOnOldVersion(self, base_version, bPath,corss_major_version):
@@ -303,7 +447,10 @@ class CompatibilityBase:
         _old_adapter_bin = f"{self.old_bin_dir}/taosadapter"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" {_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
-        os.system(f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y > /dev/null 2>&1")
+        subprocess.run(
+            f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5 -y",
+            shell=True, check=True,
+        )
         os.system(f"{_old_taos} -s 'alter database test   keep 365000 '")
         os.system(f"{_old_taos} -s 'alter database test  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select last(*) from test.meters '")
@@ -313,7 +460,10 @@ class CompatibilityBase:
         os.system(f"{_old_taos} -s 'flush database test '")
 
         os.system(f"{_old_taos} -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y > /dev/null 2>&1")
+        subprocess.run(
+            f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y",
+            shell=True, check=True,
+        )
         os.system(f"{_old_taos} -s 'flush database curdb '")
         os.system(f"{_old_taos} -s 'alter database curdb  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select count(*) from curdb.meters '")
@@ -350,17 +500,24 @@ class CompatibilityBase:
         except TmqError as e:
             tdLog.exit(f"subscribe error: {e}")
         
+        # A None from poll() only means no new message within 1s, not that the
+        # topic has no data; under heavy load the first batch may take longer
+        # than 1s. We only consume the first batch to establish the
+        # first_consumer_rows baseline, so give it a 30s grace window to avoid
+        # a slow start recording too few rows and skewing later checks.
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             if message:
                 for block in message:
                     first_consumer_rows += block.nrows()
-            else:
-                tdLog.notice("message is null and break")
+                consumer.commit(message)
+                tdLog.info(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
                 break
-            consumer.commit(message)
-            tdLog.debug(f"topic:{select_topic} ,first consumer rows is {first_consumer_rows} in old version")
-            break
+            tdLog.info("first message is null, keep waiting for first batch")
+            if time.time() > first_msg_deadline:
+                tdLog.info("no first message within 30s, break")
+                break
 
         consumer.close()
         
@@ -380,67 +537,68 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-    def updateNewVersion(self, bPath, cPaths, upgrade):
-        tdLog.printNoPrefix("==========step2:update new version ")
-        # upgrade only one dnode
-        if upgrade == 0:
-            tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
-            if status != 0:
-                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
-                return 
-            found_pids = []
-            if output:
-                found_pids = [pid for pid in output.strip().split('\n') if pid] 
-            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
-            if len(found_pids) == 0:
-                tdLog.info("No taosd process found keep going")
-            else: 
-                pid_to_kill_for_this_dnode = found_pids[0]
-                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-                self.checkProcessPid(pid_to_kill_for_this_dnode)
+    def _upgrade_dnode(self, bPath, dnode_path):
+        cfg = os.path.normcase(os.path.realpath(os.path.join(dnode_path, "cfg")))
+        matches = []
+        for process in psutil.process_iter(["name", "cmdline"]):
+            try:
+                if process.info["name"] not in {"taosd", "taosd.exe"}:
+                    continue
+                arguments = process.info["cmdline"] or []
+                if "-c" not in arguments:
+                    continue
+                index = arguments.index("-c") + 1
+                if index < len(arguments) and os.path.normcase(os.path.realpath(arguments[index])) == cfg:
+                    matches.append(process)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected one old taosd for {cfg}, found {len(matches)}")
+        old_process = matches[0]
+        tdLog.info(f"Stopping old taosd pid={old_process.pid}, cfg={cfg}")
+        old_process.kill()
+        old_process.wait(timeout=60)
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = os.path.join(bPath, "build", "lib")
+        program = "taosd"
+        if os.name == "nt":
+            program += ".exe"
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = os.path.join(bPath, "build", "bin") + os.pathsep + env.get("PATH", "")
+        startup_log = os.path.join(dnode_path, "log", "upgrade-startup.log")
+        # start_new_session only isolates POSIX processes. Windows teardown
+        # broadcasts CTRL_BREAK within the target console, so the upgraded
+        # server must never inherit the CI runner's console.
+        launch_options = ({"creationflags": subprocess.CREATE_NEW_CONSOLE}
+                          if os.name == "nt" else {"start_new_session": True})
+        with open(startup_log, "ab") as output:
+            process = subprocess.Popen(
+                [os.path.join(bPath, "build", "bin", program), "-c", cfg],
+                env=env, stdout=output, stderr=subprocess.STDOUT, **launch_options,
+            )
+        tdLog.info(f"Started upgraded taosd pid={process.pid}, cfg={cfg}, log={startup_log}")
+        return process
 
-            tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
-            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
-            os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
-        # upgrade all dnodes
-        elif upgrade == 1:
-            tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
-            if status != 0:
-                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
-                return 
-            found_pids = []
-            if output:
-                found_pids = [pid for pid in output.strip().split('\n') if pid] 
-            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
-            # Determine the number of dnodes to manage, based on cPaths or a max like 3 (original implication)
-            # Let's use the length of cPaths as the primary guide for how many dnodes to manage.
-            num_dnodes_to_manage = len(cPaths) if cPaths else 0
-            if num_dnodes_to_manage == 0:
-                tdLog.warning("cPaths is empty or not provided. Cannot upgrade all dnodes.")
-                return
-            for i in range(num_dnodes_to_manage):
-                pid_to_kill_for_this_dnode = None
-                if i < len(found_pids):
-                    pid_to_kill_for_this_dnode = found_pids[i]
-                if pid_to_kill_for_this_dnode:
-                    tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{i}])")
-                    os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-                else:
-                    tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                self.checkProcessPid(pid_to_kill_for_this_dnode)
-                tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
-                tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
-                os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
-        # no rolling upgrade
+    def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=300):
+        tdLog.printNoPrefix("==========step2:update new version ")
+        upgraded_processes = []
+        if upgrade in (0, 1):
+            paths = cPaths[:1] if upgrade == 0 else cPaths
+            if not paths:
+                raise RuntimeError("No dnode paths provided for upgrade")
+            for path in paths:
+                upgraded_processes.append(self._upgrade_dnode(bPath, path))
         elif upgrade == 2:
             tdLog.info("no upgrade mode")
             self.buildTaosd(bPath)
-            tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
             os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
-        self.checkstatus()
+        else:
+            raise ValueError(f"Unknown upgrade mode: {upgrade}")
+        self.checkstatus(retry_times=retry_times)
+        for process in upgraded_processes:
+            if process.poll() is not None:
+                raise RuntimeError(f"Upgraded taosd pid={process.pid} exited: {process.returncode}")
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")
@@ -684,15 +842,30 @@ class CompatibilityBase:
         )
         consumer.subscribe([select_topic])
         consumer_rows = 0
+        # A None from poll() only means no new message within 1s, not that the
+        # subscription is drained. After a cold upgrade the first subscription
+        # must register the consumer and scan snapshots, so under heavy load
+        # the first batch may exceed 1s; breaking on a single empty poll would
+        # mistake the slow start for "0 rows". Instead: allow 30s for the
+        # first batch, then treat 10 consecutive empty polls (~10s of silence)
+        # as consumed.
+        silent_polls = 0
+        first_msg_deadline = time.time() + 30
         while True:
             message = consumer.poll(timeout=1.0)
             tdLog.info(f" null {message}")
             if message:
+                silent_polls = 0
                 for block in message:
                     consumer_rows += block.nrows()
                 tdLog.info(f"consumer rows is {consumer_rows}")
-            else:
+                continue
+            silent_polls += 1
+            if consumer_rows > 0 and silent_polls >= 10:
                 tdLog.info("consumer has completed and break")
+                break
+            if consumer_rows == 0 and time.time() > first_msg_deadline:
+                tdLog.info("consumer has completed and break (no first message within 30s)")
                 break
         consumer.close()
         tdsql.query(f"{topic_select_sql}")
@@ -709,9 +882,13 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-    def checkstatus(self,retry_times=30):
-        
-        # sleep before check status to avoid dnodes not ready issue
+    def checkstatus(self, retry_times=300):
+        # Sleep before checking status to avoid dnodes not ready issue.
+        # NOTE: retry_times must be large enough to cover slow vnode restore after an
+        # upgrade. When the old version left no WAL snapshot (e.g. 3.3.3.0 data), the
+        # new version has to replay and commit the whole dataset on restore, which can
+        # take several minutes (e.g. a 4094-column table from compa4096.json). Bumped
+        # from 60 to 300 to avoid flaky "vnodes are not ready" (see tsdb!1495 follow-up).
         time.sleep(30)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False
@@ -769,4 +946,4 @@ class CompatibilityBase:
         tdLog.info(f"vnodes are ready in {retry_times}s")
 
 # Create instance for compatibility
-tdCb = CompatibilityBase() 
+tdCb = CompatibilityBase()

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,6 +24,11 @@
 #define OTD_JSON_SUB_FIELDS_NUM 2
 
 static inline int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *metric, SSmlLineInfo *elements) {
+  // valuestring is NULL unless the node is a JSON string
+  if (unlikely(!cJSON_IsString(metric))) {
+    uError("SML:0x%" PRIx64 " metric must be a JSON string", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
   elements->measureLen = strlen(metric->valuestring);
   if (IS_INVALID_TABLE_LEN(elements->measureLen)) {
     uError("SML:0x%" PRIx64 " Metric length is 0 or large than 192", info->id);
@@ -37,6 +44,11 @@ static int32_t smlGetJsonElements(cJSON *root, cJSON ***marks) {
   for (int i = 0; i < OTD_JSON_FIELDS_NUM; ++i) {
     cJSON *child = root->child;
     while (child != NULL) {
+      // array elements have no key; a data point must be an object
+      if (child->string == NULL) {
+        child = child->next;
+        continue;
+      }
       if (strcasecmp(child->string, jsonName[i]) == 0) {
         *marks[i] = child;
         break;
@@ -246,6 +258,11 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
 }
 
 static int32_t smlProcessTagJson(SSmlHandle *info, cJSON *tags){
+  // tag items are addressed by key, so "tags" must be an object, not an array
+  if (unlikely(!cJSON_IsObject(tags))) {
+    uError("SML:0x%" PRIx64 " tags must be a JSON object", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
   SArray *preLineKV = info->preLineTagKV;
   taosArrayClearEx(preLineKV, freeSSmlKv);
   int     cnt = 0;

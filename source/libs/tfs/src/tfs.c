@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -166,6 +168,24 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *p
   TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
 }
 
+int32_t tfsAllocDiskWithStrategy(STfs *pTfs, int32_t expLevel, const char *label, int32_t strategy, SDiskID *pDiskId) {
+  if (pTfs == NULL || label == NULL || pDiskId == NULL ||
+      (strategy != TFS_DISK_ALLOC_ROUND_ROBIN && strategy != TFS_DISK_ALLOC_LEAST_USED)) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+  if (pTfs->nlevel <= 0) TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  if (expLevel >= pTfs->nlevel || expLevel < 0) expLevel = pTfs->nlevel - 1;
+  for (; expLevel >= 0; --expLevel) {
+    int32_t diskId = tfsAllocDiskOnTierWithStrategy(&pTfs->tiers[expLevel], label, strategy);
+    if (diskId >= 0) {
+      pDiskId->level = expLevel;
+      pDiskId->id = diskId;
+      return 0;
+    }
+  }
+  TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+}
+
 int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId) {
   if (level < 0 || level >= pTfs->nlevel) {
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
@@ -184,7 +204,33 @@ int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskI
 
 const char *tfsGetPrimaryPath(STfs *pTfs) { return TFS_PRIMARY_DISK(pTfs)->path; }
 
-const char *tfsGetDiskPath(STfs *pTfs, SDiskID diskId) { return TFS_DISK_AT(pTfs, diskId)->path; }
+const char *tfsGetDiskPath(STfs *pTfs, SDiskID diskId) {
+  // The disk id may come from persisted metadata (current.json) or from a
+  // snapshot peer with a different disk layout. It must be treated as
+  // untrusted input: an out-of-range level/id would index past the fixed-size
+  // tiers[]/disks[] arrays, and a valid index may still be an unmounted slot.
+  // Return NULL for all invalid ids and let the caller decide how to report it.
+  // Check the fs handle separately from the id: a NULL handle is a different
+  // (caller) bug than an out-of-range id, and comparing the id is meaningless
+  // when there is no fs to index into.
+  if (pTfs == NULL) {
+    fError("invalid tfs handle, level:%d, id:%d", diskId.level, diskId.id);
+    return NULL;
+  }
+  if (diskId.level < 0 || diskId.level >= TFS_MAX_TIERS || diskId.id < 0 ||
+      diskId.id >= TFS_MAX_DISKS_PER_TIER) {
+    fError("invalid disk id, level:%d, id:%d", diskId.level, diskId.id);
+    return NULL;
+  }
+
+  STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+  if (pDisk == NULL) {
+    fError("disk slot is not mounted, level:%d, id:%d", diskId.level, diskId.id);
+    return NULL;
+  }
+
+  return pDisk->path;
+}
 
 void tfsInitFile(STfs *pTfs, STfsFile *pFile, SDiskID diskId, const char *rname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
@@ -596,7 +642,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   int32_t   dirLen = 0;
   char      tmp[PATH_MAX] = {0};
 
-  code = wordexp(idir, &wep, 0);
+  code = wordexp(idir, &wep, WRDE_NOCMD);
   if (code != 0) {
     TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(code));
   }

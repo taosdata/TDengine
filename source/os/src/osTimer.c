@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -51,6 +53,7 @@ static volatile int timer_stop = 0;
 static void* timer_routine(void* arg) {
   (void)arg;
   setThreadName("timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   int             r = 0;
   struct timespec to = {0};
@@ -102,6 +105,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
   struct sigevent sevent = {{0}};
 
   setThreadName("tmr");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
 #ifdef _ALPINE
   sevent.sigev_notify = SIGEV_THREAD_ID;

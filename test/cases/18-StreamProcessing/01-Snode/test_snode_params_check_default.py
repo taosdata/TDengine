@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 import math
 import random
@@ -37,16 +52,17 @@ class TestStreamParametersCheckDefault:
         3. numOfStreamTriggerThreads
         4. streamBufferSize
         5. numOfStreamRunnerThreads
-        6. streamNotifyMessageSize
-        7. streamNotifyFrameSize
+        6. numOfStreamRunnerDeploys
+        7. numOfStreamRunnerReplicas
+        8. streamNotifyMessageSize
+        9. streamNotifyFrameSize
 
         Catalog:
             - Streams:Snode
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -62,6 +78,7 @@ class TestStreamParametersCheckDefault:
         self.checknumOfVnodeStreamReaderThreads()
         self.checknumOfStreamTriggerThreads()
         self.checknumOfStreamRunnerThreads()
+        self.checkStreamRunnerParallelism(3, 5)
         self.checkstreamBufferSize()
         self.checkstreamNotifyMessageSize()
         self.checkstreamNotifyFrameSize()
@@ -150,6 +167,17 @@ class TestStreamParametersCheckDefault:
                     f"Error: numOfStreamRunnerThreads is {result}, expected at least 4 threads!"
                 )
         tdLog.info(f"numOfStreamRunnerThreads is {result}, test passed!")
+
+    def checkStreamRunnerParallelism(self, deploys, replicas):
+        for name, expected in (
+            ("numOfStreamRunnerDeploys", deploys),
+            ("numOfStreamRunnerReplicas", replicas),
+        ):
+            tdLog.info(f"check {name}")
+            tdSql.query(f"show dnode 1 variables like '{name}';")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, name)
+            tdSql.checkData(0, 2, str(expected))
 
     def checkstreamBufferSize(self):
         tdLog.info(f"check streamBufferSize")

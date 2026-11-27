@@ -37,6 +37,9 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	size_t i, tmpSize = 8+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
 	unsigned char* szTmpBytes = NULL;	
 	bool  needFree = false;
+
+	if(newData == NULL || cmpBytes == NULL || cmpSize == 0 || dataLength == 0 || pde_exe == NULL || pde_params == NULL)
+		return SZ_FORMAT_ERR;
 	
 	if(cmpSize!=8+4+MetaDataByteLength && cmpSize!=8+8+MetaDataByteLength) //4,8 means two posibilities of SZ_SIZE_TYPE
 	{
@@ -71,8 +74,12 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	//TODO: convert szTmpBytes to data array.
 	TightDataPointStorageF* tdps = NULL;
 	int errBoundMode = new_TightDataPointStorageF_fromFlatBytes(&tdps, szTmpBytes, tmpSize, pde_exe, pde_params);
-	if(tdps == NULL)
+	if(tdps == NULL || errBoundMode != SZ_ABS) //a malformed payload must never reach the decoder
 	{
+		if(tdps != NULL)
+			free_TightDataPointStorageF2(tdps);
+		if(szTmpBytes && needFree)
+			free(szTmpBytes);
 		return SZ_FORMAT_ERR;
 	}
 	
@@ -80,13 +87,21 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	if(tdps->isLossless)
 	{
 		//*newData = (float*)malloc(floatSize*dataLength);  comment by tickduan
+		size_t rawOffset = 4+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
+		if(!(rawOffset <= tmpSize && dataLength*floatSize <= tmpSize - rawOffset))
+		{
+			free_TightDataPointStorageF2(tdps);
+			if(szTmpBytes && needFree)
+				free(szTmpBytes);
+			return SZ_FORMAT_ERR;
+		}
 		if(sysEndianType==BIG_ENDIAN_SYSTEM)
 		{
-			memcpy(newData, szTmpBytes+4+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE, dataLength*floatSize);
+			memcpy(newData, szTmpBytes+rawOffset, dataLength*floatSize);
 		}
 		else
 		{
-			unsigned char* p = szTmpBytes+4+MetaDataByteLength+pde_exe->SZ_SIZE_TYPE;
+			unsigned char* p = szTmpBytes+rawOffset;
 			for(i=0;i<dataLength;i++,p+=floatSize)
 				newData[i] = bytesToFloat(p);
 		}		
@@ -95,11 +110,11 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	{
 		if(tdps->raBytes_size > 0) //v2.0
 		{
-			getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
+			status = getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, 0, hist_data, pde_params);
 		}
 		else //1.4.13 or time-based compression
 		{
-			getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
+			status = getSnapshotData_float_1D(newData,r1,tdps, errBoundMode, compressionType, hist_data, pde_params);
 		}
 	}
 
@@ -112,7 +127,7 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 	return status;
 }
 
-void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* hist_data, TightDataPointStorageF* tdps) 
+int decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* hist_data, TightDataPointStorageF* tdps) 
 {
 	//updateQuantizationInfo(tdps->intervals);
 	int intvRadius = tdps->intervals/2;
@@ -120,23 +135,45 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 								// in resiMidBits, p is to track the
 								// byte_index of resiMidBits, l is for
 								// leadNum
-	unsigned char* leadNum;
+	unsigned char* leadNum = NULL;
 	float interval = tdps->realPrecision*2;
+	int status = SZ_SUCCESS;
     	
-	convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum);
+	if(data == NULL || tdps == NULL || tdps->reqLength > 32) //reqLength is validated by the parser too
+		return SZ_FORMAT_ERR;
+
+	if(convertByteArray2IntArray_fast_2b(tdps->exactDataNum, tdps->leadNumArray, tdps->leadNumArray_size, &leadNum) != SZ_SUCCESS)
+		return SZ_FORMAT_ERR;
 	//data = (float*)malloc(sizeof(float)*dataSeriesLength); // comment by tickduan 
 	
 	int* types = (int*)malloc(dataSeriesLength*sizeof(int));
+	if(types == NULL)
+	{
+		free(leadNum);
+		return SZ_FORMAT_ERR;
+	}
 	
 	if (tdps->ifAdtFse == false) {
 		// type tree
 		HuffmanTree* huffmanTree = createHuffmanTree(tdps->stateNum);
-		decode_withTree(huffmanTree, tdps->typeArray, dataSeriesLength, types);
+		if(huffmanTree == NULL)
+		{
+			free(leadNum);
+			free(types);
+			return SZ_FORMAT_ERR;
+		}
+		status = decode_withTree(huffmanTree, tdps->typeArray, tdps->typeArray_size, dataSeriesLength, tdps->intervals, types);
 		SZ_ReleaseHuffman(huffmanTree);	
 	}
 	else {
-		decode_with_fse(types, dataSeriesLength, tdps->intervals, tdps->FseCode, tdps->FseCode_size, 
+		status = decode_with_fse(types, dataSeriesLength, tdps->intervals, tdps->FseCode, tdps->FseCode_size, 
 					tdps->transCodeBits, tdps->transCodeBits_size);
+	}
+	if(status != SZ_SUCCESS)
+	{
+		free(leadNum);
+		free(types);
+		return SZ_FORMAT_ERR;
 	}
 
 	unsigned char preBytes[4];
@@ -161,6 +198,19 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 		switch (type) 
 		{
 		case 0:
+			//the exact-value path indexes the parsed arrays, so every index must stay inside them
+			if (leadNum == NULL || l >= tdps->exactDataNum)
+			{
+				status = SZ_FORMAT_ERR;
+				goto cleanup;
+			}
+			leadingNum = leadNum[l++];
+			if (leadingNum < reqBytesLength &&
+				curByteIndex + (size_t)(reqBytesLength - leadingNum) > tdps->exactMidBytes_size)
+			{
+				status = SZ_FORMAT_ERR;
+				goto cleanup;
+			}
 			// compute resiBits
 			resiBits = 0;
 			if (resiBitsLength != 0) {
@@ -168,12 +218,22 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 				int rightMovSteps = getRightMovingSteps(kMod8, resiBitsLength);
 				if (rightMovSteps > 0) {
 					int code = getRightMovingCode(kMod8, resiBitsLength);
+					if (p >= tdps->residualMidBits_size)
+					{
+						status = SZ_FORMAT_ERR;
+						goto cleanup;
+					}
 					resiBits = (tdps->residualMidBits[p] & code) >> rightMovSteps;
 				} else if (rightMovSteps < 0) {
 					int code1 = getLeftMovingCode(kMod8);
 					int code2 = getRightMovingCode(kMod8, resiBitsLength);
 					int leftMovSteps = -rightMovSteps;
 					rightMovSteps = 8 - leftMovSteps;
+					if (p + 1 >= tdps->residualMidBits_size)
+					{
+						status = SZ_FORMAT_ERR;
+						goto cleanup;
+					}
 					resiBits = (tdps->residualMidBits[p] & code1) << leftMovSteps;
 					p++;
 					resiBits = resiBits
@@ -181,6 +241,11 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 				} else // rightMovSteps == 0
 				{
 					int code = getRightMovingCode(kMod8, resiBitsLength);
+					if (p >= tdps->residualMidBits_size)
+					{
+						status = SZ_FORMAT_ERR;
+						goto cleanup;
+					}
 					resiBits = (tdps->residualMidBits[p] & code);
 					p++;
 				}
@@ -189,7 +254,6 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 
 			// recover the exact data	
 			memset(curBytes, 0, 4);
-			leadingNum = leadNum[l++];
 			memcpy(curBytes, preBytes, leadingNum);
 			for (j = leadingNum; j < reqBytesLength; j++)
 				curBytes[j] = tdps->exactMidBytes[curByteIndex++];
@@ -204,31 +268,31 @@ void decompressDataSeries_float_1D(float* data, size_t dataSeriesLength, float* 
 			break;
 		default:
 			//predValue = 2 * data[i-1] - data[i-2];
-			predValue = data[i-1];
-			data[i] = predValue + (float)(type - intvRadius) * interval;
+			predValue = (i > 0) ? data[i-1] : 0; //never read in front of the output buffer
+			data[i] = predValue + (float)((long long)type - (long long)intvRadius) * interval;
 			break;
 		}
 		//printf("%.30G\n",data[i]);
 	}
 	
+cleanup:
 	free(leadNum);
 	free(types);
-	return;
+	return status;
 }
 
-void getSnapshotData_float_1D(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params)
+int getSnapshotData_float_1D(float* data, size_t dataSeriesLength, TightDataPointStorageF* tdps, int errBoundMode, int compressionType, float* hist_data, sz_params* pde_params)
 {	
 	size_t i;
 
-	if (tdps->allSameData) 
+	if(tdps->allSameData) 
 	{
 		float value = bytesToFloat(tdps->exactMidBytes);
 		//*data = (float*)malloc(sizeof(float)*dataSeriesLength); commnet by tickduan
 		for (i = 0; i < dataSeriesLength; i++)
 			data[i] = value;
+		return SZ_SUCCESS;
 	} 
-	else 
-	{
-	   decompressDataSeries_float_1D(data, dataSeriesLength, hist_data, tdps);
-	}
+	
+	return decompressDataSeries_float_1D(data, dataSeriesLength, hist_data, tdps);
 }

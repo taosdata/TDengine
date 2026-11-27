@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,8 +14,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_EXECUTIL_H
 #define TDENGINE_EXECUTIL_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "executor.h"
 #include "function.h"
@@ -26,6 +33,51 @@
 #include "tsimplehash.h"
 #include "tjson.h"
 
+typedef struct SStreamTagLookupPlan SStreamTagLookupPlan;
+
+typedef struct {
+  const char*   pTagCondKey;
+  int32_t       tagCondKeyLen;
+  const SArray* pTagColIds;
+  uint8_t       digest[16];
+} SStreamTagLookupKey;
+
+/** SUCCESS with a NULL plan means the condition structure is unsupported. */
+int32_t streamTagLookupPrepare(const SNode* pTagCond, SStreamTagLookupPlan** ppPlan);
+/** Key views are borrowed until the next bind or destroy; unsupported values are not errors. */
+int32_t streamTagLookupBind(SStreamTagLookupPlan* pPlan, SStreamRuntimeFuncInfo* pRuntime, SStreamTagLookupKey* pKey,
+                            bool* pSupported);
+void    streamTagLookupDestroy(SStreamTagLookupPlan* pPlan);
+
+struct SOperatorInfo;
+
+typedef struct SBitDurationInterpCache {
+  int32_t*           pPrevRows;       // latest selected non-NULL row in this block, or -1
+  char*              pSavedData;      // last valid input value saved from an earlier block
+  // Borrowed only while the prepared block is being processed. Callers must
+  // prepare every new block before reading or saving its mapping.
+  const SSDataBlock* pPreparedBlock;
+
+  int32_t  capacity;           // allocated row capacity of pPrevRows
+  int32_t  preparedRows;       // valid leading mappings for the current block
+  int32_t  preparedLatestRow;  // newest valid input row in the prepared block
+  int32_t  savedDataCapacity;  // allocated bytes in pSavedData
+  int32_t  savedValueBytes;    // bytes occupied by the valid saved value
+  int32_t  inputSlotId;        // input column slot
+  int8_t   inputType;          // prepared integer/BOOL input column type
+  int8_t   savedScanPhase;     // phase that supplied pSavedData
+  STypeMod inputTypeMod;       // validated type modifier for that input column
+
+  bool hasInputMetadata;  // slot/type metadata was validated, including for an empty block
+  bool hasSavedValue;     // pSavedData is valid for the recorded slot/type metadata
+  bool hasPrevTs;         // prevTs is valid for cross-block primary-key deduplication
+  bool hasPrimaryKey;
+  bool savedPkGroupComplete;
+
+  TSKEY savedTs;  // timestamp of the value stored in pSavedData
+  TSKEY prevTs;   // final physical timestamp of the last block saved as history
+} SBitDurationInterpCache;
+
 typedef struct STaskSubJobCtx {
   bool               isExchange;
   bool               isStream;
@@ -35,12 +87,13 @@ typedef struct STaskSubJobCtx {
   char*              idStr;
   void*              pTaskInfo;
   void*              rpcHandle;
-  int64_t            transporterId;
   int32_t            code;
+  int32_t            rspLen;
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResNodes;  // SArray<SNode*>
+  SArray*            subResNodes;  // Borrowed response-handler nodes; never owned by this context.
+  SArray*            subResCache;  // Owned ordinary-query result snapshots; handlers never write here.
   uint64_t           streamGen;    // incremented per runner invocation for cache invalidation
 } STaskSubJobCtx;
 
@@ -48,6 +101,13 @@ typedef struct SScalarFetchParam {
   int32_t           subQIdx;
   SNode*            pRes;
   int64_t           subJobRefId;
+  // Transport handle of this very fetch request. The transport writes it before the request can
+  // be dispatched and the completion callback releases exactly this handle, so concurrent
+  // fetches of the same sub-job never release each other's in-flight requests.
+  int64_t           transId;
+  // Transport instance that owns transId. Kept here as a numeric handle so the completion
+  // callback can still release the request handle after the sub-job context was destroyed.
+  void*             pTransporter;
 } SScalarFetchParam;
 
 
@@ -137,8 +197,14 @@ typedef struct STableListInfo {
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
   SHashObj*        map;           // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
+  // 128-bit fingerprint of the qualified child-table set (the de-duplicated map
+  // uids), computed after the table list is built. Scans over the same virtual stable
+  // under different tag conditions produce different sets and therefore must not
+  // share a vc_cols cache entry.
+  uint64_t         mapFingerprint[2];
 } STableListInfo;
 typedef struct SDBVgInfoReq {
   tsem_t     ready;
@@ -151,12 +217,14 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+struct SStreamInsertSchema;
 typedef struct SInsertTableInfo {
-  int64_t                  uid;
-  int64_t                  vgid;
-  int32_t                  version;
-  STSchema*                pSchema;
-  char*                    tbname;
+  int64_t                    uid;
+  int64_t                    vgid;
+  int32_t                    version;
+  STSchema*                  pSchema;
+  struct SStreamInsertSchema* pSharedSchema;
+  char*                      tbname;
 } SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
@@ -166,6 +234,10 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
+int32_t         createPreparedScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort,
+                                                SReadHandle* pHandle, STableListInfo* pTableListInfo, SNode* pTagCond,
+                                                SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap,
+                                                SStreamTagLookupPlan* pTagLookupPlan);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 int32_t         tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid,
@@ -178,11 +250,17 @@ int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
+// Stores an owned table name for a UID until pTableList is cleared or destroyed.
+// Repeating the same UID/name pair is idempotent.
+int32_t         tableListPutTbname(STableListInfo* pTableList, uint64_t uid, const char* pTbname);
+// Returns a table name resolved while building pTableList, or NULL when the UID was not name-filtered.
+const char*     tableListGetTbname(const STableListInfo* pTableList, uint64_t uid);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
-int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo);
+int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
+                          SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId,
+                          STableListInfo* pTableListInfo);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -222,7 +300,7 @@ int32_t  getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode
                                SStorageAPI* pAPI);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
-SArray* createSortInfo(SNodeList* pNodeList);
+SArray* createSortInfo(SNodeList* pNodeList, bool forceDescending);
 SArray* makeColumnArrayFromList(SNodeList* pNodeList);
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo);
@@ -241,21 +319,47 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+int32_t resetQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
+                                const SReadHandle* readHandle, bool applyExtWin);
+// Build the MAIN, PREV, and NEXT windows and apply mode-aware side pruning.
+int32_t initInterpPhaseWindows(SQueryTableDataCond* pCond,
+                               const STimeWindow* pRange,
+                               int8_t interpMode,
+                               int8_t interpFillMode);
+bool    interpMainFirstNotifyMatchesPhase(int8_t phase,
+                                          const STimeWindow* pWindow,
+                                          uint64_t currentEpoch,
+                                          uint64_t notifyEpoch,
+                                          TSKEY notifyTs);
+bool    interpMainFirstNotifyMatchesSource(
+            int8_t currentPhase, uint64_t currentScanGroupId,
+            const STimeWindow* pWindow, uint64_t currentEpoch,
+            const STableScanOperatorParam* pNotify);
+void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
+const char* interpNotifyTargetOpName(int32_t operatorType);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
+
+#if defined(BUILD_TEST)
+void execTestComputeTableListFingerprint(STableListInfo* pTableListInfo);
+#endif
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);
 int32_t isQualifiedTable(int64_t uid, SNode* pTagCond, void* vnode, bool* pQualified, SStorageAPI* pAPI);
 char*   getStreamOpName(uint16_t opType);
 
-void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr);
+void    printSpecDataBlock(SSDataBlock* pBlock, const char* flag, const char* opStr, const char* taskIdStr, void *charsetCxt);
 
 TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
-                                        SStorageAPI* pStorageAPI);
+                                        SStorageAPI* pStorageAPI, int64_t txnId);
+
+// Copy one variable-length cell (varstr/blob/json) into a buffer whose capacity is cap;
+// refuses a value wider than cap instead of overrunning it (see executil.c).
+int32_t copyVarLenCellChecked(char* dst, int32_t type, const char* src, int32_t cap, int32_t* pLen);
 
 /**
  * @brief build a tuple into keyBuf
@@ -281,9 +385,62 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+/** Cache one group's keys in an owned, output-shaped block; callers destroy *ppKeys. */
+int32_t cacheAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pInput, SSDataBlock* pOutput,
+                               SSDataBlock** ppKeys);
+/** Copy cached keys to every analysis result row after the output capacity is ensured. */
+int32_t fillAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pKeys, SSDataBlock* pOutput);
+/* Structural provenance only; the common builder performs fallible validation. */
+bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
+                                      int32_t msgType, bool reset);
+int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
+void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
+int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
+const SNode* qPeekRemoteResult(void* pCtx, int32_t subQIdx);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
+bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
+/** Request after each execution reset, before the first fetch. Mode resolves before its first return. */
+int32_t qExchangeRequestReaderGroupOutput(struct SOperatorInfo* pOperator);
+int32_t qExchangeRequestDimensionReaderOutput(struct SOperatorInfo* pOperator);
+/** 0 unknown, 1 legacy, 2 grouped. */
+int32_t qExchangeReaderGroupOutputMode(const struct SOperatorInfo* pOperator);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
+SColumnInfoData* getBitDurationInputColumn(const SqlFunctionCtx* pCtx, const SSDataBlock* pBlock);
+/**
+ * tsCols must be monotonic in scan order, with equal primary timestamps contiguous.
+ * Every attempt invalidates the prior prepared-row mapping before validation. A zero
+ * mask, invalid block shape, or incompatible integer/BOOL column is an internal error.
+ */
+int32_t          prepareBitDurationInterpCache(SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                                               SColumnInfoData* pCol, const TSKEY* tsCols, int32_t rows,
+                                               const SSDataBlock* pBlock);
+/**
+ * prevRowIndex is the row immediately before the current interpolation row.
+ * A false result with pMappingMismatch=false means no predecessor is available.
+ * A true pMappingMismatch reports stale or inconsistent prepared metadata and callers
+ * must treat it as an executor error.
+ */
+bool             getBitDurationInterpState(const SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                                           SColumnInfoData* pCol, int32_t prevRowIndex, const SSDataBlock* pBlock,
+                                           bool* pNonZero, bool* pMappingMismatch);
+void             saveBitDurationInterpCacheHistory(SBitDurationInterpCache* pCache, const SColumnInfoData* pCol,
+                                                   const TSKEY* tsCols, int32_t rows, const SSDataBlock* pBlock);
+void             resetBitDurationInterpCache(SBitDurationInterpCache* pCache);
+/** taosArrayDestroyEx callback. Clears an SBitDurationInterpCache and its owned buffers. */
+void             destroyBitDurationInterpCache(void* param);
+
+#if defined(BUILD_TEST)
+void    execUtilTestResetHandleRemoteRowResState(void);
+void    execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code);
+int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void);
+void    execUtilTestFailStreamGroupSortHashPutAfter(int32_t successfulPuts);
+int32_t execUtilTestSortStreamTableGroups(STableListInfo* pTableListInfo);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_EXECUTIL_H

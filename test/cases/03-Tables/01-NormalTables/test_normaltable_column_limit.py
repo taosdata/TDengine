@@ -1,6 +1,20 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
-from datetime import datetime as datatime
 
 
 class TestNormalTableColumnNumLimit:
@@ -17,7 +31,7 @@ class TestNormalTableColumnNumLimit:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: TS-5953
 
@@ -57,14 +71,13 @@ class TestNormalTableColumnNumLimit:
 
         tdLog.info(f"=============== step4")
 
-        random.seed(datatime.now())
         dropCount = random.randint(1, 30)
         tdLog.info(f"dropCount: {dropCount}")
-        while dropCount > 0:
-            dropColumn = random.randint(1, totalColumnsCount - 1)
+        # Sample without replacement so deleted columns cannot be selected again.
+        dropColumns = random.sample(range(1, totalColumnsCount), dropCount)
+        for dropColumn in dropColumns:
             tdSql.execute(f"alter table {tb} drop column a{dropColumn}")
             totalColumnsCount -= 1
-            dropCount -= 1
 
         tdSql.query(f"desc {tb}")
         tdSql.checkRows(totalColumnsCount)

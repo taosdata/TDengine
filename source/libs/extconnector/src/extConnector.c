@@ -1,0 +1,184 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// extConnector.c  -  community edition stub
+//
+// All public APIs return TSDB_CODE_OPS_NOT_SUPPORT in the community edition.
+// extConnectorModuleInit() / extConnectorModuleDestroy() are no-ops (succeed
+// silently) so that the rest of the startup/shutdown flow is not disrupted.
+
+#ifndef TD_ENTERPRISE
+
+#include "extConnector.h"
+
+int32_t extConnectorModuleInit(const SExtConnectorModuleCfg *cfg) {
+  (void)cfg;
+  return TSDB_CODE_SUCCESS;
+}
+
+void extConnectorModuleDestroy(void) {}
+
+bool extConnectorIsSourceTypeAvailable(EExtSourceType sourceType) {
+  (void)sourceType;
+  return false;
+}
+
+int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandle) {
+  (void)cfg;
+  (void)ppHandle;
+  uError("extConnectorOpen: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+void extConnectorClose(SExtConnectorHandle *pHandle) { (void)pHandle; }
+
+int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL) {
+  (void)pHandle;
+  (void)pSpec;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorInfluxV1SeriesSnapshot(SExtConnectorHandle *pHandle,
+                                           const SExtTableNode *pTable,
+                                           const SExtTableMeta *pCurrentMeta,
+                                           const char *const *pTagNames,
+                                           int32_t numTags,
+                                           const SNode *pSeriesFilter,
+                                           const SNode *pRowFilter,
+                                           bool first,
+                                           int8_t precision,
+                                           SSDataBlock **ppOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)pCurrentMeta;
+  (void)pTagNames;
+  (void)numTags;
+  (void)pSeriesFilter;
+  (void)pRowFilter;
+  (void)first;
+  (void)precision;
+  if (ppOut != NULL) *ppOut = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorInfluxV1SeriesSnapshotAfter(SExtConnectorHandle *pHandle,
+                                                const SExtTableNode *pTable,
+                                                const SExtTableMeta *pCurrentMeta,
+                                                const char *const *pTagNames,
+                                                int32_t numTags,
+                                                const SNode *pSeriesFilter,
+                                                const SNode *pRowFilter,
+                                                bool first,
+                                                int8_t precision,
+                                                int64_t timeLower,
+                                                SSDataBlock **ppOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)pCurrentMeta;
+  (void)pTagNames;
+  (void)numTags;
+  (void)pSeriesFilter;
+  (void)pRowFilter;
+  (void)first;
+  (void)precision;
+  (void)timeLower;
+  if (ppOut != NULL) *ppOut = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorRenderInfluxV1SQL(const SExtInfluxScanSpec *pSpec, const SExtTableMeta *pMeta,
+                                     const char *database, const char *rp, bool *pEmpty, char **ppSQL) {
+  (void)pSpec;
+  (void)pMeta;
+  (void)database;
+  (void)rp;
+  if (pEmpty != NULL) *pEmpty = false;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorGetTableSchema(SExtConnectorHandle *pHandle, const SExtTableNode *pTable,
+                                   SExtTableMeta **ppOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)ppOut;
+  uError("extConnectorGetTableSchema: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+void extConnectorFreeTableSchema(SExtTableMeta *pMeta) { (void)pMeta; }
+
+SExtTableMeta* extConnectorCloneTableSchema(const SExtTableMeta *pMeta) {
+  (void)pMeta;
+  return NULL;
+}
+
+int32_t extConnectorGetCapabilities(SExtConnectorHandle *pHandle, const SExtTableNode *pTable,
+                                    SExtSourceCapability *pOut) {
+  (void)pHandle;
+  (void)pTable;
+  (void)pOut;
+  uError("extConnectorGetCapabilities: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
+                                               const char *timezone,
+                                               bool *pSupported) {
+  (void)pHandle;
+  (void)timezone;
+  if (pSupported != NULL) {
+    *pSupported = false;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScanPhysiNode *pNode,
+                              const char *timezoneName, const char *pSQL,
+                              SExtQueryHandle **ppQHandle, SExtConnectorError *pOutErr) {
+  (void)pHandle;
+  (void)pNode;
+  (void)timezoneName;
+  (void)pSQL;
+  (void)ppQHandle;
+  (void)pOutErr;
+  uError("extConnectorExecQuery: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+int32_t extConnectorFetchBlock(SExtQueryHandle *pQHandle, const SExtColTypeMapping *pColMappings,
+                               int32_t numColMappings, SSDataBlock **ppOut,
+                               SExtConnectorError *pOutErr) {
+  (void)pQHandle;
+  (void)pColMappings;
+  (void)numColMappings;
+  (void)ppOut;
+  (void)pOutErr;
+  uError("extConnectorFetchBlock: operation not supported in community edition");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
+void extConnectorCloseQuery(SExtQueryHandle *pQHandle) { (void)pQHandle; }
+
+void extConnectorUpdateModuleCfg(const SExtConnectorModuleCfg *cfg) { (void)cfg; }
+
+void encryptExtSourcePassword(const char *plaintext, char *outBuf) {}
+
+void decryptExtSourcePassword(const char *cipherBuf, char *outPlain) {}
+
+#endif  // !TD_ENTERPRISE

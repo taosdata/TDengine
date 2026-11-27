@@ -1,5 +1,24 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import json
 import time
-from new_test_framework.utils import (tdLog, tdSql)
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from taos.error import ProgrammingError
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestTDgptBasic:
@@ -17,7 +36,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -32,6 +51,60 @@ class TestTDgptBasic:
         tdSql.checkRows(0)
 
         tdSql.error("drop anode 1")
+
+    def test_anode_url_security(self):
+        """CREATE ANODE URL security checks
+
+        Verify that the server rejects:
+        1. Non-http/https schemes (file://, ftp://)
+        2. Loopback addresses (127.0.0.1, ::1)
+        3. RFC-1918 private addresses (10.x, 172.16.x, 192.168.x) and IPv6 ULA (fc00::/7)
+        4. Link-local addresses (169.254.x.x, fe80::/10)
+        5. Bare host:port without scheme
+
+        Since: v3.3.9.0
+
+        Labels: common,ci,security,functional
+
+        Jira: TD-SEC-2026-038
+
+        History:
+            - 2026-09-20 Added for SSRF hardening
+
+        """
+
+        # disable the anodeAllowInternalUrl setting to test the security checks
+        tdSql.execute("alter all dnodes 'anodeAllowInternalUrl' '0'")
+
+        try:
+            # non-http schemes must be rejected
+            tdSql.error("create anode 'file:///etc/passwd'")
+            tdSql.error("create anode 'ftp://192.168.1.1:6090'")
+
+            # bare host:port without scheme must be rejected
+            tdSql.error("create anode '192.168.1.1:6090'")
+
+            # loopback addresses must be rejected
+            tdSql.error("create anode 'http://127.0.0.1:6090'")
+            tdSql.error("create anode 'http://127.1.2.3:6090'")
+            tdSql.error("create anode 'http://localhost:6090'")
+            tdSql.error("create anode 'http://[::1]:6090'")  # IPv6 loopback
+
+            # link-local (cloud metadata endpoint) must be rejected
+            tdSql.error("create anode 'http://169.254.169.254:6090'")
+
+            # RFC-1918 private ranges must be rejected by default
+            tdSql.error("create anode 'http://10.0.0.1:6090'")
+            tdSql.error("create anode 'http://172.16.0.1:6090'")
+            tdSql.error("create anode 'http://192.168.1.1:6090'")
+            tdSql.error("create anode 'http://[fc00::1]:6090'")  # IPv6 ULA (RFC 4193 private)
+
+            # no anode should have been created
+            tdSql.query("show anodes")
+            tdSql.checkRows(0)
+        finally:
+            # restore default configuration (anodeAllowInternalUrl=true) to avoid polluting subsequent tests
+            tdSql.execute("alter all dnodes 'anodeAllowInternalUrl' '1'")
 
     def test_analysis(self):
         """TDgpt analysis functions
@@ -52,7 +125,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -61,17 +134,17 @@ class TestTDgptBasic:
 
         """
 
-        tdSql.execute("create anode '192.168.2.90:6090'")
+        tdSql.execute("create anode 'http://192.168.2.90:6090'")
         tdSql.query("show anodes")
 
         tdSql.checkRows(1)
-        tdLog.info("create anode: 192.168.2.90:6090 successfully")
+        tdLog.info("create anode: http://192.168.2.90:6090 successfully")
         tdSql.query("show anodes full")
 
         # there are 17 analysis models for forecasting or anomaly-detection.
         tdSql.checkRows(17)
 
-        tdSql.execute("create database d0 vgroups 1")
+        tdSql.execute("create database if not exists d0 vgroups 1")
         tdSql.query("select * from information_schema.ins_databases")
 
         tdSql.checkRows(3)
@@ -266,7 +339,7 @@ class TestTDgptBasic:
 
         Since: v3.3.8.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -334,7 +407,7 @@ class TestTDgptBasic:
         
         Since: v3.3.8.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -388,10 +461,313 @@ class TestTDgptBasic:
 
         Since: v3.3.0.0
 
-        Labels: common,ci,ignore
+        Labels: common,ci,ignore,integration,functional
 
         History:
             - 2025-10-13 Alex Duan add doc
 
         """
         pass
+    
+    def test_imputation_function(self):
+        """TDgpt imputation function on stable child tables.
+
+        Create an anode, register the imputation algorithm, insert sample rows,
+        and verify imputation() and related explain queries execute successfully.
+
+        Since: v3.3.0.0
+
+        Labels: common, ci, integration, functional
+
+        Jira: None
+
+        Catalog:
+            - Functions:Scalar
+
+        History:
+            - 2025-10-13 Alex Duan add doc
+        """
+        tdSql.execute("create database if not exists imputation vgroups 3")
+        tdSql.execute("use imputation")
+        
+        tdSql.execute("create stable st(ts timestamp, a int, b float, c double, d varchar(10), e tinyint, f int unsigned, g bool) tags(t1 int)")
+        tdSql.execute("create table t_1 using st tags(1)")
+        tdSql.execute("create table t_2 using st tags(2)")
+        tdSql.execute("create table t_3 using st tags(3)")
+        
+        tdSql.execute("insert into t_1 values(1786565760000, 1, 1.0, 123.1, 'abc', 12, 0, 0)") 
+        tdSql.execute("insert into t_1 values(1786566240000, 2, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786566960000, 3, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786567440000, 4, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786568160000, 5, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786568640000, 6, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786569360000, 7, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786569840000, 8, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786570560000, 9, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786571040000, 10, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786571760000, 11, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786572240000, 12, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786572960000, 13, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786573440000, 14, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786574160000, 15, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786574640000, 16, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786575360000, 17, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786575840000, 18, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786576560000, 19, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786577040000, 20, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786577760000, 21, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786578240000, 22, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786578960000, 23, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786579440000, 24, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786580160000, 25, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786580640000, 26, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786581360000, 27, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786581840000, 28, 1.0, 123.1, 'abc', 12, 0, 0)")
+        tdSql.execute("insert into t_1 values(1786582560000, 29, 1.0, 123.1, 'abc', 12, 0, 0)")
+        
+        tdSql.query("show anodes")
+        tdSql.checkRows(0)
+        
+        tdSql.execute("create anode 'http://192.168.2.90:6090'")
+        tdLog.info("create anode: http://192.168.2.90:6090 successfully")
+        
+        tdSql.query("show anodes full")
+        tdSql.printResult()
+        
+        tdSql.checkData(14, 1, "imputation")
+        tdSql.checkData(14, 2, "moment")
+        tdSql.checkData(14, 3, "READY")
+        
+        tdSql.query("select _improwts, imputation(a, 'algo=moment, freq=4m') from t_1;")
+        tdSql.query("select _improwts, imputation(a, 'algo=moment, freq=4m') + 20 from t_1;")
+        
+        tdSql.query("explain verbose true select _frowts, forecast(a) from t_1;")
+        tdSql.query("explain verbose true select forecast(a)+20 from t_1;")
+
+    def test_show_anodes_full_many_algos(self):
+        """show anodes full with more than 100 algorithms
+
+        When an anode reports a large number of algorithms (> SHOW_STEP_SIZE=100),
+        mndRetrieveAnodesFull must dynamically expand the result block capacity.
+        Without the fix, writing past the pre-allocated 100 rows causes memory
+        overflow.
+
+        This test starts a local mock anode HTTP server that returns a JSON
+        response containing 113 algorithms across all types, then verifies
+        that show anodes full returns all 113 rows without crashing.
+
+        When the license allows a second anode, both anodes are replaced by two
+        mock anodes reporting 61 algorithms each: the first one fills part of a
+        page and the second one forces the capacity expansion inside the same
+        retrieve, so the cross-anode path is covered deterministically. On
+        clusters whose anode quota is one, that second part is skipped.
+
+        Since: v3.3.9.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-11-17  Haojun Liao  Added for mndRetrieveAnodesFull overflow fix
+
+        """
+
+        def build_algo(name, builtin=True, status="READY", params=None):
+            return {"builtins": builtin, "desc": name, "name": name,
+                    "params": params or {}, "status": status}
+
+        def make_algo_list(ad_count, reg_count, cls_count, prefix=""):
+            return {
+                "forecast": [build_algo(n, status=s) for n, s in [
+                    ("arima", "READY"), ("ces", "READY"), ("chronos", "UNAVAIL"),
+                    ("ets", "READY"), ("tdtsfm_1", "UNAVAIL"), ("holtwinters", "READY"),
+                    ("moirai", "UNAVAIL"), ("prophet", "READY"), ("theta", "READY"),
+                    ("timemoe-fc", "UNAVAIL"), ("timesfm", "UNAVAIL"),
+                ]],
+                "anomaly-detection": (
+                    [build_algo(n) for n in ["grubbs", "iqr", "ksigma", "lof"]] +
+                    [build_algo(f"{prefix}ud_ad_{i}", builtin=False) for i in range(ad_count)]
+                ),
+                "imputation": [build_algo("moment", status="UNAVAIL")],
+                "correlation": [build_algo("dtw"), build_algo("tlcc")],
+                "regression": [build_algo(f"{prefix}ud_reg_{i}", builtin=False) for i in range(reg_count)],
+                "classification": [build_algo(f"{prefix}ud_cls_{i}", builtin=False) for i in range(cls_count)],
+                "clustering": [build_algo(n) for n in ["dbscan", "gmm", "kmeans"]],
+                "series-diagnosis": [],
+            }
+
+        def algo_count(algo_list):
+            return sum(len(v) for v in algo_list.values())
+
+        def make_list_response(algo_list):
+            return {
+                "protocol": 1.0, "version": 0.1,
+                "details": [{"type": t, "algo": a} for t, a in algo_list.items()],
+            }
+
+        status_response = {"protocol": 1.0, "status": "ready"}
+
+        def start_mock_server(list_resp):
+            class Handler(BaseHTTPRequestHandler):
+                def log_message(self, *_args):
+                    pass
+
+                def reply(self, data):
+                    body = json.dumps(data).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+                def do_GET(self):
+                    if self.path.endswith("/status"):
+                        self.reply(status_response)
+                    else:
+                        self.reply(list_resp)
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            return server
+
+        # --- Case 1: single anode with 113 algos (> SHOW_STEP_SIZE=100) ---
+        tdLog.info("=== Case 1: single anode, 113 algos ===")
+        algos1 = make_algo_list(ad_count=24, reg_count=44, cls_count=24)
+        expected1 = algo_count(algos1)
+        assert expected1 > 100, f"expected > 100, got {expected1}"
+
+        srv1 = start_mock_server(make_list_response(algos1))
+        url1 = f"http://127.0.0.1:{srv1.server_port}"
+        anode_ids = []
+        try:
+            # clean up any leftover anodes from prior tests
+            tdSql.query("show anodes")
+            for row in tdSql.queryResult:
+                tdSql.execute(f"drop anode {row[0]}")
+
+            tdSql.execute(f"create anode '{url1}'")
+            tdSql.query("show anodes")
+            tdSql.checkRows(1)
+            anode_ids.append(tdSql.queryResult[0][0])
+
+            tdSql.query("show anodes full")
+            tdLog.info(f"single anode: show anodes full returned {tdSql.queryRows} rows")
+            tdSql.checkRows(expected1)
+
+            # rows follow enum order: anomaly-detection(0) → forecast(1) → imputation(2)
+            # → correlation(3) → classification(4) → [motif(5) empty] → regression(6)
+            # → clustering(7) → [series-diagnosis(8) empty]
+            type_order = [
+                ("anomaly-detection", 28),  # 4 builtin + 24 user-defined
+                ("forecast",          11),
+                ("imputation",         1),
+                ("correlation",        2),
+                ("classification",    24),
+                # motif: 0 algos, no rows
+                ("regression",        44),
+                ("clustering",         3),
+                # series-diagnosis: 0 algos, no rows
+            ]
+
+            row_idx = 0
+            for type_name, count in type_order:
+                for i in range(count):
+                    tdSql.checkData(row_idx, 1, type_name)
+                    row_idx += 1
+
+            # spot-check first and last algo in key sections
+            tdSql.checkData(0,  2, "grubbs")         # first anomaly-detection algo
+            tdSql.checkData(3,  2, "lof")             # last builtin anomaly-detection
+            tdSql.checkData(4,  2, "ud_ad_0")         # first user-defined anomaly-detection
+            tdSql.checkData(28, 2, "arima")            # first forecast algo
+            # imputation section starts at row 28+11=39
+            tdSql.checkData(39, 2, "moment")           # the only imputation algo
+            tdSql.checkData(39, 3, "UNAVAIL")          # moment is unavailable
+            tdSql.checkData(40, 2, "dtw")              # first correlation algo
+            # last row: clustering section ends at row 113-1=112
+            tdSql.checkData(expected1 - 1, 2, "kmeans")
+            tdSql.checkData(expected1 - 1, 1, "clustering")
+
+            # --- Case 2: two anodes, 61 algos each (61+61 > 100, cross-page) ---
+            # Both anodes must stay below SHOW_STEP_SIZE (100) algorithms, otherwise the first
+            # anode fills a whole page on its own and the second one starts with numOfRows == 0,
+            # where blockDataEnsureCapacity returns early and the expansion branch is never
+            # reached. With 61 each, the first anode writes 61 rows, the loop continues in the
+            # same retrieve and the second anode forces the capacity expansion at numOfRows == 61
+            # - independent of the SDB hash iteration order. Case 1's 113-algorithm anode is
+            # therefore dropped first.
+            #
+            # The anode quota is licensed: the default grant allows a single anode
+            # (GRANT_UNIQ_DFT_TDGPT_ANODE_NUM is 1 when the license carries no TDgpt anode
+            # count). Run this case only when the cluster accepts a second anode, skip it
+            # otherwise, so environments with a larger quota keep the coverage.
+            tdLog.info("=== Case 2: two anodes, 61 algos each ===")
+            tdSql.execute(f"drop anode {anode_ids[0]}")
+            anode_ids.clear()
+            tdSql.query("show anodes")
+            tdSql.checkRows(0)
+
+            algos2 = make_algo_list(ad_count=10, reg_count=20, cls_count=10, prefix="b_")
+            algos3 = make_algo_list(ad_count=10, reg_count=20, cls_count=10, prefix="c_")
+            expected2 = algo_count(algos2)
+            expected3 = algo_count(algos3)
+            assert expected2 < 100 and expected3 < 100, \
+                f"each anode must stay below one page, got {expected2}/{expected3}"
+            assert expected2 + expected3 > 100, \
+                f"the two anodes must overflow one page, got {expected2 + expected3}"
+
+            srv2 = start_mock_server(make_list_response(algos2))
+            srv3 = start_mock_server(make_list_response(algos3))
+            url2 = f"http://127.0.0.1:{srv2.server_port}"
+            url3 = f"http://127.0.0.1:{srv3.server_port}"
+            try:
+                skipped = False
+                try:
+                    tdSql.cursor.execute(f"create anode '{url2}'")
+                    tdSql.cursor.execute(f"create anode '{url3}'")
+                except ProgrammingError as err:
+                    # 0x80000830 is TSDB_CODE_GRANT_ANODE_LIMITED
+                    if (err.errno & 0xFFFFFFFF) != 0x80000830:
+                        raise
+                    tdLog.notice("license allows one anode only, the two-anode case is skipped")
+                    skipped = True
+
+                tdSql.query("show anodes")
+                # register whatever was created so the outer cleanup drops it, also on skip
+                anode_ids.extend(row[0] for row in tdSql.queryResult)
+                if not skipped:
+                    tdSql.checkRows(2)
+                    id_by_url = {row[1]: row[0] for row in tdSql.queryResult}
+                    id2 = id_by_url[url2]
+                    id3 = id_by_url[url3]
+
+                    tdSql.query("show anodes full")
+                    total = expected2 + expected3
+                    tdLog.info(f"two anodes: show anodes full returned {tdSql.queryRows} rows, expected {total}")
+                    tdSql.checkRows(total)
+
+                    # every row must stay bound to its own anode: the block expansion has to keep
+                    # the rows already written for the first anode instead of shifting them
+                    counts = {id2: 0, id3: 0}
+                    for row in tdSql.queryResult:
+                        rid, algo = row[0], row[2]
+                        assert rid in (id2, id3), f"unexpected anode id {rid}, expected {id2} or {id3}"
+                        assert row[1] != "", f"algo type is empty for row id={rid} — offset corruption?"
+                        assert row[2] != "", f"algo name is empty for row id={rid} — offset corruption?"
+                        counts[rid] += 1
+                        if algo.startswith(("b_", "c_")):
+                            owner = id2 if algo.startswith("b_") else id3
+                            assert rid == owner, \
+                                f"algo {algo} is filed under anode id {rid}, expected {owner} — row misalignment"
+                    assert counts[id2] == expected2 and counts[id3] == expected3, \
+                        f"rows per anode {counts}, expected {expected2}/{expected3}"
+            finally:
+                srv3.shutdown()
+                srv2.shutdown()
+        finally:
+            for aid in reversed(anode_ids):
+                tdSql.execute(f"drop anode {aid}")
+            srv1.shutdown()
+
+        

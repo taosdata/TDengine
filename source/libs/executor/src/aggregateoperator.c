@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -48,12 +50,15 @@ typedef struct SAggOperatorInfo {
   bool             groupKeyOptimized;
   bool             hasValidBlock;
   SSDataBlock*     pNewGroupBlock;
+  SSDataBlock*     pMergedRes;
+  bool             hasPendingResult;
   bool             hasCountFunc;
   SOperatorInfo*   pOperator;
   bool             cleanGroupResInfo;
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
+static void cleanupAggregateRowState(void* param);
 static int32_t setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
@@ -73,7 +78,92 @@ static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus
 
 static int32_t resetAggregateOperatorState(SOperatorInfo* pOper);
 
-int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
+typedef struct {
+  int32_t slotId;
+  bool    referenced;
+} SConstTagSlotCheck;
+
+static EDealRes constTagSlotWalker(SNode* pNode, void* pContext) {
+  SConstTagSlotCheck* pCheck = pContext;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->slotId == pCheck->slotId) {
+    pCheck->referenced = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+// Negotiate a local representation with an immediate aggregate consumer. Tag
+// slots referenced by filters, scalar expressions or other functions stay dense.
+static int32_t enableConstTagInputs(SOperatorInfo* pScan, SExprSupp* pAggSup, const SAggPhysiNode* pAggNode) {
+  STableScanInfo* pScanInfo = pScan->info;
+  const STableScanPhysiNode* pScanNode = pScan->pPhyNode;
+  if (pScanNode == NULL || pScanNode->scan.node.dynamicOp || pScan->dynamicTask ||
+      pScan->pTaskInfo->localFetch.directBlock || pScanInfo->virtualStableScan || pScanInfo->pBatchColMap ||
+      pAggNode->pExprs != NULL || pScanNode->scan.node.pLimit != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pBlock = pScanInfo->pResBlock;
+  SExprSupp* pPseudoSup = &pScanInfo->base.pseudoSup;
+  for (int32_t i = 0; i < pPseudoSup->numOfExprs; ++i) {
+    const SExprInfo* pTagExpr = &pPseudoSup->pExprInfo[i];
+    if (pTagExpr->pExpr->nodeType != QUERY_NODE_COLUMN || pTagExpr->base.numOfParams != 1 ||
+        pTagExpr->base.pParam[0].pCol->colType != COLUMN_TYPE_TAG) {
+      continue;
+    }
+    int32_t slotId = pTagExpr->base.resSchema.slotId;
+    SConstTagSlotCheck check = {.slotId = slotId};
+    nodesWalkExpr(pScanNode->scan.node.pConditions, constTagSlotWalker, &check);
+    if (check.referenced) {
+      continue;
+    }
+
+    bool used = false;
+    bool supported = true;
+    for (int32_t j = 0; j < pAggSup->numOfExprs && supported; ++j) {
+      const SqlFunctionCtx* pCtx = &pAggSup->pCtx[j];
+      const SExprInfo* pExpr = &pAggSup->pExprInfo[j];
+      for (int32_t k = 0; k < pExpr->base.numOfParams; ++k) {
+        const SFunctParam* pParam = &pExpr->base.pParam[k];
+        if (pParam->type != FUNC_PARAM_TYPE_COLUMN || pParam->pCol->slotId != slotId) {
+          continue;
+        }
+        used = true;
+        int32_t type = fmGetFuncTypeFromId(pCtx->functionId);
+        supported = !pCtx->isDistinctFunc && k == 0 && pExpr->base.numOfParams == 1 &&
+                    (type == FUNCTION_TYPE_COUNT || type == FUNCTION_TYPE_SUM ||
+                     type == FUNCTION_TYPE_AVG || type == FUNCTION_TYPE_AVG_PARTIAL);
+        if (!supported) {
+          break;
+        }
+      }
+    }
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (!used || !supported || pCol == NULL || IS_DECIMAL_TYPE(pCol->info.type) ||
+        pCol->info.type == TSDB_DATA_TYPE_JSON) {
+      continue;
+    }
+    if (pBlock->pConstTagCols == NULL) {
+      pBlock->pConstTagCols = taosArrayInit(1, sizeof(SConstTagColumn));
+      if (pBlock->pConstTagCols == NULL) return terrno;
+    }
+    SConstTagColumn col = {.slotId = slotId, .column = {.info = pCol->info}};
+    col.column.info.noData = false;
+    int32_t code = colInfoDataEnsureCapacity(&col.column, 1, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      colDataDestroy(&col.column);
+      return code;
+    }
+    if (taosArrayPush(pBlock->pConstTagCols, &col) == NULL) {
+      colDataDestroy(&col.column);
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createAggregateOperatorInfo(SOperatorInfo** pDownstreams, int32_t numDownstreams,
+                                    SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
 
@@ -120,31 +210,53 @@ int32_t createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pA
   code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                             GET_STM_RTINFO(pTaskInfo));
   TSDB_CHECK_CODE(code, lino, _error);
+  filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
 
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupKeyOptimized = pAggNode->groupKeyOptimized;
   pInfo->groupId = UINT64_MAX;
-  pInfo->binfo.inputTsOrder = pAggNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAggNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAggNode->node);
   pInfo->hasCountFunc = pAggNode->hasCountLikeFunc;
   pInfo->pOperator = pOperator;
   pInfo->cleanGroupResInfo = false;
 
   setOperatorInfo(pOperator, "TableAggregate", QUERY_NODE_PHYSICAL_PLAN_HASH_AGG,
                   !pAggNode->node.forceCreateNonBlockingOptr, OP_NOT_OPENED, pInfo, pTaskInfo);
+  // Only cache-scan table aggregation opts into cross-group batching. Other
+  // non-blocking aggregates (e.g. window join) keep emitting one group per
+  // block, with the group id still cleared by mergeResultBlock.
+  if (!pOperator->blocking && numDownstreams == 1 &&
+      pDownstreams[0]->operatorType ==
+          QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN &&
+      pInfo->binfo.mergeResultBlock &&
+      pAggNode->node.pLimit == NULL && pAggNode->node.pSlimit == NULL) {
+    code = createOneDataBlock(pResBlock, false, &pInfo->pMergedRes);
+    TSDB_CHECK_CODE(code, lino, _error);
+    // Groups are merged one at a time and colDataMergeCol reallocs to the
+    // exact new size. Pre-size fixed-length columns and var-length offsets
+    // for the first batch; var-length payloads still grow on demand.
+    code = blockDataEnsureCapacity(pInfo->pMergedRes,
+                                   pOperator->resultInfo.capacity);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResultNext, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupAggregateRowState);
   setOperatorResetStateFn(pOperator, resetAggregateOperatorState);
 
   pOperator->pPhyNode = pAggNode;
 
-  if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    STableScanInfo* pTableScanInfo = downstream->info;
+  if (pDownstreams[0]->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = pDownstreams[0]->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
+    if (numDownstreams == 1) {
+      code = enableConstTagInputs(pDownstreams[0], &pOperator->exprSupp, pAggNode);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
-  code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, pDownstreams, numDownstreams);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -157,9 +269,18 @@ _error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
-  destroyOperatorAndDownstreams(pOperator, &downstream, 1);
+  destroyOperatorAndDownstreams(pOperator, pDownstreams, numDownstreams);
   pTaskInfo->code = code;
   return code;
+}
+
+static void cleanupAggregateRowState(void* param) {
+  SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    pInfo->cleanGroupResInfo);
 }
 
 void destroyAggOperatorInfo(void* param) {
@@ -168,16 +289,49 @@ void destroyAggOperatorInfo(void* param) {
   }
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
+  blockDataDestroy(pInfo->pMergedRes);
 
   if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      pInfo->cleanGroupResInfo);
+    cleanupAggregateRowState(pInfo);
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSuppWithoutFilter(&pInfo->scalarExprSup);
   cleanupGroupResInfo(&pInfo->groupResInfo);
   taosMemoryFreeClear(param);
+}
+
+static bool exprSuppNeedCleanup(const SExprSupp* pSup) {
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    if (pSup->pCtx[i].needCleanup) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Once a non-blocking group's result has been copied out, its result row
+// will not be revisited. Reclaim those pages before starting the next group
+// so finished groups do not spill. Preserve the existing cleanup lifecycle
+// for functions with external state.
+static void recycleGroupResultBuf(SOperatorInfo* pOperator) {
+  SAggOperatorInfo* pAggInfo = pOperator->info;
+  SExprSupp*        pSup = &pOperator->exprSupp;
+
+  if (hasRemainResults(&pAggInfo->groupResInfo) ||
+      exprSuppNeedCleanup(pSup)) {
+    return;
+  }
+
+  clearDiskbasedBuf(pAggInfo->aggSup.pResultBuf);
+
+  // Reset every reference to a page of the cleared buffer.
+  pAggInfo->aggSup.currentPageId = -1;
+  initResultRowInfo(&pAggInfo->binfo.resultRowInfo);
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = NULL;
+    pSup->pCtx[i].saveHandle.currentPage = -1;
+  }
 }
 
 /**
@@ -203,12 +357,144 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
 
   SExprSupp*   pSup = &pOperator->exprSupp;
   int32_t      order = pAggInfo->binfo.inputTsOrder;
+
+  // Mixed distinct mode: two downstream children
+  // child[0] feeds non-distinct functions, child[1] feeds distinct functions
+  // Detect mixed mode by numOfDownstream >= 2 (flag is a hint; downstream count is authoritative)
+  bool isMixedDistinct = (pOperator->numOfDownstream >= 2);
+  if (isMixedDistinct) {
+    int32_t numTotal = pSup->numOfExprs;
+
+    // Phase 1: pull all blocks from downstream[0], execute non-distinct functions
+    SSDataBlock* pBlock = NULL;
+    while (1) {
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+      if (pBlock == NULL) {
+        if (!pAggInfo->hasValidBlock) {
+          code = createDataBlockForEmptyInput(pOperator, &pBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+          if (pBlock == NULL) break;
+          pAggInfo->hasValidBlock = true;
+          code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+          QUERY_CHECK_CODE(code, lino, _end);
+          // Execute only non-distinct functions
+          for (int32_t k = 0; k < numTotal; ++k) {
+            SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+            if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+                pExprInfo->pExpr->_function.pFunctNode &&
+                pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+              continue;
+            }
+            if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+              if (pSup->pCtx[k].input.pData[0] != NULL) {
+                code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+            }
+          }
+          destroyDataBlockForEmptyInput(true, &pBlock);
+          break;
+        }
+        break;
+      }
+      pAggInfo->hasValidBlock = true;
+      pAggInfo->binfo.pRes->info.scanFlag = pBlock->info.scanFlag;
+
+      if (pAggInfo->scalarExprSup.pExprInfo != NULL) {
+        SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
+        code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // Execute only non-distinct functions
+      for (int32_t k = 0; k < numTotal; ++k) {
+        SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+        if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+            pExprInfo->pExpr->_function.pFunctNode &&
+            pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+          continue;
+        }
+        if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+          if (pSup->pCtx[k].input.pData[0] == NULL) {
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+
+    // Phase 2: pull all blocks from downstream[1] (DistinctFilter), execute distinct functions
+    // Legacy physical plans already deduplicate in DistinctFilter. Normalize the context so the
+    // function layer does not build a second SSpillDistinctSet for the same rows.
+    for (int32_t k = 0; k < numTotal; ++k) {
+      SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+      if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+          pExprInfo->pExpr->_function.pFunctNode &&
+          pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+        pSup->pCtx[k].isDistinctFunc = false;
+      }
+    }
+    while (1) {
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 1);
+      if (pBlock == NULL) break;
+
+      if (pAggInfo->scalarExprSup.pExprInfo != NULL) {
+        SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
+        code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pTaskInfo), pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      code = setExecutionContext(pOperator, numTotal, pBlock->info.id.groupId);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+      QUERY_CHECK_CODE(code, lino, _end);
+
+      // Execute only distinct functions
+      for (int32_t k = 0; k < numTotal; ++k) {
+        SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+        if (!(pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+              pExprInfo->pExpr->_function.pFunctNode &&
+              pExprInfo->pExpr->_function.pFunctNode->isDistinct)) {
+          continue;
+        }
+        if (functionNeedToExecute(&pSup->pCtx[k]) && pSup->pCtx[k].fpSet.process != NULL) {
+          if (pSup->pCtx[k].input.pData[0] == NULL) {
+            code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          code = pSup->pCtx[k].fpSet.process(&pSup->pCtx[k]);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+    }
+
+    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
+
+    code = initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pAggInfo->cleanGroupResInfo = true;
+    return pAggInfo->hasValidBlock;
+  }
+
+  // Standard (non-mixed) path
   SSDataBlock* pBlock = pAggInfo->pNewGroupBlock;
 
   pAggInfo->cleanGroupResInfo = false;
   if (pBlock) {
     pAggInfo->pNewGroupBlock = NULL;
     tSimpleHashClear(pAggInfo->aggSup.pResultRowHashTable);
+    recycleGroupResultBuf(pOperator);
     qTrace("%s EXEC_GROUP_TRACE agg_resume blockGroupId:%" PRIu64 " currentGroupId:%" PRIu64
            " blocking:%d groupKeyOptimized:%d rows:%" PRId64,
            GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
@@ -244,12 +530,12 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
            GET_TASKID(pTaskInfo), pBlock->info.id.groupId, pAggInfo->groupId, pOperator->blocking,
            pAggInfo->groupKeyOptimized, pBlock->info.rows);
 
-    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+    printDataBlock(pBlock, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->scalarExprSup.pExprInfo != NULL && !blockAllocated) {
       SExprSupp* pSup1 = &pAggInfo->scalarExprSup;
-      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo));
+      code = projectApplyFunctions(pSup1->pExprInfo, pBlock, pBlock, pSup1->pCtx, pSup1->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         destroyDataBlockForEmptyInput(blockAllocated, &pBlock);
         T_LONG_JMP(pTaskInfo->env, code);
@@ -303,7 +589,8 @@ _end:
   return pBlock != NULL;
 }
 
-int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t getAggregateGroupResultNext(SOperatorInfo* pOperator,
+                                         SSDataBlock** ppRes) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   SAggOperatorInfo* pAggInfo = pOperator->info;
@@ -335,7 +622,8 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     while (1) {
       doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                         pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (!hasRemainResults(&pAggInfo->groupResInfo)) {
@@ -356,9 +644,67 @@ _end:
     T_LONG_JMP(pTaskInfo->env, code);
   }
 
-  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId);
+  printDataBlock(pInfo->pRes, __func__, pTaskInfo->id.str, pTaskInfo->id.queryId, pTaskInfo->charsetCxt);
 
   (*ppRes) = (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+  return code;
+}
+
+static int32_t getAggregateResultNext(SOperatorInfo* pOperator,
+                                    SSDataBlock** ppRes) {
+  SAggOperatorInfo* pAggInfo = pOperator->info;
+  SSDataBlock*     pMergedRes = pAggInfo->pMergedRes;
+  if (pMergedRes == NULL) {
+    return getAggregateGroupResultNext(pOperator, ppRes);
+  }
+
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  blockDataCleanup(pMergedRes);
+
+  while (1) {
+    SSDataBlock* pRes = pAggInfo->binfo.pRes;
+    if (!pAggInfo->hasPendingResult) {
+      code = getAggregateGroupResultNext(pOperator, &pRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    pAggInfo->hasPendingResult = false;
+    if (pRes == NULL) {
+      break;
+    }
+
+    // Keep the filtered group until the next call if this batch is full.
+    // It may be the final group, with the operator already marked done.
+    if (pMergedRes->info.rows > 0 &&
+        blockDataMergeExceedLimit(pMergedRes, pRes)) {
+      pAggInfo->hasPendingResult = true;
+      break;
+    }
+
+    if (pMergedRes->info.rows == 0) {
+      code = copyDataBlock(pMergedRes, pRes);
+    } else {
+      code = blockDataMerge(pMergedRes, pRes);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    if (pMergedRes->info.rows >= pOperator->resultInfo.threshold) {
+      break;
+    }
+  }
+
+  code = blockDataUpdateTsWindow(pMergedRes, 0);
+  QUERY_CHECK_CODE(code, lino, _end);
+  *ppRes = pMergedRes->info.rows > 0 ? pMergedRes : NULL;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino,
+           tstrerror(code));
+    pTaskInfo->code = code;
+    T_LONG_JMP(pTaskInfo->env, code);
+  }
   return code;
 }
 
@@ -636,16 +982,9 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
 
 void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo) {
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
-  int32_t         numOfRows = getNumOfTotalRes(pGroupResInfo);
-  bool            needCleanup = false;
+  int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
 
-  for (int32_t j = 0; j < numOfExprs; ++j) {
-    needCleanup |= pCtx[j].needCleanup;
-  }
-  if (!needCleanup) {
+  if (!exprSuppNeedCleanup(pSup)) {
     return;
   }
 
@@ -659,27 +998,23 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
     }
     pRow = (SResultRow*)((char*)page + pPos->pos.offset);
 
-
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.cleanup) {
-        pCtx[j].fpSet.cleanup(&pCtx[j]);
-      }
-    }
+    cleanupResultRowFunctionState(pSup, pRow);
     releaseBufPage(pBuf, page);
+  }
+
+  // This traversal finishes the rows' lifetime. The helper restores bindings for
+  // reusable callers, but here their pages may have been evicted during cleanup.
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = NULL;
   }
 }
 
 void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                        SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
-  int32_t         numOfExprs = pSup->numOfExprs;
-  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
-  SqlFunctionCtx* pCtx = pSup->pCtx;
-  bool            needCleanup = false;
-  for (int32_t j = 0; j < numOfExprs; ++j) {
-    needCleanup |= pCtx[j].needCleanup;
+  if (pHashmap == NULL) {
+    return;
   }
-  if (!needCleanup) {
+  if (!exprSuppNeedCleanup(pSup)) {
     return;
   }
 
@@ -697,14 +1032,15 @@ void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDisk
 
     SResultRow* pRow = (SResultRow*)((char*)page + pos->offset);
 
-    for (int32_t j = 0; j < numOfExprs; ++j) {
-      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
-      if (pCtx[j].fpSet.cleanup) {
-        pCtx[j].fpSet.cleanup(&pCtx[j]);
-      }
-    }
+    cleanupResultRowFunctionState(pSup, pRow);
 
     releaseBufPage(pBuf, page);
+  }
+
+  // Hash traversal can reuse the cache frame of the saved binding. Do not let
+  // context destruction revisit that address after the remaining rows are freed.
+  for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+    pSup->pCtx[i].resultInfo = NULL;
   }
 }
 
@@ -777,14 +1113,14 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-          int32_t dataLen = getJsonValueLen(data);
-          memcpy(dest, data, dataLen);
-        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            blobDataCopy(dest, data);
-          } else {
-            varDataCopy(dest, data);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          // The interbuf cell is sized by the expression's declared result width; a
+          // virtual table column may carry a value wider than declared (the full source
+          // value is returned by design) -- refuse to overrun it.
+          code = copyVarLenCellChecked(dest, pColInfoData->info.type, data,
+                                       (int32_t)pCtx[k].resDataInfo.interBufSize, NULL);
+          if (TSDB_CODE_SUCCESS != code) {
+            TAOS_CHECK_EXIT(code);
           }
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);
@@ -884,6 +1220,8 @@ static int32_t resetAggregateOperatorState(SOperatorInfo* pOper) {
                       pAgg->cleanGroupResInfo);
   cleanupGroupResInfo(&pAgg->groupResInfo);
   resetBasicOperatorState(&pAgg->binfo);
+  blockDataCleanup(pAgg->pMergedRes);
+  pAgg->hasPendingResult = false;
   
   pAgg->pNewGroupBlock = NULL;
 

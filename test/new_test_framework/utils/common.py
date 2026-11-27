@@ -1,18 +1,23 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
 import random
 import string
+import shlex
 import concurrent
 import requests
 import time
@@ -709,16 +714,20 @@ class TDCom:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        normSelfPath = selfPath.replace("\\", "/")
+        buildPath = ""
 
-        if "taos-community" in selfPath:
+        if "taos-community" in normSelfPath:
             # tsdb repo layout: /mnt/tsdb/source/taos-community/test/...
-            projPath = selfPath[: selfPath.find("source/taos-community")]
-        elif "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "TDengine" in selfPath:
-            projPath = selfPath[: selfPath.find("TDengine") + len("TDengine")]
+            projPath = normSelfPath[: normSelfPath.find("source/taos-community")]
+        elif "community" in normSelfPath:
+            projPath = normSelfPath[: normSelfPath.find("community")]
+        elif "TDengine" in normSelfPath:
+            projPath = normSelfPath[: normSelfPath.find("TDengine") + len("TDengine")]
         else:
-            projPath = selfPath[: selfPath.find("test")]
+            projPath = normSelfPath[: normSelfPath.find("test")]
+
+        projPath = os.path.normpath(projPath)
 
         for root, dirs, files in os.walk(projPath):
             if ".git" in root:
@@ -726,11 +735,13 @@ class TDCom:
             if "taosd" in files or "taosd.exe" in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if "packaging" not in rootRealPath:
-                    buildPath = root[: len(root) - len("/build/bin")]
+                    normRoot = os.path.normpath(root)
+                    buildBinSuffix = os.path.normpath(os.path.join("build", "bin"))
+                    if normRoot.endswith(buildBinSuffix):
+                        buildPath = os.path.dirname(os.path.dirname(normRoot))
+                    else:
+                        buildPath = rootRealPath
                     break
-        # if platform.system().lower() == 'windows':
-        #    win_sep = "\\"
-        #    buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
 
@@ -2972,16 +2983,24 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
-    def generate_query_result_file(self, test_case, idx, sql):
-        import shlex
+    def generate_query_result_file(self, test_case, idx, sql, timeout=None):
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
         # Construct command parameters to avoid platform compatibility issues
         cmd = ["taos", "-c", cfgPath, "-s", sql]
         try:
-            # Capture output
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            # Capture output. The optional timeout bounds the CLI run so a
+            # query that never returns (e.g. a hung vtable merge task) fails
+            # fast with TimeoutExpired instead of stalling the whole case.
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    encoding="utf-8", errors="ignore", shell=False,
+                                    timeout=timeout)
             output = result.stdout.splitlines()
+            tdLog.info(f"[PIPELINE] taos -s: rc={result.returncode} "
+                       f"stdout_lines={len(output)} stderr={result.stderr[:200]!r}")
+        except subprocess.TimeoutExpired as e:
+            tdLog.error(f"taos command timed out after {timeout}s: {e}")
+            raise
         except Exception as e:
             tdLog.error(f"Failed to run taos command: {e}")
             output = []
@@ -3044,6 +3063,167 @@ class TDCom:
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             executor.map(lambda sql: self.run_sql(sql, db), sql_lines)
 
+    # A `taos -f` run prints per-run timings and counters that differ between
+    # runs and between platforms, so they must not reach an expected-result
+    # file. These tables define the noise stripped in Python on all platforms.
+    # Keep the shell-compatible patterns for output-equivalence checks.
+    #
+    # The patterns are deliberately written so that they mean the same thing to
+    # Python's ``re`` and to POSIX extended regular expressions (what ``sed -E``
+    # and ``grep -E`` accept): only character classes, the ``*``/``+``/``?``
+    # quantifiers, ``.``, escaped literals (``\.``, ``\(``) and ERE-style
+    # groups are used, and no POSIX bracket expressions such as ``[[:space:]]``
+    # appear.  That is what allows one entry to serve as both the sed script and
+    # the Python pattern without a translation step.
+    _RESULT_NOISE_SUBSTRINGS = ("Query OK", "Copyright", "Exec cost:")
+    _RESULT_NOISE_SEARCHES = (r"Welcome to the TDengine (TSDB )?Command",)
+    # Order matters, and it is the order the original sed chain used: the bare
+    # "x=0.1" pattern also matches the head of "x=0.1(0.2)" and would leave a
+    # stray "(0.2)" behind, so for those prefixes the parenthesised form is
+    # listed first.  "cost=" is the exception -- its bare form requires ".."
+    # immediately after the number, which the parenthesised form interposes
+    # "(" before, so the two cannot collide and the original order stands.
+    #
+    # The leading whitespace class of the duration rewrite is spelled with the
+    # literal control characters rather than with backslash escapes: POSIX ERE
+    # has no "\t" escape, so "[ \t]" would match a backslash or a "t" under
+    # sed -E while matching a tab under Python.  The set is the same one the
+    # original sed used through "[[:space:]]", minus newline (sed matches a
+    # line at a time, so a newline can never be part of the match).
+    #
+    # This list is a superset of what the POSIX pipeline stripped before the
+    # tables were shared: "max_row_task" used to be stripped on Windows only.
+    # It is applied on both platforms now because the tables would otherwise
+    # disagree, and the line it matches is not part of any expected result --
+    # a grep of the test tree finds the token only in this file.
+    _RESULT_NOISE_REWRITES = (
+        ("[ \t\r\v\f]*\\([0-9]+\\.[0-9]+s\\)", " "),
+        (r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", ""),
+        (r"cost=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)\.\.[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"file_load_elapsed=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"file_load_elapsed=[0-9]+\.[0-9]+", ""),
+        (r"stt_load_elapsed=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"stt_load_elapsed=[0-9]+\.[0-9]+", ""),
+        (r"mem_load_elapsed=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"mem_load_elapsed=[0-9]+\.[0-9]+", ""),
+        (r"sma_load_elapsed=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"sma_load_elapsed=[0-9]+\.[0-9]+", ""),
+        (r"composed_elapsed=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"composed_elapsed=[0-9]+\.[0-9]+", ""),
+        (r"slowest_vgroup_id=[0-9]+", ""),
+        (r"fetch_cost=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        (r"fetch_cost=[0-9]+\.[0-9]+", ""),
+        (r"fetch_times=[0-9]+\.[0-9]+\([0-9]+\)", ""),
+        (r"fetch_times=[0-9]+", ""),
+        (r"slow_deviation=[0-9]+\.[0-9]+%", ""),
+        (r"cost_ratio=[0-9]+\.[0-9]+", ""),
+        (r"data_deviation=-?[0-9]+\.[0-9]+%", ""),
+        (r"Planning Time: [0-9]+\.[0-9]+ ms", ""),
+        (r"Execution Time: [0-9]+\.[0-9]+ ms", ""),
+        (r"max_row_task=[0-9]+, ", ""),
+    )
+
+    @classmethod
+    def _result_noise_shell_pipeline(cls):
+        """Render the noise tables as the grep/sed stages of a POSIX pipeline."""
+        stages = [f"grep -v '{noise}'" for noise in cls._RESULT_NOISE_SUBSTRINGS]
+        for pattern in cls._RESULT_NOISE_SEARCHES:
+            stages.append(f"grep -Ev '{pattern}'")
+        for pattern, replacement in cls._RESULT_NOISE_REWRITES:
+            stages.append(f"sed -E 's/{pattern}/{replacement}/g'")
+        return "| " + " | ".join(stages) + " "
+
+    @classmethod
+    def _filter_result_output(cls, text):
+        """Drop the run-specific CLI noise from a ``taos -f`` transcript.
+
+        The stages run in the same order as the POSIX pipeline, including the
+        trailing ``tr -d '\\r'``: carriage returns survive every pattern match
+        and are removed only at the end.  Doing the ``\\r`` removal first would
+        let a pattern match across a character the shell version still sees, so
+        the two outputs would differ on any input that has one in the middle of
+        a line.
+        """
+        searches = [re.compile(pattern) for pattern in cls._RESULT_NOISE_SEARCHES]
+        rewrites = [(re.compile(pattern), replacement)
+                    for pattern, replacement in cls._RESULT_NOISE_REWRITES]
+        filtered = []
+        for line in text.split("\n"):
+            if any(noise in line for noise in cls._RESULT_NOISE_SUBSTRINGS):
+                continue
+            if any(search.search(line) for search in searches):
+                continue
+            for pattern, replacement in rewrites:
+                line = pattern.sub(replacement, line)
+            filtered.append(line)
+        return "\n".join(filtered).replace("\r", "")
+
+    def _taos_cli_path(self):
+        """Absolute path of the ``taos`` CLI belonging to the build under test.
+
+        Falls back to the bare name (resolved through PATH) only when the
+        binary directory does not actually contain the CLI, so a caller that
+        never ran the full setup still behaves the way it used to.
+        """
+        name = "taos.exe" if platform.system().lower() == "windows" else "taos"
+        candidate = os.path.join(self.taos_bin_path, name)
+        return candidate if os.path.exists(candidate) else name
+
+    def _result_cli_env(self):
+        """Environment for the short-lived result-comparison ``taos`` process.
+
+        ``pytest.sh`` leaves leak detection on so ``checkAsan.sh`` still sees
+        ``taosd``. This CLI inherits that setting and otherwise exits through
+        LeakSanitizer ``_exit()``, which drops the tail of the result file.
+        """
+        if (os.environ.get("CI_ASAN_BUILD") != "1"
+                and "libasan" not in os.environ.get("LD_PRELOAD", "")):
+            return None
+        env = os.environ.copy()
+        for name in ("ASAN_OPTIONS", "LSAN_OPTIONS"):
+            options = [
+                option for option in env.get(name, "").split(":")
+                if option and not option.startswith("detect_leaks=")
+            ]
+            options.append("detect_leaks=0")
+            env[name] = ":".join(options)
+        return env
+
+    @staticmethod
+    def _os_system_with_env(pipeline, env):
+        if env is None:
+            return os.system(pipeline)
+        saved = {name: os.environ.get(name) for name in ("ASAN_OPTIONS", "LSAN_OPTIONS")}
+        os.environ.update({name: env[name] for name in saved if name in env})
+        try:
+            return os.system(pipeline)
+        finally:
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
+    def _run_taos_cli(self, cfgPath, inputfile):
+        """Run ``taos -c <cfg> -f <file>`` and return stdout, status and stderr.
+
+        The stderr text is returned rather than dropped so a failed run can be
+        reported where the POSIX branch would have shown it on the console: an
+        empty result file otherwise reads the same whether the CLI could not
+        connect or the input file was empty.
+        """
+        taos = self._taos_cli_path()
+        try:
+            proc = subprocess.run([taos, "-c", cfgPath, "-f", inputfile],
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  env=self._result_cli_env())
+        except OSError as e:
+            tdLog.info(f"[PIPELINE] cannot run {taos} ({e})")
+            return "", -1, ""
+        return (proc.stdout.decode("utf-8", errors="replace"),
+                proc.returncode,
+                proc.stderr.decode("utf-8", errors="replace"))
+
     def generate_query_result(self, inputfile, test_case):
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
@@ -3053,88 +3233,150 @@ class TDCom:
             tdLog.info(
                 f"Generating query result file: {self.query_result_file} using input file: {inputfile}"
             )
+            text, rc, err = self._run_taos_cli(cfgPath, inputfile)
+            payload = self._filter_result_output(text)
             if platform.system().lower() == "windows":
-                # Filter taos> lines
-                os.system(
-                    f"taos -c {cfgPath} -f {inputfile} "
-                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -Ev 'Welcome to the TDengine (TSDB )?Command' "
-                    "| grep -v 'Exec cost:' "
-                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
-                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
-                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
-                    "| sed -E 's/fetch_times=[0-9]+//g' "
-                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
-                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
-                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| sed -E 's/max_row_task=[0-9]+, //g' "
-                    f"> {self.query_result_file}.raw "
-                )
-                time.sleep(1)
-                with (
-                    open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin,
-                    open(self.query_result_file, "w", encoding="utf-8") as fout,
-                ):
-                    for line in fin:
-                        stripped = line.rstrip()
-                        # Skip lines that are entirely taos> or taos> followed by whitespace
-                        if re.match(r"^taos>\s*$", stripped):
-                            continue
-                        # Remove trailing whitespace from lines starting with taos>
-                        if stripped.startswith("taos>"):
-                            fout.write(stripped + "\n")
-                        else:
-                            fout.write(line)
-                os.system(f"rm -f {self.query_result_file}.raw")
-            else:
-                os.system(
-                    f"taos -c {cfgPath} -f {inputfile} "
-                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -Ev 'Welcome to the TDengine (TSDB )?Command' "
-                    "| grep -v 'Exec cost:' "
-                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
-                    # cost=0.000..1.111
-                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
-                    # cost=0.000(0.000)..1.111(1.111)
-                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
-                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
-                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
-                    "| sed -E 's/fetch_times=[0-9]+//g' "
-                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
-                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
-                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
-                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
-                    "| tr -d '\\r' "
-                    f"> {self.query_result_file}"
+                ends_with_newline = payload.endswith("\n")
+                filtered_lines = payload.split("\n")
+                if ends_with_newline:
+                    filtered_lines.pop()
+                kept = []
+                for line in filtered_lines:
+                    stripped = line.rstrip()
+                    if re.match(r"^taos>\s*$", stripped):
+                        continue
+                    kept.append(stripped if stripped.startswith("taos>") else line)
+                payload = "\n".join(kept)
+                if ends_with_newline:
+                    payload += "\n"
+            # Filtering in Python keeps preloaded ASAN out of system sed/grep
+            # processes while the taos CLI remains fully instrumented.
+            with open(self.query_result_file, "w", encoding="utf-8", newline="") as fout:
+                fout.write(payload)
+            tdLog.info(f"[PIPELINE] {self.query_result_file}: rc={rc} "
+                       f"bytes={len(payload.encode('utf-8'))} "
+                       f"lines={payload.count(chr(10))}")
+            if err.strip():
+                tdLog.info(f"[PIPELINE] {self._taos_cli_path()} stderr: {err.strip()[:2000]}")
+            if rc != 0:
+                raise subprocess.CalledProcessError(
+                    rc, [self._taos_cli_path(), "-c", cfgPath, "-f", inputfile],
+                    output=text, stderr=err,
                 )
             return self.query_result_file
+
+    @staticmethod
+    def _normalize_windows_query_output(output):
+        """Apply the existing grep/sed output rules without a POSIX shell."""
+        patterns = [
+            (r"[ \t]*\([0-9]+\.[0-9]+s\)", " "),
+            (r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", ""),
+            (r"cost=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)\.\.[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        ]
+        for field in ("file_load_elapsed", "stt_load_elapsed", "mem_load_elapsed",
+                      "sma_load_elapsed", "composed_elapsed", "fetch_cost"):
+            patterns.extend([
+                (rf"{field}=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+                (rf"{field}=[0-9]+\.[0-9]+", ""),
+            ])
+        patterns.extend([
+            (r"slowest_vgroup_id=[0-9]+", ""),
+            (r"fetch_times=[0-9]+\.[0-9]+\([0-9]+\)", ""),
+            (r"fetch_times=[0-9]+", ""),
+            (r"slow_deviation=[0-9]+\.[0-9]+%", ""),
+            (r"cost_ratio=[0-9]+\.[0-9]+", ""),
+            (r"data_deviation=-?[0-9]+\.[0-9]+%", ""),
+            (r"Planning Time: [0-9]+\.[0-9]+ ms", ""),
+            (r"Execution Time: [0-9]+\.[0-9]+ ms", ""),
+            (r"max_row_task=[0-9]+, ", ""),
+        ])
+        lines = []
+        for line in output.splitlines():
+            if (any(marker in line for marker in ("Query OK", "Copyright", "Exec cost:"))
+                    or re.search(r"Welcome to the TDengine (TSDB )?Command", line)):
+                continue
+            for pattern, replacement in patterns:
+                line = re.sub(pattern, replacement, line)
+            if re.match(r"^taos>\s*$", line):
+                continue
+            lines.append(line.rstrip() if line.startswith("taos>") else line)
+        return "".join(line + "\n" for line in lines)
+
+    # Reports a sanitizer runtime (preloaded libasan/LSan, or an ASan build)
+    # prints on the stderr of the CLI that produced a result file.
+    _SANITIZER_MARKERS = (
+        "AddressSanitizer",
+        "LeakSanitizer",
+        "ThreadSanitizer",
+        "UndefinedBehaviorSanitizer",
+    )
+
+    def _run_result_pipeline(self, pipeline):
+        """Run the taos result pipeline and report what actually happened.
+
+        os.system() reports the status of the last stage only, so a CLI that
+        died half way through still looks like a clean run and the case fails
+        later with a bare "line count mismatch".  Run the pipeline under
+        ``bash -o pipefail`` instead, keep the stderr of every stage, and log
+        the real exit status next to the size of what was produced.  A
+        sanitizer runtime is worth calling out by name: it terminates the
+        process through _exit(), which skips the stdio flush, so the tail of a
+        redirected result file is silently lost.
+        """
+        err_file = os.path.join(tempfile.gettempdir(),
+                                f"taos_result_pipeline_{os.getpid()}.stderr")
+        env = self._result_cli_env()
+        rc = None
+        try:
+            with open(err_file, "w", encoding="utf-8", errors="replace") as err:
+                proc = subprocess.run(
+                    ["bash", "-c", f"set -o pipefail; {pipeline}"],
+                    stderr=err,
+                    env=env,
+                )
+            rc = proc.returncode
+            try:
+                with open(err_file, "r", encoding="utf-8", errors="replace") as f:
+                    stderr_text = f.read()
+            except OSError:
+                stderr_text = ""
+        except OSError as e:
+            tdLog.info(f"[PIPELINE] cannot run result pipeline ({e}), "
+                       f"falling back to os.system")
+            rc = self._os_system_with_env(pipeline, env)
+            stderr_text = ""
+        finally:
+            if os.path.exists(err_file):
+                os.remove(err_file)
+
+        size = lines = -1
+        try:
+            with open(self.query_result_file, "rb") as f:
+                data = f.read()
+            size = len(data)
+            lines = data.count(b"\n")
+        except OSError:
+            pass
+
+        tdLog.info(f"[PIPELINE] {self.query_result_file}: rc={rc} bytes={size} lines={lines}")
+
+        if any(marker in stderr_text for marker in self._SANITIZER_MARKERS):
+            # Keep this bounded: the runtime reports on every single CLI run,
+            # only the verdict and the leak summary carry information.
+            highlight = [
+                line.strip()
+                for line in stderr_text.splitlines()
+                if "ERROR:" in line or line.startswith("SUMMARY:")
+            ]
+            tdLog.info(
+                f"[PIPELINE] sanitizer runtime reported on the CLI stderr "
+                f"({len(stderr_text)} bytes); it ends the process with _exit(), "
+                f"which skips the stdio flush and can drop the tail of the "
+                f"result file: {' | '.join(highlight[:3])}"
+            )
+        elif stderr_text.strip():
+            head = "".join(stderr_text.splitlines(keepends=True)[:5])
+            tdLog.info(f"[PIPELINE] CLI stderr ({len(stderr_text)} bytes):\n{head}")
 
     def _get_numeric_compare_tolerance(self, token1, token2, float_tolerance):
         if float_tolerance > 0.0:
@@ -3166,8 +3408,30 @@ class TDCom:
         normalized = re.sub(r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", "", normalized)
         normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
         normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(
+            r"(Input Rows: [0-9]+, Calls: [0-9]+, Time:) [0-9]+(?:\.[0-9]+)? ms",
+            r"\1 ms",
+            normalized,
+        )
         normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
         return normalized.rstrip()
+
+    def _compare_lines_with_spaces_trimmed(self, file1, file2):
+        """Compare result files after stripping all whitespace from each line."""
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            if line1.replace(" ", "") != line2.replace(" ", ""):
+                return False
+
+        return True
 
     def _compare_normalized_result_lines(self, file1, file2):
         """Compare result files after stripping platform-specific CLI noise.
@@ -3196,7 +3460,17 @@ class TDCom:
 
         return True
 
-    def _compare_file_lines_with_float_tolerance(self, file1, file2, float_tolerance):
+    def _compare_file_lines_with_float_tolerance(self, file1, file2, float_tolerance,
+                                                 relative_tolerance=0.0):
+        """Returns (True, None) on match, or (False, error_msg) on mismatch.
+
+        ``relative_tolerance`` (opt-in, default off) widens the tolerance to
+        ``max(float_tolerance, relative_tolerance * |value|)``.  Values printed
+        at a fixed number of significant digits (a DOUBLE rendering of a
+        19-digit integer, for example) differ from an exact DECIMAL rendering by
+        a rounding error proportional to the magnitude, which an absolute
+        tolerance cannot express.
+        """
         number_pattern = re.compile(r"[-+]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][-+]?\d+)?")
 
         with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
@@ -3204,26 +3478,40 @@ class TDCom:
         with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
             lines2 = f2.read().splitlines()
 
-        if len(lines1) != len(lines2):
-            return False
+        if platform.system().lower() == "windows":
+            # Match the empty-line filtering used by the Windows fc path.
+            lines1 = [line for line in lines1 if line.strip()]
+            lines2 = [line for line in lines2 if line.strip()]
 
-        for line1, line2 in zip(lines1, lines2):
+        if len(lines1) != len(lines2):
+            return False, (f"Line count mismatch: expected {len(lines1)} lines, "
+                           f"actual {len(lines2)} lines")
+
+        for line_num, (line1, line2) in enumerate(zip(lines1, lines2), 1):
             line1 = self._normalize_result_line_for_compare(line1)
             line2 = self._normalize_result_line_for_compare(line2)
 
             if line1 == line2:
                 continue
 
+            # Ignore difference in separator line length (e.g. "====...====")
+            if re.fullmatch(r"=+", line1.strip()) and re.fullmatch(r"=+", line2.strip()):
+                continue
+
             matches1 = list(number_pattern.finditer(line1))
             matches2 = list(number_pattern.finditer(line2))
             if len(matches1) != len(matches2):
-                return False
+                return False, (f"Line {line_num} mismatch (different number count): "
+                               f"\n  expected: {line1}\n  actual:   {line2}")
 
             cursor1 = 0
             cursor2 = 0
             for match1, match2 in zip(matches1, matches2):
-                if line1[cursor1:match1.start()] != line2[cursor2:match2.start()]:
-                    return False
+                seg1 = line1[cursor1:match1.start()].replace(" ", "")
+                seg2 = line2[cursor2:match2.start()].replace(" ", "")
+                if seg1 != seg2:
+                    return False, (f"Line {line_num} mismatch (text segment differs): "
+                                   f"\n  expected: {line1}\n  actual:   {line2}")
 
                 token1 = match1.group(0)
                 token2 = match2.group(0)
@@ -3232,23 +3520,32 @@ class TDCom:
                     value2 = Decimal(token2)
                 except InvalidOperation:
                     if token1 != token2:
-                        return False
+                        return False, (f"Line {line_num} mismatch (non-numeric token differs): "
+                                       f"\n  expected: {line1}\n  actual:   {line2}")
                 else:
                     tolerance = self._get_numeric_compare_tolerance(
                         token1, token2, float_tolerance
                     )
+                    if relative_tolerance > 0.0:
+                        scaled = Decimal(str(relative_tolerance)) * max(
+                            abs(value1), abs(value2))
+                        tolerance = max(tolerance, scaled)
                     if abs(value1 - value2) > tolerance:
-                        return False
+                        return False, (f"Line {line_num} mismatch (numeric tolerance exceeded: "
+                                       f"{token1} vs {token2}, tolerance={tolerance}): "
+                                       f"\n  expected: {line1}\n  actual:   {line2}")
 
                 cursor1 = match1.end()
                 cursor2 = match2.end()
 
-            if line1[cursor1:] != line2[cursor2:]:
-                return False
+            if line1[cursor1:].replace(" ", "") != line2[cursor2:].replace(" ", ""):
+                return False, (f"Line {line_num} mismatch (trailing text differs): "
+                               f"\n  expected: {line1}\n  actual:   {line2}")
 
-        return True
+        return True, None
 
-    def compare_result_files(self, file1, file2, float_tolerance=0.0):
+    def compare_result_files(self, file1, file2, float_tolerance=0.0,
+                             relative_tolerance=0.0):
         normalized_file1 = None
         normalized_file2 = None
 
@@ -3259,7 +3556,7 @@ class TDCom:
                 normalized_file1 = self._normalize_diff_file(file1)
                 normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
-                diff_args = [cmd, "-u"]
+                diff_args = [cmd, "-b", "-u"]
                 if platform.system().lower() == "linux":
                     diff_args.append("--color")
                 diff_args.extend([normalized_file1, normalized_file2])
@@ -3269,7 +3566,6 @@ class TDCom:
                     text=True,
                     capture_output=True,
                 )
-                tdLog.info(f"result: {result}")
             else:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
@@ -3306,26 +3602,31 @@ class TDCom:
 
             # Result check logic for diff/fc
             if result.returncode != 0:
-                if self._compare_normalized_result_lines(file1, file2):
-                    tdLog.info("Result files matched after output normalization.")
+                matched, err_msg = self._compare_file_lines_with_float_tolerance(
+                    file1, file2, float_tolerance, relative_tolerance
+                )
+                if matched:
+                    tdLog.info("Result files matched after normalization "
+                              f"(float_tolerance={float_tolerance}).")
                     return True
-                if platform.system().lower() == "windows" and self._compare_file_lines_with_float_tolerance(
-                    file1, file2, float_tolerance
-                ):
-                    tdLog.info(
-                        "Result files matched after Windows output normalization."
-                        if float_tolerance <= 0.0
-                        else "Result files matched after Windows output normalization "
-                        f"with float tolerance {float_tolerance}."
-                    )
-                    return True
-                tdLog.info(f"{cmd} result.returncode: {result.returncode}")
-                tdLog.info(f"{cmd} result.stdout: {result.stdout}")
-                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                diff_file = os.path.splitext(file2)[0] + ".diff"
+                with open(diff_file, "w", encoding="utf-8") as f:
+                    f.write(f"--- {file1}\n+++ {file2}\n\n")
+                    if result.stdout:
+                        f.write(result.stdout)
+                    if result.stderr:
+                        f.write(f"\nstderr:\n{result.stderr}")
+                tdLog.info(f"Comparison failed: {err_msg}")
+                tdLog.info(f"Diff output saved to: {diff_file}")
+                self._log_mismatch_diagnosis(diff_file, file1, file2)
                 return False
             if result.stdout:
-                tdLog.debug(f"Differences between {file1} and {file2}")
-                tdLog.notice(f"\r\n{result.stdout}")
+                diff_file = os.path.splitext(file2)[0] + ".diff"
+                with open(diff_file, "w", encoding="utf-8") as f:
+                    f.write(f"--- {file1}\n+++ {file2}\n\n")
+                    f.write(result.stdout)
+                tdLog.info(f"Diff output saved to: {diff_file}")
+                self._log_mismatch_diagnosis(diff_file, file1, file2)
                 return False
             elif result.stderr:
                 tdLog.info(f"{cmd} result.stderr: {result.stderr}")
@@ -3344,6 +3645,81 @@ class TDCom:
             for normalized_file in (normalized_file1, normalized_file2):
                 if normalized_file and os.path.exists(normalized_file):
                     os.remove(normalized_file)
+
+    # ------------------------------------------------------------------
+    # Failure diagnosis
+    #
+    # CI archives only sim/, build/, run.log.txt and case.txt per case, so the
+    # .diff file written above never reaches the reviewer -- all they get is
+    # "Line count mismatch: expected N lines, actual M lines", and that message
+    # cannot tell a genuine result difference apart from output that was lost
+    # while being written.  Print a bounded diagnosis into the case log so the
+    # archived log is conclusive on its own.
+    # ------------------------------------------------------------------
+    _DIAG_DIFF_HEAD_LINES = 40
+    _DIAG_TAIL_BYTES = 4096
+
+    def _log_mismatch_diagnosis(self, diff_file, expected_file, result_file):
+        """Log enough of a failed comparison for the case log to be conclusive."""
+        self._log_diff_head(diff_file)
+        self._log_truncation_hint(expected_file, result_file)
+
+    def _log_diff_head(self, diff_file):
+        try:
+            with open(diff_file, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
+        except OSError as e:
+            tdLog.info(f"[DIAG] cannot read diff file {diff_file}: {e}")
+            return
+        if not lines:
+            return
+
+        head = lines[:self._DIAG_DIFF_HEAD_LINES]
+        added = sum(1 for ln in lines if ln.startswith("+") and not ln.startswith("+++"))
+        removed = sum(1 for ln in lines if ln.startswith("-") and not ln.startswith("---"))
+        tdLog.info(f"[DIAG] diff: +{added}/-{removed} lines, head "
+                   f"({len(head)}/{len(lines)} lines):")
+        for line in head:
+            tdLog.info("[DIAG]   " + line.rstrip("\r\n"))
+        if len(lines) > len(head):
+            tdLog.info(f"[DIAG]   ... ({len(lines) - len(head)} more lines)")
+
+    def _log_truncation_hint(self, expected_file, result_file):
+        """Flag a result file whose tail was lost rather than merely different.
+
+        A writer that terminates through _exit() never flushes stdio -- a
+        sanitizer runtime that is preloaded into the CLI and then reports a
+        leak on it does exactly that -- and leaves a result file that stops in
+        the middle of a line or right after the column header.  Say so
+        explicitly: the bare line-count message reads like a query or planning
+        difference instead.
+        """
+        try:
+            with open(result_file, "rb") as f:
+                f.seek(0, os.SEEK_END)
+                size = f.tell()
+                if size == 0:
+                    tdLog.info("[DIAG] result file is empty")
+                    return
+                f.seek(max(0, size - self._DIAG_TAIL_BYTES))
+                tail = f.read()
+        except OSError as e:
+            tdLog.info(f"[DIAG] cannot read result file {result_file}: {e}")
+            return
+
+        last = tail.split(b"\n")[-1]
+        if not tail.endswith(b"\n"):
+            tdLog.info(f"[DIAG] RESULT TAIL LOOKS TRUNCATED: no trailing newline, "
+                       f"last partial line is {len(last)} bytes: {last[:120]!r}")
+        else:
+            tdLog.info(f"[DIAG] result ends on a complete line "
+                       f"(last line {len(last)} bytes, file {size} bytes)")
+        try:
+            exp_size = os.path.getsize(expected_file)
+            tdLog.info(f"[DIAG] sizes: expected={exp_size} actual={size} "
+                       f"(delta={size - exp_size:+d})")
+        except OSError:
+            pass
 
     def _normalize_diff_file(self, input_file):
         with open(input_file, "r", encoding="utf-8", newline="") as fin:
@@ -3373,16 +3749,48 @@ class TDCom:
                 f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} "
             )
 
+    @staticmethod
+    def normalize_windows_shanghai_explain(result):
+        """Normalize the Windows spelling of the pinned Shanghai plan timezone.
+
+        These snapshots use modern dates, when Shanghai is UTC+8. Windows
+        renders its POSIX timezone as -0800. Only EXPLAIN's hidden timezone
+        argument is normalized; SQL text, query rows and other arguments stay
+        unchanged. Callers must pin Asia/Shanghai and firstDayOfWeek=0.
+        """
+        if os.name != "nt":
+            return result
+        return "".join(
+            re.sub(r"'-0800'(?=, 0, (?:100|115)\))", "'Asia/Shanghai'", line)
+            if line.lstrip().startswith("QUERY_PLAN:") and "timetruncate(" in line
+            else line
+            for line in result.splitlines(keepends=True)
+        )
+
     def compare_testcase_result(
-        self, inputfile, expected_file, test_case, float_tolerance=0.0
+        self, inputfile, expected_file, test_case, float_tolerance=0.0,
+        result_transform=None,
     ):
         test_reulst_file = self.generate_query_result(inputfile, test_case)
+        if result_transform is not None:
+            with open(test_reulst_file, "r", encoding="utf-8", newline="") as result:
+                transformed = result_transform(result.read())
+            with open(test_reulst_file, "w", encoding="utf-8", newline="") as result:
+                result.write(transformed)
 
         if self.compare_result_files(
             expected_file, test_reulst_file, float_tolerance=float_tolerance
         ):
             tdLog.info("Test passed: Result files are identical.")
-            os.system(f"rm -f {test_reulst_file}")
+            # Removed through the os module rather than "rm -f": cmd.exe has no
+            # rm, so the shell form failed on every Windows case (printing an
+            # error and leaving both files behind).
+            for path in (test_reulst_file,
+                         os.path.splitext(test_reulst_file)[0] + ".diff"):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit(

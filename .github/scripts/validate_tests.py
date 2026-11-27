@@ -1,7 +1,42 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import sys
 import os
 import ast
 import re
+
+def _indented_field(lines, field):
+    """Return line number when the field exists but is not at the line start."""
+    for i, line in enumerate(lines):
+        if re.match(rf'^\s+{field}\s*:', line, re.IGNORECASE):
+            return i + 1
+    return None
+
+def _missing_field_message(where, lines, field):
+    """Explain an absent field, naming the real cause when the field is present.
+
+    ast.get_docstring() dedents by the smallest indentation found anywhere in
+    the docstring, so one line indented less than the others shifts the whole
+    block right. The field then still looks correct in the editor but no longer
+    starts at the beginning of a line, so reporting it as missing is misleading.
+    """
+    if _indented_field(lines, field) is not None:
+        return (f"{where} has '{field}:' but the docstring indentation is "
+                f"inconsistent, so it is not recognised as a field.")
+    return (f"{where} does not contain a '{field}:' section.")
 
 def check_required_field(lines, field, method_node, class_node, file_path, other_fields):
     """
@@ -10,7 +45,8 @@ def check_required_field(lines, field, method_node, class_node, file_path, other
     index = next((i for i, line in enumerate(lines) if re.match(rf'^{field}\s*:\s*.*$', line, re.IGNORECASE)), None)
     has_errors = False
     if index is None:
-        print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a valid '{field}:' section.")
+        where = f"The docstring in method {method_node.name} in class {class_node.name} in {file_path}"
+        print(_missing_field_message(where, lines, field))
         has_errors = True
     else:
         if index > 0 and lines[index - 1].strip():
@@ -61,7 +97,8 @@ def check_required_field_shell(lines, field, file_path, other_fields):
     index = next((i for i, line in enumerate(lines) if re.match(rf'^{field}\s*:\s*.*$', line, re.IGNORECASE)), None)
     has_errors = False
     if index is None:
-        print(f"The docstring in shell script {file_path} does not contain a valid '{field}:' section.")
+        where = f"The docstring in shell script {file_path}"
+        print(_missing_field_message(where, lines, field))
         has_errors = True
     else:
         if index > 0 and lines[index - 1].strip():
@@ -184,6 +221,43 @@ def validate_shell_test_file(file_path):
     
     return True
 
+def _local_test_methods(class_node):
+    return [
+        node for node in class_node.body
+        if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')
+    ]
+
+
+def _inherited_test_methods(class_node, class_map, seen_classes=None, seen_names=None):
+    """Depth-first collection of test_ methods defined on same-file bases."""
+    if seen_classes is None:
+        seen_classes = set()
+    if seen_names is None:
+        seen_names = set()
+    methods = []
+    for base in class_node.bases:
+        if not isinstance(base, ast.Name) or base.id not in class_map:
+            continue
+        if base.id in seen_classes:
+            continue
+        seen_classes.add(base.id)
+        parent = class_map[base.id]
+        for node in _local_test_methods(parent):
+            if node.name in seen_names:
+                continue
+            seen_names.add(node.name)
+            methods.append(node)
+        methods.extend(_inherited_test_methods(parent, class_map, seen_classes, seen_names))
+    return methods
+
+
+def _resolve_test_methods(class_node, class_map):
+    local = _local_test_methods(class_node)
+    if local:
+        return local
+    return _inherited_test_methods(class_node, class_map)
+
+
 def validate_test_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as file:
         content = file.read()
@@ -202,12 +276,16 @@ def validate_test_file(file_path):
         print(f"File {file_path} does not contain a class named 'Test...'.")
         return False
 
+    class_map = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+
     for class_node in test_classes:
-        # Check for methods prefixed with 'test_'
-        test_methods = [node for node in class_node.body if isinstance(node, ast.FunctionDef) and node.name.startswith('test_')]
+        # Check for methods prefixed with 'test_'. Methods may live on a
+        # same-file base or mixin; pytest collects those through inheritance.
+        test_methods = _resolve_test_methods(class_node, class_map)
         if not test_methods:
             print(f"Class {class_node.name} in {file_path} does not contain a method named 'test_'.")
-            return False
+            has_errors = True
+            continue
 
         for method_node in test_methods:
             # Extract the docstring

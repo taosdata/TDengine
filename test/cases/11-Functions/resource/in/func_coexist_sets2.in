@@ -1,0 +1,17 @@
+use ts_4893
+select bottom(voltage, 3), bottom(current, 3) from fc_d
+select tail(voltage, 5), top(current, 5) from fc_d
+select top(voltage, 5), tail(current, 5) from fc_d
+select tail(voltage, 3), top(current, 3) from fc_d
+select top(voltage, 3), tail(current, 3) from fc_d
+select tail(voltage, 3), bottom(current, 3) from fc_d
+select bottom(voltage, 3), tail(current, 3) from fc_d
+select top(voltage, 3), bottom(current, 3), tail(id, 3) from fc_d
+select histogram(voltage, 'user_input', '[0,100,200,300]', 0), bottom(current, 3) from fc_d
+select lead(voltage, 1, 0), stateduration(current, 'GE', 1, 1s) from fc_d
+select csum(voltage), statecount(current, 'GE', 1) from fc_d
+select fill_forward(voltage), statecount(current, 'GE', 1) from fc_d
+select csum(voltage), csum(current) from fc_d
+select diff(voltage), diff(current), diff(id) from fc_d
+select mavg(voltage, 2), mavg(current, 2) from fc_d
+select mavg(voltage, 3), mavg(current, 3) from fc_d

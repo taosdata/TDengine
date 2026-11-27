@@ -1,9 +1,40 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 import sys
 import taos
 import time
 import shutil
 import os
+
+
+def remove_config_dir(path, retries=10, delay=1):
+    if os.name != "nt":
+        shutil.rmtree(path)
+        return
+    for attempt in range(retries):
+        try:
+            shutil.rmtree(path)
+            return
+        except (FileNotFoundError, PermissionError):
+            if not os.path.exists(path):
+                return
+            if attempt == retries - 1:
+                raise
+            time.sleep(delay)
 
 class TestPersisitConfig:
     updatecfgDict = {
@@ -43,7 +74,7 @@ class TestPersisitConfig:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -57,13 +88,14 @@ class TestPersisitConfig:
         else:
             tdLog.info("taosd found in %s" % buildPath)
 
-        cfgPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "cfg")
+        workDir = os.environ.get("WORK_DIR") or tdDnodes.getDnodesRootDir()
+        cfgPath = os.path.join(workDir, f"dnode{self.index}", "cfg")
         self.cfgPath = cfgPath
 
-        dataPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "data")
+        dataPath = os.path.join(workDir, f"dnode{self.index}", "data")
         self.dataPath = dataPath
 
-        logPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "log")
+        logPath = os.path.join(workDir, f"dnode{self.index}", "log")
         self.logPath = logPath
 
         tdLog.info("start to check cfg value load from cfg file {0}".format(cfgPath))
@@ -73,9 +105,9 @@ class TestPersisitConfig:
             tdLog.debug("Get {} value: {} Expect value: {}".format(name, actValue,expValue))
             assert str(actValue) == str(expValue)
 
-        # tdLog.info("rm -rf {0}".format(cfgPath))
-        # os.system("rm -rf {0}/*".format(cfgPath))
-        shutil.rmtree(cfgPath, ignore_errors=True)
+        # Windows keeps the console log open in cfg while taosd is running.
+        tdDnodes.stop(1)
+        remove_config_dir(cfgPath)
         os.mkdir(cfgPath)
 
         tdLog.info("rebuilt cfg file {0}".format(cfgPath))
@@ -89,8 +121,6 @@ class TestPersisitConfig:
             f.write(f"dataDir {dataPath}\n")
             f.write(f"logDir {logPath}\n")
 
-        tdDnodes.stop(1)
-        time.sleep(1)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
 

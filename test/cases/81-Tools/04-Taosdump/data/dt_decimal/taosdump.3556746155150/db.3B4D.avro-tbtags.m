@@ -1,0 +1,1 @@
+{"version":1,"name":"st","cols": [{"name":"ts", "type":9},{"name":"c1", "type":17},{"name":"c2", "type":21}],"tags": [{"name":"dtag", "type":7}]}

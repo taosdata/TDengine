@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,6 +24,10 @@
 #include "geosWrapper.h"
 #include "shellAuto.h"
 #include "shellInt.h"
+#include <errno.h>
+#ifndef WINDOWS
+#include <sys/stat.h>
+#endif
 
 SShellObj shell = {0};
 
@@ -35,6 +41,7 @@ typedef struct {
   int32_t     numFields;
   TAOS_FIELD *fields;
   int32_t     precision;
+  timezone_t  tz;
 
   int32_t maxColNameLen;            // for vertical print
   int32_t width[TSDB_MAX_COLUMNS];  // for horizontal print
@@ -47,7 +54,7 @@ static int32_t shellRunSingleCommand(char *command);
 static void    shellRecordCommandToHistory(char *command);
 static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
-static char   *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision);
+static char   *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision, timezone_t tz);
 static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
@@ -56,15 +63,17 @@ static void    shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info)
 static int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool vertical, const char *sql);
 static void    shellReadHistory();
 static void    shellWriteHistory();
+static TdFilePtr shellOpenHistoryFile(const char *path, int32_t tdFileOptions);
 static void    shellPrintError(TAOS_RES *tres, int64_t st);
 static bool    shellIsCommentLine(char *line);
 static void    shellSourceFile(const char *file);
-static int32_t shellGetGrantInfo(char *buf);
+static int32_t shellGetGrantInfo(char *buf, int32_t bufSize);
 
 static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
 static void *shellThreadLoop(void *arg);
 static bool  shellHasBinaryNonPrintable(const char *val, int32_t length);
+static bool  shellBlobHasNonPrintable(const char *val, int32_t length);
 static void  shellHexEncode(char *dst, const char *val, int32_t length);
 static char *shellAllocHexString(const char *val, int32_t length);
 static void  shellPrintHex(const char *val, int32_t length, int32_t width);
@@ -145,11 +154,9 @@ int32_t shellRunSingleCommand(char *command) {
 }
 
 void shellRecordCommandToHistory(char *command) {
-  if (strncasecmp(command, "create user ", 12) == 0 || strncasecmp(command, "alter user ", 11) == 0) {
-    if (taosStrCaseStr(command, " pass ")) {
-      // have password command forbid record to history because security
-      return;
-    }
+  if (shellStatementHoldsCredential(command)) {
+    // have password command forbid record to history because security
+    return;
   }
 
   SShellHistory *pHistory = &shell.history;
@@ -181,8 +188,6 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     }
   }
 
-  if (recordHistory) shellRecordCommandToHistory(command);
-
   char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
     if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
@@ -197,12 +202,20 @@ int32_t shellRunCommand(char *command, bool recordHistory) {
     } else if (c == ';' && quote == 0) {
       c = *command;
       *command = 0;
+      // the credential filter has to see one statement at a time, a credential
+      // statement hidden behind another statement must not reach the history file
+      if (recordHistory) shellRecordCommandToHistory(cmd);
       if (shellRunSingleCommand(cmd) < 0) {
         return -1;
       }
       *command = c;
       cmd = command;
     }
+  }
+
+  // the last statement has already been recorded when the line ends with a ';'
+  if (recordHistory && !shellIsEmptyCommand(cmd)) {
+    shellRecordCommandToHistory(cmd);
   }
   return shellRunSingleCommand(cmd);
 }
@@ -261,7 +274,7 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
-  if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*use[[:space:]]+[a-zA-Z0-9_]+[[:space:]]*;?[[:space:]]*$", REG_EXTENDED | REG_ICASE)) {
     (void)printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
@@ -274,13 +287,13 @@ void shellRunSingleCommandImp(char *command) {
 
   // pre string
   char *pre = "Query OK";
-  if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*delete[[:space:]]+from[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Delete OK";
-  } else if (shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*insert[[:space:]]+into[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Insert OK";
-  } else if (shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*create[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Create OK";
-  } else if (shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*drop[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Drop OK";
   }
 
@@ -315,7 +328,7 @@ void shellRunSingleCommandImp(char *command) {
   (void)printf("\r\n");
 }
 
-char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision) {
+char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision, timezone_t tz) {
   if (shell.args.is_raw_time) {
     (void)sprintf(buf, "%" PRId64, val);
     return buf;
@@ -346,7 +359,7 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
   }
 
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize, tz) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -364,14 +377,15 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
 
 char *shellDumpHexValue(char *buf, const char *val, int32_t length) {
   for (int32_t i = 0; i < length; i++) {
-    (void)sprintf(buf + (i * 2), "%02X", val[i]);
+    (void)sprintf(buf + (i * 2), "%02X", (unsigned char)val[i]);
   }
   buf[length * 2] = 0;
 
   return buf;
 }
 
-void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
+void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field,
+                          int32_t length, int32_t precision, timezone_t tz) {
   if (val == NULL) {
     taosFprintfFile(pFile, "NULL");
     return;
@@ -479,12 +493,12 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       char *tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
       if (tmp == NULL) break;
       shellDumpHexValue(tmp, val, length);
-      taosFprintfFile(pFile, "%s", buf);
+      taosFprintfFile(pFile, "%s", tmp);
       taosMemoryFree(tmp);
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision, tz);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     case TSDB_DATA_TYPE_DECIMAL64:
@@ -493,14 +507,36 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB: {
-      void    *tmp = NULL;
-      uint32_t size = 0;
-      if (taosAscii2Hex(val, length, &tmp, &size) < 0) {
+      int32_t bufIndex = 0;
+      char   *tmp = NULL;
+
+      if (shell.args.is_binary_as_hex || shellBlobHasNonPrintable(val, length)) {
+        void    *data = NULL;
+        uint32_t size = 0;
+        if (taosAscii2Hex(val, length, &data, &size) < 0) {
+          break;
+        }
+        taosFprintfFile(pFile, "%s%s%s", quotationStr, data, quotationStr);
+        taosMemoryFree(data);
         break;
       }
+
+      // Printable BLOB (e.g. SHOW XNODE TASKS parser / SHOW XNODE JOBS config) is
+      // emitted as text with the same CSV quoting as NCHAR/JSON below.
+      tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
+      if (tmp == NULL) break;
+      for (int32_t i = 0; i < length; i++) {
+        tmp[bufIndex] = val[i];
+        bufIndex++;
+        if (val[i] == '\"') {
+          tmp[bufIndex] = val[i];
+          bufIndex++;
+        }
+      }
+      tmp[bufIndex] = 0;
+
       taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
       taosMemoryFree(tmp);
-
       break;
     }
     default:
@@ -528,6 +564,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   int32_t     num_fields = taos_num_fields(tres);
   int32_t     precision = taos_result_precision(tres);
+  timezone_t  tz = (timezone_t)taos_get_result_tz(tres);
 
   for (int32_t col = 0; col < num_fields; col++) {
     if (col > 0) {
@@ -544,7 +581,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
       if (i > 0) {
         taosFprintfFile(pFile, ",");
       }
-      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision, tz);
     }
     taosFprintfFile(pFile, "\r\n");
 
@@ -557,11 +594,15 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   return numOfRows;
 }
 
-static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
+// Shared non-printable detection for binary-ish display decisions. allowWhitespace
+// tolerates the whitespace chars that occur in display text (SHOW CREATE of virtual
+// super tables embeds '\n' between clauses); any other control byte or invalid
+// multibyte sequence still reports non-printable (callers route such values to hex).
+static bool shellHasNonPrintableImpl(const char *val, int32_t length, bool allowWhitespace) {
   for (int32_t i = 0; i < length; i++) {
     unsigned char c = (unsigned char)val[i];
 
-    if (c < 0x20 || c == 0x7F) {
+    if (c == 0x7F || (c < 0x20 && !(allowWhitespace && (c == '\n' || c == '\r' || c == '\t')))) {
       return true;
     }
   }
@@ -579,7 +620,11 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
       return true;
     }
 
-    if (taosWcharWidth(wc) <= 0) {
+    // wcwidth() returns -1 for control chars, including the whitespace bytes that
+    // allowWhitespace exempts — skip those here too, mirroring shellPrintNChar
+    // (which special-cases '\t'/'\n'/'\r' before taking the width), or DDL text
+    // embedding '\n' would still be routed to hex output.
+    if (taosWcharWidth(wc) <= 0 && !(allowWhitespace && (wc == '\n' || wc == '\r' || wc == '\t'))) {
       return true;
     }
 
@@ -587,6 +632,16 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
   }
 
   return false;
+}
+
+static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
+  return shellHasNonPrintableImpl(val, length, false);
+}
+
+// BLOB values may hold display text (e.g. the DDL of SHOW CREATE TABLE, which may
+// embed '\n'): tolerate whitespace, everything else keeps the hex representation.
+static bool shellBlobHasNonPrintable(const char *val, int32_t length) {
+  return shellHasNonPrintableImpl(val, length, true);
 }
 
 static void shellHexEncode(char *dst, const char *val, int32_t length) {
@@ -730,7 +785,8 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
   geosFreeBuffer(outputWKT);
 }
 
-void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision) {
+void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width,
+                     int32_t length, int32_t precision, timezone_t tz) {
   if (val == NULL) {
     shellPrintString(TSDB_DATA_NULL_STR, width);
     return;
@@ -811,12 +867,25 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned((int64_t *)val), precision);
+      shellFormatTimestamp(buf, sizeof(buf),
+                           taosGetInt64Aligned((int64_t *)val), precision, tz);
       (void)printf("%s", buf);
       break;
 
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      // Display text (e.g. the DDL of SHOW CREATE TABLE, which may embed '\n') is shown
+      // as-is via the same shellPrintNChar path as VARCHAR/NCHAR, so embedded newlines
+      // render exactly as they did when the DDL arrived as VARCHAR. Other binary content
+      // keeps the pre-existing taosAscii2Hex ('\x'-prefixed) representation, consistent
+      // with VARBINARY and the dump-to-file output. Unlike BINARY (where -H affects only
+      // values containing non-printable bytes), -H forces hex even for display text, so
+      // users keep the pre-BLOB-text always-hex view for byte-level inspection of
+      // printable BLOBs.
+      if (!shell.args.is_binary_as_hex && !shellBlobHasNonPrintable(val, length)) {
+        shellPrintNChar(val, length, width);
+        break;
+      }
       void    *data = NULL;
       uint32_t size = 0;
       if (taosAscii2Hex(val, length, &data, &size) < 0) {
@@ -886,6 +955,7 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
   dump_info->numFields = taos_num_fields(tres);
   dump_info->fields = taos_fetch_fields(tres);
   dump_info->precision = taos_result_precision(tres);
+  dump_info->tz = (timezone_t)taos_get_result_tz(tres);
 
   dump_info->resShowMaxNum = UINT64_MAX;
 
@@ -932,10 +1002,15 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
     for (int32_t i = 0; i < dump_info->numFields; i++) {
       TAOS_FIELD *field = dump_info->fields + i;
 
-      int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(field->name));
-      (void)printf("%*.s%s: ", padding, " ", field->name);
+      // as in shellPrintHeader(), the column name is server supplied
+      char    name[sizeof(field->name)] = {0};
+      tstrncpy(name, field->name, sizeof(name));
+      shellStripControlChars(name);
 
-      shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision);
+      int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(name));
+      (void)printf("%*.s%s: ", padding, " ", name);
+
+      shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision, dump_info->tz);
       putchar('\r');
       putchar('\n');
     }
@@ -1055,9 +1130,15 @@ void shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields) {
   int32_t rowWidth = 0;
   for (int32_t col = 0; col < num_fields; col++) {
     TAOS_FIELD *field = fields + col;
-    int32_t     padding = (int32_t)(width[col] - strlen(field->name));
+    // the column name is copied verbatim from the server schema, so control
+    // characters must be stripped before it reaches the terminal
+    char    name[sizeof(field->name)] = {0};
+    tstrncpy(name, field->name, sizeof(name));
+    shellStripControlChars(name);
+
+    int32_t     padding = (int32_t)(width[col] - strlen(name));
     int32_t     left = padding / 2;
-    (void)printf(" %*.s%s%*.s |", left, " ", field->name, padding - left, " ");
+    (void)printf(" %*.s%s%*.s |", left, " ", name, padding - left, " ");
     rowWidth += width[col] + 3;
   }
 
@@ -1088,7 +1169,7 @@ void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
     for (int32_t i = 0; i < dump_info->numFields; i++) {
       putchar(' ');
       shellPrintField((const char *)row[i], dump_info->fields + i, dump_info->width[i], length[i],
-                      dump_info->precision);
+                      dump_info->precision, dump_info->tz);
       putchar(' ');
       putchar('|');
     }
@@ -1165,9 +1246,29 @@ int64_t shellDumpResult(TAOS_RES *tres, char *fname, int32_t *error_no, bool ver
   return num_of_rows;
 }
 
+/*
+ * The history file holds every command line typed by the operator, so it is
+ * created with owner only permissions (fopen would otherwise apply the process
+ * umask, 0644 on most systems) and a file left behind with looser permissions by
+ * an older version of the shell is tightened as well.
+ */
+static TdFilePtr shellOpenHistoryFile(const char *path, int32_t tdFileOptions) {
+  int32_t   oldUmask = taosUmaskFile(0077);
+  TdFilePtr pFile = taosOpenFile(path, tdFileOptions);
+  taosUmaskFile(oldUmask);
+
+#ifndef WINDOWS
+  if (pFile != NULL && chmod(path, S_IRUSR | S_IWUSR) != 0) {
+    uWarn("failed to change mode of history file %s to 0600, errno:%d", path, errno);
+  }
+#endif
+
+  return pFile;
+}
+
 void shellReadHistory() {
   SShellHistory *pHistory = &shell.history;
-  TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
+  TdFilePtr      pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
   char   *line = taosMemoryMalloc(tsMaxSQLLength + 1);
@@ -1188,7 +1289,7 @@ void shellReadHistory() {
   taosCloseFile(&pFile);
   int64_t file_size;
   if (taosStatFile(pHistory->file, &file_size, NULL, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
-    TdFilePtr pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
+    TdFilePtr pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_TRUNC);
     if (pFile == NULL) return;
     int32_t endIndex = pHistory->hstart;
     if (endIndex != 0) {
@@ -1210,7 +1311,7 @@ void shellReadHistory() {
 void shellWriteHistory() {
   SShellHistory *pHistory = &shell.history;
   if (pHistory->hend == pHistory->hstart) return;
-  TdFilePtr pFile = taosOpenFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
+  TdFilePtr pFile = shellOpenHistoryFile(pHistory->file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_STREAM | TD_FILE_APPEND);
   if (pFile == NULL) return;
 
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {
@@ -1237,7 +1338,14 @@ void shellCleanupHistory() {
 void shellPrintError(TAOS_RES *tres, int64_t st) {
   int code = taos_errno(tres);
   int64_t et = taosGetTimestampUs();
-  (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", taos_errstr(tres), code, (et - st) / 1E6);
+
+  // the error text may originate from the server response, strip control
+  // characters so that it cannot carry terminal escape sequences
+  char errInfo[1024] = {0};
+  tstrncpy(errInfo, taos_errstr(tres), sizeof(errInfo));
+  shellStripControlChars(errInfo);
+
+  (void)printf("\r\nDB error: %s [0x%08X] (%.6fs)\r\n", errInfo, code, (et - st) / 1E6);
   taos_free_result(tres);
 
   // tip
@@ -1250,7 +1358,7 @@ void shellPrintError(TAOS_RES *tres, int64_t st) {
 
 bool shellIsCommentLine(char *line) {
   if (line == NULL) return true;
-  return shellRegexMatch(line, "^\\s*#.*", REG_EXTENDED);
+  return shellRegexMatch(line, "^[[:space:]]*#.*", REG_EXTENDED);
 }
 
 void shellSourceFile(const char *file) {
@@ -1285,6 +1393,14 @@ void shellSourceFile(const char *file) {
     }
     line[--read_len] = '\0';
 
+    // Strip a trailing CR (CRLF line ending) before the backslash-continuation
+    // check below: with CRLF input the line otherwise ends with '\r' after the
+    // backslash, so "select 1 \" fails to be recognised as a continuation and
+    // the backslash is submitted as a bogus token.
+    if (read_len > 0 && line[read_len - 1] == '\r') {
+      line[--read_len] = '\0';
+    }
+
     if (read_len == 0 || shellIsCommentLine(line)) {  // line starts with #
       continue;
     }
@@ -1294,10 +1410,6 @@ void shellSourceFile(const char *file) {
       memcpy(cmd + cmd_len, line, read_len);
       cmd_len += read_len;
       continue;
-    }
-
-    if (line[read_len - 1] == '\r') {
-      line[--read_len] = '\0';
     }
 
     memcpy(cmd + cmd_len, line, read_len);
@@ -1312,11 +1424,31 @@ void shellSourceFile(const char *file) {
   taosCloseFile(&pFile);
 }
 
-int32_t shellGetGrantInfo(char *buf) {
+/*
+ * Copy one result cell into a fixed size buffer. Both the cell length and the
+ * declared column width come from the server and are bounded only by
+ * TSDB_MAX_BINARY_LEN, so the copy length has to be clamped to the destination
+ * here; the buffer is always NUL terminated and a NULL cell yields an empty
+ * string instead of dereferencing a NULL pointer.
+ */
+static void shellCopyResultCell(char *dst, int32_t dstSize, const char *src, int32_t srcLen) {
+  dst[0] = 0;
+
+  if (src == NULL || srcLen <= 0) {
+    return;
+  }
+
+  int32_t copyLen = TMIN(srcLen, dstSize - 1);
+  memcpy(dst, src, copyLen);
+  dst[copyLen] = 0;
+}
+
+int32_t shellGetGrantInfo(char *buf, int32_t bufSize) {
   int32_t verType = TSDB_VERSION_UNKNOWN;
   char    sinfo[256] = {0};
   tstrncpy(sinfo, taos_get_server_info(shell.conn), sizeof(sinfo));
   strtok(sinfo, "\r\n");
+  shellStripControlChars(sinfo);
 
 #ifndef TD_ASTRA
   char sql[] = "show grants";
@@ -1333,29 +1465,39 @@ int32_t shellGetGrantInfo(char *buf) {
     return verType;
   }
 
+  if (tres == NULL) {
+    (void)fprintf(stderr, "\r\nGrant information is null.\r\n");
+    exit(0);
+  }
+
+  // the reply is indexed up to the third column below, so fewer columns than the
+  // ins_grants result must not be accepted
   int32_t num_fields = taos_field_count(tres);
-  if (num_fields == 0) {
+  if (num_fields < SHELL_GRANT_FIELD_CNT) {
     (void)fprintf(stderr, "\r\nInvalid grant information.\r\n");
     exit(0);
-  } else {
-    if (tres == NULL) {
-      (void)fprintf(stderr, "\r\nGrant information is null.\r\n");
-      exit(0);
-    }
+  }
 
-    TAOS_FIELD *fields = taos_fetch_fields(tres);
-    TAOS_ROW    row = taos_fetch_row(tres);
+  {
+    TAOS_ROW row = taos_fetch_row(tres);
     if (row == NULL) {
       (void)fprintf(stderr, "\r\nFailed to get grant information from server. Abort.\r\n");
       exit(0);
     }
-    char serverVersion[64] = {0};
-    char expiretime[32] = {0};
-    char expired[32] = {0};
 
-    tstrncpy(serverVersion, row[0], 64);
-    memcpy(expiretime, row[1], fields[1].bytes);
-    memcpy(expired, row[2], fields[2].bytes);
+    int32_t  cellLength[SHELL_GRANT_FIELD_CNT] = {0};
+    int32_t *lengths = taos_fetch_lengths(tres);
+    if (lengths != NULL) {
+      memcpy(cellLength, lengths, sizeof(cellLength));
+    }
+
+    char serverVersion[SHELL_GRANT_VERSION_LEN] = {0};
+    char expiretime[SHELL_GRANT_EXPIRE_LEN] = {0};
+    char expired[SHELL_GRANT_EXPIRE_LEN] = {0};
+
+    shellCopyResultCell(serverVersion, sizeof(serverVersion), row[0], cellLength[0]);
+    shellCopyResultCell(expiretime, sizeof(expiretime), row[1], cellLength[1]);
+    shellCopyResultCell(expired, sizeof(expired), row[2], cellLength[2]);
 
     trimStr(serverVersion, "trial");
 
@@ -1363,10 +1505,10 @@ int32_t shellGetGrantInfo(char *buf) {
       verType = TSDB_VERSION_OSS;
     } else if (strcmp(expiretime, "unlimited") == 0) {
       verType = TSDB_VERSION_ENTERPRISE;
-      (void)sprintf(buf, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
+      (void)snprintf(buf, bufSize, "Server is %s %s. License will never expire.\r\n", serverVersion, sinfo);
     } else {
       verType = TSDB_VERSION_ENTERPRISE;
-      (void)sprintf(buf, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
+      (void)snprintf(buf, bufSize, "Server is %s %s. License will expire at %s.\r\n", serverVersion, sinfo, expiretime);
     }
 
     taos_free_result(tres);
@@ -1375,7 +1517,7 @@ int32_t shellGetGrantInfo(char *buf) {
   (void)fprintf(stdout, "\r\n");
 #else
   verType = TSDB_VERSION_ENTERPRISE;
-  (void)sprintf(buf, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
+  (void)snprintf(buf, bufSize, "Server is %s %s. License will never expire.\r\n", TD_PRODUCT_NAME, sinfo);
 #endif
   return verType;
 }
@@ -1559,6 +1701,8 @@ int32_t shellExecute(int argc, char *argv[]) {
     return -1;
   }
 
+  (void)taos_options_connection(shell.conn, TSDB_OPTION_CONNECTION_USER_APP, "taos");
+
   bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();
@@ -1585,6 +1729,10 @@ int32_t shellExecute(int argc, char *argv[]) {
 
     shellWriteHistory();
     shellCleanupHistory();
+    // Push the result out while this process is still in control of it: a
+    // sanitizer runtime that is preloaded into the client ends the process with
+    // _exit() and would otherwise discard whatever is still buffered here.
+    fflush(stdout);
     return 0;
   }
 
@@ -1601,7 +1749,7 @@ int32_t shellExecute(int argc, char *argv[]) {
   taosSetSignal(SIGINT, shellQueryInterruptHandler);
 
   char    buf[512] = {0};
-  int32_t verType = shellGetGrantInfo(buf);
+  int32_t verType = shellGetGrantInfo(buf, sizeof(buf));
 #ifndef WINDOWS
   printfIntroduction(verType);
 #else

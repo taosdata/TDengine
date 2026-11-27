@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "key_sets": [
+    {
+      "key_id": "reference-rsa-2048-test-only",
+      "rsa_bits": 2048,
+      "public_spki_der_b64url": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnH9xbJ4d_Mve1j7V5966gZbxTY86fg7MW9s1ITVyADP-Ygj-1haai1qTzIWg8SkAsv2aOMdEelnQdkvwf4oOdXxqJmY6fS3v-X20IY0IywE0_bTnd--xwRHVp8zXKIatpqy1NqoHC96NqFozN3MlpZEucJtcUSKxJ63_XiFj5TI144eKvDm-YXFEUNImEsG6IbQcsp85nwjarRyFDTezeVao_Dupa14YVysIkSU3pOzoHeXuzqF_xREh0dIRiUiJ3TRZINKazfQOqwfSRYSEm0aB9tzugVlGYhRS1m-cP7VMfCIyIEYDhz7yAjaWNDZIq40o6SrIohNme6BTJXONYQIDAQAB",
+      "private_pkcs8_der_b64url": "MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQCcf3Fsnh38y97WPtXn3rqBlvFNjzp-Dsxb2zUhNXIAM_5iCP7WFpqLWpPMhaDxKQCy_Zo4x0R6WdB2S_B_ig51fGomZjp9Le_5fbQhjQjLATT9tOd377HBEdWnzNcohq2mrLU2qgcL3o2oWjM3cyWlkS5wm1xRIrEnrf9eIWPlMjXjh4q8Ob5hcURQ0iYSwbohtByynzmfCNqtHIUNN7N5Vqj8O6lrXhhXKwiRJTek7Ogd5e7OoX_FESHR0hGJSIndNFkg0prN9A6rB9JFhISbRoH23O6BWUZiFFLWb5w_tUx8IjIgRgOHPvICNpY0NkirjSjpKsiiE2Z7oFMlc41hAgMBAAECggEAOPjyX2L-ssG7aY6ti8CbcEL1rNEoL60Oe6BFasYMrwM-qAzzTRgkgffjF5FMQo81SHQnmWT9ynb4-5_wuVWWpvG4qSsNPvYix1aaZZ505YaWdohNve1-bjWibPiXGZNSE3wLao-iihEmy_OucpDSU0CTwf3lMUpqaPIgpfGM7upzVGDDgYALZqFTH0QVb0iycTZglmMS7aDKik8CkPRqVivbKugj1Ukferf9oUlnP7ZgRrwy9HQ9MvT654n0tCxrUlvNC_3YTBbft7rw66r6g6vYMrSH7wFx0A6RV6AYqeS7PCNSrJ0nsXaIMcyA2CM6tKrNY8uLNcyFKqrxiBqWywKBgQDIND9LARPhsmaAXBahOsUYaADqmgacg0uSk7yUFWsiOTmPFX8FGxpymAC7GgH0FiDfY94URri3bKC6nEWt-ghkCJNFsvF7IHHOfiEU9MrkFYtFd75BGRWJRuWnbxkpiKjhNT-Cy1P3DiP0SMD-tUyCQN9cDnTKCzRGxnC1AE2rxwKBgQDIHO4sJWaFi0xZdIH0wL6RQYQX7EZCFC7jaIzlSe_YIaTbo1mBZi47qAFIoOoUD37sb5_PEHePCkkk0qmx8hfmXY1w7polxIiLvWOLBeKLLc_W1Hf1qYfcDoA1FSnGvGCGMx7Og3_G7P85yXt8gMulqMtcTTzOJTka_Az2m4TtlwKBgQCSvEiPjrClwX4DInurnEmNQ904FcA2wryHKCUVXEVzhgG774NzmJPf3azbdYps_jMFyEqjDdqhBcsgOx2PEC1KNEbM1QTMu9DuCd_xXiG-3lN_jO4zBFGWlhIIkBMfL_ynY8Gy-ZgHAaQ0jYZ2qSb0aNvMuwO6ek_Md_FvmFNVTQKBgQCMnR-S77jpj-dXWHHU7Pc7lGDgeosn9Yy5CQcwOtMI-SMhntfPAGDuVHCKe1_gNr9GHm2aD4UjguPAtzK8slOu8P_pYg_5B--22Z6v2rPEfq1z1JpyiezIaXwXUMapOkdNJXC5RlesDW6OSZC2_L2cq04yjqdyZ1-IIaJuSvuOAwKBgQCHB1ZywRIKQzRQARNLE7b2CLJpfJ9gkOR7j-hoe4zlZLljoGRMe63OZaPjsNnslrOOBrD6vK1R_wTT-D1SU0FCiH4uqkuGMjICDng_VH8YnfoCzAhekYsUy9xmr4nC7B2jJfSO6bDGH7As4DB5QEaVz6JlHl-PLUXoTX298oRSMQ",
+      "expected_kid_b64url": "nD2TRpEW7AaLjtcF0TTuTzrxE_SmJFBBiXr-UPFikhQ"
+    }
+  ],
+  "batches": [
+    {
+      "batch_id": "show-tasks-page",
+      "batch_kind": "mnode_show_cursor",
+      "resource": "tasks",
+      "cursor_id": "cursor-1",
+      "batch_assertion": "shared_key_proof",
+      "key_id": "reference-rsa-2048-test-only",
+      "expected_kid_b64url": "nD2TRpEW7AaLjtcF0TTuTzrxE_SmJFBBiXr-UPFikhQ",
+      "expected_wrapped_key_b64url": "Ra0MfIhK0cbMzaHKpC5aJYkuyKXyUbaOvRqEY06u0gB5YTSLriGxZvJISzcFBHoRLORjmpiJz3FgfJjtNZsiLGNv9JNW6_BnrxhFJ6YlZMZUVc8SAri4iZ3SJ_dezMCo7D1KZf-L86v-svIemRo-nA0qhPEfLqyVTq9niJo26M8ajQwkgiZh0C_bf4R65Rx_Kl6iEHiTyfQT1BL0XMPP8byfXmgniWd4Gk_La964xy2Hn-0FCyTqaWX3e6WkRpwHfJX8d5kGV-Oc9AaaUeCHheYA4t1brsv2Ejoffu7fLMjkSh6N8-cWzpEdlmx5x5a8iPPTT-r3rhZq3emFF9TgXQ",
+      "envelopes": [
+        {
+          "field_id": "task-from-1",
+          "field_role": "task_from",
+          "plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "envelope_text": "XNODE_DSN_V1:AQGcPZNGkRbsBouO1wXRNO5POvET9KYkUEGJev5Q8WKSFAEARa0MfIhK0cbMzaHKpC5aJYkuyKXyUbaOvRqEY06u0gB5YTSLriGxZvJISzcFBHoRLORjmpiJz3FgfJjtNZsiLGNv9JNW6_BnrxhFJ6YlZMZUVc8SAri4iZ3SJ_dezMCo7D1KZf-L86v-svIemRo-nA0qhPEfLqyVTq9niJo26M8ajQwkgiZh0C_bf4R65Rx_Kl6iEHiTyfQT1BL0XMPP8byfXmgniWd4Gk_La964xy2Hn-0FCyTqaWX3e6WkRpwHfJX8d5kGV-Oc9AaaUeCHheYA4t1brsv2Ejoffu7fLMjkSh6N8-cWzpEdlmx5x5a8iPPTT-r3rhZq3emFF9TgXTsIeX3koOsT697hiwAAABR4ldZd9vT2DXF3_WfTmX1Pk7IBPC_rxel561FruB2IXJG69NA",
+          "expected_plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "page_index": 0
+        },
+        {
+          "field_id": "task-to-1",
+          "field_role": "task_to",
+          "plaintext_bytes_b64url": "dGFvczovL3U6cEBzaW5rL2Ri",
+          "envelope_text": "XNODE_DSN_V1:AQGcPZNGkRbsBouO1wXRNO5POvET9KYkUEGJev5Q8WKSFAEARa0MfIhK0cbMzaHKpC5aJYkuyKXyUbaOvRqEY06u0gB5YTSLriGxZvJISzcFBHoRLORjmpiJz3FgfJjtNZsiLGNv9JNW6_BnrxhFJ6YlZMZUVc8SAri4iZ3SJ_dezMCo7D1KZf-L86v-svIemRo-nA0qhPEfLqyVTq9niJo26M8ajQwkgiZh0C_bf4R65Rx_Kl6iEHiTyfQT1BL0XMPP8byfXmgniWd4Gk_La964xy2Hn-0FCyTqaWX3e6WkRpwHfJX8d5kGV-Oc9AaaUeCHheYA4t1brsv2Ejoffu7fLMjkSh6N8-cWzpEdlmx5x5a8iPPTT-r3rhZq3emFF9TgXWdGafdzUBZJGUzdGQAAABLS-nuowUo5-ngORuaLLtHXupoMk3GvOBwMJWvTN87LH3bM",
+          "expected_plaintext_bytes_b64url": "dGFvczovL3U6cEBzaW5rL2Ri",
+          "page_index": 0
+        }
+      ]
+    },
+    {
+      "batch_id": "show-jobs-page",
+      "batch_kind": "mnode_show_cursor",
+      "resource": "jobs",
+      "cursor_id": "cursor-2",
+      "batch_assertion": "single_field",
+      "key_id": "reference-rsa-2048-test-only",
+      "expected_kid_b64url": "nD2TRpEW7AaLjtcF0TTuTzrxE_SmJFBBiXr-UPFikhQ",
+      "expected_wrapped_key_b64url": "cwRSZ_OJNJBUEhG3gzvG1aY4pFKA7wwjJiek81JfYjeaW5Xq7GsqyiKC6B3tpUKrB_OyXfdC0tUqWYamaSCffwgVXTX_VHf687gf9WYNdKeRrnQus7eCU_sHPZjAzCnBH-EmNdwAjCqgCeOb-eyDbK5QIdVEQqAITj-Cuvg_hkJpCNRNnkYEfv_5TvzD8nFDTNaMgsV4oKM1duGnDq66nY7fFVTS-Yjj6o4Nvjh7y_4gGXSbTrG9ZS4BnwKSAPsjCz09LASjIzQL4vyNNrb4jjMS1K5DF-2_L4mj0XwluUMh-X-NKB_A4S9vjgvtyLA791ab-BYkAeRSaDR-a4udqA",
+      "envelopes": [
+        {
+          "field_id": "job-from-1",
+          "field_role": "job_from",
+          "plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "envelope_text": "XNODE_DSN_V1:AQGcPZNGkRbsBouO1wXRNO5POvET9KYkUEGJev5Q8WKSFAEAcwRSZ_OJNJBUEhG3gzvG1aY4pFKA7wwjJiek81JfYjeaW5Xq7GsqyiKC6B3tpUKrB_OyXfdC0tUqWYamaSCffwgVXTX_VHf687gf9WYNdKeRrnQus7eCU_sHPZjAzCnBH-EmNdwAjCqgCeOb-eyDbK5QIdVEQqAITj-Cuvg_hkJpCNRNnkYEfv_5TvzD8nFDTNaMgsV4oKM1duGnDq66nY7fFVTS-Yjj6o4Nvjh7y_4gGXSbTrG9ZS4BnwKSAPsjCz09LASjIzQL4vyNNrb4jjMS1K5DF-2_L4mj0XwluUMh-X-NKB_A4S9vjgvtyLA791ab-BYkAeRSaDR-a4udqHuMhMSLWHoJSWhtpAAAABTss_DTrb5-LRIn-pvU5SW3CXuIj6xjAGR9NIpRkf0BQ2GNT3c",
+          "expected_plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "page_index": 0
+        }
+      ]
+    },
+    {
+      "batch_id": "rpc-check",
+      "batch_kind": "xnoded_rpc",
+      "resource": "check",
+      "rpc_name": "check_valid",
+      "batch_assertion": "shared_key_proof",
+      "key_id": "reference-rsa-2048-test-only",
+      "expected_kid_b64url": "nD2TRpEW7AaLjtcF0TTuTzrxE_SmJFBBiXr-UPFikhQ",
+      "expected_wrapped_key_b64url": "KR3WZ87lukQu5YyQimX1BjsUh0XTITtVrf_RRhzxkkG-BFnczxClbFprSybblGPtE_BqUBBYT5VRANihAFYGTuz-T11EuydUxa1bBaWJfdOyqC3nPM5QNI0qPQWInKEQpEfAn9MneXHppqBsUrNW1Gmu92hye_jz1UUPKTPEf3UdTrX_qZe_uYj5LA71pvLIfBKXMpnbAp8o-tLXqE67Ncay-I9PMLkN1fMs9pFvk--On0bnV36S3TJTrMKiGRUmXxIfMQpvS2H21PuU-eVnhfBgc1kFcuXGt5rV1JXKqscBcjEh3tSGeZvApqe9cRSxot8oZUKnfd9F8Vw8AYkXYA",
+      "envelopes": [
+        {
+          "field_id": "rpc-task-from",
+          "field_role": "task_from",
+          "plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "envelope_text": "XNODE_DSN_V1:AQGcPZNGkRbsBouO1wXRNO5POvET9KYkUEGJev5Q8WKSFAEAKR3WZ87lukQu5YyQimX1BjsUh0XTITtVrf_RRhzxkkG-BFnczxClbFprSybblGPtE_BqUBBYT5VRANihAFYGTuz-T11EuydUxa1bBaWJfdOyqC3nPM5QNI0qPQWInKEQpEfAn9MneXHppqBsUrNW1Gmu92hye_jz1UUPKTPEf3UdTrX_qZe_uYj5LA71pvLIfBKXMpnbAp8o-tLXqE67Ncay-I9PMLkN1fMs9pFvk--On0bnV36S3TJTrMKiGRUmXxIfMQpvS2H21PuU-eVnhfBgc1kFcuXGt5rV1JXKqscBcjEh3tSGeZvApqe9cRSxot8oZUKnfd9F8Vw8AYkXYJM4068B7T3XsNiFOQAAABRfEZ0W6syx_htGWUhzYlObR-rb_grrImuBqLFlOqHm0u3e8Ig",
+          "expected_plaintext_bytes_b64url": "dGFvczovL3U6cEBzb3VyY2UvZGI",
+          "field_origin": "task"
+        },
+        {
+          "field_id": "rpc-job-to",
+          "field_role": "task_to",
+          "plaintext_bytes_b64url": "dGFvczovL3U6cEBzaW5rL2Ri",
+          "envelope_text": "XNODE_DSN_V1:AQGcPZNGkRbsBouO1wXRNO5POvET9KYkUEGJev5Q8WKSFAEAKR3WZ87lukQu5YyQimX1BjsUh0XTITtVrf_RRhzxkkG-BFnczxClbFprSybblGPtE_BqUBBYT5VRANihAFYGTuz-T11EuydUxa1bBaWJfdOyqC3nPM5QNI0qPQWInKEQpEfAn9MneXHppqBsUrNW1Gmu92hye_jz1UUPKTPEf3UdTrX_qZe_uYj5LA71pvLIfBKXMpnbAp8o-tLXqE67Ncay-I9PMLkN1fMs9pFvk--On0bnV36S3TJTrMKiGRUmXxIfMQpvS2H21PuU-eVnhfBgc1kFcuXGt5rV1JXKqscBcjEh3tSGeZvApqe9cRSxot8oZUKnfd9F8Vw8AYkXYBI0fphkKUfZQu-hUgAAABKJWDX7QgMNk9O4Z_rN5qus7M9EBo5dQFYyC7uscTSYpp1Z",
+          "expected_plaintext_bytes_b64url": "dGFvczovL3U6cEBzaW5rL2Ri",
+          "field_origin": "job"
+        }
+      ]
+    }
+  ]
+}

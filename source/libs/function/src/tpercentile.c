@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -270,17 +272,26 @@ static void resetSlotInfo(tMemBucket *pBucket) {
 
 int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, STypeMod typeMod, double minval, double maxval, bool hasWindowOrGroup,
                          tMemBucket **pBucket, int32_t numOfElements) {
+  int32_t pageSize = hasWindowOrGroup ? 4096 : 16384 * 4;
+  if (pBucket == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (*pBucket != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pBucket = NULL;
+  if (dataType <= TSDB_DATA_TYPE_NULL || dataType >= TSDB_DATA_TYPE_MAX || !IS_NUMERIC_TYPE(dataType) ||
+      nElemSize != tDataTypes[dataType].bytes || nElemSize <= 0 || nElemSize > pageSize - (int32_t)sizeof(SFilePage)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
   *pBucket = (tMemBucket *)taosMemoryCalloc(1, sizeof(tMemBucket));
   if (*pBucket == NULL) {
     return terrno;
   }
 
-  if (hasWindowOrGroup) {
-    // With window or group by, we need to shrink page size to save memory.
-    (*pBucket)->bufPageSize = 4096;  // 4k per page
-  } else {
-    (*pBucket)->bufPageSize = 16384 * 4;  // 16k per page
-  }
+  // Window and group queries use the smaller page size selected above to save memory.
+  (*pBucket)->bufPageSize = pageSize;
 
   (*pBucket)->type = dataType;
   (*pBucket)->bytes = nElemSize;
@@ -301,6 +312,10 @@ int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, STypeMod typeMod, 
   }
 
   (*pBucket)->elemPerPage = ((*pBucket)->bufPageSize - sizeof(SFilePage)) / (*pBucket)->bytes;
+  if ((*pBucket)->elemPerPage <= 0) {
+    tMemBucketDestroy(pBucket);
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
   (*pBucket)->numOfSlots = TMIN((int16_t)(numOfElements / ((*pBucket)->elemPerPage * 6)) + 1, DEFAULT_NUM_OF_SLOT);
 
   (*pBucket)->comparFn = getKeyComparFunc((*pBucket)->type, TSDB_ORDER_ASC);
@@ -492,7 +507,7 @@ static int32_t getMinMaxEntryOfNextSlotWithData(tMemBucket *pMemBucket, int32_t 
   }
 
   if (j >= pMemBucket->numOfSlots) {
-    qError("getMinMaxEntryOfNextSlotWithData can not get valid slot, start with slotIdx:%d", slotIdx);
+    qError("getMinMaxEntryOfNextSlotWithData cannot get a valid slot, start with slotIdx:%d", slotIdx);
     return TSDB_CODE_FUNC_PERCENTILE_ERROR;
   }
   *next = pMemBucket->pSlots[j].range;

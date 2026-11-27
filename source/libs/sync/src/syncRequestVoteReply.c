@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,6 +41,14 @@
 //
 
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncRequestVoteReply header before syncNodeInRaftGroup() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncRequestVoteReply)) {
+    sError("vgId:%d, request vote reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncRequestVoteReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t               ret = 0;
   SyncRequestVoteReply* pMsg = pRpcMsg->pCont;
 

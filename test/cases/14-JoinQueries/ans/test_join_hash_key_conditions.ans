@@ -1,0 +1,646 @@
+
+taos> USE hash_join_snap;
+Database changed.
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352002000 |           3 |          30 |
+         1736352003000 |           4 |          40 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_big = b.k_big ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352003000 |           4 |          40 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_big = b.k_big AND a.k_bin = b.k_bin ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352003000 |           4 |          40 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_tiny = b.k_tiny AND a.k_small = b.k_small AND a.k_int = b.k_int AND a.k_big = b.k_big AND a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig AND a.k_float = b.k_float AND a.k_double = b.k_double AND a.k_bool = b.k_bool AND a.k_bin = b.k_bin AND a.k_nch = b.k_nch AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND b.k_int = a.k_int ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352002000 |           3 |          30 |
+         1736352003000 |           4 |          40 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_bool = b.k_bool ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352001000 |           2 |          20 |
+         1736352002000 |           3 |          30 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352001000 |           2 |          20 |
+         1736352002000 |           3 |          30 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_bin = b.k_bin AND a.k_nch = b.k_nch ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352001000 |           2 |          20 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352001000 |           2 |          20 |
+         1736352002000 |           3 |          30 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT CAST(a.ts AS BIGINT), a.payload, b.metric FROM l_key a JOIN r_key b ON a.ts = b.ts AND a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.k_bool = b.k_bool AND a.k_ts = b.k_ts ORDER BY 1, 2, 3;
+ cast(a.ts as bigint)  |   payload   |   metric    |
+====================================================
+         1736352000000 |           1 |          10 |
+         1736352005000 |           6 |          60 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_tiny = b.k_tiny ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_small = b.k_small ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_big = b.k_big ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_utiny = b.k_utiny ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_usmall = b.k_usmall ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_uint = b.k_uint ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_ubig = b.k_ubig ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           1 |          30 |
+           1 |          40 |
+           1 |          60 |
+           1 |          61 |
+           2 |          20 |
+           3 |          10 |
+           3 |          30 |
+           3 |          40 |
+           3 |          60 |
+           3 |          61 |
+           4 |          20 |
+           6 |          10 |
+           6 |          30 |
+           6 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_nch = b.k_nch ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_ts = b.k_ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_float = b.k_float ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_double = b.k_double ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varbinary = b.k_varbinary ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+         103 |         203 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_geometry = b.k_geometry ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+         103 |         203 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec128 = b.k_dec128 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_tiny = b.k_tiny AND a.k_small = b.k_small AND a.k_int = b.k_int AND a.k_big = b.k_big ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_utiny = b.k_utiny AND a.k_usmall = b.k_usmall AND a.k_uint = b.k_uint AND a.k_ubig = b.k_ubig ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           3 |          30 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.ts = b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin AND a.ts = b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           4 |          40 |
+           6 |          60 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.ts < b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool AND a.ts < b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          30 |
+           1 |          40 |
+           1 |          60 |
+           1 |          61 |
+           3 |          40 |
+           3 |          60 |
+           3 |          61 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_bin = b.k_bin AND a.payload < b.metric ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int WHERE b.metric >= 30 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.ts < b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 AND a.payload < b.metric ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+         103 |         203 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varbinary = b.k_varbinary WHERE b.metric >= 202 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         102 |         202 |
+         103 |         203 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2 LIMIT 3;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 ORDER BY 1, 2 LIMIT 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.k_bool, COUNT(*) FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool WHERE b.metric >= 10 PARTITION BY a.k_bool ORDER BY 1;
+ k_bool |       count(*)        |
+=================================
+ false  |                     2 |
+ true   |                    15 |
+
+taos> SELECT a.k_varchar, COUNT(*) FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar PARTITION BY a.k_varchar ORDER BY 1;
+       k_varchar        |       count(*)        |
+=================================================
+ varchar_a              |                     1 |
+ varchar_b              |                     1 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.ts = b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           4 |          40 |
+           6 |          60 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.ts < b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin AND a.payload < b.metric ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin WHERE b.metric >= 40 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin ORDER BY 1, 2 LIMIT 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           4 |          40 |
+
+taos> SELECT a.k_bin, COUNT(*) FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND a.k_bin = b.k_bin PARTITION BY a.k_bin ORDER BY 1;
+         k_bin          |       count(*)        |
+=================================================
+ bin_a                  |                     1 |
+ bin_d                  |                     1 |
+ bin_dup                |                     2 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 AND a.ts < b.ts ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 AND a.payload < b.metric ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary AND a.k_dec64 = b.k_dec64 WHERE b.metric >= 202 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int + 1 = b.k_int ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           2 |          20 |
+
+taos> SELECT a.payload, b.metric FROM l_key_blob a JOIN r_key_blob b ON a.k_blob = b.k_blob ORDER BY 1, 2;
+
+DB error: Not supported join since 'Hash Join does not support JSON, BLOB or MEDIUMBLOB as equality key' [0x80002664] 
+taos> SELECT a.payload, b.metric FROM l_key_mediumblob a JOIN r_key_mediumblob b ON a.k_mediumblob = b.k_mediumblob ORDER BY 1, 2;
+
+DB error: Operation not supported between data types [0x80003250] 
+taos> SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.k_json = b.k_json ORDER BY 1, 2;
+
+DB error: JSON is not supported here [0x8000072D] 
+taos> SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.ts = b.ts AND a.k_json->'k' = b.k_json->'k' ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         501 |         602 |
+         502 |         603 |
+
+taos> SELECT a.payload, b.metric FROM l_key_json a JOIN r_key_json b ON a.k_json->'k' = b.k_json->'k' ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         501 |         601 |
+         501 |         602 |
+         502 |         603 |
+
+taos> SELECT a.payload, b.metric FROM ( SELECT k_int, payload FROM l_key ) a JOIN ( SELECT k_int, metric FROM r_key ) b ON a.k_int = b.k_int ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM ( SELECT k_bin, k_nch, payload FROM l_key ) a JOIN ( SELECT k_bin, k_nch, metric FROM r_key ) b ON a.k_bin = b.k_bin AND a.k_nch = b.k_nch ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM ( SELECT k_bool, payload FROM l_key ) a JOIN ( SELECT k_bool, metric FROM r_key ) b ON a.k_bool = b.k_bool ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           1 |          30 |
+           1 |          40 |
+           1 |          60 |
+           1 |          61 |
+           2 |          20 |
+           3 |          10 |
+           3 |          30 |
+           3 |          40 |
+           3 |          60 |
+           3 |          61 |
+           4 |          20 |
+           6 |          10 |
+           6 |          30 |
+           6 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a LEFT JOIN r_key b ON a.k_int = b.k_int ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 | NULL        |
+           3 |          30 |
+           4 |          40 |
+           5 | NULL        |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a RIGHT JOIN r_key b ON a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+ NULL        |          30 |
+ NULL        |          50 |
+           1 |          10 |
+           2 |          20 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a FULL JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+ NULL        |          30 |
+ NULL        |          40 |
+ NULL        |          50 |
+           1 |          10 |
+           2 |          20 |
+           3 | NULL        |
+           4 | NULL        |
+           5 | NULL        |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload FROM l_key a LEFT SEMI JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1;
+   payload   |
+==============
+           1 |
+           3 |
+           4 |
+           6 |
+
+taos> SELECT a.payload FROM l_key a LEFT ANTI JOIN r_key b ON a.k_int = b.k_int AND a.payload < b.metric ORDER BY 1;
+   payload   |
+==============
+           2 |
+           5 |
+
+taos> SELECT a.payload, b.metric FROM l_key a RIGHT SEMI JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           2 |          20 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a RIGHT ANTI JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+ NULL        |          30 |
+ NULL        |          40 |
+ NULL        |          50 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a LEFT JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+         103 | NULL        |
+         104 | NULL        |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a FULL JOIN r_key_ext b ON a.k_dec64 = b.k_dec64 AND a.k_dec128 = b.k_dec128 ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+ NULL        |         203 |
+ NULL        |         204 |
+         101 |         201 |
+         102 |         202 |
+         103 | NULL        |
+         104 | NULL        |
+
+taos> SELECT a.payload FROM l_key_ext a LEFT SEMI JOIN r_key_ext b ON a.k_geometry = b.k_geometry AND a.payload < b.metric ORDER BY 1;
+   payload   |
+==============
+         101 |
+         102 |
+
+taos> SELECT a.payload FROM l_key_ext a LEFT ANTI JOIN r_key_ext b ON a.k_geometry = b.k_geometry AND a.payload < b.metric ORDER BY 1;
+   payload   |
+==============
+         103 |
+         104 |
+
+taos> SELECT a.k_bool, COUNT(*), SUM(a.payload), SUM(b.metric) FROM l_key a JOIN r_key b ON a.k_bool = b.k_bool AND a.k_bin = b.k_bin WHERE b.metric >= 20 PARTITION BY a.k_bool ORDER BY 1;
+ k_bool |       count(*)        |    sum(a.payload)     |     sum(b.metric)     |
+=================================================================================
+ false  |                     1 |                     2 |                    20 |
+ true   |                     2 |                    12 |                   121 |
+
+taos> SELECT a.k_varchar, COUNT(*), SUM(a.payload), SUM(b.metric) FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND a.k_varbinary = b.k_varbinary WHERE b.metric >= 200 PARTITION BY a.k_varchar ORDER BY 1;
+       k_varchar        |       count(*)        |    sum(a.payload)     |     sum(b.metric)     |
+=================================================================================================
+ varchar_a              |                     1 |                   101 |                   201 |
+ varchar_b              |                     1 |                   102 |                   202 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND (a.payload < b.metric OR a.k_bool = b.k_bool) ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           4 |          40 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key a JOIN r_key b ON a.k_int = b.k_int AND (a.payload < b.metric AND a.k_bool = b.k_bool) ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+           1 |          10 |
+           3 |          30 |
+           6 |          60 |
+           6 |          61 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND (a.payload < b.metric OR a.k_dec64 = b.k_dec64) ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+
+taos> SELECT a.payload, b.metric FROM l_key_ext a JOIN r_key_ext b ON a.k_varchar = b.k_varchar AND (a.payload < b.metric AND a.k_dec64 = b.k_dec64) ORDER BY 1, 2;
+   payload   |   metric    |
+============================
+         101 |         201 |
+         102 |         202 |
+

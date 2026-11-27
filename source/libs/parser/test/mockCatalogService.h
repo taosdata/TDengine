@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,10 @@
 
 #ifndef MOCK_CATALOG_SERVICE_H
 #define MOCK_CATALOG_SERVICE_H
+
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
 
 #include <memory>
 #include <string>
@@ -37,6 +43,7 @@ class ITableBuilder {
   virtual ITableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) = 0;
   virtual ITableBuilder& setVgid(int16_t vgid) = 0;
   virtual ITableBuilder& setPrecision(uint8_t precision) = 0;
+  virtual ITableBuilder& setVirtualSuperTable(bool enabled, bool hasInheritors = false) = 0;
   virtual void           done() = 0;
 };
 
@@ -54,6 +61,8 @@ class MockCatalogService {
   static void destoryCatalogReq(SCatalogReq* pReq);
   static void destoryMetaRes(void* p);
   static void destoryMetaArrayRes(void* p);
+  static void destoryMetaTableTSMAInfo(void* p);
+  static void destoryMetaVStbRefDbs(void* p);
   static void destoryMetaData(SMetaData* pData);
 
   MockCatalogService();
@@ -61,12 +70,47 @@ class MockCatalogService {
   ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,
                                     int32_t numOfColumns, int32_t numOfTags = 0);
   void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
+  void setTableRefs(const std::string& db, const std::string& table,
+                   const std::vector<SColRef>& columns,
+                   const std::vector<SColRef>& tags);
+  void           setVstbExternalSource(const std::string& source);
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);
   void createDnode(int32_t dnodeId, const std::string& host, int16_t port);
   void createDatabase(const std::string& db, bool rollup = false, int8_t cacheLast = 0,
                       int8_t precision = TSDB_TIME_PRECISION_MILLI);
+
+  // Federated query test helpers — register a fake external source so that
+  // CREATE STREAM ... FROM <ext>.<tbl> can resolve through catalogGetAllMeta.
+  // sourceType uses EExtSourceType (EXT_SOURCE_POSTGRESQL/EXT_SOURCE_MYSQL/...).
+  void createExtSource(const std::string& sourceName, int8_t sourceType, const std::string& host,
+                       int32_t port, const std::string& user, const std::string& database,
+                       const std::string& schemaName = "",
+                       const std::string& options = "");
+  // Register a fake external table.  mid0/mid1 are optional path segments
+  // (e.g. db/schema for PG); pass empty string to omit.  pkColIdx marks which
+  // column is the timestamp primary key.  Column types use TSDB_DATA_TYPE_*.
+  struct MockExtColDef {
+    std::string colName;
+    int8_t      type;        // TSDB_DATA_TYPE_*
+    bool        isPrimaryKey;
+    bool        nullable;
+    bool        isTag;
+    std::string extTypeName;
+
+    MockExtColDef(const std::string& name, int8_t dataType, bool primaryKey, bool isNullable,
+                  bool tag = false, const std::string& externalType = "")
+        : colName(name),
+          type(dataType),
+          isPrimaryKey(primaryKey),
+          nullable(isNullable),
+          isTag(tag),
+          extTypeName(externalType) {}
+  };
+  void createExtTable(const std::string& sourceName, const std::string& mid0, const std::string& mid1,
+                      const std::string& tableName, const std::vector<MockExtColDef>& cols,
+                      int8_t tsPrecision = TSDB_TIME_PRECISION_MILLI);
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta, bool onlyCache = false) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo, bool onlyCache = false) const;

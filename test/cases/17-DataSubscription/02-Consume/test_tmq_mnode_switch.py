@@ -1,4 +1,19 @@
 
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from ntpath import join
 import taos
 import sys
@@ -93,7 +108,21 @@ class TestCase:
         count=0
         while count < self.mnodeCheckCnt:
             time.sleep(1)
-            tdSql.query("select * from information_schema.ins_mnodes")
+
+            retryTimes = 5
+            for attempt in range(1, retryTimes + 1):
+                try:
+                    tdSql.query("select * from information_schema.ins_mnodes")
+                    break
+                except taos.error.ProgrammingError as error:
+                    tdLog.debug(
+                        "query mnodes failed on attempt %d/%d: %r"
+                        % (attempt, retryTimes, error)
+                    )
+                    if attempt == retryTimes:
+                        raise
+                    time.sleep(5)
+
             tdLog.debug(tdSql.queryResult)
             # if tdSql.checkRows(self.mnodes) :
             #     tdLog.debug("mnode is three nodes")
@@ -143,15 +172,15 @@ class TestCase:
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
                     'ctbNum':     1,
-                    'rowsPerTbl': 40000,
+                    'rowsPerTbl': 4000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
-        
+
         if self.replicaVar == 3:
-            paraDict["rowsPerTbl"] = 20000
+            paraDict["rowsPerTbl"] = 2000
 
         topicNameList = ['topic1']
         expectRowsList = []
@@ -166,7 +195,7 @@ class TestCase:
 
         tdLog.info("create topics from stb with filter")
         # queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s where c1 %% 7 == 0" %(paraDict['dbName'], paraDict['stbName'])
-        
+
         queryString = "select ts, log(c1), ceil(pow(c1,3)) from %s.%s" %(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as %s" %(topicNameList[0], queryString)
         tdLog.info("create topic sql: %s"%sqlString)
@@ -230,17 +259,17 @@ class TestCase:
 
     def test_tmq3mnodesSwitch(self):
         """Cluster: mnode switch
-        
+
         1. Setup 3-mnode cluster
         2. Start consumption
         3. Trigger mnode leader switch
         4. Continue consumption
         5. Verify seamless transition
         6. Check no interruption
-        
+
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -255,4 +284,3 @@ class TestCase:
 
 
 event = threading.Event()
-

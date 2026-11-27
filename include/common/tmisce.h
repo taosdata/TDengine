@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,9 +31,26 @@ typedef struct SCorEpSet {
 
 #define GET_ACTIVE_EP(_eps) (&((_eps)->eps[(_eps)->inUse]))
 
+#define TD_APP_UNKNOWN        (-1)
+#define TD_APP_TSDB           0
+#define TD_APP_IDMP           1
+#define TD_APP_TDGPT          2
+#define TD_APP_TAOSX          3
+#define TD_APP_TAOS_EXPLORER  4
+#define TD_APP_TAOS_ADAPTER   5
+#define TD_APP_TAOS_AI        6
+#define TD_APP_TAOS           7
+#define TD_APP_TAOS_DUMP      8
+#define TD_APP_TAOS_BENCHMARK 9
+#define TD_APP_TAOS_GEN       10
+#define TD_APP_TAOS_KEEPER    11
+#define TD_APP_TD_INSIGHT     12
+#define TD_APP_TAOS_MAX       13
+
 int32_t epsetToStr(const SEpSet* pEpSet, char* pBuf, int32_t len);
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp);
 int32_t addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
+int16_t taosAppNameToId(const char* appName);
 
 bool   isEpsetEqual(const SEpSet* s1, const SEpSet* s2);
 void   epsetAssign(SEpSet* dst, const SEpSet* pSrc);

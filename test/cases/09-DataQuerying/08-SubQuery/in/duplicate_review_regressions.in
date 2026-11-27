@@ -1,0 +1,146 @@
+# Prepare data.
+drop database if exists duplicate_review_regressions;
+create database duplicate_review_regressions vgroups 2 keep 36500;
+use duplicate_review_regressions;
+create table matrix_readings (ts timestamp, k int, v int, d double);
+create table matrix_history (ts timestamp, k int, v int);
+create table matrix_other (ts timestamp, k int, v int);
+insert into matrix_readings values (1760000000000, 1, 10, 10);
+insert into matrix_readings values (1760000001000, 2, 20, 20);
+insert into matrix_readings values (1760000002000, 3, 30, 30);
+insert into matrix_readings values (1760000003000, 2, null, null);
+insert into matrix_readings values (1760000004000, null, 40, 40);
+insert into matrix_history values (1760000000000, 1, 5);
+insert into matrix_history values (1760000001000, 1, 15);
+insert into matrix_history values (1760000002000, 2, 20);
+insert into matrix_history values (1760000003000, 3, null);
+insert into matrix_other values (1760000000000, 1, 100);
+
+# Union operand regressions.
+select (select max(s.v) from (select v from matrix_history union all select v from matrix_history) s), (select max(d.v) from (select v from matrix_history union all select v from matrix_other) d) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select max(s.v) from (select v from matrix_history union all select v from matrix_history) s), (select max(d.v) from (select v from matrix_history union all select v from matrix_other) d) from matrix_readings limit 1\G;
+explain analyze verbose true select (select max(s.v) from (select v from matrix_history union all select v from matrix_history) s), (select max(d.v) from (select v from matrix_history union all select v from matrix_other) d) from matrix_readings limit 1\G;
+select 100 in (select v from matrix_history union select v from matrix_history), 100 in (select v from matrix_history union select v from matrix_other) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select 100 in (select v from matrix_history union select v from matrix_history), 100 in (select v from matrix_history union select v from matrix_other) from matrix_readings limit 1\G;
+explain analyze verbose true select 100 in (select v from matrix_history union select v from matrix_history), 100 in (select v from matrix_history union select v from matrix_other) from matrix_readings limit 1\G;
+select r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 20) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 20) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union select v from matrix_history where v > 20) from matrix_readings r order by r.ts\G;
+select 100 in (select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select 100 in (select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other) from matrix_readings limit 1\G;
+explain analyze verbose true select 100 in (select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other) from matrix_readings limit 1\G;
+select r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 20) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 20) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 15), r.v in (select v from matrix_history where k = 1 union all select v from matrix_history where v > 20) from matrix_readings r order by r.ts\G;
+select 100 in (select v from matrix_history union all select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all select v from matrix_history) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select 100 in (select v from matrix_history union all select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all select v from matrix_history) from matrix_readings limit 1\G;
+explain analyze verbose true select 100 in (select v from matrix_history union all select v from matrix_history union all select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all select v from matrix_history) from matrix_readings limit 1\G;
+select 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history) from matrix_readings limit 1;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history) from matrix_readings limit 1\G;
+explain analyze verbose true select 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history), 100 in (select v from matrix_history union all select v from matrix_other union all  select v from matrix_history) from matrix_readings limit 1\G;
+
+# Nested external window regressions.
+select * from (select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)) x;
+# Expected InitPlans 3, correlated templates 0.
+explain verbose true select * from (select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)) x\G;
+explain analyze verbose true select * from (select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)) x\G;
+# Sort output rows for deterministic comparison.
+select count(*), max(v), max(v) from matrix_readings union all select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w) order by 1 nulls first, 2 nulls first, 3 nulls first;
+# Expected InitPlans 3, correlated templates 0.
+explain verbose true select count(*), max(v), max(v) from matrix_readings union all select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+explain analyze verbose true select count(*), max(v), max(v) from matrix_readings union all select count(*) as n, (select max(v) from matrix_history) as a, (select max(v) from matrix_history) as b from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+
+# Distributed consumers.
+# Parallel ANALYZE counters appear as <runtime> in the answer file.
+create stable distributed_readings (ts timestamp, v int) tags (device int);
+create stable distributed_history (ts timestamp, v int) tags (device int);
+create table distributed_r_0 using distributed_readings tags (0);
+create table distributed_h_0 using distributed_history tags (0);
+insert into distributed_r_0 values (1760000000000, 0);
+insert into distributed_h_0 values (1760000000000, 0);
+create table distributed_r_1 using distributed_readings tags (1);
+create table distributed_h_1 using distributed_history tags (1);
+insert into distributed_r_1 values (1760000001000, 1);
+insert into distributed_h_1 values (1760000001000, 1);
+create table distributed_r_2 using distributed_readings tags (2);
+create table distributed_h_2 using distributed_history tags (2);
+insert into distributed_r_2 values (1760000002000, 2);
+insert into distributed_h_2 values (1760000002000, 2);
+create table distributed_r_3 using distributed_readings tags (3);
+create table distributed_h_3 using distributed_history tags (3);
+insert into distributed_r_3 values (1760000003000, 3);
+insert into distributed_h_3 values (1760000003000, 3);
+create table distributed_r_4 using distributed_readings tags (4);
+create table distributed_h_4 using distributed_history tags (4);
+insert into distributed_r_4 values (1760000004000, 4);
+insert into distributed_h_4 values (1760000004000, 4);
+create table distributed_r_5 using distributed_readings tags (5);
+create table distributed_h_5 using distributed_history tags (5);
+insert into distributed_r_5 values (1760000005000, 5);
+insert into distributed_h_5 values (1760000005000, 5);
+create table distributed_r_6 using distributed_readings tags (6);
+create table distributed_h_6 using distributed_history tags (6);
+insert into distributed_r_6 values (1760000006000, 6);
+insert into distributed_h_6 values (1760000006000, 6);
+create table distributed_r_7 using distributed_readings tags (7);
+create table distributed_h_7 using distributed_history tags (7);
+insert into distributed_r_7 values (1760000007000, 7);
+insert into distributed_h_7 values (1760000007000, 7);
+create table distributed_r_8 using distributed_readings tags (8);
+create table distributed_h_8 using distributed_history tags (8);
+insert into distributed_r_8 values (1760000008000, 8);
+insert into distributed_h_8 values (1760000008000, null);
+create table distributed_r_9 using distributed_readings tags (9);
+create table distributed_h_9 using distributed_history tags (9);
+insert into distributed_r_9 values (1760000009000, 9);
+insert into distributed_h_9 values (1760000009000, null);
+create table distributed_r_10 using distributed_readings tags (10);
+create table distributed_h_10 using distributed_history tags (10);
+insert into distributed_r_10 values (1760000010000, 10);
+insert into distributed_h_10 values (1760000010000, null);
+create table distributed_r_11 using distributed_readings tags (11);
+create table distributed_h_11 using distributed_history tags (11);
+insert into distributed_r_11 values (1760000011000, 11);
+insert into distributed_h_11 values (1760000011000, null);
+create table distributed_r_12 using distributed_readings tags (12);
+create table distributed_h_12 using distributed_history tags (12);
+insert into distributed_r_12 values (1760000012000, 12);
+insert into distributed_h_12 values (1760000012000, null);
+create table distributed_r_13 using distributed_readings tags (13);
+create table distributed_h_13 using distributed_history tags (13);
+insert into distributed_r_13 values (1760000013000, 13);
+insert into distributed_h_13 values (1760000013000, null);
+create table distributed_r_14 using distributed_readings tags (14);
+create table distributed_h_14 using distributed_history tags (14);
+insert into distributed_r_14 values (1760000014000, 14);
+insert into distributed_h_14 values (1760000014000, null);
+create table distributed_r_15 using distributed_readings tags (15);
+create table distributed_h_15 using distributed_history tags (15);
+insert into distributed_r_15 values (1760000015000, 15);
+insert into distributed_h_15 values (1760000015000, null);
+select count(distinct vgroup_id) from information_schema.ins_tables where db_name = 'duplicate_review_regressions' and table_name like 'distributed_r_%';
+select count(distinct vgroup_id) from information_schema.ins_tables where db_name = 'duplicate_review_regressions' and table_name like 'distributed_h_%';
+select v, (select max(v) from distributed_history) from distributed_readings where v <= (select max(v) from distributed_history) order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v, (select max(v) from distributed_history) from distributed_readings where v <= (select max(v) from distributed_history) order by ts\G;
+explain analyze verbose true select v, (select max(v) from distributed_history) from distributed_readings where v <= (select max(v) from distributed_history) order by ts\G;
+select v, v in (select v from distributed_history) from distributed_readings where v in (select v from distributed_history) order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v, v in (select v from distributed_history) from distributed_readings where v in (select v from distributed_history) order by ts\G;
+explain analyze verbose true select v, v in (select v from distributed_history) from distributed_readings where v in (select v from distributed_history) order by ts\G;
+select v, v in (select v from distributed_history), v in (select v from distributed_history) from distributed_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v, v in (select v from distributed_history), v in (select v from distributed_history) from distributed_readings order by ts\G;
+explain analyze verbose true select v, v in (select v from distributed_history), v in (select v from distributed_history) from distributed_readings order by ts\G;
+select v, v not in (select v from distributed_history), v not in (select v from distributed_history) from distributed_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v, v not in (select v from distributed_history), v not in (select v from distributed_history) from distributed_readings order by ts\G;
+explain analyze verbose true select v, v not in (select v from distributed_history), v not in (select v from distributed_history) from distributed_readings order by ts\G;
+drop database duplicate_review_regressions;

@@ -1,0 +1,47 @@
+use db_sort_elim;
+
+## === CASE 1: EXPLAIN ASC ===## 
+explain select * from (select ts, val from st order by ts limit 20) order by ts \G;
+
+## === CASE 1: RESULT ASC ===## 
+select * from (select ts, val from st order by ts limit 20) order by ts;
+
+## === CASE 2: EXPLAIN DESC ===## 
+explain select * from (select ts, val, msg from st order by ts desc limit 15) order by ts desc \G;
+
+## === CASE 2: RESULT DESC ===## 
+select * from (select ts, val, msg from st order by ts desc limit 15) order by ts desc;
+
+## === CASE 3: EXPLAIN WITH FILTER ===## 
+explain select * from (select ts, val from st order by ts limit 30) where val > 50 order by ts \G;
+
+## === CASE 3: RESULT WITH FILTER ===## 
+select * from (select ts, val from st order by ts limit 30) where val > 50 order by ts;
+
+## === CASE 4: CALC GROUP ID REGRESSION DATA ===##
+insert into t1 values ('2024-12-31 00:00:00', 1000, 'r0') ('2024-12-31 00:00:02', 1002, 'r2') ('2024-12-31 00:00:04', 1004, 'r4') ('2024-12-31 00:00:06', 1006, 'r6') ('2024-12-31 00:00:08', 1008, 'r8');
+insert into t2 values ('2024-12-31 00:00:01', 1001, 'r1') ('2024-12-31 00:00:03', 1003, 'r3') ('2024-12-31 00:00:05', 1005, 'r5') ('2024-12-31 00:00:07', 1007, 'r7') ('2024-12-31 00:00:09', 1009, 'r9');
+
+## === CASE 4: EXPLAIN NO PARTITION ===##
+explain select count(*) from (select ts, val from st order by ts limit 20)\G;
+
+## === CASE 4: RESULT NO PARTITION ===##
+select count(*) from (select ts, val from st order by ts limit 20);
+
+## === CASE 5: EXPLAIN PARTITION BY TS ===##
+explain select /*+ sort_for_group() */ count(*), ts from (select ts, val from st order by ts limit 20) partition by ts order by ts\G;
+
+## === CASE 5: RESULT PARTITION BY TS ===##
+select /*+ sort_for_group() */ count(*), ts from (select ts, val from st order by ts limit 20) partition by ts order by ts;
+
+## === CASE 6: EXPLAIN PARTITION BY TIMETRUNCATE ===##
+explain select /*+ sort_for_group() */ count(*), timetruncate(ts, 1d) as tt from (select ts, val from st order by ts limit 20) partition by timetruncate(ts, 1d) order by tt\G;
+
+## === CASE 6: RESULT PARTITION BY TIMETRUNCATE ===##
+select /*+ sort_for_group() */ count(*), timetruncate(ts, 1d) as tt from (select ts, val from st order by ts limit 20) partition by timetruncate(ts, 1d) order by tt;
+
+## === CASE 7: EXPLAIN PARTITION BY ALIAS ===##
+explain select /*+ sort_for_group() */ count(*), timetruncate(ts, 1d) as tt from (select ts, val from st order by ts limit 20) partition by tt order by tt\G;
+
+## === CASE 7: RESULT PARTITION BY ALIAS ===##
+select /*+ sort_for_group() */ count(*), timetruncate(ts, 1d) as tt from (select ts, val from st order by ts limit 20) partition by tt order by tt;

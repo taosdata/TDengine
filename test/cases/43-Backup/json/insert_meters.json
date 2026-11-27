@@ -1,0 +1,54 @@
+{
+    "filetype": "insert",
+    "cfgdir": "PLACEHOLDER_CFGDIR",
+    "host": "localhost",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 1000,
+    "create_table_thread_count": 4,
+    "thread_count": 16,
+    "prepared_rand": 1000,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "big",
+                "drop": "yes",
+                "vgroups": 2,
+                "replica": 3,
+                "wal_retention_period": 3600
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10000,
+                    "insert_rows": 5000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "insert_interval": 0,
+                    "timestamp_step": 1,
+                    "start_timestamp": 1600000000000,
+                    "primary_key": 1,
+                    "columns": [
+                        { "type": "varchar", "name": "c1", "len": 16, "gen": "order", "max": 1000000000 },
+                        { "type": "int", "name": "c2", "gen": "order", "max": 1000 },
+                        { "type": "uint", "name": "c3", "gen": "order", "max": 100000 },
+                        { "type": "bigint", "name": "c4", "gen": "order", "max": 1000000000 },
+                        { "type": "ubigint", "name": "c5", "gen": "order", "max": 1000000000 },
+                        { "type": "float", "name": "c6", "gen": "order", "max": 100 },
+                        { "type": "double", "name": "c7", "gen": "order", "max": 1000 },
+                        { "type": "bool", "name": "c8" },
+                        { "type": "binary", "name": "c9", "len": 16, "gen": "order", "max": 1000000000 },
+                        { "type": "nchar", "name": "c10", "len": 16, "gen": "order", "max": 1000000000 }
+                    ],
+                    "tags": [
+                        { "type": "int", "name": "t", "max": 100000, "min": 0 }
+                    ]
+                }
+            ]
+        }
+    ]
+}

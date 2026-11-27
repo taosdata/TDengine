@@ -1,0 +1,95 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""FS §4.6 — ts column auto-derivation and time advancement.
+
+  FS-TS-001  ts column is auto-derived from the PK timestamp column.
+  FS-TS-002  Stream creation rejects external table without a PK ts column.
+"""
+
+import sys
+
+from new_test_framework.utils import tdLog, tdSql
+
+sys.path.insert(0, "cases/09-DataQuerying/19-FederatedQuery")
+from federated_query_common import (  # noqa: E402
+    ExtSrcEnv,
+    FederatedQueryTestMixin,
+)
+
+sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
+from fs_common import (  # noqa: E402
+    ensure_snode,
+)
+
+
+class TestFsTsColumn(FederatedQueryTestMixin):
+    """FS §4.6 — ts column rules for external trigger tables."""
+
+    DB = "fs_ts"
+
+    @classmethod
+    def setup_class(cls):
+        cls.env = ExtSrcEnv()
+        cls.env.ensure_env()
+        ensure_snode()
+        tdSql.execute(f"DROP DATABASE IF EXISTS {cls.DB}")
+        tdSql.execute(f"CREATE DATABASE {cls.DB} PRECISION 'ms'")
+
+    @classmethod
+    def teardown_class(cls):
+        try:
+            tdSql.execute(f"DROP DATABASE IF EXISTS {cls.DB}")
+        finally:
+            cls.env.teardown_env()
+
+    # FS-TS-002 missing ts col -> CREATE STREAM rejected -----------------
+    def test_ts_002_missing_ts_col_rejected(self):
+        """Reject an external trigger table without a timestamp column.
+
+        Verify that CREATE STREAM reports an error when the external table has
+        no primary-key timestamp column.
+
+        Since: v3.4.2.0
+
+        """
+        prefix = "ts002"
+        src = f"{prefix}_m"
+        db = f"{prefix}_mdb"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), db)
+        try:
+            # Create a remote table with NO primary key timestamp column.
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), db, [
+                "DROP TABLE IF EXISTS `no_ts`",
+                "CREATE TABLE `no_ts` (id INT PRIMARY KEY, val INT)",
+                "INSERT INTO `no_ts` VALUES (1, 1), (2, 2)",
+            ])
+            self._mk_mysql_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            sql = (
+                f"CREATE STREAM s_ts002 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.no_ts "
+                f"INTO {self.DB}.sink_ts002 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-TS-002: ext table without PK ts column rejected at CREATE STREAM")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), db)
+            except Exception:
+                pass

@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3 * or later ("AGPL"), as published by the Free
- * Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -115,6 +117,21 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
+  // Initialize synchronization before any failure can reach indexDestroy.
+  code = taosThreadMutexInit(&idx->mtx, NULL);
+  if (code != 0) {
+    taosMemoryFree(idx);
+    *index = NULL;
+    return code;
+  }
+  if (tsem_init(&idx->sem, 0, 0) != 0) {
+    code = terrno;
+    (void)taosThreadMutexDestroy(&idx->mtx);
+    taosMemoryFree(idx);
+    *index = NULL;
+    return code;
+  }
+
   idx->lru = taosLRUCacheInit(opts->cacheSize, -1, .5);
   if (idx->lru == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, END);
@@ -123,7 +140,7 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
   idx->tindex = idxTFileCreate(idx, path);
   if (idx->tindex == NULL) {
-    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, NULL, END);
+    TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
   idx->colObj = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -134,13 +151,6 @@ int32_t indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   idx->version = 1;
   idx->path = taosStrdup(path);
   if (idx->path == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, END);
-  }
-
-  if (taosThreadMutexInit(&idx->mtx, NULL) != 0) {
-    TAOS_CHECK_GOTO(terrno, NULL, END);
-  }
-  if (tsem_init(&idx->sem, 0, 0) != 0) {
     TAOS_CHECK_GOTO(terrno, NULL, END);
   }
 
@@ -176,7 +186,7 @@ void indexDestroy(void* handle) {
   taosMemoryFree(idx);
   return;
 }
-void indexClose(SIndex* sIdx) {
+int32_t indexCloseChecked(SIndex* sIdx) {
   bool ref = 0;
   if (sIdx->colObj != NULL) {
     void* iter = taosHashIterate(sIdx->colObj, NULL);
@@ -193,8 +203,14 @@ void indexClose(SIndex* sIdx) {
     sIdx->colObj = NULL;
   }
 
+  int32_t code = atomic_load_32(&sIdx->flushError);
   idxReleaseRef(sIdx->refId);
   TAOS_UNUSED(idxRemoveRef(sIdx->refId));
+  return code;
+}
+
+void indexClose(SIndex* sIdx) {
+  (void)indexCloseChecked(sIdx);
 }
 int64_t idxAddRef(void* p) {
   // impl
@@ -359,7 +375,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
 
   char*   buf = NULL;
   int32_t len = 0;
-  if (colVal != NULL && nColVal != 0) {
+  if (colVal != NULL && (nColVal != 0 || IDX_TYPE_GET_TYPE(colType) == TSDB_DATA_TYPE_NCHAR)) {
     len = idxConvertDataToStr((void*)colVal, IDX_TYPE_GET_TYPE(colType), (void**)&buf);
   } else if (colVal == NULL) {
     buf = taosStrndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
@@ -663,25 +679,21 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
     indexWarn("empty tfile reader found");
   }
   // handle flush
-  Iterate* cacheIter = idxCacheIteratorCreate(pCache);
-  if (cacheIter == NULL) {
-    indexError("%p immtable is empty, ignore merge opera", pCache);
-    idxCacheDestroyImm(pCache);
-    tfileReaderUnRef(pReader);
-    atomic_store_32(&pCache->merging, 0);
-    if (quit) {
-      idxPost(sIdx);
+  Iterate* cacheIter = NULL;
+  Iterate* tfileIter = NULL;
+  SArray* result = NULL;
+  code = idxCacheIteratorCreate(pCache, &cacheIter);
+  if (code != 0 || cacheIter == NULL) goto _exception;
+
+  if (pReader != NULL) {
+    tfileIter = tfileIteratorCreate(pReader);
+    if (tfileIter == NULL) {
+      code = terrno ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _exception;
     }
-    idxReleaseRef(sIdx->refId);
-    return 0;
   }
 
-  Iterate* tfileIter = tfileIteratorCreate(pReader);
-  if (tfileIter == NULL) {
-    indexWarn("empty tfile reader iterator");
-  }
-
-  SArray* result = taosArrayInit(1024, sizeof(void*));
+  result = taosArrayInit(1024, sizeof(void*));
   if (result == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
@@ -693,7 +705,7 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   if (tr == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _exception);
   }
-  while (cn == true || tn == true) {
+  while ((cn || tn) && cacheIter->error == 0 && (tfileIter == NULL || tfileIter->error == 0)) {
     IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;
     IterateValue* tv = (tn == true) ? tfileIter->getValue(tfileIter) : NULL;
 
@@ -727,7 +739,10 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
       tn = tfileIter->next(tfileIter);
     }
   }
-  if ((code = idxMayMergeTempToFinalRslt(result, NULL, tr)) != 0) {
+  code = cacheIter->error;
+  if (code == 0 && tfileIter != NULL) code = tfileIter->error;
+  if (code == 0) code = idxMayMergeTempToFinalRslt(result, NULL, tr);
+  if (code != 0) {
     idxTRsltDestroy(tr);
     TAOS_CHECK_GOTO(code, NULL, _exception);
   }
@@ -742,17 +757,16 @@ int32_t idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   }
 
 _exception:
+  if (code != 0) atomic_store_32(&sIdx->flushError, code);
   idxDestroyFinalRslt(result);
 
-  idxCacheDestroyImm(pCache);
-
   idxCacheIteratorDestroy(cacheIter);
+  idxCacheDestroyImm(pCache);
   tfileIteratorDestroy(tfileIter);
 
   tfileReaderUnRef(pReader);
-  idxCacheUnRef(pCache);
-
   atomic_store_32(&pCache->merging, 0);
+  idxCacheUnRef(pCache);
   if (quit) {
     idxPost(sIdx);
   }
@@ -815,6 +829,7 @@ static int32_t idxGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
     goto END;
   }
   tfileWriterClose(tw);
+  tw = NULL;
 
   TFileReader* reader = NULL;
   code = tfileReaderOpen(sIdx, cache->suid, version, cache->colName, &reader);

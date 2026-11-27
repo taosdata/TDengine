@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -94,8 +96,19 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 
 // EXPOSED APIS ==================================================
 static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
-  int32_t     len = strlen(p1);
+  STfs *pTfs = pTsdb->pVnode->pTfs;
+  // did may be stale (persisted metadata / snapshot peer with a different disk
+  // layout). tfsGetDiskPath returns NULL for an invalid id; fall back to the
+  // primary disk rather than passing NULL to strlen/memcpy.
+  const char *p1 = tfsGetDiskPath(pTfs, did);
+  if (p1 == NULL) {
+    // tfsGetDiskPath already logged the invalid id; warn here is enough on
+    // this high-frequency path.
+    tsdbWarn("vgId:%d, invalid disk id, fid:%d level:%d id:%d, use primary path", TD_VID(pTsdb->pVnode), fid,
+             did.level, did.id);
+    p1 = tfsGetPrimaryPath(pTfs);
+  }
+  int32_t len = strlen(p1);
 
   char *p = memcpy(fname, p1, len);
   p += len;
@@ -221,9 +234,9 @@ void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]) {
   int32_t offset = 0;
   SVnode *pVnode = pTsdb->pVnode;
 
-  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_PATH_LEN);
   offset = strlen(fname);
-  snprintf((char *)fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sv%dver%" PRId64 ".del", TD_DIRSEP,
+  snprintf((char *)fname + offset, TSDB_PATH_LEN - offset - 1, "%s%s%sv%dver%" PRId64 ".del", TD_DIRSEP,
            pTsdb->name, TD_DIRSEP, TD_VID(pTsdb->pVnode), pFile->commitID);
 }
 

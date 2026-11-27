@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,12 +19,18 @@
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
   pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
+  // SYNC_TIMEOUT_RESTORE_ELECT reuses the election message type so that it is
+  // dispatched to syncNodeOnTimeout via the already-registered handler; the
+  // actual timeout kind is distinguished by SyncTimeout.timeoutType.
+  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION || timeoutType == SYNC_TIMEOUT_RESTORE_ELECT)
+                      ? TDMT_SYNC_TIMEOUT_ELECTION
+                      : TDMT_SYNC_TIMEOUT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
     return terrno;
@@ -56,6 +64,7 @@ int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pClientRequest->originalRpcType = pOriginal->msgType;
   pClientRequest->seqNum = seqNum;
+  pClientRequest->txnId = pOriginal->info.txnId;  // propagate txnId into the raft proposal envelope
   pClientRequest->isWeak = isWeak;
   pClientRequest->dataLen = pOriginal->contLen;
   memcpy(pClientRequest->data, (char*)pOriginal->pCont, pOriginal->contLen);
@@ -77,6 +86,7 @@ int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry*
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pClientRequest->originalRpcType = TDMT_SYNC_NOOP;
+  pClientRequest->txnId = 0;  // NOOP entries never carry a user transaction
   pClientRequest->dataLen = pEntry->bytes;
   memcpy(pClientRequest->data, (char*)pEntry, pEntry->bytes);
 
@@ -238,6 +248,29 @@ int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   pPreSnapshotRsp->bytes = bytes;
   pPreSnapshotRsp->msgType = TDMT_SYNC_SNAPSHOT_RSP;
   pPreSnapshotRsp->vgId = vgId;
+  return 0;
+}
+
+int32_t syncInspectLeaderTransfer(const void *body, int32_t len, int32_t vgId,
+                                  bool *safe) {
+  *safe = false;
+  if (len != sizeof(SyncLeaderTransfer)) return TSDB_CODE_INVALID_MSG;
+  SyncLeaderTransfer message = {0};
+  memcpy(&message, body, sizeof(message));
+  if (message.bytes != sizeof(message) || message.vgId != vgId ||
+      message.msgType != TDMT_SYNC_LEADER_TRANSFER ||
+      message.newNodeInfo.nodeId <= 0 ||
+      (message.newNodeInfo.nodeRole != TAOS_SYNC_ROLE_VOTER &&
+       message.newNodeInfo.nodeRole != TAOS_SYNC_ROLE_LEARNER) ||
+      message.newNodeInfo.nodePort == 0 ||
+      message.newNodeInfo.nodeFqdn[0] == '\0' ||
+      memchr(message.newNodeInfo.nodeFqdn, '\0',
+             sizeof(message.newNodeInfo.nodeFqdn)) == NULL ||
+      message.newLeaderId.vgId != vgId ||
+      message.newLeaderId.addr != SYNC_ADDR(&message.newNodeInfo)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *safe = true;
   return 0;
 }
 

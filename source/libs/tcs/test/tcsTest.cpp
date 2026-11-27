@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -79,13 +81,13 @@ int32_t tcsInitEnv(int8_t isBlob) {
     const char *bucketName = "<bucket/container-name>";
     */
 
-    // const char *hostname = "http://192.168.1.52:9000";
-    // const char *accessKeyId = "zOgllR6bSnw2Ah3mCNel";
-    // const char *accessKeySecret = "cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX";
+    // const char *hostname = "http://s3.tdengine.net:9000";
+    // const char *accessKeyId = "mkJO481qGlWR9hpkRweR";
+    // const char *accessKeySecret = "2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak";
     // const char *bucketName = "test-bucket";
-    const char *hostname = "192.168.1.52:9000";
-    const char *accessKeyId = "fGPPyYjzytw05nw44ViA";
-    const char *accessKeySecret = "vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ";
+    const char *hostname = "s3.tdengine.net:9000";
+    const char *accessKeyId = "mkJO481qGlWR9hpkRweR";
+    const char *accessKeySecret = "2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak";
 
     const char *bucketName = "ci-bucket19";
 

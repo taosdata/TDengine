@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -252,6 +254,7 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
 static void* httpThread(void* arg) {
   SHttpModule* http = (SHttpModule*)arg;
   setThreadName("http-cli-send-thread");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   TAOS_UNUSED(uv_run(http->loop, UV_RUN_DEFAULT));
   return NULL;
 }
@@ -374,6 +377,7 @@ static void httpAsyncCb(uv_async_t* handle) {
 
   static int32_t BATCH_SIZE = 20;
   int32_t        count = 0;
+  bool           hasPending = false;
 
   if ((taosThreadMutexLock(&item->mtx)) != 0) {
     tError("http-report failed to lock mutex");
@@ -385,8 +389,15 @@ static void httpAsyncCb(uv_async_t* handle) {
     QUEUE_REMOVE(h);
     QUEUE_PUSH(&wq, h);
   }
+  hasPending = !QUEUE_IS_EMPTY(&item->qmsg);
   if (taosThreadMutexUnlock(&item->mtx) != 0) {
     tError("http-report failed to unlock mutex");
+  }
+  if (hasPending) {
+    int ret = uv_async_send(handle);
+    if (ret != 0) {
+      tError("http-report failed to continue async batch since %s", uv_err_name(ret));
+    }
   }
 
   httpTrace(&wq);
@@ -717,7 +728,7 @@ static void httpHandleReq(SHttpMsg* msg) {
 
   ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
-    tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reson:%s",
+    tError("http-report failed to connect to http-server,dst:%s:%d, chanId:%" PRId64 ", seq:%" PRId64 ", reason:%s",
            cli->addr, cli->port, chanId, cli->seq, uv_strerror(ret));
     httpFailFastMayUpdate(http->connStatusTable, cli->addr, cli->port, 0);
     uv_close((uv_handle_t*)&cli->tcp, httpDestroyClientCb);
@@ -792,7 +803,7 @@ _ERROR:
 
   if (code != 0) {
     tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
-           msg->seq);
+           msg == NULL ? 0 : msg->seq);
   }
   httpDestroyMsg(msg);
   if (load != NULL) taosReleaseRef(httpRefMgt, chanId);
@@ -830,7 +841,7 @@ _ERROR:
 
   if (code != 0) {
     tError("http-report failed to report reason:%s, chanId:%" PRId64 ", seq:%" PRId64, tstrerror(code), chanId,
-           msg->seq);
+           msg == NULL ? 0 : msg->seq);
   }
   httpDestroyMsg(msg);
   if (load != NULL) taosReleaseRef(httpRefMgt, chanId);
@@ -1026,8 +1037,8 @@ void taosTelemetryDestroy(STelemAddrMgmt* mgt) {
   mgt->recvBufRid = 0;
 }
 // TODO: parse http response head By LIB
-static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const char* key, char* val) {
-  if (key == NULL || val == NULL) {
+static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const char* key, char* val, int32_t valCap) {
+  if (key == NULL || val == NULL || valCap <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1050,6 +1061,12 @@ static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const cha
     start += strlen(buf);
     char* end = strchr(start, '"');
     if (end && end - start > 0) {
+      // Devon scan item 290: the copy length used to be the source span only, so an oversized
+      // report_url value in a telemetry response overflowed the caller's fixed-size buffer.
+      if (end - start >= valCap) {
+        tError("http resp value of key:%s too long, len:%d, cap:%d", key, (int32_t)(end - start), valCap);
+        TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &line, _end);
+      }
       tstrncpy(val, start, end - start + 1);
     } else {
       TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &line, _end);
@@ -1064,7 +1081,7 @@ _end:
   taosMemoryFree(buf);
   return code;
 }
-static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr) {
+static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr, int32_t addrCap) {
   int32_t code = 0;
   char*   pRecv = NULL;
   int32_t nRecv = 0;
@@ -1075,7 +1092,7 @@ static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr) {
     return code;
   }
 
-  code = taosTelemetryGetValueFromHttpResp(pRecv, "report_url", telemAddr);
+  code = taosTelemetryGetValueFromHttpResp(pRecv, "report_url", telemAddr, addrCap);
   taosMemoryFree(pRecv);
   return code;
 }
@@ -1092,7 +1109,7 @@ int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port,
       code = taosSendRecvHttpReportWithQID(mgt->defaultAddr, uri, port, pCont, contLen, flag, NULL, mgt->recvBufRid);
       TAOS_CHECK_GOTO(code, &line, _end);
     } else {
-      code = taosGetAddrFromHttpResp(mgt->recvBufRid, mgt->cachedAddr);
+      code = taosGetAddrFromHttpResp(mgt->recvBufRid, mgt->cachedAddr, (int32_t)sizeof(mgt->cachedAddr));
       if (code != 0) {
         tError("failed to get cache addr from http response since %s", tstrerror(code));
         addr = mgt->defaultAddr;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "monitor.h"
 #include "monInt.h"
 
@@ -333,12 +336,14 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(tableNumGauge) != 0) {
       uError("failed to delete metric " TABLES_NUM);
     }
+    tableNumGauge = NULL;
   }
   taos_gauge_t *statusGauge = taos_gauge_new(STATUS, "",  vgroup_label_count, vgroup_sample_labels);
   if(taos_collector_registry_register_metric(statusGauge) == 1){
     if (taos_counter_destroy(statusGauge) != 0) {
       uError("failed to delete metric " STATUS);
     }
+    statusGauge = NULL;
   }
 
   char cluster_id[TSDB_CLUSTER_ID_LEN] = {0};
@@ -553,6 +558,10 @@ void monGenDnodeStatusInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(gauge) != 0) {
       uError("failed to delete metric " DNODE_STATUS);
     }
+    // Avoid a use-after-free: registration failure destroys the gauge.
+    // Clear the pointer so the later (gauge != NULL) check cannot pass.
+    // Otherwise taos_gauge_set may access freed memory and cause corruption or a crash.
+    gauge = NULL;
   }
 
   char cluster_id[TSDB_CLUSTER_ID_LEN];

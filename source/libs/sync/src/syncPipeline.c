@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -48,6 +50,7 @@ int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
 
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
+  int32_t lino = 0;
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   (void)taosThreadMutexLock(&pBuf->mutex);
   SyncIndex index = pEntry->index;
@@ -55,14 +58,14 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (index - pBuf->startIndex >= pBuf->size) {
     code = TSDB_CODE_SYN_BUFFER_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
-  if (pNode->restoreFinish && index - pBuf->commitIndex >= TSDB_SYNC_NEGOTIATION_WIN) {
+  if (pNode->restoreFinish && index - pBuf->commitIndex >= tsSyncNegotiationWin) {
     code = TSDB_CODE_SYN_NEGOTIATION_WIN_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64, pNode->vgId, tstrerror(code),
            index, pBuf->commitIndex);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
@@ -70,18 +73,18 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     code = TSDB_CODE_SYN_WRITE_STALL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, tstrerror(code), index, pBuf->commitIndex, appliedIndex);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   if (index != pBuf->endIndex) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   };
 
   SSyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
   if (pExist != NULL) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   // initial log buffer with at least one item, e.g, commitIndex
@@ -89,15 +92,17 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (pMatch == NULL) {
     sError("vgId:%d, no matched log entry", pNode->vgId);
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
   if (pMatch->index + 1 != index) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
   if (!(pMatch->term <= pEntry->term)) {
+    sError("vgId:%d, no matched term, match term:%" PRId64 ", entry term:%" PRId64, pNode->vgId, pMatch->term,
+           pEntry->term);
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
@@ -116,6 +121,7 @@ _err:
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   taosMsleep(1);
+  sError("vgId:%d, failed to syncLogBufferAppend at %d since %s", pNode->vgId, lino, tstrerror(code));
   TAOS_RETURN(code);
 }
 
@@ -650,7 +656,7 @@ int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* p
       } else {
         sInfo(
             "vgId:%d, msg:%p, delay change config from Node %s, "
-            "curent entry, index:%" PRId64 ", term:%" PRId64
+            "current entry, index:%" PRId64 ", term:%" PRId64
             ", "
             "node, commitIndex:%" PRId64 ",  pBuf: [%" PRId64 " %" PRId64 " %" PRId64 ", %" PRId64
             "), "
@@ -1362,7 +1368,14 @@ int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendE
       }
     }
     pMgr->states[pMsg->lastSendIndex % pMgr->size].acked = true;
-    pMgr->matchIndex = TMAX(pMgr->matchIndex, pMsg->matchIndex);
+    // TD-SEC-2026-044 (item 184): a follower's matchIndex can never exceed the
+    // highest log index this leader actually transmitted to it (pMgr->endIndex - 1).
+    // Clamp the reply's claim so a forged/spoofed reply cannot inflate the per-peer
+    // replication progress beyond what was really sent (it would otherwise let the
+    // leader believe a peer is further ahead than it is). For a genuine reply the
+    // claimed matchIndex is already <= lastSendIndex < endIndex, so this is a no-op.
+    SyncIndex maxSentIndex = (pMgr->endIndex > 0) ? (pMgr->endIndex - 1) : SYNC_INDEX_INVALID;
+    pMgr->matchIndex = TMAX(pMgr->matchIndex, TMIN(pMsg->matchIndex, maxSentIndex));
     for (SyncIndex index = pMgr->startIndex; index < pMgr->matchIndex; index++) {
       (void)memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
     }

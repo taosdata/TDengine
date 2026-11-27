@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,7 +36,7 @@ int32_t tsdbDataFileRAWReaderOpen(const char *fname, const SDataFileRAWReaderCon
       TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
     }
   } else {
-    char fname1[TSDB_FILENAME_LEN];
+    char fname1[TSDB_PATH_LEN];
     tsdbTFileName(config->tsdb, &config->file, fname1);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, lcn), &lino, _exit);
   }
@@ -147,7 +149,7 @@ static int32_t tsdbDataFileRAWWriterOpenDataFD(SDataFileRAWWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
 
   if (writer->ctx->offset == 0) {

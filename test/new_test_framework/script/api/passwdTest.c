@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -139,44 +141,44 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
     }
 
     if (row[i] == NULL) {
-      len += sprintf(str + len, "%s", "NULL");
+      len += snprintf(str + len, BUF_LEN - len, "%s", "NULL");
       continue;
     }
 
     switch (fields[i].type) {
       case TSDB_DATA_TYPE_TINYINT:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%d", *((int8_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        len += sprintf(str + len, "%u", *((uint8_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%u", *((uint8_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        len += sprintf(str + len, "%d", *((int16_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%d", *((int16_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        len += sprintf(str + len, "%u", *((uint16_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%u", *((uint16_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_INT:
-        len += sprintf(str + len, "%d", *((int32_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%d", *((int32_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_UINT:
-        len += sprintf(str + len, "%u", *((uint32_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%u", *((uint32_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%" PRId64, *((int64_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        len += sprintf(str + len, "%" PRIu64, *((uint64_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%" PRIu64, *((uint64_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_FLOAT: {
         float fv = 0;
         fv = GET_FLOAT_VAL(row[i]);
-        len += sprintf(str + len, "%f", fv);
+        len += snprintf(str + len, BUF_LEN - len, "%f", fv);
       } break;
       case TSDB_DATA_TYPE_DOUBLE: {
         double dv = 0;
         dv = GET_DOUBLE_VAL(row[i]);
-        len += sprintf(str + len, "%lf", dv);
+        len += snprintf(str + len, BUF_LEN - len, "%lf", dv);
       } break;
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_VARBINARY:
@@ -187,10 +189,10 @@ int printRow(char *str, TAOS_ROW row, TAOS_FIELD *fields, int numFields) {
         len += charLen;
       } break;
       case TSDB_DATA_TYPE_TIMESTAMP:
-        len += sprintf(str + len, "%" PRId64, *((int64_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%" PRId64, *((int64_t *)row[i]));
         break;
       case TSDB_DATA_TYPE_BOOL:
-        len += sprintf(str + len, "%d", *((int8_t *)row[i]));
+        len += snprintf(str + len, BUF_LEN - len, "%d", *((int8_t *)row[i]));
       default:
         break;
     }
@@ -204,7 +206,7 @@ static int printResult(TAOS_RES *res, char *output) {
   char        header[BUF_LEN] = {0};
   int         len = 0;
   for (int i = 0; i < numFields; ++i) {
-    len += sprintf(header + len, "%s ", fields[i].name);
+    len += snprintf(header + len, BUF_LEN - len, "%s ", fields[i].name);
   }
   puts(header);
   if (output) {
@@ -235,6 +237,19 @@ int main(int argc, char *argv[]) {
   }
   createUsers(taos, argv[1], qstr);
   passVerTestMulti(argv[1], qstr);
+
+  // passVerTestMulti changed root's password to 'taos@123'. The old connection
+  // (established with 'taosdata' before the change) is kicked by the server's
+  // hb stale-conn check (HB_KILL_CONN_AUTH): any further request on it fails
+  // with an authentication error. Reconnect with the new password so the
+  // remaining tests keep working.
+  taos_close(taos);
+  taos = taos_connect(argv[1], "root", "taos@123", NULL, 0);
+  if (taos == NULL) {
+    printf("failed to reconnect to server with new password, reason:%s\n", "null taos" /*taos_errstr(taos)*/);
+    exit(1);
+  }
+
   sysInfoTest(taos, argv[1], qstr);
   userDroppedTest(taos, argv[1], qstr);
   clearTestEnv(taos, argv[1], qstr);
@@ -247,8 +262,8 @@ int main(int argc, char *argv[]) {
 void createUsers(TAOS *taos, const char *host, char *qstr) {
   // users
   for (int i = 0; i < nUser; ++i) {
-    sprintf(users[i], "user%d", i);
-    sprintf(qstr, "CREATE USER %s PASS 'AAbb1122' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
+    snprintf(users[i], sizeof(users[i]), "user%d", i);
+    snprintf(qstr, BUF_LEN, "CREATE USER %s PASS 'AAbb1122' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
     queryDB(taos, qstr);
 
     taosu[i] = taos_connect(host, users[i], "AAbb1122", NULL, 0);
@@ -267,7 +282,7 @@ void createUsers(TAOS *taos, const char *host, char *qstr) {
     }
 
     // alter pass for users
-    sprintf(qstr, "alter user %s pass 'taos@123'", users[i]);
+    snprintf(qstr, BUF_LEN, "alter user %s pass 'taos@123'", users[i]);
     queryDB(taos, qstr);
   }
 }
@@ -360,7 +375,7 @@ void sysInfoTest(TAOS *taosRoot, const char *host, char *qstr) {
   queryDB(taosRoot, "create table if not exists demo12.stb (ts timestamp, c1 int) tags(t1 int)");
   queryDB(taosRoot, "create table if not exists demo13.stb (ts timestamp, c1 int) tags(t1 int)");
 
-  sprintf(qstr, "show grants");
+  snprintf(qstr, BUF_LEN, "show grants");
   char      output[BUF_LEN];
   TAOS_RES *res = NULL;
   int32_t   nRep = 0;
@@ -444,7 +459,7 @@ _loop:
 
   for (int i = 0; i < nTestUsers; ++i) {
     // drop user0 ... user${nUser}
-    sprintf(qstr, "drop user %s", users[i]);
+    snprintf(qstr, BUF_LEN, "drop user %s", users[i]);
     queryDB(taos, qstr);
   }
 
@@ -475,8 +490,8 @@ _loop:
   if (nLoop < 5) {
     nUserDropped = 0;
     for (int i = 0; i < nTestUsers; ++i) {
-      sprintf(users[i], "user%d", i);
-      sprintf(qstr, "CREATE USER %s PASS 'taos@123' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
+      snprintf(users[i], sizeof(users[i]), "user%d", i);
+      snprintf(qstr, BUF_LEN, "CREATE USER %s PASS 'taos@123' PASSWORD_REUSE_MAX 0 PASSWORD_REUSE_TIME 0", users[i]);
       fprintf(stderr, "%s:%d create user:%s\n", __func__, __LINE__, users[i]);
       queryDB(taos, qstr);
     }
@@ -488,18 +503,35 @@ _loop:
 void clearTestEnv(TAOS *taos, const char *host, char *qstr) {
   fprintf(stderr, "######## %s start #########\n", __func__);
 
-  // NOTE: root password cannot be restored now as the result of
-  // 'PASSWORD_REUSE_MAX' and 'PASSWORD_REUSE_TIME'.
-  //
-  //  sprintf(qstr, "alter user root pass 'taosdata'");
-  //  queryDB(taos, qstr);
-
   if (isDropUser) {
     for (int i = 0; i < nUser; ++i) {
-      sprintf(qstr, "drop user %s", users[i]);
+      snprintf(qstr, BUF_LEN, "drop user %s", users[i]);
       queryDB(taos, qstr);
     }
   }
+
+  // passVerTestMulti changed root's password to 'taos@123'. Restore it to the
+  // default 'taosdata' so a later taosd restart (or the test framework's
+  // deploy probe, which logs in with root/taosdata) is not blocked by an
+  // Authentication failure on a stale data dir.
+  //
+  // NOTE: 'PASSWORD_REUSE_MAX'/'PASSWORD_REUSE_TIME' are only set on the test
+  // users (user0..user9), NOT on root, so restoring root's password is allowed.
+  // Do this LAST: after root's password changes, the server may kick this
+  // connection on the next heartbeat (HB_KILL_CONN_AUTH), so nothing should
+  // use this connection afterwards.
+  snprintf(qstr, BUF_LEN, "alter user root pass 'taosdata'");
+  {
+    TAOS_RES *pSql = taos_query(taos, qstr);
+    int32_t   code = taos_errno(pSql);
+    if (code != 0) {
+      fprintf(stderr, "failed to restore root password: %s, reason: %s\n", qstr, taos_errstr(pSql));
+    } else {
+      fprintf(stderr, "success to restore root password: %s\n", qstr);
+    }
+    taos_free_result(pSql);
+  }
+
   // sleep(3000);
   fprintf(stderr, "######## %s end #########\n", __func__);
 }

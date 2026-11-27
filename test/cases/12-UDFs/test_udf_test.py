@@ -1,4 +1,21 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST, TSDB_CODE_UDF_FUNC_EXEC_FAILURE, TSDB_CODE_TSC_INTERNAL_ERROR
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST, TSDB_CODE_UDF_FUNC_EXEC_FAILURE, TSDB_CODE_TSC_INTERNAL_ERROR, tdDnodes
+from new_test_framework.utils.tserror import TSDB_CODE_PAR_SYNTAX_ERROR
+from udf_utils import find_udf_lib
 from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
@@ -9,6 +26,7 @@ import random
 import string
 
 import subprocess
+import psutil
 
 class TestUdfTest:
     updatecfgDict = {'udfdResFuncs': "udf1,udf2"}
@@ -23,8 +41,15 @@ class TestUdfTest:
         print(projPath)
 
         if platform.system().lower() == 'windows':
-            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1 = find_udf_lib("udf1", projPath).replace("\\", "/")
+            self.libudf2 = find_udf_lib("udf2", projPath).replace("\\", "/")
+            self.libchange_udf_no_init = find_udf_lib("change_udf_no_init", projPath).replace("\\", "/")
+            self.libchange_udf_no_process = find_udf_lib("change_udf_no_process", projPath).replace("\\", "/")
+            self.libchange_udf_no_destroy = find_udf_lib("change_udf_no_destroy", projPath).replace("\\", "/")
+            self.libchange_udf_init_failed = find_udf_lib("change_udf_init_failed", projPath).replace("\\", "/")
+            self.libchange_udf_process_failed = find_udf_lib("change_udf_process_failed", projPath).replace("\\", "/")
+            self.libchange_udf_normal = find_udf_lib("change_udf_normal", projPath).replace("\\", "/")
+            self.libchange_udf_destroy_failed = find_udf_lib("change_udf_destory_failed", projPath).replace("\\", "/")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
@@ -611,11 +636,29 @@ class TestUdfTest:
             clean_env = os.environ.copy()
             clean_env.pop('ASAN_OPTIONS', None)
             clean_env.pop('LD_PRELOAD', None)
-            get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
-            processID = subprocess.check_output(get_processID, shell=True, env=clean_env).decode("utf-8")
-            tdLog.info("taosudf process ID: %s" % processID)
-            stop_udfd = " kill -9 %s" % processID
-            os.system(stop_udfd)
+            if platform.system().lower() == 'windows':
+                expected_exe = os.path.normcase(os.path.realpath(udfdPath + '.exe'))
+                processes = []
+                for process in psutil.process_iter(['exe']):
+                    try:
+                        executable = process.info['exe']
+                        if executable and os.path.normcase(os.path.realpath(executable)) == expected_exe:
+                            processes.append(process)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        continue
+                if not processes:
+                    raise RuntimeError(f'No taosudf process found at {expected_exe}')
+                for process in processes:
+                    process.kill()
+                _, alive = psutil.wait_procs(processes, timeout=10)
+                if alive:
+                    raise RuntimeError('taosudf processes did not stop')
+            else:
+                get_processID = "ps -ef | grep -w taosudf | grep -v grep| grep -v defunct | awk '{print $2}'"
+                processID = subprocess.check_output(get_processID, shell=True, env=clean_env).decode("utf-8")
+                tdLog.info("taosudf process ID: %s" % processID)
+                stop_udfd = " kill -9 %s" % processID
+                os.system(stop_udfd)
             
 
             time.sleep(2)
@@ -745,8 +788,9 @@ class TestUdfTest:
         tdSql.execute("use db ")
         
         # create function without wrong file path
-        tdSql.error("create function udf1 as '%s_wrongpath' outputtype int;"%self.libudf1, TAOS_SYSTEM_ERROR|2)
-        tdSql.error("create aggregate function udf2 as '%s_wrongpath' outputtype double;"%self.libudf2, TAOS_SYSTEM_ERROR|2)
+        _wrong_path_errno = [TAOS_SYSTEM_ERROR | 2, TSDB_CODE_PAR_SYNTAX_ERROR]
+        tdSql.error("create function udf1 as '%s_wrongpath' outputtype int;" % self.libudf1, _wrong_path_errno)
+        tdSql.error("create aggregate function udf2 as '%s_wrongpath' outputtype double;" % self.libudf2, _wrong_path_errno)
         
         tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
         tdSql.query("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")
@@ -788,7 +832,7 @@ class TestUdfTest:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 

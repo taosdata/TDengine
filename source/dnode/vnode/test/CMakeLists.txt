@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 MESSAGE(STATUS "tq unit test")
 
 # GoogleTest requires at least C++11
@@ -6,6 +21,7 @@ SET(CMAKE_CXX_STANDARD 11)
 IF(NOT TD_WINDOWS)
     add_executable(tqTest tqTest.cpp)
     DEP_ext_gtest(tqTest)
+    DEP_ext_cppstub(tqTest)
     target_include_directories(tqTest
             PUBLIC
             "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -35,14 +51,162 @@ TARGET_LINK_LIBRARIES(
          PUBLIC os util common vnode
 )
 
+# ---------------------------------------------------------------------------
+# walTxnMgrTest: STxnWalManager unit + integration tests
+# No --wrap linker flags needed → works on Linux and macOS (not Windows).
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(walTxnMgrTest walTxnMgrTest.cpp)
+DEP_ext_gtest(walTxnMgrTest)
+TARGET_LINK_LIBRARIES(walTxnMgrTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode wal)
 TARGET_INCLUDE_DIRECTORIES(
-         bseTest
+     walTxnMgrTest
+     PUBLIC "${TD_SOURCE_DIR}/include/common"
+     PUBLIC "${TD_SOURCE_DIR}/include/libs/wal"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../../libs/wal/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME walTxnMgrTest COMMAND walTxnMgrTest)
+ENDIF()
+
+IF(TD_LINUX)
+
+ADD_EXECUTABLE(vnodeTxnTest vnodeTxnTest.cpp)
+DEP_ext_gtest(vnodeTxnTest)
+TARGET_LINK_LIBRARIES(
+         vnodeTxnTest
+         PUBLIC os util common vnode mgmt_mnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+         vnodeTxnTest
          PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
+add_test(
+         NAME vnodeTxnTest
+         COMMAND vnodeTxnTest
+)
+
+# ---------------------------------------------------------------------------
+# metaTxnAlterStbTest: real-meta round-trip guarding the batch-meta-txn STB
+# ALTER path — repeated ALTER of the same STB in one txn must record the
+# ORIGINAL pre-txn version in txn.idx (metaTable2.c metaAlterSuperTable), which
+# the snapshot reader treats as authoritative. No --wrap: drives the real code.
+# ---------------------------------------------------------------------------
+ADD_EXECUTABLE(metaTxnAlterStbTest metaTxnAlterStbTest.cpp)
+DEP_ext_gtest(metaTxnAlterStbTest)
+DEP_ext_cppstub(metaTxnAlterStbTest)
+TARGET_LINK_LIBRARIES(
+         metaTxnAlterStbTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+         metaTxnAlterStbTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(
+         NAME metaTxnAlterStbTest
+         COMMAND metaTxnAlterStbTest
+)
+
+ADD_EXECUTABLE(metaTagFilterCacheTest metaTagFilterCacheTest.cpp)
+DEP_ext_gtest(metaTagFilterCacheTest)
+DEP_ext_cppstub(metaTagFilterCacheTest)
+TARGET_LINK_LIBRARIES(metaTagFilterCacheTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+TARGET_INCLUDE_DIRECTORIES(metaTagFilterCacheTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/executor"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME metaTagFilterCacheTest COMMAND metaTagFilterCacheTest)
+
+# Phase 1: metaSnapTxnTest disabled — snapshot sver-adjustment removed; re-enable in Phase 2
+# ADD_EXECUTABLE(metaSnapTxnTest metaSnapTxnTest.cpp)
+# DEP_ext_gtest(metaSnapTxnTest)
+# TARGET_LINK_LIBRARIES(
+#          metaSnapTxnTest
+#          PUBLIC os util common vnode
+# )
+# SET_TARGET_PROPERTIES(
+#          metaSnapTxnTest PROPERTIES
+#          LINK_FLAGS "-Wl,--wrap=metaGetInfo -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=tdbTbcOpen -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcClose -Wl,--wrap=metaRLock -Wl,--wrap=metaULock -Wl,--wrap=metaWLock -Wl,--wrap=metaCacheGet -Wl,--wrap=metaCacheUpsert"
+# )
+#
+# TARGET_INCLUDE_DIRECTORIES(
+#          metaSnapTxnTest
+#          PUBLIC "${TD_SOURCE_DIR}/include/common"
+#          PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+#          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+#          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+# )
+#
+# add_test(
+#          NAME metaSnapTxnTest
+#          COMMAND metaSnapTxnTest
+# )
+ENDIF()
+
+# ---------------------------------------------------------------------------
+# metaColRefIdempotentTest: pure-helper tests for the virtual-table column-ref
+# ALTER idempotence guard (metaTable2.c metaColRefMatchesAlterReq /
+# metaResolveColRefTagCond). No meta/vnode instance and no --wrap linker flags
+# → kept outside the TD_LINUX block above so it also builds on macOS.
+# ---------------------------------------------------------------------------
 IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(metaColRefIdempotentTest metaColRefIdempotentTest.cpp)
+DEP_ext_gtest(metaColRefIdempotentTest)
+TARGET_LINK_LIBRARIES(
+         metaColRefIdempotentTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+         metaColRefIdempotentTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(
+         NAME metaColRefIdempotentTest
+         COMMAND metaColRefIdempotentTest
+)
+ENDIF()
+
+TARGET_INCLUDE_DIRECTORIES(
+         bseTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src/bse"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReadPhaseTest tsdbReadPhaseTest.cpp)
+    DEP_ext_gtest(tsdbReadPhaseTest)
+    TARGET_LINK_LIBRARIES(
+             tsdbReadPhaseTest
+             PUBLIC os util common vnode
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReadPhaseTest
+                               PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbReadPhaseTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReadPhaseTest COMMAND tsdbReadPhaseTest)
+
     ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
     DEP_ext_gtest(tsdbCacheTest)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -62,6 +226,119 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReaderResetTest tsdbReaderResetTest.cpp)
+    DEP_ext_gtest(tsdbReaderResetTest)
+    DEP_ext_cppstub(tsdbReaderResetTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReaderResetTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+        tsdbReaderResetTest
+        PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+        tsdbReaderResetTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReaderResetTest COMMAND tsdbReaderResetTest)
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReaderGroupSwitchTest tsdbReaderGroupSwitchTest.cpp)
+    DEP_ext_gtest(tsdbReaderGroupSwitchTest)
+    DEP_ext_cppstub(tsdbReaderGroupSwitchTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReaderGroupSwitchTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+        tsdbReaderGroupSwitchTest
+        PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+        tsdbReaderGroupSwitchTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReaderGroupSwitchTest COMMAND tsdbReaderGroupSwitchTest)
+ENDIF()
+
+# ---------------------------------------------------------------------------
+# vnodeStreamVTable helpers unit test
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamVTableTest vnodeStreamVTableTest.cpp)
+    DEP_ext_gtest(vnodeStreamVTableTest)
+    # The vtable-stream cases patch vnode/stream helpers through `Stub`, so the
+    # target needs the cppstub header search path (ext_cppstub is the only
+    # provider of `stub.h`).
+    DEP_ext_cppstub(vnodeStreamVTableTest)
+    target_include_directories(vnodeStreamVTableTest
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    TARGET_LINK_LIBRARIES(vnodeStreamVTableTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamVTableTest COMMAND vnodeStreamVTableTest)
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbFSEditTest tsdbFSEditTest.cpp)
+    DEP_ext_gtest(tsdbFSEditTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbFSEditTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbFSEditTest
+             PUBLIC os util common vnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbFSEditTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    enable_testing()
+    add_test(
+            NAME tsdb_fs_edit_test
+            COMMAND tsdbFSEditTest
+    )
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbSecurityHardeningTest tsdbSecurityHardeningTest.cpp)
+    DEP_ext_gtest(tsdbSecurityHardeningTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # the test pulls in tsdb-internal C headers, same as the sibling tsdb*Test targets above
+        target_compile_options(tsdbSecurityHardeningTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbSecurityHardeningTest
+             PUBLIC os util common vnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbSecurityHardeningTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME tsdb_security_hardening_test
+            COMMAND tsdbSecurityHardeningTest
+    )
+ENDIF()
+
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
 # TARGET_LINK_LIBRARIES(
@@ -76,3 +353,38 @@ ENDIF()
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+# vnodeSecurityTest: input validation of wire-supplied data (alter-replica counts,
+# sync config node arrays, blob submit descriptors). Drives the real code, no --wrap.
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(vnodeSecurityTest vnodeSecurityTest.cpp)
+    DEP_ext_gtest(vnodeSecurityTest)
+    TARGET_LINK_LIBRARIES(
+             vnodeSecurityTest
+             PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             vnodeSecurityTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME vnodeSecurityTest
+            COMMAND vnodeSecurityTest
+    )
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamTimeAlignTest vnodeStreamTimeAlignTest.cpp)
+    DEP_ext_gtest(vnodeStreamTimeAlignTest)
+    DEP_ext_cppstub(vnodeStreamTimeAlignTest)
+    target_include_directories(vnodeStreamTimeAlignTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${TD_SOURCE_DIR}/source/libs/new-stream/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+    target_link_libraries(vnodeStreamTimeAlignTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamTimeAlignTest COMMAND vnodeStreamTimeAlignTest)
+ENDIF()

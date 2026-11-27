@@ -1,0 +1,1 @@
+{"version":1,"name":"st","cols": [{"name":"ts", "type":9},{"name":"c1", "type":9},{"name":"c2", "type":4},{"name":"c3", "type":5},{"name":"c4", "type":6},{"name":"c5", "type":7},{"name":"c6", "type":8},{"name":"c7", "type":3},{"name":"c8", "type":2},{"name":"c9", "type":1},{"name":"c10", "type":10}],"tags": [{"name":"t1", "type":4}]}

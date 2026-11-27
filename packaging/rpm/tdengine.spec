@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 %define homepath         /usr/local/taos
 %define userlocalpath    /usr/local
 %define cfg_install_dir  /etc/taos
@@ -107,6 +122,7 @@ cp %{_compiledir}/build/bin/taosmqtt                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosgen                 %{buildroot}%{homepath}/bin
 
 cp %{_internalpackagingdir}/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/reconcile-tsdb-nodes.sh  %{buildroot}%{homepath}/bin
 cp %{_internalpackagingdir}/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
@@ -144,7 +160,26 @@ cp %{_communitysourcedir}/include/libs/function/taosudf.h       %{buildroot}%{ho
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 #cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_communitysourcedir}/examples/*             %{buildroot}%{homepath}/examples
+# Example code was consolidated into docs/examples, but the layout inside the
+# package is frozen: the shipped subset and the historical directory names
+# (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
+_examples_dir="%{_communitysourcedir}/docs/examples"
+_examples_manifest="%{_communitysourcedir}/packaging/examples-manifest.txt"
+while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    if [ "${ex_group}" != all ] && [ "${ex_group}" != debrpm ]; then
+        continue
+    fi
+    if [ ! -f "${_examples_dir}/${ex_src}" ]; then
+        echo "ERROR: example source missing: ${ex_src} (see ${_examples_manifest})" >&2
+        exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p %{buildroot}%{homepath}/examples/${ex_dst}/$(dirname "${ex_rel}")
+    cp "${_examples_dir}/${ex_src}" %{buildroot}%{homepath}/examples/${ex_dst}/${ex_rel}
+done < "${_examples_manifest}"
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{homepath}/jemalloc/ ||:

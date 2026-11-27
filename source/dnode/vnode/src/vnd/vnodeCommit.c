@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -144,6 +146,20 @@ _exit:
   return code;
 }
 
+int32_t vnodeProcessSyncCommitReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVnodeSyncCommitReq req = {0};
+
+  if (pMsg->contLen < sizeof(SMsgHead) ||
+      tDeserializeSVnodeSyncCommitReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead),
+                                       &req) != 0 ||
+      req.vgId != TD_VID(pVnode)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  TAOS_CHECK_RETURN(vnodeSyncCommit(pVnode));
+  return vnodeBegin(pVnode);
+}
+
 int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
   bool diskAvail = osDataSpaceAvailable();
   bool needCommit = false;
@@ -167,10 +183,10 @@ int vnodeShouldCommit(SVnode *pVnode, bool atExit) {
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   int32_t   code = 0;
   int32_t   lino;
-  char      fname[TSDB_FILENAME_LEN];
+  char      fname[TSDB_PATH_LEN];
   char     *data = NULL;
 
-  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+  snprintf(fname, TSDB_PATH_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   code = vnodeEncodeInfo(pInfo, &data);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -195,11 +211,11 @@ _exit:
 }
 
 int vnodeCommitInfo(const char *dir) {
-  char fname[TSDB_FILENAME_LEN];
-  char tfname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
+  char tfname[TSDB_PATH_LEN];
 
-  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
-  snprintf(tfname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
+  snprintf(fname, TSDB_PATH_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(tfname, TSDB_PATH_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   int32_t code = taosRenameFile(tfname, fname);
   if (code < 0) {
@@ -213,7 +229,7 @@ int vnodeCommitInfo(const char *dir) {
 int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
   int32_t   code = 0;
   int32_t   lino;
-  char      fname[TSDB_FILENAME_LEN];
+  char      fname[TSDB_PATH_LEN];
   char     *pData = NULL;
   int32_t   dataLen = 0;
 
@@ -221,7 +237,7 @@ int vnodeLoadInfo(const char *dir, SVnodeInfo *pInfo) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  snprintf(fname, TSDB_FILENAME_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
+  snprintf(fname, TSDB_PATH_LEN, "%s%s%s", dir, TD_DIRSEP, VND_INFO_FNAME);
 
   // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
   code = taosReadCfgFile(fname, &pData, &dataLen);
@@ -246,14 +262,16 @@ _exit:
 static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
-  char    dir[TSDB_FILENAME_LEN] = {0};
+  char    dir[TSDB_PATH_LEN] = {0};
   int64_t lastCommitted = pInfo->info.state.committed;
 
   // wait last commit task
   vnodeAWait(&pVnode->commitTask);
 
-  code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (pVnode->sync != 0) {
+    code = syncNodeGetConfig(pVnode->sync, &pVnode->config.syncCfg);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
@@ -265,7 +283,7 @@ static int32_t vnodePrepareCommit(SVnode *pVnode, SCommitInfo *pInfo) {
   pInfo->txn = metaGetTxn(pVnode->pMeta);
 
   // save info
-  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
   vDebug("vgId:%d, save config while prepare commit", TD_VID(pVnode));
   code = vnodeSaveInfo(dir, &pInfo->info);
@@ -380,9 +398,19 @@ int vnodeAsyncCommit(SVnode *pVnode, bool forceTrimWal) { return vnodeAsyncCommi
 
 int32_t vnodeSyncCommit(SVnode *pVnode) {
   int32_t lino;
-  int32_t code = vnodeAsyncCommit(pVnode, false);
-  TSDB_CHECK_CODE(code, lino, _exit);
-  vnodeAWait(&pVnode->commitTask);
+  int32_t code = 0;
+
+  if (pVnode->sync == 0) {
+    SCommitInfo info = {0};
+    code = vnodePrepareCommit(pVnode, &info);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    code = vnodeCommitImpl(&info);
+    vnodeReturnBufPool(pVnode);
+  } else {
+    code = vnodeAsyncCommit(pVnode, false);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    vnodeAWait(&pVnode->commitTask);
+  }
 
 _exit:
   if (code) {
@@ -398,7 +426,7 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  char    dir[TSDB_FILENAME_LEN] = {0};
+  char    dir[TSDB_PATH_LEN] = {0};
   SVnode *pVnode = pInfo->pVnode;
 
   vInfo("vgId:%d, start to commit, commitId:%" PRId64 " version:%" PRId64 " term: %" PRId64, TD_VID(pVnode),
@@ -410,10 +438,12 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
     return code;
   }
 
-  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, dir, TSDB_PATH_LEN);
 
-  code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (pVnode->sync != 0) {
+    code = syncBeginSnapshot(pVnode->sync, pInfo->info.state.committed);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   code = tsdbCommitBegin(pVnode->pTsdb, pInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -439,10 +469,12 @@ static int vnodeCommitImpl(SCommitInfo *pInfo) {
 
   pVnode->state.committed = pInfo->info.state.committed;
 
-  code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (pVnode->sync != 0) {
+    code = syncEndSnapshot(pVnode->sync, pInfo->forceTrim);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
-  code = tqCommitOffset(pVnode->pTq);
+  code = tqOffsetCommit(pVnode->pTq);
   TSDB_CHECK_CODE(code, lino, _exit);
   
 _exit:
@@ -455,23 +487,23 @@ _exit:
 }
 
 bool vnodeShouldRollback(SVnode *pVnode) {
-  char    tFName[TSDB_FILENAME_LEN] = {0};
+  char    tFName[TSDB_PATH_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_PATH_LEN);
   offset = strlen(tFName);
-  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
+  snprintf(tFName + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   return taosCheckExistFile(tFName);
 }
 
 void vnodeRollback(SVnode *pVnode) {
-  char    tFName[TSDB_FILENAME_LEN] = {0};
+  char    tFName[TSDB_PATH_LEN] = {0};
   int32_t offset = 0;
 
-  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, tFName, TSDB_PATH_LEN);
   offset = strlen(tFName);
-  snprintf(tFName + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
+  snprintf(tFName + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, VND_INFO_FNAME_TMP);
 
   if (taosRemoveFile(tFName) != 0) {
     vError("vgId:%d, failed to remove file %s since %s", TD_VID(pVnode), tFName, tstrerror(terrno));
@@ -519,12 +551,15 @@ static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
   code = tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  code = tjsonAddIntegerToObject(pJson, "lastTxnConsumeTs", (uint64_t)pInfo->lastTxnConsumeTs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   pData = tjsonToString(pJson);
   if (pData == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  tjsonDelete(pJson);
+  tjsonDelete(pJson); 
 
 _exit:
   if (code) {
@@ -551,6 +586,9 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
 
   code = tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // lastTxnConsumeTs is optional (absent in older vnode-info files  ->  stays 0)
+  (void)tjsonGetBigIntValue(pJson, "lastTxnConsumeTs", &pInfo->lastTxnConsumeTs);
 
 _exit:
   tjsonDelete(pJson);

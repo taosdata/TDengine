@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,9 +24,9 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
-#include "tcompare.h"
 #include "tunit.h"
 #include "tutil.h"
+#include "tcompare.h"
 
 #define CFG_VER_NUMBER    1
 #define CFG_RESERVE_SIZE  63
@@ -245,13 +247,32 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SArray    *array = NULL;
   bool       needFree = false;
+  SConfigObj *vObj = NULL;
   code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
   if (code != 0) {
     mError("failed to deserialize config req, since %s", terrstr());
     goto _OVER;
   }
 
-  SConfigObj *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
+  // [Security-Fix item264] TDMT_MND_CONFIG is an internal dnode->mnode synchronisation endpoint
+  // that returns the full cluster-wide (CFG_CATEGORY_GLOBAL) configuration stored in SDB,
+  // including secret-bearing items such as ssAccessString (S3 access key/secret) and TLS
+  // key/certificate paths. The handler previously performed no authentication at all, so any
+  // network peer able to reach the mnode leader's RPC port (6030) could retrieve the whole
+  // configuration set. We now require the request to originate from an authenticated cluster
+  // member (a resolvable user carried on the connection). The dnode issues this request over
+  // its internal RPC connection authenticated as the default user, so legitimate dnode config
+  // synchronisation is unaffected; unauthenticated peers are rejected. This control is fully
+  // effective whenever SASL/authentication is enabled on the server.
+  SUserObj *pConfigUser = NULL;
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pConfigUser)) != 0) {
+    mError("failed to acquire user for config req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+  mndReleaseUser(pMnode, pConfigUser);
+  pConfigUser = NULL;
+
+  vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
     mInfo("failed to acquire mnd config version, since %s", terrstr());
     goto _OVER;
@@ -299,7 +320,9 @@ _OVER:
   if (code != 0) {
     mError("failed to process config req, since %s", tstrerror(code));
   }
-  sdbRelease(pMnode->pSdb, vObj);
+  if (vObj != NULL) {
+    sdbRelease(pMnode->pSdb, vObj);
+  }
   cfgArrayCleanUp(array);
   tFreeSConfigReq(&configReq);
   return code;
@@ -480,7 +503,7 @@ static int32_t mndFindConfigsToAdd(SMnode *pMnode, SArray *addArray) {
     SConfigItem *item = taosArrayGet(taosGetGlobalCfg(tsCfg), i);
     SConfigObj  *obj = sdbAcquire(pMnode->pSdb, SDB_CFG, item->name);
     if (obj == NULL) {
-      mInfo("config:%s, not exist in sdb, will add it", item->name);
+      mInfo("config:%s, does not exist in sdb, will add it", item->name);
       SConfigObj newObj;
       if ((code = mndInitConfigObj(item, &newObj)) != 0) {
         TAOS_RETURN(code);
@@ -530,7 +553,7 @@ static int32_t mndFindConfigsToDelete(SMnode *pMnode, SArray *deleteArray) {
     }
 
     if (!existsInGlobal) {
-      mInfo("config:%s, not exist in global config, will delete it from sdb", obj->name);
+      mInfo("config:%s, does not exist in global config, will delete it from sdb", obj->name);
       SConfigObj deleteObj = {0};
       tstrncpy(deleteObj.name, obj->name, CFG_NAME_MAX_LEN);
       deleteObj.dtype = obj->dtype;
@@ -800,7 +823,13 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     goto _err_out;
   }
 
+  // Scope of this ALTER, derived from the target dnode id. Forwarded to the dnode in dcfgReq so
+  // it can re-run cfgCheckRangeForDynUpdate itself rather than trusting the sender, which the
+  // dnode cannot authenticate.
+  CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
+
   SDCfgDnodeReq dcfgReq = {0};
+  dcfgReq.alterType = alterType;
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     tstrncpy(dcfgReq.config, "resetlog", 9);
     goto _send_req;
@@ -834,9 +863,22 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       updateWhiteList = 1;
     }
 
-    CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
-    TAOS_CHECK_GOTO(cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config, dcfgReq.value, true, alterType), &lino,
-                    _err_out);
+    code = cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config,
+                                     dcfgReq.value, true, alterType);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
+      char detail[TSDB_DNODE_VALUE_LEN +
+                  sizeof("Invalid or unsupported timezone: ''")] = {0};
+      (void)snprintf(detail, sizeof(detail),
+                     "Invalid or unsupported timezone: '%s'", dcfgReq.value);
+      int32_t detailLen = strlen(detail) + 1;
+      void   *pRsp = rpcMallocCont(detailLen);
+      if (pRsp != NULL) {
+        memcpy(pRsp, detail, detailLen);
+        pReq->info.rsp = pRsp;
+        pReq->info.rspLen = detailLen;
+      }
+    }
+    TAOS_CHECK_GOTO(code, &lino, _err_out);
   }
   SConfigItem *pItem = cfgGetItem(taosGetCfg(), dcfgReq.config);
   // Update config in sdb.
@@ -1269,6 +1311,29 @@ static uint8_t mndBuildShowVarPrivMask(SMnode *pMnode, SUserObj *pUser, const ch
 }
 #endif
 
+// SECURITY (item 226): list of global config item names that carry sensitive material and must
+// never be returned by SHOW VARIABLES / SHOW CLUSTER VARIABLES. Kept in sync with cfgDumpCfgImpl
+// in tconfig.c, which omits the same names when dumping the config to logs/files. Returning
+// ssAccessString (the shared-storage access string carrying cloud accessKeyId + secretAccessKey) or
+// the xnode DSN key file paths through SHOW VARIABLES would leak cluster credentials and key material
+// to any caller able to reach the mnode, so these items are unconditionally omitted for every caller,
+// regardless of privilege level or build flavour (community/enterprise).
+static bool mndIsSecretConfigItem(const char *name) {
+  if (name == NULL) {
+    return false;
+  }
+  if (strcmp(name, "ssAccessString") == 0) {
+    return true;  // shared-storage (S3/COS/Azure) access string: accessKeyId + secretAccessKey
+  }
+  if (strcmp(name, "xnodeDsnPublicKeyFile") == 0) {
+    return true;  // xnode DSN public key file path (sensitive key material)
+  }
+  if (strcmp(name, "xnodedDsnPrivateKeyFile") == 0) {
+    return true;  // xnode DSN private key file path (sensitive key material)
+  }
+  return false;
+}
+
 static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, uint8_t showPrivMask) {
   if (pItems == NULL) {
     return NULL;
@@ -1285,6 +1350,16 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};
     tstrncpy(info.name, pItem->name, sizeof(info.name));
+
+    // SECURITY (item 226): never expose secret-bearing items such as the shared-storage access
+    // string or the DSN key files. Omit them for every caller regardless of the LIKE pattern or
+    // privilege mask, consistent with the redaction already applied by cfgDumpCfgImpl when dumping
+    // the config. This prevents leaking cloud object-store credentials / key material via
+    // SHOW VARIABLES even to an authenticated user.
+    if (mndIsSecretConfigItem(pItem->name)) {
+      continue;
+    }
+
     if (likePattern != NULL && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
       continue;
     }
@@ -1320,6 +1395,21 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
         break;
     }
 
+      // [Security-Fix item264] Mask secret-bearing configuration values in the client-visible
+      // SHOW VARIABLES output. Items classified as CFG_PRIV_SECURITY / CFG_PRIV_AUDIT (e.g.
+      // ssAccessString carrying S3 access key/secret, TLS key/certificate paths) must never be
+      // disclosed in cleartext. In the enterprise build items the user is not privileged to see
+      // are already skipped entirely by mndShowVarPrivAllowed above; for the community build,
+      // where per-user privilege masking is not applied, we mask the value so secrets are not
+      // exposed. The internal dnode->mnode config synchronisation path (initConfigArrayFromSdb)
+      // is intentionally NOT masked, because the dnode legitimately needs the real values.
+#ifndef TD_ENTERPRISE
+    if (pItem->privType == CFG_PRIV_SECURITY || pItem->privType == CFG_PRIV_AUDIT) {
+      memset(info.value, 0, sizeof(info.value));
+      tstrncpy(info.value, "******", sizeof(info.value));
+    }
+#endif
+
     // init info scope
     switch (pItem->scope) {
       case CFG_SCOPE_SERVER:
@@ -1347,6 +1437,10 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
         tstrncpy(info.category, "unknown", sizeof(info.category));
         break;
     }
+
+    // init info reboot: marks a value altered at runtime that is not yet effective until restart
+    tstrncpy(info.reboot, pItem->restartRequired ? "true" : "false", sizeof(info.reboot));
+
     if (NULL == taosArrayPush(pInfos, &info)) {
       mError("failed to push info to array while init variables from items,since %s", tstrerror(terrno));
       taosArrayDestroy(pInfos);

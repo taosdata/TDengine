@@ -1,4 +1,0 @@
--f https://download.pytorch.org/whl/torch_stable.html
-torch==2.6.0+cpu
-uni2ts
-flask

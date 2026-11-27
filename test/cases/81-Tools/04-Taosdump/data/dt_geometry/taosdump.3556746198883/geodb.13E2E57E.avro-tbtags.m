@@ -1,0 +1,1 @@
+{"version":1,"name":"meters","cols": [{"name":"ts", "type":9},{"name":"ic", "type":4},{"name":"usi", "type":12},{"name":"geo1", "type":20},{"name":"geo2", "type":20},{"name":"geo3", "type":20}],"tags": [{"name":"tgeo1", "type":20},{"name":"tgeo2", "type":20}]}

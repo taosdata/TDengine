@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #include "parInsertUtil.h"
 
 #include "catalog.h"
+#include "osString.h"
 #include "parInt.h"
 #include "parUtil.h"
 #include "querynodes.h"
@@ -26,6 +29,14 @@
 #include "tdataformat.h"
 #include "tmisce.h"
 #include "ttypes.h"
+
+int32_t insBuildNcharConvErrMsg(SMsgBuf *pMsgBuf, const char *source,
+                                const void *charsetCxt) {
+  char buf[512] = {0};
+  (void)snprintf(buf, sizeof(buf), "VARCHAR->NCHAR conversion failed, "
+                 "charset:%s", taosConvCharset(charsetCxt));
+  return buildSyntaxErrMsg(pMsgBuf, buf, source);
+}
 
 static char* tableNameGetPosition(SToken* pToken, char target) {
   bool inEscape = false;
@@ -640,16 +651,101 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
-                             uint64_t* uid, int32_t* vgId, uint64_t* suid) {
-  STableVgUid* pTbInfo = NULL;
-  int32_t      code = 0;
-
-  if (pTbData->getFromHash) {
-    pTbInfo = (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
+static int32_t insPutStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, const char* tbName,
+                                    const STableVgUid* pTbInfo) {
+  TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
+  if (pMutex != NULL) {
+    (void)taosThreadMutexLock(pMutex);
   }
 
-  if (NULL == pTbInfo) {
+  int32_t code = tSimpleHashPut(pBuildInfo->pTableHash, tbName, strlen(tbName), pTbInfo, sizeof(*pTbInfo));
+
+  if (pMutex != NULL) {
+    (void)taosThreadMutexUnlock(pMutex);
+  }
+  return code;
+}
+
+static void insRemoveStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, const char* tbName) {
+  TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
+  if (pMutex != NULL) {
+    (void)taosThreadMutexLock(pMutex);
+  }
+
+  int32_t code = tSimpleHashRemove(pBuildInfo->pTableHash, tbName, strlen(tbName));
+  if (code != TSDB_CODE_SUCCESS) {
+    parserError("QID:0x%" PRIx64
+                ", failed to remove stmt2 interlace table metadata from cache, dbName:%s, "
+                "tbName:%s, code:0x%" PRIx32 "(%s).",
+                pBuildInfo->requestId, pBuildInfo->dbname, tbName, (uint32_t)code, tstrerror(code));
+  }
+
+  if (pMutex != NULL) {
+    (void)taosThreadMutexUnlock(pMutex);
+  }
+}
+
+// A suid mismatch may be caused by stale child-table metadata left by an external DROP.
+// Force-refresh once so the caller can distinguish a missing table from a real cross-stable conflict.
+static int32_t insRefreshStmtTableVgUid(SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
+                                        STableVgUid* pTbInfo) {
+  SName sname = {0};
+  int32_t code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SRequestConnInfo conn = {.pTrans = pBuildInfo->transport,
+                           .requestId = pBuildInfo->requestId,
+                           .requestObjRefId = pBuildInfo->requestSelf,
+                           .mgmtEps = pBuildInfo->mgmtEpSet};
+  STableMeta* pTableMeta = NULL;
+  code = catalogRefreshGetTableMeta((SCatalog*)pBuildInfo->pCatalog, &conn, &sname, &pTableMeta, -1);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    taosMemoryFreeClear(pTableMeta);
+    insRemoveStmtTableVgUid(pBuildInfo, pTbData->tbName);
+    parserWarn("stmt2 async refresh did not find table:%s.%s, try auto create table", sname.dbname, sname.tname);
+    return code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pTableMeta);
+    parserError("stmt2 async refresh table meta:%s.%s failed, code:%d", sname.dbname, sname.tname, code);
+    return code;
+  }
+  if (pTableMeta == NULL) {
+    return TSDB_CODE_CTG_INTERNAL_ERROR;
+  }
+
+  *pTbInfo =
+      (STableVgUid){.uid = pTableMeta->uid, .vgid = pTableMeta->vgId, .suid = pTableMeta->suid};
+  code = insPutStmtTableVgUid(pBuildInfo, pTbData->tbName, pTbInfo);
+  taosMemoryFree(pTableMeta);
+  return code;
+}
+
+int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
+                             uint64_t* uid, int32_t* vgId, uint64_t* suid) {
+  STableVgUid tbInfo = {0};
+  bool        cacheHit = false;
+  int32_t     code = 0;
+
+  if (pTbData->getFromHash) {
+    TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
+    if (pMutex != NULL) {
+      (void)taosThreadMutexLock(pMutex);
+    }
+    STableVgUid* pCached =
+        (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
+    if (pCached != NULL) {
+      tbInfo = *pCached;
+      cacheHit = true;
+    }
+    if (pMutex != NULL) {
+      (void)taosThreadMutexUnlock(pMutex);
+    }
+  }
+
+  if (!cacheHit) {
     SName sname;
     code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
@@ -677,17 +773,17 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     *vgId = pTableMeta->vgId;
     *suid = pTableMeta->suid;
 
-    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId, .suid = *suid};
-    code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
+    tbInfo = (STableVgUid){.uid = *uid, .vgid = *vgId, .suid = *suid};
+    code = insPutStmtTableVgUid(pBuildInfo, pTbData->tbName, &tbInfo);
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
     }
 
     taosMemoryFree(pTableMeta);
   } else {
-    *uid = pTbInfo->uid;
-    *vgId = pTbInfo->vgid;
-    *suid = pTbInfo->suid;
+    *uid = tbInfo.uid;
+    *vgId = tbInfo.vgid;
+    *suid = tbInfo.suid;
   }
 
   return code;
@@ -725,13 +821,22 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
+    // Blob sorting needs the source rows before their ownership is transferred.
+    if (pTbCtx->hasBlob) {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
+      TAOS_CHECK_RETURN(code);
+    }
     int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
     for (int32_t j = 0; j < aRowPSize; ++j) {
-      SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
-      if (pRow) {
-        if (NULL == taosArrayPush(*rowP, &pRow)) {
+      SRow** ppRow = (SRow**)taosArrayGet(pTbCtx->pData->aRowP, j);
+      if (*ppRow) {
+        if (NULL == taosArrayPush(*rowP, ppRow)) {
           return terrno;
         }
+        *ppRow = NULL;
       }
     }
 
@@ -741,17 +846,12 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
 
       code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
       TAOS_CHECK_RETURN(code);
-    } else {
-      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
-      TAOS_CHECK_RETURN(code);
-
-      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
-      TAOS_CHECK_RETURN(code);
     }
   
     parserDebug("merge same uid data: %" PRId64 ", vgId:%d", pTbCtx->pData->uid, pVgCxt->vgId);
 
     taosArrayDestroy(pTbCtx->pData->aRowP);
+    pTbCtx->pData->aRowP = NULL;
     if (pTbCtx->pData->pCreateTbReq != NULL) {
       tdDestroySVCreateTbReq(pTbCtx->pData->pCreateTbReq);
       taosMemoryFree(pTbCtx->pData->pCreateTbReq);
@@ -767,21 +867,25 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTbCtx->pData)) {
     return terrno;
   }
+  SArray* pRows = pTbCtx->pData->aRowP;
+  // The submit request owns these resources even if a later hash update fails.
+  pTbCtx->pData->aRowP = NULL;
+  pTbCtx->pData->pCreateTbReq = NULL;
 
   if (pTbCtx->hasBlob) {
     parserDebug("blob row transfer %p, pData %p, %s", pTbCtx->pData->pBlobSet, pTbCtx->pData, __func__);
-    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTbCtx->pData->pBlobSet)) {
+    SBlobSet* pBlobSet = pTbCtx->pData->pBlobSet;
+    pTbCtx->pData->pBlobSet = NULL;
+    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pBlobSet)) {
       return terrno;
     }
-    pTbCtx->pData->pBlobSet = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
   }
 
-  code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pTbCtx->pData->aRowP, sizeof(SArray*));
+  code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pRows, sizeof(SArray*));
 
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTbCtx->pMeta->uid, pVgCxt->vgId);
 
   return TSDB_CODE_SUCCESS;
@@ -854,6 +958,23 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
   pTbCtx->pData->pBlobSet = pTbData->pBlobSet;
 
   code = insGetStmtTableVgUid(pAllVgHash, pBuildInfo, pTbData, &uid, &vgId, &suid);
+  if (code == TSDB_CODE_SUCCESS && pTbCtx->pData->suid != suid) {
+    STableVgUid refreshed = {0};
+    code = insRefreshStmtTableVgUid(pBuildInfo, pTbData, &refreshed);
+    if (code == TSDB_CODE_SUCCESS) {
+      uid = refreshed.uid;
+      vgId = refreshed.vgid;
+      suid = refreshed.suid;
+
+      if (pTbCtx->pData->suid == suid) {
+        SName sname = {0};
+        code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
+        if (code == TSDB_CODE_SUCCESS) {
+          code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, &vgId, pTbData, &sname);
+        }
+      }
+    }
+  }
   if (ctbReq != NULL && code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
     pTbCtx->pData->flags |= SUBMIT_REQ_AUTO_CREATE_TABLE;
     vgId = (int32_t)ctbReq->uid;
@@ -866,9 +987,17 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
     code = TSDB_CODE_SUCCESS;
   } else {
     if (TSDB_CODE_SUCCESS != code) {
+      if (ctbReq != NULL) {
+        tdDestroySVCreateTbReq(ctbReq);
+        taosMemoryFree(ctbReq);
+      }
       return code;
     }
     if (pTbCtx->pData->suid != suid) {
+      if (ctbReq != NULL) {
+        tdDestroySVCreateTbReq(ctbReq);
+        taosMemoryFree(ctbReq);
+      }
       return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
     }
 
@@ -919,12 +1048,20 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
 
   if (code == TSDB_CODE_SUCCESS) {
     code = checkAndMergeSVgroupDataCxtByTbname(pTbCtx, pVgCxt, pBuildInfo->pTableRowDataHash, pTbData->tbName);
+    if (pTbCtx->pData->aRowP == NULL) {
+      pTbData->aCol = NULL;
+    }
   }
 
-  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
+  if (code == TSDB_CODE_SUCCESS && taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
     code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
     // taosArrayClear(pVgCxt->pData->aSubmitTbData);
     tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+    // The row arrays referenced by this hash have just been destroyed with the submit request.
+    // Drop both the stale pointers and their hash nodes before accepting the next sub-batch.
+    if (pBuildInfo->pTableRowDataHash != NULL) {
+      tSimpleHashClear(pBuildInfo->pTableRowDataHash);
+    }
     // insDestroyVgroupDataCxt(pVgCxt);
   }
 
@@ -1017,7 +1154,7 @@ int32_t insMergeTableDataCxt(SHashObj* pTableHash, SArray** pVgDataBlocks, bool 
     STableDataCxt* pTableCxt = *(STableDataCxt**)p;
     if (colFormat) {
       SColData* pCol = taosArrayGet(pTableCxt->pData->aCol, 0);
-      if (pCol && pCol->nVal <= 0) {
+      if (pCol == NULL || pCol->nVal <= 0) {
         p = taosHashIterate(pTableHash, p);
         continue;
       }

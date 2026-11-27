@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -52,6 +54,7 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData *pOutput, int32_t pos, SFunctParam *pDefaultParam, void *charsetCxt);
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);
@@ -63,6 +66,9 @@ typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunct
 typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf,
                                struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
 typedef int32_t (*processFuncByRow)(SArray *pCtx);  // array of SqlFunctionCtx
+// Deferred-output functions (e.g. fill_next) keep rows before publishing the
+// host's result block: the host must not emit a block while this returns true.
+typedef bool (*FExecHasPending)(struct SqlFunctionCtx *pCtx);
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -78,11 +84,13 @@ typedef struct SFuncExecFuncs {
   FExecCleanUp     cleanup;
   FExecDecode      decode;
   processFuncByRow processFuncByRow;
+  FExecHasPending  hasPending;
 } SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
+#define SAMPLE_QUERY_LIMIT        1000  // maximum point count accepted by sample() and mavg()
 #define FUNCTIONS_NAME_MAX_LENGTH 32
 
 #define FUNCTION_RESULT_INFO_VERSION 1
@@ -91,7 +99,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized : 1;  // output buffer has been initialized
   bool     complete : 1;     // query has completed
   uint8_t  isNullRes : 6;    // the result is null
-  uint16_t numOfRes;         // num of output result in current buffer. NOT NULL RESULT
+  uint64_t numOfRes;         // num of output result in current buffer. NOT NULL RESULT
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -133,6 +141,7 @@ typedef struct SResultDataInfo {
 
 typedef struct SInputColumnInfoData {
   int32_t           totalRows;        // total rows in current columnar data
+  int32_t           smaSourceRows;    // physical rows represented by the current SMA block
   int32_t           startRowIndex;    // handle started row index
   int64_t           numOfRows;        // the number of rows needs to be handled
   bool              blankFill;        // fill blank data to block for empty table
@@ -142,6 +151,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPrimaryKey;      // primary key column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  SColumnDataAgg    constColumnAgg;  // statistics for the current constant input, after filtering.
   uint64_t uid;  // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 
@@ -242,15 +252,23 @@ typedef struct SFuncInputRowIter {
 
   TSKEY        prevBlockTsEnd;
   bool         prevIsDataNull;
-  char        *pPrevData;
-  char        *pPrevPk;
-  SSDataBlock *pPrevRowBlock;  // pre one row block
+  char        *pPrevData;      // owned by the iterator; released by funcInputRowIterCleanup
+  char        *pPrevPk;        // owned by the iterator; released by funcInputRowIterCleanup
+  SSDataBlock *pPrevRowBlock;  // owned previous-row block
 
   uint64_t groupId;
   bool     hasGroupId;
 
+  // Runtime-only owner identity; never persisted with aggregate result state.
+  SResultRowEntryInfo *pOwnerResultInfo;
   bool finalRow;
 } SFuncInputRowIter;
+
+// Completely resets the iterator, including cached PK state and pOwnerResultInfo.
+// Call when the iterator is reset, abandoned after an error, or its owning context is destroyed.
+// Callers that need PK continuation across blocks must persist that state before cleanup.
+// This does not reset the owning SqlFunctionCtx::bInputFinished flag.
+void funcInputRowIterCleanup(SFuncInputRowIter *pIter);
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
@@ -259,6 +277,9 @@ typedef struct SqlFunctionCtx {
   uint32_t             order;          // data block scanner order: asc|desc
   uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
   uint8_t              isNotNullFunc;  // not return null value.
+  bool                 ignoreResultRowCount;
+  bool                 isDistinctFunc;  // DISTINCT variant; cached at ctx creation because the
+                                        // cleanup path runs after the plan node may be freed
   uint8_t              scanFlag;       // record current running step, default: 0
   int16_t              functionId;     // function id
   char                *pOutput;        // final result output buffer, point to sdata->data
@@ -278,6 +299,7 @@ typedef struct SqlFunctionCtx {
   struct SSDataBlock  *pSrcBlock;
   struct SSDataBlock  *pDstBlock;  // used by indefinite rows function to set selectivity
   SSerializeDataHandle saveHandle;
+  struct SDiskbasedBuf *pDistinctBuf;
   int32_t              exprIdx;
   char                *udfName;
   SFunctionStateStore *pStore;
@@ -287,6 +309,7 @@ typedef struct SqlFunctionCtx {
   bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
   bool                 hasWindow;         // denote that the function is used with time window
   bool                 needCleanup;       // denote that the function need to be cleaned up
+  int32_t              pendingCleanup;
   int32_t              inputType; // save the fuction input type funcs like finalize
   bool                 skipDynDataCheck;
 } SqlFunctionCtx;
@@ -338,7 +361,9 @@ struct SScalarParam {
   int32_t          numOfRows;
   int32_t          numOfQualified;  // number of qualified elements in the final results
   timezone_t       tz;
+  char             tzName[TD_TIMEZONE_LEN];  // IANA timezone name (for server-side timezone() function)
   void            *charsetCxt;
+  int8_t           firstDayOfWeek;  /* 0-6, from connection/global config */
   SArray          *pFilterArr; // for types that can't filter with hash
 };
 

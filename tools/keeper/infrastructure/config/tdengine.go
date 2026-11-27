@@ -1,3 +1,18 @@
+// Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package config
 
 import (
@@ -8,11 +23,12 @@ import (
 )
 
 type TDengineRestful struct {
-	Host     string `toml:"host"`
-	Port     int    `toml:"port"`
-	Username string `toml:"username"`
-	Password string `toml:"password"`
-	Usessl   bool   `toml:"usessl"`
+	Host       string `toml:"host"`
+	Port       int    `toml:"port"`
+	Username   string `toml:"username"`
+	Password   string `toml:"password"`
+	Usessl     bool   `toml:"usessl"`
+	SkipVerify bool   `toml:"skipVerify"`
 }
 
 func (t TDengineRestful) String() string {
@@ -42,4 +58,8 @@ func initTDengine() {
 	viper.SetDefault("tdengine.usessl", false)
 	_ = viper.BindEnv("tdengine.usessl", "TAOS_KEEPER_TDENGINE_USESSL")
 	pflag.Bool("tdengine.usessl", false, `TDengine server use ssl or not. Env "TAOS_KEEPER_TDENGINE_USESSL"`)
+
+	viper.SetDefault("tdengine.skipVerify", true)
+	_ = viper.BindEnv("tdengine.skipVerify", "TAOS_KEEPER_TDENGINE_SKIPVERIFY")
+	pflag.Bool("tdengine.skipVerify", true, `Skip TDengine server TLS certificate verification, default true for compatibility. Set false to verify the server certificate. Env "TAOS_KEEPER_TDENGINE_SKIPVERIFY"`)
 }

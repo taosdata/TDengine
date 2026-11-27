@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -102,6 +104,16 @@ typedef struct SNodeInfo {
   ESyncRole nodeRole;
 } SNodeInfo;
 
+// Inspects one WAL record that sync wrote for a leader transfer, without
+// replaying it. `body` is the raw record body; the frame type behind it is
+// private to sync, hence the opaque pointer. `len` must be exactly one whole
+// frame. A rejected frame returns TSDB_CODE_INVALID_MSG and leaves `*safe`
+// false, so a caller can tell "damaged or illegal" (do not rewrite) apart from
+// "unknown but harmless". `*safe` becomes true only when the call returns 0,
+// i.e. the record belongs to `vgId` and every field in it is self-consistent.
+int32_t syncInspectLeaderTransfer(const void *body, int32_t len, int32_t vgId,
+                                  bool *safe);
+
 typedef struct SSyncTLV {
   int32_t typ;
   int32_t len;
@@ -153,6 +165,7 @@ typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
   SSyncTLV* data;
+  int32_t   destDnodeId;  // target follower dnodeId of this snapshot send; 0 means unknown/non-send
 } SSnapshotParam;
 
 typedef struct SSnapshot {
@@ -294,6 +307,8 @@ int32_t   syncLeaderTransfer(int64_t rid);
 int32_t   syncStepDown(int64_t rid, SyncTerm newTerm);
 void      syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics);
 bool      syncIsReadyForRead(int64_t rid);
+// Returns true when a replica has restored local storage, regardless of Raft role.
+bool      syncIsReadyForReplicaRead(int64_t rid);
 bool      syncSnapshotSending(int64_t rid);
 bool      syncSnapshotRecving(int64_t rid);
 int32_t   syncSendTimeoutRsp(int64_t rid, int64_t seq);

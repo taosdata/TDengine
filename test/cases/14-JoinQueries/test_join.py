@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import datetime
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdCom, etool
 from dataclasses import dataclass, field
@@ -59,6 +74,15 @@ class DataSet:
     nchar_data  : List[str]     = field(default_factory=list)
 
 class TestJoin:
+
+    # Pin the client timezone so EXPLAIN output stays stable across servers in
+    # different locales. The ASOF JOIN pushdown plan embeds the session timezone
+    # in conditions like timetruncate(..., 'Asia/Shanghai', ...); without a fixed
+    # timezone the .ans comparison flaps depending on the test server's tz.
+    clientCfgDict = {"timezone": "Asia/Shanghai", "firstDayOfWeek": 0}
+    updatecfgDict = {
+        "clientCfg": clientCfgDict,
+    }
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -330,39 +354,49 @@ class TestJoin:
 
         tdLog.info(f"=============== join.sim -- error sql")
 
-        tdSql.error(
+        tdSql.query(
             f"select count(join_tb1.c3), count(join_tb0.ts), sum(join_tb0.c1), first(join_tb0.c7), last(join_tb1.c3) from {tb1} , {tb2} where join_tb1.ts <= 100002 and join_tb0.c7 = true;"
         )
-        tdSql.error(
+        tdSql.checkEqual(list(tdSql.queryResult), [(2970, 2970, 148500, True, 2)])
+        tdSql.query(
             f"select count(join_tb1.c3), last(join_tb1.c3) from {tb1} , {tb2} where join_tb1.ts = join_tb0.ts or join_tb1.ts <= 100002 and join_tb0.c7 = true;"
         )
+        tdSql.checkEqual(list(tdSql.queryResult), [(3968, 99)])
         tdSql.error(
             f"select count(join_tb3.*) from {tb1} , {tb2} where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select first(join_tb1.*) from {tb1} , {tb2} where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 or join_tb0.c7 = true;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "1970-01-01 08:01:40.000")
+        tdSql.checkData(0, 1, 0)
+        tdSql.checkData(0, 8, "binary0")
+        tdSql.checkData(0, 9, "nchar0")
         tdSql.error(
             f"select join_tb3.* from {tb1} , {tb2} where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;"
         )
         tdSql.query(
             f"select join_tb1.* from {tb1} , {tb2} where join_tb1.ts = join_tb0.ts and join_tb1.ts = join_tb0.c1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select join_tb1.* from {tb1} , {tb2} where join_tb1.ts = join_tb0.c1;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select join_tb1.* from {tb1} , {tb2} where join_tb1.c7 = join_tb0.c1;"
         )
-        tdSql.error(
-            f"select join_tb1.* from {tb1} , {tb2} where join_tb1.ts > join_tb0.ts;"
+        tdSql.query(
+            f"select count(*) from {tb1} , {tb2} where join_tb1.ts > join_tb0.ts;"
         )
-        tdSql.error(
-            f"select join_tb1.* from {tb1} , {tb2} where join_tb1.ts <> join_tb0.ts;"
+        tdSql.checkData(0, 0, 499500)
+        tdSql.query(
+            f"select count(*) from {tb1} , {tb2} where join_tb1.ts <> join_tb0.ts;"
         )
-        tdSql.error(
-            f"select join_tb1.* from {tb1} , {tb2} where join_tb1.ts != join_tb0.ts and join_tb1.ts > 100000;"
+        tdSql.checkData(0, 0, 999000)
+        tdSql.query(
+            f"select count(*) from {tb1} , {tb2} where join_tb1.ts != join_tb0.ts and join_tb1.ts > 100000;"
         )
+        tdSql.checkData(0, 0, 998001)
         tdSql.error(
             f"select join_tb1.* from {tb1} , {tb1} where join_tb1.ts = join_tb1.ts and join_tb1.ts >= 100000;"
         )
@@ -372,9 +406,7 @@ class TestJoin:
         tdSql.error(
             f"select join_tb1.* from {tb1} , {tb1} where join_tb1.ts = join_tb1.ts order by join_tb1.c7;"
         )
-        tdSql.error(f"select * from join_tb0, join_tb1")
-        tdSql.error(f"select last_row(*) from join_tb0, join_tb1")
-        tdSql.error(f"select last_row(*) from {tb1}, {tb2} where join_tb1.ts < now")
+        self.check_cross_join_and_last_row_results()
         tdSql.error(
             f"select last_row(*) from {tb1}, {tb2} where join_tb1.ts = join_tb2.ts"
         )
@@ -506,9 +538,10 @@ class TestJoin:
         )
 
         # missing ts equals
-        tdSql.error(
+        tdSql.query(
             f"select sum(join_mt1.c2) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1;"
         )
+        tdSql.checkRows(1)
 
         # missing tag equals
         tdSql.query(
@@ -630,7 +663,8 @@ class TestJoin:
                 FROM test.stable_olt_gpon_traffic_ods
                 WHERE ts > '2025-11-17 00:00:00'
                         AND pid = 1
-        ) c ON b.time = c.time """)
+        ) c ON b.time = c.time
+        ORDER BY b.pid DESC, c.ts """)
         
         tdSql.checkRows(10)
         tdSql.checkData(0, 1, 400.0)
@@ -1349,8 +1383,10 @@ class TestJoin:
         tdSql.query(f"select a.* from sta a join stb b on a.ts=b.ts where a.tg1=b.tg1 or a.tg2=b.tg2;"); #!!!!it works now
         tdSql.checkRows(18)
 
-        tdSql.error(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
-        tdSql.error(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
+        tdSql.query(f"select a.* from sta a join stb b on a.tg1=b.tg1 where a.ts=b.ts or a.tg2=b.tg2;")
+        tdSql.checkRows(36)
+        tdSql.query(f"select b.* from sta a, stb b where a.tg1=b.tg1 or a.ts=b.ts;")
+        tdSql.checkRows(72)
         print("do stb join ........................... [passed]")
 
     #
@@ -1434,12 +1470,56 @@ class TestJoin:
         tdLog.info(f"test case : {testCase}.")
         sqlFile = etool.curFile(__file__, "in/test_asof_join_pushdown.in")
         ansFile = etool.curFile(__file__, "ans/test_asof_join_pushdown.ans")
-        tdCom.compare_testcase_result(sqlFile, ansFile, testCase)
+        tdCom.compare_testcase_result(
+            sqlFile, ansFile, testCase,
+            result_transform=tdCom.normalize_windows_shanghai_explain,
+        )
 
         tdSql.execute("drop database db_asof_pushdown")
         # Restore DB context for subsequent tests that rely on the default 'db'.
         tdSql.execute("use db")
         print("do asof join right ts pushdown ........ [passed]")
+
+    def check_cross_join_and_last_row_results(self):
+        """Check row count and representative cells for newly accepted joins."""
+        test_case = "test_join_cross_and_last_row"
+        sql_file = etool.curFile(__file__, "in/test_join_cross_and_last_row.in")
+        ans_file = etool.curFile(__file__, "ans/test_join_cross_and_last_row.ans")
+        tdCom.compare_testcase_result(sql_file, ans_file, test_case)
+
+    def do_join_truncate_tz_case_insensitive(self):
+        """ASOF JOIN ON timetruncate(): the UTC prefix is case-insensitive.
+
+        A case-sensitive prefix check in the join operator would silently fall
+        back to the session timezone (Asia/Shanghai here) and shift the
+        derived truncation boundary by 16 hours.
+        """
+        tdSql.execute("create database if not exists db_join_tz")
+        tdSql.execute("use db_join_tz")
+        tdSql.execute("create table ta (ts timestamp, v int)")
+        tdSql.execute("create table tb (ts timestamp, v int)")
+        # 2026-01-01T00:00:00Z. Truncating it to 1d lands 16h earlier under
+        # POSIX 'UTC8' (west 8) but only 8h earlier under Asia/Shanghai.
+        tdSql.execute("insert into tb values(1767225600000, 1)")
+        tdSql.execute("insert into ta values(1767168000000, 1)(1767196800000, 2)")
+
+        def matched(tz):
+            tdSql.query(
+                "select a.ts, b.ts from ta a left asof join tb b "
+                f"on a.ts >= timetruncate(b.ts, 1d, '{tz}')"
+            )
+            return sum(1 for row in tdSql.queryResult if row[1] is not None)
+
+        assert matched("utc8") == matched("UTC8")
+        assert matched("utc+8") == matched("UTC+8")
+        assert matched("utc8") != matched("Asia/Shanghai"), (
+            "'utc8' fell back to the session timezone"
+        )
+
+        tdSql.execute("drop database db_join_tz")
+        # Restore DB context for subsequent tests that rely on the default 'db'.
+        tdSql.execute("use db")
+        print("do join truncate tz case insensitive ........ [passed]")
 
     def do_join_hint(self):
         tdSql.query(f"select /*+ batch_scan() */ count(*) from sta a, stb b where a.tg1=b.tg1 and a.ts=b.ts and b.tg2 > 'a' interval(1a);")
@@ -1493,7 +1573,7 @@ class TestJoin:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -1511,6 +1591,5 @@ class TestJoin:
         self.init_data()
         self.do_stbJoin()
         self.do_asof_join_right_ts_pushdown()
+        self.do_join_truncate_tz_case_insensitive()
         self.do_join_hint()
-
-    

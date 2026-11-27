@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,12 +45,27 @@ extern "C" {
  */
 #define TSDB_SOD_PHASE_ENFORCE 2
 
-#define T_ROLE_SYSDBA       0x01
-#define T_ROLE_SYSSEC       0x02
-#define T_ROLE_SYSAUDIT     0x04
-#define T_ROLE_SYSAUDIT_LOG 0x08
-#define T_ROLE_SYSINFO_0    0x10
-#define T_ROLE_SYSINFO_1    0x20
+/*
+ * Built-in roles: add a role here and the bit mask, the name macro,
+ * the __builtinRoles[] table and TSDB_BUILTIN_ROLE_NUM all follow automatically.
+ */
+#define TSDB_BUILTIN_ROLE_LIST(_)       \
+  _(SYSDBA, "SYSDBA", 0x01)             \
+  _(SYSSEC, "SYSSEC", 0x02)             \
+  _(SYSAUDIT, "SYSAUDIT", 0x04)         \
+  _(SYSAUDIT_LOG, "SYSAUDIT_LOG", 0x08) \
+  _(SYSINFO_0, "SYSINFO_0", 0x10)       \
+  _(SYSINFO_1, "SYSINFO_1", 0x20)
+
+#define TSDB_BUILTIN_ROLE_BIT(id, name, bit)  T_ROLE_##id = bit,
+#define TSDB_BUILTIN_ROLE_SLOT(id, name, bit) TSDB_BUILTIN_ROLE_SLOT_##id,
+#define TSDB_BUILTIN_ROLE_NAME(id, name, bit) name,
+#define TSDB_BUILTIN_BASIC_ROLE_NUM           3
+
+enum { TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_BIT) };
+
+// slot indexes double as the element count, so the bound stays derived from the list above
+enum { TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_SLOT) TSDB_BUILTIN_ROLE_NUM };
 
 #define TSDB_ROLE_SYSDBA       "SYSDBA"
 #define TSDB_ROLE_SYSSEC       "SYSSEC"
@@ -61,6 +78,8 @@ extern "C" {
 #else
 #define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_1
 #endif
+
+extern const char* const __builtinRoles[TSDB_BUILTIN_ROLE_NUM];
 
 #define TSDB_WORD_AUDIT       "audit"
 #define TSDB_WORD_BASIC       "basic"
@@ -76,7 +95,7 @@ extern "C" {
 #define TSDB_WORD_VARIABLES   "variables"
 #define TSDB_WORD_INFORMATION "information"
 
-#define PRIV_INFO_TABLE_VERSION 6  // N.B. increase this version for any update of privInfoTable
+#define PRIV_INFO_TABLE_VERSION 7  // N.B. increase this version for any update of privInfoTable
 
 #define IS_WILDCARD_OBJ(objName) ((objName)[0] == '*' && (objName)[1] == '\0')
 #define IS_SPECIFIC_OBJ(objName) ((objName)[0] != '\0' && !IS_WILDCARD_OBJ(objName))
@@ -122,6 +141,7 @@ typedef enum {
   PRIV_SHOW_RETENTIONS,   // SHOW RETENTIONS
   PRIV_SHOW_SCANS,        // SHOW SCANS
   PRIV_SHOW_SSMIGRATES,   // SHOW SSMIGRATES
+  PRIV_SHOW_BACKUPS,      // SHOW BACKUPS
 
   // ==================== Table Privileges(50-69)  ================
   PRIV_TBL_CREATE = 70,  // CREATE TABLE
@@ -142,6 +162,9 @@ typedef enum {
   // view management
   PRIV_VIEW_CREATE = 88,  // CREATE VIEW
   PRIV_VIEW_SELECT,       // SELECT VIEW
+
+  // backup management
+  PRIV_BACKUP_CREATE = 90,// CREATE BACKUP
 
   // SMA management
   PRIV_RSMA_CREATE = 95,  // CREATE RSMA

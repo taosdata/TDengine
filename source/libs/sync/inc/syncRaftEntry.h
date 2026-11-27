@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,6 +36,7 @@ typedef struct SSyncRaftEntry {
   SyncTerm  term;
   SyncIndex index;
   int64_t   rid;
+  txn_id_t  txnId;    // batch-meta-txn: copied from SRpcMsg.info.txnId; 0 = non-transaction
   uint32_t  dataLen;  // origin RpcMsg.contLen
   char      data[];   // origin RpcMsg.pCont
 } SSyncRaftEntry;

@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 aux_source_directory(src FUNCTION_SRC)
 aux_source_directory(src/detail FUNCTION_SRC_DETAIL)
 list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
@@ -61,12 +76,41 @@ target_link_libraries(
     PRIVATE os util common nodes function dnode
 )
 
+if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
+    # libextconnector.a references nodesRemotePlanToSQL (in libnodes.a).
+    # libextconnector.a appears twice in the transitive link command; the object file that
+    # holds nodesRemotePlanToSQL is only extracted from the second occurrence (after libnodes.a
+    # has already been scanned). Using --undefined forces the linker to extract
+    # nodesRemotePlanToSQL.c.o from libnodes.a on first encounter, making the symbol available
+    # for all subsequent libextconnector.a references.
+    target_link_options(taosudf PRIVATE "LINKER:--undefined=nodesRemotePlanToSQL")
+endif()
+
+# Export convergence for taosudf: no static consumers; UDF plugins (dlopen) need
+# only libc (verified). Hide all non-taos_* (see taosudf.ver). GNU ld only.
+# NOTE: also lets --gc-sections drop dead code previously kept only because it
+# was exported (this tree otherwise fails to link: gsasl_init).
+if(TD_LINUX)
+    target_link_options(taosudf PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/taosudf.ver")
+endif()
+
+
 if(NOT TD_WINDOWS)
-    set_target_properties(taosudf PROPERTIES
-        INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
-        BUILD_WITH_INSTALL_RPATH TRUE
-        SKIP_BUILD_RPATH FALSE
-    )
+    if(APPLE)
+        # macOS uses @loader_path (not $ORIGIN) and one LC_RPATH entry per path.
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "@loader_path;@loader_path/../lib;@loader_path/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    else()
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    endif()
 endif()
 
 if(UNIX AND NOT APPLE)

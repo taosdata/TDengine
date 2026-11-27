@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -105,19 +107,22 @@ static int32_t getFileSize(SSharedStorage* pss, const char* path, int64_t* size)
 
 static int32_t mockCreateInstance(const char* as, SSharedStorage** ppSS);
 
-static const SSharedStorageType sstMock = {
-    .name = "mock",
-    .printConfig = &printConfig,
-    .createInstance = &mockCreateInstance,
-    .closeInstance = &closeInstance,
-    .upload = &upload,
-    .uploadFile = &uploadFile,
-    .readFile = &readFile,
-    .downloadFile = &downloadFile,
-    .listFile = &listFile,
-    .deleteFile = &deleteFile,
-    .getFileSize = &getFileSize,
-};
+static const SSharedStorageType sstMock = [] {
+    SSharedStorageType type = {};
+    type.name = "mock";
+    type.printConfig = &printConfig;
+    type.createInstance = &mockCreateInstance;
+    type.closeInstance = &closeInstance;
+    type.upload = &upload;
+    type.uploadFile = &uploadFile;
+    type.readFile = &readFile;
+    type.downloadFile = &downloadFile;
+    type.listFile = &listFile;
+    type.deleteFile = &deleteFile;
+    type.getFileSize = &getFileSize;
+    return type;
+}();
+
 
 static int32_t mockCreateInstance(const char* as, SSharedStorage** ppSS) {
     SSharedStorageMock* ss = NULL;

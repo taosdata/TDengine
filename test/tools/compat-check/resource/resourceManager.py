@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/resource/resourceManager.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Creates and validates all test resources needed for the rolling-upgrade test:
-#   - Database (3-replica)
-#   - Super table + 1 000 subtables
-#   - Initial data (100 000 rows per subtable) via parallel batch inserts
-#   - TMQ topic
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
@@ -57,6 +65,37 @@ def _errno_of(exc) -> int:
     if raw is None:
         return -1
     return int(raw) & 0xFFFF
+
+
+def _format_error(exc) -> str:
+    """Render a taos exception as '[0xNNNN] message' for check details."""
+    code = _errno_of(exc)
+    msg = (getattr(exc, "msg", None) or str(exc)).strip()
+    return f"[0x{code:04x}] {msg}" if code >= 0 else msg
+
+
+def _as_text(value) -> str:
+    """Normalise a result cell to str (SHOW CREATE returns BLOB on newer builds)."""
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode("utf-8", "replace")
+    return value or ""
+
+
+def _ddl_from_row(row) -> str:
+    """Pick the DDL text out of a SHOW CREATE row without relying on column order."""
+    if not row:
+        return ""
+    texts = [_as_text(v) for v in row]
+    return max(texts, key=len) if texts else ""
+
+
+def _ddl_plain(ddl: str) -> str:
+    """Upper-cased DDL with identifier quoting removed, for substring checks.
+
+    SHOW CREATE quotes every identifier (``db``.``tbl``.``col``) while some
+    builds report the plain name, so compare on the unquoted form.
+    """
+    return ddl.replace("`", "").replace('"', "").upper()
 
 
 def _make_conn(fqdn: str, cfg_dir: str, logger=None) -> taos.TaosConnection:
@@ -522,7 +561,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(current.keys())
-            return True, f"all {len(names)} tag index(es) intact: {names}"
+            return True, f"all {len(names)} tag index(es) intact"
 
         finally:
             cursor.close()
@@ -645,7 +684,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} TSMA(s) intact: {names}"
+            return True, f"all {len(names)} TSMA(s) intact"
 
         finally:
             cursor.close()
@@ -761,7 +800,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} RSMA(s) intact: {names}"
+            return True, f"all {len(names)} RSMA(s) intact"
 
         finally:
             cursor.close()
@@ -887,11 +926,317 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} stream(s) intact: {names}"
+            return True, f"all {len(names)} stream(s) intact"
 
         finally:
             cursor.close()
             conn.close()
+
+    # ------------------------------------------------------------------
+    # Virtual table – created on the base version, queried after upgrade
+    # ------------------------------------------------------------------
+
+    def create_vtable_source(self):
+        """Create the plain source table that the virtual table reads from.
+
+        Kept separate from the stable so the virtual table exercises a second
+        table type without disturbing the subtable counts.
+        """
+        self.logger.info(f"Creating virtual-table source '{config.VTABLE_SRC_TABLE}' ...")
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+        cursor = conn.cursor()
+        try:
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE TABLE IF NOT EXISTS {config.VTABLE_SRC_TABLE} ("
+                  f"  ts        TIMESTAMP,"
+                  f"  voltage   INT,"
+                  f"  current   FLOAT"
+                  f")",
+                  logger=self.logger)
+            # Duplicate timestamps are ignored by default, so re-running is safe.
+            values = " ".join(
+                f"({1700000000000 + i * 1000}, {220 + i}, {1.5 + i})"
+                for i in range(config.VTABLE_ROWS)
+            )
+            _exec(cursor,
+                  f"INSERT INTO {config.VTABLE_SRC_TABLE} VALUES {values}",
+                  logger=self.logger)
+            self.logger.success(f"Virtual-table source '{config.VTABLE_SRC_TABLE}' ready.")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def create_virtual_table(self):
+        """Create a virtual normal table bound to two columns of the source table."""
+        db = config.DB_NAME
+        self.logger.info(f"Creating virtual table '{config.VTABLE_NAME}' ...")
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+        cursor = conn.cursor()
+        try:
+            _exec(cursor, f"USE {db}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE VTABLE IF NOT EXISTS {config.VTABLE_NAME} ("
+                  f"  ts       TIMESTAMP,"
+                  f"  voltage  INT   FROM {db}.{config.VTABLE_SRC_TABLE}.voltage,"
+                  f"  current  FLOAT FROM {db}.{config.VTABLE_SRC_TABLE}.current"
+                  f")",
+                  logger=self.logger)
+            self.logger.success(f"Virtual table '{config.VTABLE_NAME}' ready.")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def create_virtual_stable(self):
+        """Create a virtual super table (template only, holds no data)."""
+        self.logger.info(f"Creating virtual stable '{config.VTABLE_STB_NAME}' ...")
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+        cursor = conn.cursor()
+        try:
+            _exec(cursor, f"USE {config.DB_NAME}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE STABLE IF NOT EXISTS {config.VTABLE_STB_NAME} ("
+                  f"  ts       TIMESTAMP,"
+                  f"  voltage  INT,"
+                  f"  current  FLOAT"
+                  f") TAGS ("
+                  f"  location BINARY(64)"
+                  f") VIRTUAL 1",
+                  logger=self.logger)
+            self.logger.success(f"Virtual stable '{config.VTABLE_STB_NAME}' ready.")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def create_virtual_child_table(self):
+        """Create a virtual child table on the virtual stable, bound to the source table."""
+        db = config.DB_NAME
+        self.logger.info(f"Creating virtual child table '{config.VTABLE_CHILD_NAME}' ...")
+        conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+        cursor = conn.cursor()
+        try:
+            _exec(cursor, f"USE {db}", logger=self.logger)
+            _exec(cursor,
+                  f"CREATE VTABLE IF NOT EXISTS {config.VTABLE_CHILD_NAME} ("
+                  f"  voltage  FROM {db}.{config.VTABLE_SRC_TABLE}.voltage,"
+                  f"  current  FROM {db}.{config.VTABLE_SRC_TABLE}.current"
+                  f") USING {db}.{config.VTABLE_STB_NAME} "
+                  f"TAGS ('{config.VTABLE_CHILD_TAG}')",
+                  logger=self.logger)
+            self.logger.success(f"Virtual child table '{config.VTABLE_CHILD_NAME}' ready.")
+        finally:
+            cursor.close()
+            conn.close()
+
+    def verify_virtual_table(self) -> tuple:
+        """Query the virtual table through a fresh connection and verify the result.
+
+        A fresh connection starts with an empty client catalog, so the query
+        makes the client fetch the virtual table's metadata.  That request is
+        the path a cross-version client/server pair takes, so a metadata frame
+        that is not compatible with the running client surfaces here.
+        Returns (ok, detail) and never raises, so the failure is reported as a
+        failed check instead of aborting the remaining checks.
+        """
+        last = ""
+        for attempt in range(1, 4):
+            conn = None
+            cursor = None
+            try:
+                conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+                cursor = conn.cursor()
+                cursor.execute(f"USE {config.DB_NAME}")
+                cursor.execute(f"SELECT COUNT(*) FROM {config.VTABLE_NAME}")
+                row = cursor.fetchone()
+                rows = row[0] if row else -1
+                cursor.execute(f"SHOW CREATE VTABLE {config.VTABLE_NAME}")
+                ddl = _ddl_from_row(cursor.fetchone())
+                if rows != config.VTABLE_ROWS:
+                    return False, f"row count {rows}, expected {config.VTABLE_ROWS}"
+                upper = _ddl_plain(ddl)
+                expected = [f"{config.DB_NAME}.{config.VTABLE_SRC_TABLE}.{col}"
+                            for col in ("voltage", "current")]
+                missing = [c for c in expected if c.upper() not in upper]
+                if missing:
+                    return False, (f"column binding missing from DDL "
+                                   f"({', '.join(missing)}): {ddl[:160]}")
+                return True, f"{rows} row(s), both column references preserved"
+            except Exception as exc:
+                last = _format_error(exc)
+                if attempt < 3:
+                    time.sleep(1)
+            finally:
+                try:
+                    if cursor is not None:
+                        cursor.close()
+                    if conn is not None:
+                        conn.close()
+                except Exception:
+                    pass
+        return False, f"virtual table query failed: {last}"
+
+    def verify_virtual_stable(self) -> tuple:
+        """Check the virtual stable and its child table after the upgrade.
+
+        The child table stores its own metadata entry (column bindings plus
+        tags), so reading it back exercises both the stable and child persisted
+        layouts.  Uses a fresh connection for the same reason as
+        verify_virtual_table.
+        """
+        conn = None
+        cursor = None
+        try:
+            conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+            cursor = conn.cursor()
+            cursor.execute(f"USE {config.DB_NAME}")
+            cursor.execute(f"SELECT COUNT(*) FROM {config.VTABLE_CHILD_NAME}")
+            row = cursor.fetchone()
+            child_rows = row[0] if row else -1
+            cursor.execute(f"SELECT COUNT(*) FROM {config.VTABLE_STB_NAME}")
+            row = cursor.fetchone()
+            stb_rows = row[0] if row else -1
+            cursor.execute(f"SHOW CREATE VTABLE {config.VTABLE_CHILD_NAME}")
+            ddl = _ddl_from_row(cursor.fetchone())
+        except Exception as exc:
+            return False, f"virtual child/stable query failed: {_format_error(exc)}"
+        finally:
+            try:
+                if cursor is not None:
+                    cursor.close()
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
+
+        if child_rows != config.VTABLE_ROWS:
+            return False, f"child table rows {child_rows}, expected {config.VTABLE_ROWS}"
+        if stb_rows != config.VTABLE_ROWS:
+            return False, f"stable rows {stb_rows}, expected {config.VTABLE_ROWS}"
+        upper = _ddl_plain(ddl)
+        if "USING" not in upper or config.VTABLE_STB_NAME.upper() not in upper:
+            return False, f"virtual stable binding missing from DDL: {ddl[:160]}"
+        if config.VTABLE_CHILD_TAG.upper() not in upper:
+            return False, f"child tag value missing from DDL: {ddl[:160]}"
+        expected = [f"{config.DB_NAME}.{config.VTABLE_SRC_TABLE}.{col}"
+                    for col in ("voltage", "current")]
+        missing = [c for c in expected if c.upper() not in upper]
+        if missing:
+            return False, (f"child column binding missing from DDL "
+                           f"({', '.join(missing)}): {ddl[:160]}")
+        return True, f"child {child_rows} row(s), stable {stb_rows} row(s), USING/TAGS/columns preserved"
+
+    def alter_virtual_table(self) -> tuple:
+        """ALTER the virtual tables after the upgrade.
+
+        Resources created on the base version only cover the read direction.
+        Every ALTER statement carries the virtual-table reference fields at the
+        tail of the request, so issuing one from the running client against the
+        running server covers the write direction as well.  ``ADD COLUMN ...
+        FROM`` binds an extra column to the local source table and ``ALTER
+        COLUMN ... SET`` re-issues an existing binding, so no external database
+        is involved.
+
+        Returns (ok, detail) and never raises.
+        """
+        db = config.DB_NAME
+        src = f"{db}.{config.VTABLE_SRC_TABLE}"
+        add_col = (f" ADD COLUMN {config.VTABLE_ALTER_COL} INT "
+                   f"FROM {src}.{config.VTABLE_ALTER_REF_COL}")
+        plan = [
+            (config.VTABLE_NAME, add_col),
+            (config.VTABLE_CHILD_NAME, add_col),
+            (config.VTABLE_NAME,
+             f" ALTER COLUMN {config.VTABLE_ALTER_REF_COL} SET "
+             f"{src}.{config.VTABLE_ALTER_REF_COL}"),
+        ]
+
+        self.logger.info("Altering virtual tables ...")
+        last = ""
+        for attempt in range(1, 4):
+            conn = None
+            cursor = None
+            try:
+                conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+                cursor = conn.cursor()
+                cursor.execute(f"USE {db}")
+                done = 0
+                for table, clause in plan:
+                    # Re-running the tool would otherwise stop on the duplicate
+                    # column; skip the statement when it is already applied.
+                    if " ADD COLUMN " in clause:
+                        cursor.execute(f"SHOW CREATE VTABLE {table}")
+                        ddl = _ddl_from_row(cursor.fetchone())
+                        if config.VTABLE_ALTER_COL.upper() in _ddl_plain(ddl):
+                            continue
+                    cursor.execute(f"ALTER VTABLE {table}{clause}")
+                    done += 1
+                self.logger.success(f"ALTER VTABLE applied ({done} statement(s)).")
+                return True, f"{done} ALTER VTABLE statement(s) accepted"
+            except Exception as exc:
+                last = _format_error(exc)
+                if attempt < 3:
+                    time.sleep(1)
+            finally:
+                try:
+                    if cursor is not None:
+                        cursor.close()
+                    if conn is not None:
+                        conn.close()
+                except Exception:
+                    pass
+        return False, f"ALTER VTABLE failed: {last}"
+
+    def verify_altered_virtual_table(self) -> tuple:
+        """Read back the altered definition and query the added column.
+
+        Uses a fresh connection for the same reason as verify_virtual_table:
+        the client has to fetch the altered metadata from the server.
+        """
+        db = config.DB_NAME
+        expected_max = 220 + config.VTABLE_ROWS - 1
+        conn = None
+        cursor = None
+        try:
+            conn = _make_conn(self.fqdn, self.cfg_dir, self.logger)
+            cursor = conn.cursor()
+            cursor.execute(f"USE {db}")
+            ddls = {}
+            for table in (config.VTABLE_NAME, config.VTABLE_CHILD_NAME):
+                cursor.execute(f"SHOW CREATE VTABLE {table}")
+                ddls[table] = _ddl_from_row(cursor.fetchone())
+                cursor.execute(
+                    f"SELECT COUNT(*), MAX({config.VTABLE_ALTER_COL}) FROM {table}")
+                row = cursor.fetchone() or (-1, None)
+                rows, max_value = row[0], row[1]
+                if rows != config.VTABLE_ROWS:
+                    return False, (f"{table}: row count {rows}, "
+                                   f"expected {config.VTABLE_ROWS}")
+                if max_value != expected_max:
+                    return False, (f"{table}: MAX({config.VTABLE_ALTER_COL}) is "
+                                   f"{max_value}, expected {expected_max}")
+        except Exception as exc:
+            return False, f"altered virtual table query failed: {_format_error(exc)}"
+        finally:
+            try:
+                if cursor is not None:
+                    cursor.close()
+                if conn is not None:
+                    conn.close()
+            except Exception:
+                pass
+
+        expected_binding = (f"{db}.{config.VTABLE_SRC_TABLE}."
+                            f"{config.VTABLE_ALTER_REF_COL}")
+        for table, ddl in ddls.items():
+            upper = _ddl_plain(ddl)
+            if config.VTABLE_ALTER_COL.upper() not in upper:
+                return False, (f"{table}: added column missing from DDL: "
+                               f"{ddl[:160]}")
+            if expected_binding.upper() not in upper:
+                return False, (f"{table}: binding of the added column missing "
+                               f"from DDL: {ddl[:160]}")
+        return True, (f"added column present and bound on {len(ddls)} virtual "
+                      f"table(s), {config.VTABLE_ROWS} row(s) each")
 
     # ------------------------------------------------------------------
     # Utility – verify resource counts

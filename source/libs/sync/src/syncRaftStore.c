@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,7 +45,7 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   SRaftStore *pStore = &pNode->raftStore;
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    sInfo("vgId:%d, raft store file:%s not exist, use default value", pNode->vgId, file);
+    sInfo("vgId:%d, raft store file:%s does not exist, use the default value", pNode->vgId, file);
     pStore->currentTerm = 0;
     pStore->voteFor.addr = 0;
     pStore->voteFor.vgId = 0;
@@ -68,7 +70,7 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   }
 
   code = 0;
-  sInfo("vgId:%d, succceed to read raft store file %s", pNode->vgId, file);
+  sInfo("vgId:%d, successfully read raft store file %s", pNode->vgId, file);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -75,6 +77,7 @@ typedef struct {
 
 typedef struct {
   SOptrBasicInfo   binfo;
+  SSDataBlock*     pGroupKeys;
   SExprSupp        scalarSup;
   char             algoName[TSDB_ANALYTIC_ALGO_NAME_LEN];
   char             algoUrl[TSDB_ANALYTIC_ALGO_URL_LEN];
@@ -240,6 +243,8 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SAnalysisOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*         pTaskInfo = pOperator->pTaskInfo;
   SOptrBasicInfo*        pBInfo = &pInfo->binfo;
+  SExprSupp*             pScalarSupp = &pInfo->scalarSup;
+  SExprSupp*             pExprSupp = &pOperator->exprSupp;
   SSDataBlock*           pRes = pInfo->binfo.pRes;
   int64_t                st = taosGetTimestampUs();
   const char*            idstr = GET_TASKID(pTaskInfo);
@@ -248,7 +253,7 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   code = getBaseSupp(pInfo, &pSupp, idstr);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  int32_t numOfBlocks = taosArrayGetSize(pSupp->pBlocks);
+  int32_t numOfBlocks = pSupp->numOfBlocks;
   blockDataCleanup(pRes);
 
   while (1) {
@@ -257,7 +262,19 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       break;
     }
 
-    if (pSupp->groupId == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+    if (pScalarSupp->pExprInfo != NULL) {
+      code = projectApplyFunctions(pScalarSupp->pExprInfo, pBlock, pBlock, pScalarSupp->pCtx, pScalarSupp->numOfExprs,
+                                   NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        T_LONG_JMP(pTaskInfo->env, code);
+      }
+    }
+
+    if (numOfBlocks == 0 || pSupp->groupId == pBlock->info.id.groupId) {
+      if (numOfBlocks == 0) {
+        code = cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pRes, &pInfo->pGroupKeys);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
       pSupp->groupId = pBlock->info.id.groupId;
       numOfBlocks++;
       code = doCacheBlock(pInfo, pBlock, idstr);
@@ -268,6 +285,15 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     } else {
       qDebug("group:%" PRId64 ", read completed for new group coming, blocks:%d", pSupp->groupId, numOfBlocks);
       code = doAnalysis(pInfo, pTaskInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pRes);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pSupp->numOfRows = 0;
+      pSupp->win.skey = INT64_MAX;
+      pSupp->win.ekey = INT64_MIN;
+      code = doCreateBuf(pInfo, idstr);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = cacheAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pBlock, pRes, &pInfo->pGroupKeys);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pSupp->groupId = pBlock->info.id.groupId;
@@ -288,6 +314,9 @@ static int32_t imputationNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   if (numOfBlocks > 0) {
     qDebug("group:%" PRId64 ", read finish, blocks:%d", pSupp->groupId, numOfBlocks);
     code = doAnalysis(pInfo, pTaskInfo);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = fillAnalysisGroupKeys(pExprSupp->pExprInfo, pExprSupp->numOfExprs, pInfo->pGroupKeys, pRes);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
   int64_t cost = taosGetTimestampUs() - st;
@@ -310,12 +339,16 @@ static void analysisDestroyOperatorInfo(void* param) {
 
   cleanupBasicInfo(&pInfo->binfo);
   cleanupExprSupp(&pInfo->scalarSup);
+  blockDataDestroy(pInfo->pGroupKeys);
+  taosMemoryFreeClear(pInfo->options);
 
   SArray* pBlocks = NULL;
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     pBlocks = pInfo->imputatSup.base.pBlocks;
+    taosAnalyBufDestroy(&pInfo->imputatSup.base.analyBuf);
   } else {
     pBlocks = pInfo->corrSupp.base.pBlocks;
+    taosAnalyBufDestroy(&pInfo->corrSupp.base.analyBuf);
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
@@ -412,8 +445,8 @@ int32_t doCacheBlockForCorrelation(SCorrelationSupp* pSupp, const char* id, SSDa
     }
   }
 
-  if (pSupp->base.numOfRows > ANALY_CORRELATION_INPUT_MAX_ROWS) {
-    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_CORRELATION_INPUT_MAX_ROWS,
+  if (pSupp->base.numOfRows > ANALY_GENERIC_INPUT_MAX_ROWS) {
+    qError("%s too many rows for correlation, maximum allowed:%d, input:%d", id, ANALY_GENERIC_INPUT_MAX_ROWS,
            pSupp->base.numOfRows);
     return TSDB_CODE_ANA_ANODE_TOO_MANY_ROWS;
   }
@@ -441,7 +474,7 @@ static int32_t finishBuildRequest(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp
   // let's check existed rows for imputation
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
     if (pSupp->numOfRows < ANALY_IMPUTATION_INPUT_MIN_ROWS) {
-      qError("%s input rows for imputation aren't enough, min required:%d, current:%d", id, ANALY_IMPUTATION_INPUT_MIN_ROWS,
+      qError("%s input rows for imputation are not enough, min required:%d, current:%d", id, ANALY_IMPUTATION_INPUT_MIN_ROWS,
              pSupp->numOfRows);
       return TSDB_CODE_ANA_ANODE_NOT_ENOUGH_ROWS;
     }
@@ -548,8 +581,25 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     return code;
   }
 
+  if (rows > ANALY_GENERIC_OUTPUT_MAX_ROWS) {
+    qError("%s anode response rows %d exceeds maximum %d", pId, rows, ANALY_GENERIC_OUTPUT_MAX_ROWS);
+    code = TSDB_CODE_INVALID_PARA;
+    goto _OVER;
+  }
+
   if (code < 0) {
     goto _OVER;
+  }
+
+  // Ensure block capacity before any writes for all analysis types
+  if (resCurRow + rows > pBlock->info.capacity) {
+    int32_t total = resCurRow + rows;
+
+    code = blockDataEnsureCapacity(pBlock, total);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed to ensure block capacity, code:%s", pId, tstrerror(code));
+      goto _OVER;
+    }
   }
 
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
@@ -567,11 +617,28 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       goto _OVER;
     }
 
+    int32_t tsLen = tjsonGetArraySize(pTsList);
+    if (tsLen != rows) {
+      qError("%s anode ts array size %d does not match rows %d", pId, tsLen, rows);
+      goto _OVER;
+    }
+
+    int32_t maskLen = tjsonGetArraySize(pMask);
+    if (maskLen != rows) {
+      qError("%s anode mask array size %d does not match rows %d", pId, maskLen, rows);
+      goto _OVER;
+    }
+
     if (pInfo->imputatSup.resTsSlot != -1) {
       SColumnInfoData* pResTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->imputatSup.resTsSlot);
       if (pResTsCol != NULL) {
         for (int32_t i = 0; i < rows; ++i) {
           SJson* tsJson = tjsonGetArrayItem(pTsList, i);
+          if (tsJson == NULL) {
+            qError("%s anode response ts array item %d is NULL", pId, i);
+            code = TSDB_CODE_INVALID_PARA;
+            goto _OVER;
+          }
           tjsonGetObjectValueBigInt(tsJson, &tmpI64);
           colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
           resCurRow++;
@@ -583,6 +650,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     if (pResTargetCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
         resCurRow++;
@@ -590,6 +662,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     } else if (pResTargetCol->info.type == TSDB_DATA_TYPE_INT) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         int32_t t = tmpDouble;
         colDataSetInt32(pResTargetCol, resCurRow, &t);
@@ -598,6 +675,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     } else if (pResTargetCol->info.type == TSDB_DATA_TYPE_FLOAT) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
+        if (targetJson == NULL) {
+          qError("%s anode response target array item %d is NULL", pId, i);
+          code = TSDB_CODE_INVALID_PARA;
+          goto _OVER;
+        }
         tjsonGetObjectValueDouble(targetJson, &tmpDouble);
         float t = tmpDouble;
         colDataSetFloat(pResTargetCol, resCurRow, &t);
@@ -611,6 +693,11 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
         resCurRow = pBlock->info.rows;
         for (int32_t i = 0; i < rows; ++i) {
           SJson* markJson = tjsonGetArrayItem(pMask, i);
+          if (markJson == NULL) {
+            qError("%s anode response mask array item %d is NULL", pId, i);
+            code = TSDB_CODE_INVALID_PARA;
+            goto _OVER;
+          }
           tjsonGetObjectValueBigInt(markJson, &tmpI64);
           int32_t v = tmpI64;
           colDataSetInt32(pResMarkCol, resCurRow, &v);
@@ -665,12 +752,34 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
     SJson* pCcfVals = tjsonGetObjectItem(pJson, "ccf_vals");
     if (pCcfVals == NULL) goto _OVER;
 
+    int32_t lagsLen = tjsonGetArraySize(pLags);
+    if (lagsLen != rows) {
+      qError("%s anode lags array size %d does not match rows %d", pId, lagsLen, rows);
+      goto _OVER;
+    }
+
+    int32_t ccfLen = tjsonGetArraySize(pCcfVals);
+    if (ccfLen != rows) {
+      qError("%s anode ccf_vals array size %d does not match rows %d", pId, ccfLen, rows);
+      goto _OVER;
+    }
+
     for (int32_t i = 0; i < rows; ++i) {
       SJson* ccfValJson = tjsonGetArrayItem(pCcfVals, i);
+      if (ccfValJson == NULL) {
+        qError("%s anode response ccf_vals array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueDouble(ccfValJson, &tmpDouble);
 
       int64_t index = 0;
       SJson*  pLastIndexJson = tjsonGetArrayItem(pLags, i);
+      if (pLastIndexJson == NULL) {
+        qError("%s anode response lags array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueBigInt(pLastIndexJson, &index);
 
       char    buf[128 + VARSTR_HEADER_SIZE] = {0};
@@ -684,9 +793,6 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       code = colDataSetVal(pResTargetCol, resCurRow, buf, false);
       resCurRow++;
     }
-
-    tjsonGetObjectValueDouble(pLags, &tmpDouble);
-    colDataSetDouble(pResTargetCol, resCurRow, &tmpDouble);
   }
 
   pBlock->info.rows += rows;
@@ -723,18 +829,6 @@ static int32_t doAnalysis(SAnalysisOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo
 
   code = finishBuildRequest(pInfo, pSupp, id);
   QUERY_CHECK_CODE(code, lino, _end);
-
-  //   if (pBlock->info.rows < pBlock->info.capacity) {
-  //   return TSDB_CODE_SUCCESS;
-  // }
-
-  // code = blockDataEnsureCapacity(pRes, newRowsNum);
-  // if (code != TSDB_CODE_SUCCESS) {
-  //   qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  //   return code;
-  // }
-
-  // QUERY_CHECK_CODE(code, lino, _end);
 
   code = doAnalysisImpl(pInfo, pSupp, pRes, id);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -774,6 +868,11 @@ static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputati
           pSupp->targetSlot = pTargetNode->slotId;
           pSupp->targetType = pTargetNode->node.resType.type;
 
+          if (!IS_MATHABLE_TYPE(pSupp->targetType)) {
+            qError("invalid target column type %d for imputation, must be numeric or timestamp", pSupp->targetType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
+
           // let's set the moment as the default imputation algorithm
           pInfo->options = taosStrdup("algo=moment");
         } else {
@@ -789,8 +888,13 @@ static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputati
           pSupp->targetSlot = pTargetNode->slotId;
           pSupp->targetType = pTargetNode->node.resType.type;
 
-          for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
-            SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
+          if (!IS_MATHABLE_TYPE(pSupp->targetType)) {
+            qError("invalid target column type %d for imputation, must be numeric or timestamp", pSupp->targetType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
+
+          SNode* pNode = NULL;
+          FOREACH(pNode, pFunc->pParameterList) {
             if (nodeType(pNode) == QUERY_NODE_COLUMN) {
               SColumnNode* pColNode = (SColumnNode*)pNode;
               if (pColNode->isPrimTs && (!assignTs)) {
@@ -1067,6 +1171,12 @@ int32_t parseFreq(SImputationSupp* pSupp, SHashObj* pHashMap, const char* id) {
       return TSDB_CODE_INVALID_PARA;
     }
 
+    if (len >= sizeof(pSupp->freq)) {
+      qError("%s freq parameter length %d exceeds maximum %zu", id, len, sizeof(pSupp->freq) - 1);
+      taosMemoryFreeClear(p);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (code == TSDB_CODE_SUCCESS) {
       tstrncpy(pSupp->freq, pFreq, len + 1);
       qDebug("%s data freq:%s", id, pSupp->freq);
@@ -1265,6 +1375,7 @@ _OVER:
 
 int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
+  qError("createGenericAnalysisOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void analysisDestroyOperatorInfo(void* param) {}

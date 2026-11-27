@@ -1,0 +1,21 @@
+case_id	stmt_family	rule_name	branch_sig	sql	err_type
+STMT_NEG_001	SelectStmt	select_statement	missing_select	select	incomplete
+STMT_NEG_002	SelectStmt	query_specification	missing_item	select from t1;	syntax
+STMT_NEG_003	GrantStmt	grant_privilege_statement	missing_principal	grant read to;	incomplete
+STMT_NEG_004	GrantStmt	revoke_privilege_statement	missing_from	revoke drop on table db1.t1 from;	incomplete
+STMT_NEG_005	CreateUserStmt	create_user_statement	missing_pass	create user u1 pass;	incomplete
+STMT_NEG_006	CreateDatabaseStmt	create_database_statement	missing_value	create database db1 buffer;	incomplete
+STMT_NEG_007	CreateTableStmt	create_table_statement	missing_rp	create table db1.t1(ts timestamp, v int;	incomplete
+STMT_NEG_008	CreateTableStmt	create_table_statement	stable_missing_tags	create stable db1.s1(ts timestamp, v int);	incomplete
+STMT_NEG_009	ShowStmt	show_statement	invalid_scope	show db1 streams;	syntax
+STMT_NEG_010	KillStmt	kill_statement	missing_id	kill query;	incomplete
+STMT_NEG_011	TopicStmt	create_topic_statement	missing_as	create topic tp1 select v from t1;	syntax
+STMT_NEG_012	CompactStmt	compact_statement	missing_db	compact database;	incomplete
+STMT_NEG_013	ScanStmt	scan_statement	missing_db	scan database;	incomplete
+STMT_NEG_014	RollupStmt	rollup_statement	missing_db	rollup database;	incomplete
+STMT_NEG_015	TrimDatabaseWalStmt	trim_database_wal_statement	missing_db	trim database wal;	syntax
+STMT_NEG_016	BalanceVgroupLeaderStmt	balance_vgroup_leader_statement	invalid_on	balance vgroup leader on;	incomplete
+STMT_NEG_017	RedistributeVgroupStmt	redistribute_vgroup_statement	missing_dnode	redistribute vgroup 9 dnode;	incomplete
+STMT_NEG_018	CreateMountStmt	create_mount_statement	missing_from	create mount if not exists m1 on dnode 1;	incomplete
+STMT_NEG_019	DropFunctionStmt	drop_function_statement	missing_name	drop function if exists;	incomplete
+STMT_NEG_020	AlterTableStmt	alter_table_statement	missing_column	alter table db1.t1 add column;	incomplete

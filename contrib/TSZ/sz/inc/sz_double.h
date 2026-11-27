@@ -32,10 +32,10 @@ void SZ_compress_args_double_StoreOriData(double* oriData, size_t dataLength, un
 
 bool SZ_compress_args_double_NoCkRngeNoGzip_1D( unsigned char* newByteData, double *oriData, size_t dataLength, double realPrecision, size_t *outSize, double valueRangeSize, double medianValue_d);
 
-void SZ_compress_args_double_withinRange(unsigned char* newByteData, double *oriData, size_t dataLength, size_t *outSize);
+int SZ_compress_args_double_withinRange(unsigned char* newByteData, size_t newByteDataCapacity, double *oriData, size_t dataLength, size_t *outSize);
 
 
-int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, sz_params* params);
+int SZ_compress_args_double(double *oriData, size_t r1, unsigned char* newByteData, size_t *outSize, size_t newByteDataCapacity, sz_params* params);
 
 
 

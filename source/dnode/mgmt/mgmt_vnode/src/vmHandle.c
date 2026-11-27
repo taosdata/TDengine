@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -20,8 +22,14 @@
 #include "vnd.h"
 #include "vnodeInt.h"
 #include "tencrypt.h"
+#include "tdef.h"  // TSDB_MIN_PRECISION / TSDB_MAX_PRECISION / TSDB_DEFAULT_PRECISION
 
 extern taos_counter_t *tsInsertCounter;
+
+#ifdef TD_ENTERPRISE
+// Forward declaration for enterprise function
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
 
 // Forward declaration for function defined in metrics.c
 extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp,
@@ -54,6 +62,21 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
+  /*
+  pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    SVnodeLoad vload = {.vgId = pVnode->vgId, .syncState = TAOS_SYNC_STATE_OFFLINE};
+
+    if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+      dError("failed to push vnode load");
+    }
+    pIter = taosHashIterate(pMgmt->closedHash, pIter);
+  }
+*/
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
@@ -71,6 +94,32 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
       dError("vgId:%d, failed to vnodeSetSyncTimeout", pVnode->vgId);
     }
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+
+void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray **ppQueries) {
+  // Defense-in-depth: scan for orphan non-replicated txns whose MNode STrans
+  // ROLLBACK was never delivered (extremely rare given TRN_POLICY_RETRY).
+  // Primary path (Client HB  ->  MNode timeout  ->  STrans) is robust enough that
+  // once-per-hour is more than sufficient for this fallback.
+  static int64_t lastRunMs = 0;
+  int64_t        now = taosGetTimestampMs();
+  if (now - lastRunMs < TSDB_ORPHAN_TXN_SCAN_MS) return;
+  lastRunMs = now;
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pMgmt->runngingHash, pIter))) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode != NULL && *ppVnode != NULL && !(*ppVnode)->failed) {
+      int32_t scanCode = vnodeCollectIdleTxns((*ppVnode)->pImpl, ppQueries);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeCollectIdleTxns failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+    }
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
@@ -150,7 +199,9 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   if (tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs) != 0) {
     dError("failed to get tfs monitor info");
   }
-  taosArrayDestroy(pVloads);
+  // pVloads comes from vmGetVnodeLoads()->vnodeGetLoad(), whose SVnodeLoad entries may embed a pSnapProgress array.
+  // Use the shared helper so those inner arrays are freed too (avoid leak).
+  tFreeSVnodeLoadArray(pVloads);
 }
 
 void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
@@ -177,7 +228,14 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   }
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
-  if (keys) taosMemoryFree(keys);
+  // [TD-SEC-2026-ITEM84] taos_counter_get_vgroup_ids now returns a *copy* of each key string
+  // (to avoid a use-after-free on the live sample map). Free every copied string before the array.
+  if (keys) {
+    for (int i = 0; i < list_size; i++) {
+      if (keys[i]) taosMemoryFree(keys[i]);
+    }
+    taosMemoryFree(keys);
+  }
   return;
 }
 
@@ -216,6 +274,45 @@ void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
   taosHashCleanup(pValidVgroups);
 }
 
+// [TD-SEC-2026-034] replica/learnerReplica/selfIndex/learnerSelfIndex are attacker-controlled int8 fields
+// of SCreateVnodeReq/SAlterVnodeReplicaReq. The decoder always reads exactly TSDB_MAX_REPLICA (resp.
+// TSDB_MAX_LEARNER_REPLICA) entries, so the counters are never checked against the arrays they describe:
+//   - replica/learnerReplica are used as loop bounds when filling the fixed-size
+//     syncCfg.nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA] (vmGenerateVnodeCfg, vnodeAlterReplica),
+//   - selfIndex/learnerSelfIndex are used to index replicas[]/learnerReplicas[] directly.
+// An oversized counter therefore overflows nodeInfo (a stack array in the create path), and an out-of-range
+// index reads past the request. Every handler must run this check before touching those arrays.
+// The valid ranges below mirror what the mnode produces in mndAddCreateVnodeAction/mndAddAlterVnodeReplicaAction:
+// selfIndex is assigned a slot of replicas[] (so it stays below replica), -1 meaning "this dnode is a learner",
+// and at least one of the two indexes always points at a real entry.
+bool vmIsReplicaCfgValid(int32_t vgId, int32_t replica, int32_t selfIndex, int32_t learnerReplica,
+                         int32_t learnerSelfIndex) {
+  if (replica < 1 || replica > TSDB_MAX_REPLICA) {
+    dError("vgId:%d, invalid replica:%d in request, valid range is [1, %d]", vgId, replica, TSDB_MAX_REPLICA);
+    return false;
+  }
+  if (learnerReplica < 0 || learnerReplica > TSDB_MAX_LEARNER_REPLICA) {
+    dError("vgId:%d, invalid learnerReplica:%d in request, valid range is [0, %d]", vgId, learnerReplica,
+           TSDB_MAX_LEARNER_REPLICA);
+    return false;
+  }
+  if (selfIndex < -1 || selfIndex >= replica) {
+    dError("vgId:%d, invalid selfIndex:%d in request, valid range is [-1, %d)", vgId, selfIndex, replica);
+    return false;
+  }
+  if (learnerSelfIndex < -1 || learnerSelfIndex >= learnerReplica) {
+    dError("vgId:%d, invalid learnerSelfIndex:%d in request, valid range is [-1, %d)", vgId, learnerSelfIndex,
+           learnerReplica);
+    return false;
+  }
+  if (selfIndex < 0 && learnerSelfIndex < 0) {
+    dError("vgId:%d, invalid request, neither selfIndex:%d nor learnerSelfIndex:%d refers to this dnode", vgId,
+           selfIndex, learnerSelfIndex);
+    return false;
+  }
+  return true;
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 
@@ -232,6 +329,16 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->isTsma = pCreate->isTsma;
   pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
+  // [Security hardening for finding 180] precision is later used as an index into the 3-element
+  // global tick tables (tsTickPerMin / tsTickPerHour / tsSecTimes) in the tsdb layer. An out-of-range
+  // value would read past those tables or divide by a zero/garbage slot (SIGFPE -> whole taosd crash).
+  // The mnode is the authoritative source and already validates the range, but we clamp here as
+  // defense-in-depth so a malformed/compromised request can never reach the tick tables.
+  if (pCfg->tsdbCfg.precision < TSDB_MIN_PRECISION || pCfg->tsdbCfg.precision > TSDB_MAX_PRECISION) {
+    dError("vgId:%d, invalid precision %d in create vnode request, fallback to default", pCreate->vgId,
+           pCfg->tsdbCfg.precision);
+    pCfg->tsdbCfg.precision = TSDB_DEFAULT_PRECISION;
+  }
   pCfg->tsdbCfg.days = pCreate->daysPerFile;
   pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep1;
@@ -344,8 +451,15 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // normalize before validating: requests from a pre-learner mnode carry no learner fields at all, so
+  // learnerSelfIndex is left at its zero-initialized value and must be reset to -1 first
   if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
+  }
+
+  if (!vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex)) {
+    (void)tFreeSCreateVnodeReq(&req);
+    return TSDB_CODE_INVALID_MSG;
   }
 
   dInfo(
@@ -372,7 +486,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     dInfo("vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.vgId, i, req.learnerReplicas[i].fqdn,
-          req.learnerReplicas[i].port, req.replicas[i].id);
+          req.learnerReplicas[i].port, req.learnerReplicas[i].id);
   }
 
   SReplica *pReplica = NULL;
@@ -658,7 +772,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
              pInfo->config.syncCfg.replicaNum);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_REPLICA);
     } else if (pInfo->config.vgId != pCfg->vgId) {
-      dError("mount:%s, vnode path:%s, vgId:%d not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
+      dError("mount:%s, vnode path:%s, vgId:%d does not match:%d", pReq->mountName, pCfg->path, pInfo->config.vgId,
              pCfg->vgId);
       TAOS_CHECK_EXIT(TSDB_CODE_FILE_CORRUPTED);
     } else if (pInfo->config.tdbEncryptData.encryptAlgrName[0] != '\0' ||
@@ -680,7 +794,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   int32_t nVgCfg = taosArrayGetSize(pVgCfgs);
   int32_t nDiskPrimary = taosArrayGetSize(pDiskPrimarys);
   if (nVgCfg != nDiskPrimary) {
-    dError("mount:%s, nVgCfg:%d not match nDiskPrimary:%d", pReq->mountName, nVgCfg, nDiskPrimary);
+    dError("mount:%s, nVgCfg:%d does not match nDiskPrimary:%d", pReq->mountName, nVgCfg, nDiskPrimary);
     TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
   }
   if (nVgCfg > 1) {
@@ -693,7 +807,7 @@ static int32_t vmRetrieveMountVnodes(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *p
   for (int32_t i = 0; i < nVgCfg; ++i) {
     SVnodeInfo *pInfo = TARRAY_GET_ELEM(pVgCfgs, i);
     if (clusterId != pInfo->config.syncCfg.nodeInfo->clusterId) {
-      dError("mount:%s, clusterId:%" PRId64 " not match:%" PRId64, pReq->mountName, clusterId,
+      dError("mount:%s, clusterId:%" PRId64 " does not match:%" PRId64, pReq->mountName, clusterId,
              pInfo->config.syncCfg.nodeInfo->clusterId);
       TAOS_CHECK_EXIT(TSDB_CODE_MND_INVALID_CLUSTER_ID);
     }
@@ -869,7 +983,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
         tb_uid_t    suid = 0;
         SMeta      *pMeta = vnode.pMeta;
 
-        metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+        metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
         if (!suidList && !(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
           TSDB_CHECK_CODE(terrno, lino, _exit0);
         }
@@ -890,7 +1004,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
           }
           if (mr.me.uid != suid || mr.me.type != TSDB_SUPER_TABLE ||
               mr.me.colCmpr.nCols != mr.me.stbEntry.schemaRow.nCols) {
-            dError("mount:%s, vnode:%d, db:%" PRId64 ", stb info not match, suid:%" PRIu64 " expected:%" PRIu64
+            dError("mount:%s, vnode:%d, db:%" PRId64 ", stb info does not match, suid:%" PRIu64 " expected:%" PRIu64
                    ", type:%" PRIi8 " expected:%d, nCmprCols:%d nCols:%d on dnode:%d",
                    pReq->mountName, pVgInfo->vgId, pVgInfo->dbId, mr.me.uid, suid, mr.me.type, TSDB_SUPER_TABLE,
                    mr.me.colCmpr.nCols, mr.me.stbEntry.schemaRow.nCols, pReq->dnodeId);
@@ -1152,7 +1266,7 @@ static int32_t vmMountVnode(SVnodeMgmt *pMgmt, const char *path, SVnodeCfg *pCfg
     if (oldInfo.config.dbId != info.config.dbId) {
       code = TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH;
       vError("vgId:%d, mount:%s, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
-             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             ", newDbId:%" PRId64 "(%s) at cluster:%" PRId64 ", code:%s",
              oldInfo.config.vgId, req->mountName, hostDir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
@@ -1206,6 +1320,13 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pCreateReq->learnerReplica == 0) {
     pCreateReq->learnerSelfIndex = -1;
   }
+
+  if (!vmIsReplicaCfgValid(pCreateReq->vgId, pCreateReq->replica, pCreateReq->selfIndex, pCreateReq->learnerReplica,
+                           pCreateReq->learnerSelfIndex)) {
+    (void)tFreeSMountVnodeReq(&req);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   for (int32_t i = 0; i < pCreateReq->replica; ++i) {
     dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountName, pCreateReq->vgId, i,
           pCreateReq->replicas[i].fqdn, pCreateReq->replicas[i].port, pCreateReq->replicas[i].id);
@@ -1225,7 +1346,7 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
     (void)tFreeSMountVnodeReq(&req);
     code = TSDB_CODE_INVALID_MSG;
-    dError("mount:%s, vgId:%d, dnodeId:%d ep:%s:%u not matched with local dnode, reason:%s", req.mountName,
+    dError("mount:%s, vgId:%d, dnodeId:%d ep:%s:%u does not match the local dnode, reason:%s", req.mountName,
            pCreateReq->vgId, pReplica->id, pReplica->fqdn, pReplica->port, tstrerror(code));
     return code;
   }
@@ -1299,8 +1420,16 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
+  }
+
+  // [TD-SEC-2026-034] validate before the loops below index replicas[]/learnerReplicas[] and before
+  // vnodeAlterReplica() uses the counters as bounds on syncCfg.nodeInfo
+  if (!vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter vnode type since invalid msg", req.vgId);
+    return -1;
   }
 
   dInfo("vgId:%d, vnode management handle msgType:%s, start to process alter-node-type-request", req.vgId,
@@ -1330,7 +1459,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pMgmt->name);
 
   int32_t vgId = req.vgId;
   dInfo("vgId:%d, start to alter vnode type replica:%d selfIndex:%d strict:%d changeVersion:%d", vgId, req.replica,
@@ -1342,14 +1471,6 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     SReplica *pReplica = &req.learnerReplicas[i];
     dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
-  }
-
-  if (req.replica <= 0 || (req.selfIndex < 0 && req.learnerSelfIndex < 0) || req.selfIndex >= req.replica ||
-      req.learnerSelfIndex >= req.learnerReplica) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, failed to alter replica since invalid msg", vgId);
-    vmReleaseVnode(pMgmt, pVnode);
-    return -1;
   }
 
   SReplica *pReplica = NULL;
@@ -1419,7 +1540,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1450,7 +1571,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pMgmt->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pMgmt->name);
 
   vmReleaseVnode(pMgmt, pVnode);
 
@@ -1483,6 +1604,14 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmProcessSetKeepVersionReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  // the mgmt queue does not validate the message head, so check before touching pCont: the ntohl below
+  // writes 8 bytes and the decoder length would underflow for a shorter body
+  if (pMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    dError("invalid rpc msg with no msg head at pCont, type:%s, contLen:%d", TMSG_INFO(pMsg->msgType), pMsg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
@@ -1617,6 +1746,15 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     alterReq.learnerSelfIndex = -1;
   }
 
+  // [TD-SEC-2026-034] validate before the loops below index replicas[]/learnerReplicas[] and before
+  // vnodeAlterReplica() uses the counters as bounds on syncCfg.nodeInfo
+  if (!vmIsReplicaCfgValid(alterReq.vgId, alterReq.replica, alterReq.selfIndex, alterReq.learnerReplica,
+                           alterReq.learnerSelfIndex)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter replica since invalid msg", alterReq.vgId);
+    return -1;
+  }
+
   int32_t vgId = alterReq.vgId;
   dInfo(
       "vgId:%d, vnode management handle msgType:%s, start to alter vnode replica:%d selfIndex:%d leanerReplica:%d "
@@ -1626,18 +1764,11 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
-    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
   for (int32_t i = 0; i < alterReq.learnerReplica; ++i) {
     SReplica *pReplica = &alterReq.learnerReplicas[i];
-    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
-  }
-
-  if (alterReq.replica <= 0 || (alterReq.selfIndex < 0 && alterReq.learnerSelfIndex < 0) ||
-      alterReq.selfIndex >= alterReq.replica || alterReq.learnerSelfIndex >= alterReq.learnerReplica) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, failed to alter replica since invalid msg", vgId);
-    return -1;
+    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
 
   SReplica *pReplica = NULL;
@@ -1650,7 +1781,7 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pReplica->id != pMgmt->pData->dnodeId || pReplica->port != tsServerPort ||
       strcmp(pReplica->fqdn, tsLocalFqdn) != 0) {
     terrno = TSDB_CODE_DNODE_NOT_MATCH_WITH_LOCAL;
-    dError("vgId:%d, dnodeId:%d ep:%s:%u in request, ep:%s:%u in lcoal, %s", vgId, pReplica->id, pReplica->fqdn,
+    dError("vgId:%d, dnodeId:%d ep:%s:%u in request, ep:%s:%u in local, %s", vgId, pReplica->id, pReplica->fqdn,
            pReplica->port, tsLocalFqdn, tsServerPort, tstrerror(terrno));
     return -1;
   }
@@ -1866,6 +1997,160 @@ _OVER:
   return terrno;
 }
 
+extern int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
+
+int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                         code = 0;
+  SDnodeQuerySnapSendProgressRsp  rsp = {0};
+  SArray                         *pVnodes = NULL;
+  int8_t                         *pRsp = NULL;
+  int32_t                         rspLen = 0;
+
+  rsp.dnodeId = pMgmt->pData->dnodeId;
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  pVnodes = taosArrayInit(taosHashGetSize(pMgmt->runngingHash), sizeof(SVnodeObj *));
+  if (!pVnodes) {
+    (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+    code = terrno;
+    goto _OVER;
+  }
+  void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (*ppVnode && (*ppVnode)->pImpl) {
+      taosArrayPush(pVnodes, ppVnode);
+    }
+    pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  int32_t numOfVnodes = (int32_t)taosArrayGetSize(pVnodes);
+  rsp.pVnodeInfos = taosMemoryCalloc(numOfVnodes, sizeof(SSnapSendVnodeInfo));
+  if (!rsp.pVnodeInfos) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  rsp.numOfVnodes = 0;
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj **ppVnode = taosArrayGet(pVnodes, i);
+    SVnodeObj  *pVnode = *ppVnode;
+    SSnapSendVnodeInfo *pInfo = &rsp.pVnodeInfos[rsp.numOfVnodes];
+    if (vnodeGetSnapSendProgress(pVnode->pImpl, rsp.dnodeId, pInfo) == 0) {
+      rsp.numOfVnodes++;
+    }
+  }
+
+  rspLen = tSerializeSDnodeQuerySnapSendProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  pRsp = rpcMallocCont(rspLen);
+  if (!pRsp) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSDnodeQuerySnapSendProgressRsp(pRsp, rspLen, &rsp);
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_OVER:
+  taosArrayDestroy(pVnodes);
+  tFreeSDnodeQuerySnapSendProgressRsp(&rsp);
+  return code;
+}
+
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                       code = 0;
+  SDnodeQueryCompactProgressReq req = {0};
+  void                         *pRsp = NULL;
+  SVnodeObj                   **ppVnodes = NULL;
+  int32_t                       numOfVnodes = 0;
+
+  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code != 0) {
+    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    goto _exit;
+  }
+
+  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
+
+  // collect compact progress from all running vnodes
+  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
+  if (pProgressArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("dnode:%d, failed to get vnode list, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; i++) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL) {
+      continue;
+    }
+    if (pVnode->failed || pVnode->pImpl == NULL) {
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+#ifdef TD_ENTERPRISE
+    SQueryCompactProgressRsp vnodeRsp = {0};
+    vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
+    if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
+      if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
+        dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
+      }
+    }
+#endif
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+  taosMemoryFree(ppVnodes);
+
+  SDnodeQueryCompactProgressRsp rsp = {0};
+  rsp.dnodeId       = pMgmt->pData->dnodeId;
+  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
+  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
+
+  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = rspLen;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  if (tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  taosArrayDestroy(pProgressArray);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_exit:
+  return code;
+}
+
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -1880,8 +2165,16 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_TABLE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_UPDATE_TAG_VAL, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+#ifdef TD_ENTERPRISE
+  if (dmSetMgmtHandle(pArray, TDMT_VND_BACKUP_SNAP, vmPutMsgToBackupQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_SYNC_COMMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+#endif
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSUBTABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSTB_REF_DBS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_CHECK_HAS_CTB, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_CHECK_STB_ALTER_NAME, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VTABLE_REF_RESOLVE, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VTB_TAG_COND, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_CFG, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -1899,7 +2192,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SUBSCRIBE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_DELETE_SUB, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_COMMIT_OFFSET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SEEK, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_WALINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_COMMITTEDINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -1939,14 +2231,35 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_MOUNT_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RETRIEVE_MOUNT_PATH, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CLOSE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_OPEN_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT_ELECTION is intentionally NOT registered here.
+  // Sync election-timeout messages are produced only by this node's own local
+  // timer (syncNodeEqElectTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must
+  // never arrive over the network. Registering it as a network-dispatched type
+  // allowed an unauthenticated peer to force a re-election (see finding 265).
+  // The local enqueue path does not use this dispatch table, so removing the
+  // registration does not affect legitimate timer processing.
+  
+  // SECURITY FIX (finding item 52): TDMT_SYNC_CLIENT_REQUEST / TDMT_SYNC_CLIENT_REQUEST_BATCH are
+  // *internal loopback* message types produced only by the local syncNodePropose() path and must
+  // never be accepted from the network. Registering them here made this dnode's sync queue
+  // reachable from any host that can reach port 6030, letting a non-member forge a raft entry
+  // (arbitrary originalRpcType/dataLen/data) that a leader would append, persist, replicate and
+  // apply via the mnode/vnode FSM (full cluster takeover / config change / crash). They are now
+  // deliberately NOT registered, so dmProcessRpcMsg drops such frames (TSDB_CODE_MSG_NOT_PROCESSED)
+  // before they can reach syncNodeOnClientRequest. The local propose path enqueues these messages
+  // directly via syncEqMsg and is therefore unaffected.
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
@@ -1957,7 +2270,14 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PREP_SNAPSHOT, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_FORCE_FOLLOWER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT is intentionally NOT registered here. Ping/role
+  // timer messages are produced only by this node's own local timer
+  // (syncNodeEqPingTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must never
+  // arrive over the network. Registering it as a network-dispatched type allowed
+  // an unauthenticated peer to trigger syncNodeTimerRoutine at an attacker-chosen
+  // rate (see finding 265). The local enqueue path does not use this dispatch
+  // table, so removing the registration does not affect legitimate timer
+  // processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
@@ -1970,6 +2290,10 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
+  // Transaction messages
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_COMMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_ROLLBACK, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 
@@ -2020,4 +2344,104 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+int32_t vmProcessCloseVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SCloseVnodeReq req = {0};
+  if (tDeserializeSCloseVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to close vnode", vgId);
+
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to close since vnode not found", vgId);
+    tFreeSCloseVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_EXIST;
+    return terrno;
+  }
+
+  vmCloseVnode(pMgmt, pVnode, false, true);
+
+  dInfo("vgId:%d, vnode is closed", vgId);
+  tFreeSCloseVnodeReq(&req);
+  return 0;
+}
+
+int32_t vmProcessOpenVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SOpenVnodeReq req = {0};
+  if (tDeserializeSOpenVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to open vnode", vgId);
+
+  // Check if vnode is already running
+  SVnodeObj *pExist = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pExist != NULL) {
+    vmReleaseVnode(pMgmt, pExist);
+    dError("vgId:%d, vnode is already open", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    return terrno;
+  }
+
+  // Check if vnode is in closedHash
+  SVnodeObj *pClosed = NULL;
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  int32_t r = taosHashGetDup(pMgmt->closedHash, &vgId, sizeof(int32_t), (void *)&pClosed);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  if (r != 0 || pClosed == NULL) {
+    dError("vgId:%d, failed to open since vnode is not in closed state", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_CLOSED;
+    return terrno;
+  }
+
+  int32_t diskPrimary = pClosed->diskPrimary;
+  int32_t vgVersion = pClosed->vgVersion;
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
+
+  dInfo("vgId:%d, begin to open vnode at %s", vgId, path);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  SWrapperCfg wrapperCfg = {
+      .vgId = vgId,
+      .vgVersion = vgVersion,
+      .dropped = 0,
+      .diskPrimary = diskPrimary,
+  };
+  snprintf(wrapperCfg.path, sizeof(wrapperCfg.path), "%s", path);
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    vnodeClose(pImpl);
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start vnode since %s", vgId, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  // Note: vmOpenVnode already called vmUnRegisterClosedState which frees pClosed
+  // and removes it from closedHash. Do NOT access pClosed after vmOpenVnode.
+
+  dInfo("vgId:%d, vnode is opened successfully", vgId);
+  tFreeSOpenVnodeReq(&req);
+  return 0;
 }

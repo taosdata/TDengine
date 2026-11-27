@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -48,18 +50,21 @@ void mndDropCachedTokensByUser(const char* user) {
 
 
 int32_t mndProcessCreateTokenReq(SRpcMsg *pReq) {
+  mError("failed to process create token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 
 
 static int32_t mndProcessAlterTokenReq(SRpcMsg *pReq) {
+  mError("failed to process alter token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
 
 
 static int32_t mndProcessDropTokenReq(SRpcMsg *pReq) {
+  mError("failed to process drop token req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 

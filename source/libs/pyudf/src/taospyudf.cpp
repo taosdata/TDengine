@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define Py_LIMITED_API 0x030A0000
 #include <Python.h>
 
@@ -1148,7 +1165,8 @@ int32_t pyOpen(SScriptUdfEnvItem *items, int numItems) {
   }
 
   fs::path logPath = logDir / "taospyudf.log";
-  plog::init(plog::info, logPath.c_str(), 50 * 1024 * 1024, 5);
+  std::string logPathString = logPath.string();
+  plog::init(plog::info, logPathString.c_str(), 50 * 1024 * 1024, 5);
 
 #ifdef TAOSPYUDF_SELF_DSO
   if (!selfDsoErr.empty()) {

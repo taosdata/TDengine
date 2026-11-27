@@ -1,0 +1,1315 @@
+---
+sidebar_label: 联邦查询
+title: 联邦查询
+toc_max_heading_level: 3
+---
+
+联邦查询（Federated Query）允许 TDengine 在查询执行时读取外部数据源，并与 TDengine 本地数据在同一条 SQL 中完成过滤、聚合、排序、关联和窗口计算。使用联邦查询时无需预先将外部数据迁移到 TDengine。
+
+外部访问通过外部数据源（External Source）对象定义。该对象保存访问外部系统所需的连接信息，并按数据源类型选择相应的连接器完成元数据获取、读取和结果转换。
+
+## 功能范围
+
+联邦查询仅可用于独立的 `SELECT` 查询，支持 MySQL、PostgreSQL、InfluxDB 1.8.x（OSS）和 3.x、SQL Server（2019 / 2022）和 Oracle（11g Release 2 及以上）作为外部数据源。除没有对应概念或无法映射类型的场景外，外部表可使用 TDengine 的全部查询功能，并可与本地表或其他外部源表组合查询。
+
+### 支持能力
+
+联邦查询支持以下能力：
+
+- 外部数据源的创建、查看、修改、删除和刷新。
+- 跨数据源查询，以及本地表与外部表联合查询。
+- 虚拟表引用外部数据源的表列。
+- 查询执行过程的权限、审计和可观测性。
+
+### 不支持场景
+
+以下场景不能引用外部表：
+
+- 数据订阅，例如 `CREATE TOPIC ... AS SELECT ... FROM 外部表`，或涉及外部表的 `CREATE TOPIC ... AS DATABASE/STABLE`。
+- 写入子查询，例如 `INSERT INTO 本地表 SELECT ... FROM 外部表`。
+- 外部系统写入、外部对象的 DDL 操作，以及跨数据源强一致性事务。
+- 外部源具备但 TDengine 不具备的功能。
+
+### 运行平台
+
+Linux x64、Linux ARM64 和 Windows x64 上都可以查询 MySQL、PostgreSQL、InfluxDB、SQL Server 和 Oracle。Windows x64 的运行库如下：
+
+| 外部源 | Windows x64 |
+| --- | --- |
+| MySQL | 客户端库 `libmariadb.dll` 放在 `taosd` 同目录。 |
+| PostgreSQL | 客户端库 `libpq.dll` 放在 `taosd` 同目录。 |
+| InfluxDB | 1.8 使用内置于 `taosd` 的 HTTP 连接器，无需额外运行库。3.x 使用 `taos_ext_influx_arrow.dll`，仅支持 HTTP API，不支持 Arrow Flight SQL，也不需要 Arrow 运行库；未设置 `protocol` 或设置为 `flight_sql` 时自动改用 HTTP API。 |
+| SQL Server | 使用 ODBC。 |
+| Oracle | 使用 ODBC。Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。11g、12c 和 18c 使用 19c 客户端，19c 及以上使用 23ai 客户端。 |
+
+SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令认证。
+
+### 流式计算
+
+流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 3.x、InfluxDB 1.8、SQL Server 和 Oracle 外部源。InfluxDB 1.8 的限制见 [使用 InfluxDB 1.8 作为触发源](../../07-stream-processing/01-syntax.md#使用-influxdb-18-作为触发源)。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
+
+### 兼容性
+
+该功能为企业版功能。默认关闭时，现有本地查询行为不变；启用后仅增加外部数据源对象和联邦查询行为。无法支持的语义会明确报错，不会返回不确定结果。当前版本以 SQL 语句提供外部数据源管理和联邦查询能力，不新增独立编程接口。
+
+## 使用前准备
+
+使用前需要在客户端和服务端启用 `federatedQueryEnable`。联邦查询的连接、超时、连接池和缓存配置由组件配置统一管理：
+
+- 服务端参数参见 [taosd 联邦查询配置](../../12-operations-and-tooling/03-components/01-taosd.md#联邦查询相关)。
+- 客户端参数参见 [taosc 联邦查询配置](../../12-operations-and-tooling/03-components/02-taosc.md#联邦查询相关)。
+
+**注意事项**：客户端和服务端均支持的联邦查询参数应保持一致；修改参数后是否立即生效以组件配置文档中的“动态修改”说明为准。
+
+### 联邦查询依赖库
+
+使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 在 Linux 上使用 `libtaos_ext_influx_arrow.so` 与 Apache Arrow Flight SQL 运行库，在 Windows x64 上使用 `taos_ext_influx_arrow.dll`（仅 HTTP API，不需要 Arrow 运行库）。SQL Server 在 Linux 上使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，在 Windows x64 上使用 ODBC。Oracle 在 Linux 上使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见 [版本和兼容性](#外部数据库版本)），在 Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。
+
+InfluxDB 1.8 连接器内置于企业版 `taosd`。Linux x64、Linux ARM64 和 Windows x64 上均只使用 HTTP，无需安装联邦查询依赖库、Arrow 运行库或 InfluxDB 客户端库。
+
+**注意事项**：对于需要第三方运行库的数据源，未安装对应运行库时，无法创建或查询相应类型的外部数据源。升级 TDengine 时，应同时升级版本匹配的联邦查询依赖库安装包。
+
+### 联邦查询插件包（第三方运行库）
+
+除客户端与服务端配置外，还可以单独安装联邦查询插件包（包含第三方运行库），用于补齐外部连接器依赖。
+
+- 下载名称：`TDengine TSDB Federated Query Plugin`。
+- 下载渠道：自 `v3.4.3.0` 起可从下载中心获取。
+- 当前支持平台：Linux x64、Linux ARM64、Windows x64。下面的目录结构是 Linux 插件包。
+
+插件包解压后通常包含如下结构：
+
+```text
+.
+├── lib
+│   ├── libarrow_flight.so
+│   ├── libarrow_flight_sql.so
+│   ├── libarrow.so
+│   ├── libmariadb.so
+│   ├── libparquet.so
+│   ├── libpq.so
+│   └── libtaos_ext_influx_arrow.so
+├── MANIFEST.txt
+└── README.txt
+```
+
+**说明**
+
+- `libmariadb.so`、`libpq.so` 分别用于 MySQL 和 PostgreSQL；`libtaos_ext_influx_arrow.so` 与 Arrow/Parquet 相关库用于 InfluxDB 3.x。InfluxDB 1.8 不依赖其中任何库。
+- SQL Server 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC。缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
+- Oracle 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Oracle Instant Client（19c / 23ai），不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。缺失时 `TYPE = 'oracle'` 的外部源创建与查询均返回外部源类型不支持的错误。
+- 安装后应确保动态链接库路径可被 `taosd` 与 `taosc` 进程加载。
+- Windows x64 上五种外部源都可以查询。MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 1.8 使用内置的 HTTP 连接器，无需额外运行库；InfluxDB 3.x 使用 `taos_ext_influx_arrow.dll`，在 Windows 上仅支持 HTTP API，不支持 Arrow Flight SQL。SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 也放在 `taosd` 同目录。Windows 插件包的安装步骤尚未在本文给出。
+- 附录：当前内部下载地址（内网）为 `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`。
+- 该地址为内网临时地址，`v3.4.3.0` 发布后以下载中心提供的正式链接为准。
+- 详细安装与启动步骤将在后续补充。
+
+### 执行节点要求
+
+- 纯联邦查询，即仅读取外部数据源而不读取本地 TSDB 表的查询，不受 `queryPolicy` 影响，必须在 qnode 上执行。使用前应确保集群已部署 qnode；未部署时，查询返回错误。
+- 查询涉及本地 TSDB 表时，本地扫描由相关 vnode 处理；例如，含外部列引用的虚拟表查询会访问其关联的 vnode。
+
+### 权限和安全
+
+密码采用 AES-CBC 加密保存，并在展示和日志中脱敏。外部源访问权限由外部数据库自身控制：创建外部数据源时指定的 `USER`、`PASSWORD` 或 `api_token` 代表该外部源的访问凭证，外部数据库据此决定可访问范围。TDengine 仅允许 root 用户管理外部数据源对象。SQL Server 外部源仅支持 SQL Server Authentication，不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Oracle 外部源仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式。
+
+**注意事项**：外部通信支持加密传输和证书校验。不要在 SQL、日志或应用配置中暴露明文凭证。
+
+## 创建外部数据源
+
+使用 `CREATE EXTERNAL SOURCE` 创建外部数据源。创建和修改操作只保存元数据，不验证网络连通性或账号密码；首次实际查询时才建立外部连接。连接失败或认证失败时，查询会返回相应错误。
+
+### 语法
+
+```sql
+CREATE EXTERNAL SOURCE [IF NOT EXISTS] source_name
+TYPE = 'mysql' | 'postgresql' | 'influxdb' | 'sqlserver' | 'oracle'
+HOST = 'hostname'
+PORT = port_number
+USER = 'username'
+PASSWORD = 'password'
+[DATABASE = database_name]
+[SCHEMA = schema_name]
+[OPTIONS (
+  'option_key' = 'option_value'
+  [, ...]
+)];
+```
+
+### 支持类型
+
+可用的外部源类型及其命名空间如下：
+
+| 类型 | 默认命名空间 | 说明 |
+| ------------ | --- | --- |
+| `mysql`      | `DATABASE` | 访问 MySQL 数据库和表。 |
+| `postgresql` | `DATABASE` 和可选的 `SCHEMA` | `DATABASE` 必填，`SCHEMA` 可作为默认 schema。 |
+| `influxdb`   | `DATABASE` | 访问 InfluxDB 数据库和 Measurement。 |
+| `sqlserver`  | `DATABASE` 和 `SCHEMA`，均可选 | 访问 SQL Server 数据库、schema 和表。短路径或 `USE` 解析时两个分量组合后必须齐全；不注入 `dbo`，也不使用登录账号的默认 schema 兜底。 |
+| `oracle`     | `SCHEMA` | 访问 Oracle schema 和表。Oracle 的对象限定只有 schema 一层；`DATABASE` 是连接使用的服务名，不进入外部对象路径，多个 PDB 时每个 PDB 创建独立外部源。 |
+
+### 字段说明和约束
+
+| 字段 | 是否必填 | 取值或上限 | 说明 |
+| --------------- | --- | --- | --- |
+| `IF NOT EXISTS` | 否 | 固定关键字 | 对象已存在时不报错。 |
+| `source_name`   | 是 | 最大 64 字节 | 外部数据源名称，全局唯一，且不得与本地数据库同名。 |
+| `TYPE`          | 是 | `mysql`、`postgresql`、`influxdb`、`sqlserver`、`oracle` | 外部源类型，不区分大小写，决定连接器和路径解析规则。 |
+| `HOST`          | 是 | 主机名或 IP，最大 256 字节 | 外部数据源地址，支持完整 FQDN。 |
+| `PORT`          | 是 | `1` 到 `65535` | 外部数据源端口。 |
+| `USER`          | 是 | 最大 128 字节 | 外部数据源访问账号。 |
+| `PASSWORD`      | 是 | 最大 128 字节 | 外部数据源访问密码，保存时加密，展示时脱敏。 |
+| `DATABASE`      | MySQL、InfluxDB、SQL Server 可选；PostgreSQL、Oracle 必填 | 最大 64 字节 | 默认数据库。未设置默认数据库时，查询必须显式指定数据库。PostgreSQL 连接建立后不能切换数据库。Oracle 的 `DATABASE` 是服务名，不能填 SID、实例名或 TNS 别名。 |
+| `SCHEMA`        | 否 | 最大 64 字节 | 默认 schema。未设置时，必要的查询必须显式指定 schema。SQL Server 不注入 `dbo` 作为默认值；Oracle 的默认 schema 未设置时需要显式指定。 |
+| `OPTIONS`       | 否 | key 最大 64 字节，value 最大 4095 字节，整体 JSON 最大 4095 字节 | 连接扩展参数。 |
+
+**注意事项**：所有标识符遵循 TDengine 数据库和表名规则：默认情况下限制字符类型且不区分大小写；使用转义标识符后可放宽字符限制且区分大小写。
+
+**SQL Server 命名空间**：`DATABASE` 和 `SCHEMA` 均由源定义中的默认值与本次显式指定的值组合得到。路径中显式给出的分量优先，其余分量取自源默认值；组合后任一分量仍为空时，查询返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`，不做隐式兜底——既不注入 `dbo`，也不使用登录账号的默认 schema。因此三段式列路径要求源同时配置 `DATABASE` 和 `SCHEMA`，四段式列路径要求配置 `DATABASE`，五段式列路径不受此限制。SQL Server 仅支持同一实例内、登录账号有权限的 database，不支持跨实例访问。
+
+**Oracle 命名空间**：Oracle 的对象限定只有 schema 一层，服务名不参与路径。默认 schema 由源定义中的 `SCHEMA` 提供，路径或 `USE` 显式给出的 schema 优先；组合后仍为空时，查询返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`。服务名在连接建立时固定，`ALTER EXTERNAL SOURCE` 修改 `DATABASE` 后仅新建连接生效；多 PDB 时每个 PDB 创建独立外部源，不支持在会话内切换容器。
+
+### OPTIONS 参数
+
+`OPTIONS` 中的 key 和 value 均为字符串。连接器按参数语义进行类型转换，例如将 `'true'` 转换为布尔值。
+
+#### 通用参数
+
+所有外部源均支持以下通用参数：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| -------------------- | --- | --- | --- |
+| `tls_enabled`        | `true` 或 `false` | `false` | 是否启用 TLS 加密连接。 |
+| `tls_ca_cert`        | PEM 文本 | 空，使用系统默认 CA | 用于验证服务端证书，仅在 `tls_enabled = true` 时生效。 |
+| `tls_client_cert`    | PEM 文本 | 空 | 双向 TLS 的客户端证书，仅在 `tls_enabled = true` 时生效，必须与 `tls_client_key` 成对配置。 |
+| `tls_client_key`     | PEM 文本 | 空 | 双向 TLS 的客户端私钥，仅在 `tls_enabled = true` 时生效，必须与 `tls_client_cert` 成对配置。 |
+| `connect_timeout_ms` | `0` 或 `100` 到 `600000` | 使用全局配置 | 单次连接建立超时，单位为毫秒。`0` 表示无限等待；`1` 到 `99` 为非法值。该值覆盖 `federatedQueryConnectTimeoutMs`。 |
+| `read_timeout_ms`    | `0` 或 `100` 到 `600000` | 使用全局配置 | 单次查询读取超时，单位为毫秒。`0` 表示无限等待；`1` 到 `99` 为非法值。该值覆盖 `federatedQueryQueryTimeoutMs`。 |
+
+#### MySQL 参数
+
+MySQL 专属参数如下：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| ---------- | --- | --- | --- |
+| `charset`  | 字符集名称 | `utf8mb4` | 连接字符集，对应 `SET NAMES`。 |
+| `ssl_mode` | `disabled`、`preferred`、`required`、`verify_ca`、`verify_identity` | `preferred` | MySQL SSL 连接模式。设置 `tls_enabled = true` 时不得为 `disabled`。 |
+
+#### PostgreSQL 参数
+
+PostgreSQL 专属参数如下：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| --------- | --- | --- | --- |
+| `sslmode` | `disable`、`allow`、`prefer`、`require`、`verify-ca`、`verify-full` | `prefer` | libpq SSL 连接模式。设置 `tls_enabled = true` 时不得为 `disable`。 |
+
+#### InfluxDB 参数
+
+InfluxDB 1.8 和 3.x 均使用 `TYPE = 'influxdb'`，通过 `version` 区分版本：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `version` | `3` 或 `1.8` | `3` | 访问 InfluxDB 1.8 时必须显式设置为 `1.8`；省略时沿用 3.x 行为。 |
+| `protocol` | `flight_sql` 或 `http` | 3.x 为 `flight_sql`；1.8 为 `http` | 1.8 仅支持 HTTP。3.x 在 Linux 上支持 Arrow Flight SQL（gRPC）和 HTTP API；在 Windows x64 上仅支持 HTTP API，未设置或设置为 `flight_sql` 时自动改用 HTTP API。 |
+| `api_token` | 字符串 | 空 | 3.x 的认证 Token，设置后 `USER` 和 `PASSWORD` 可以为空，展示时脱敏；1.8 不接受非空值，使用 `USER` 和 `PASSWORD` 进行 HTTP Basic 认证。 |
+| `retention_policy` | 非空 RP 名称，区分大小写 | 目标 database 的默认 RP | 仅适用于 1.8，指定读取的保留策略（Retention Policy，RP）。3.x 不接受此选项。 |
+
+InfluxDB 1.8 不接受非空 `SCHEMA`、`tls_client_cert` 或 `tls_client_key`。支持 `tls_enabled`、`tls_ca_cert` 和通用超时参数；`tls_ca_cert` 可以是 CA 证书文件路径或 PEM 文本。服务端关闭认证时，`USER` 和 `PASSWORD` 可以为空。
+
+RP 决定访问哪个保留策略中的 Measurement 数据。显式指定 `retention_policy` 时使用该 RP，不存在时报错，不回退到其他 RP；省略时使用本次访问的 database 的默认 RP，显式访问其他 database 时不会沿用源默认 database 的 RP。直接查询和虚拟表引用均使用同一规则，RP 不增加外部表、列引用或 `SERIES` 目标的路径层级。访问不同 RP 时，需要分别创建外部数据源。
+
+可用 `ALTER EXTERNAL SOURCE influx18_prod SET OPTIONS ('retention_policy' = '')` 删除显式 RP 配置，恢复使用目标 database 的默认 RP。远端默认 RP 变化后，执行 `REFRESH EXTERNAL SOURCE influx18_prod` 更新缓存。
+
+创建或修改外部源时校验配置格式及参数组合，不校验远端 database、RP 或 Measurement 是否存在；查询或查看外部表结构时才进行相关校验。建立连接时会检查服务器报告的版本，不匹配时报错，不自动切换为其他版本。
+
+#### SQL Server 参数
+
+SQL Server 专属参数如下：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| -------------------------- | --- | --- | --- |
+| `trust_server_certificate` | `true` 或 `false` | `false` | 是否校验服务端证书。为 `true` 时跳过证书链和主机名校验，仅在 `tls_enabled = true` 时有意义，建议只用于测试环境；为 `false` 时校验服务端证书链和证书中的主机名。 |
+
+通用 TLS 与超时参数对 SQL Server 同样适用。首版只支持 Microsoft ODBC Driver 18 for SQL Server，不使用 `Encrypt=strict`（TDS 8.0 仅 SQL Server 2022 可用），加密由 `tls_enabled` 统一控制。
+
+#### Oracle 参数
+
+Oracle 没有专属参数，只支持通用参数中的 `connect_timeout_ms` 与 `read_timeout_ms`：
+
+- TLS 相关参数不支持：设置 `tls_enabled = true` 或任一证书参数（`tls_ca_cert`、`tls_client_cert`、`tls_client_key`）时，DDL 阶段返回 `TSDB_CODE_PAR_SYNTAX_ERROR`，外部源不创建。
+- 连接使用明文 TCP；服务端启用 Oracle Net 原生加密（`SQLNET.ENCRYPTION_SERVER` 为 `required` 或 `requested`）时，连接协商原生加密，不需要客户端配置。
+- 不读取钱包、`sqlnet.ora` 或 `tnsnames.ora`，不支持 TCPS 与证书认证；只监听 TCPS 的实例无法连接。
+
+#### 参数行为和注意事项
+
+**说明**：显式设置 `connect_timeout_ms` 或 `read_timeout_ms`，包括设置为 `0`，优先于全局配置；只有未设置该 key 时才回退到全局配置。
+
+**注意事项**：未知 key 会在 DDL 阶段返回 `TSDB_CODE_PAR_SYNTAX_ERROR`，且不会保存。`ALTER EXTERNAL SOURCE ... SET OPTIONS(...)` 按增量合并处理，未写出的 key 保持原值；将 value 设置为空字符串 `''` 可删除任意已有 key。`SHOW` 和 `DESCRIBE` 中，`password`、`api_token`、`tls_client_cert` 和 `tls_client_key` 会脱敏显示。
+
+#### 示例
+
+以下示例创建五个外部数据源：
+
+```sql
+CREATE EXTERNAL SOURCE mysql_prod
+  TYPE = 'mysql'
+  HOST = 'mysql.example.com'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password'
+  DATABASE = power
+  OPTIONS(
+    'connect_timeout_ms' = '5000',
+    'read_timeout_ms' = '30000'
+  );
+
+CREATE EXTERNAL SOURCE pg_prod
+  TYPE = 'postgresql'
+  HOST = 'pg.example.com'
+  PORT = 5432
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = iot
+  SCHEMA = public
+  OPTIONS('sslmode' = 'require');
+
+CREATE EXTERNAL SOURCE IF NOT EXISTS influx_prod
+  TYPE = 'influxdb'
+  HOST = 'influx.example.com'
+  PORT = 8086
+  USER = ''
+  PASSWORD = ''
+  DATABASE = telegraf
+  OPTIONS(
+    'api_token' = 'your_token',
+    'protocol' = 'flight_sql',
+    'tls_enabled' = 'true'
+  );
+
+-- InfluxDB 1.8：HTTP Basic 认证，显式选择 RP
+CREATE EXTERNAL SOURCE influx18_prod
+  TYPE = 'influxdb'
+  HOST = 'influx18.example.com'
+  PORT = 8086
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = telegraf
+  OPTIONS(
+    'version' = '1.8',
+    'protocol' = 'http',
+    'retention_policy' = 'autogen'
+  );
+
+-- 直接查询：表路径不包含 RP
+SELECT
+  time,
+  value
+FROM influx18_prod.telegraf.meters;
+
+-- SQL Server 2022：指定默认 database 和 schema，启用 TLS 并校验服务端证书
+CREATE EXTERNAL SOURCE sqlserver_prod
+  TYPE = 'sqlserver'
+  HOST = 'sqlserver.example.com'
+  PORT = 1433
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  SCHEMA = dbo
+  OPTIONS(
+    'tls_enabled' = 'true',
+    'connect_timeout_ms' = '5000',
+    'read_timeout_ms' = '60000'
+  );
+
+-- 测试环境：加密但不校验证书
+CREATE EXTERNAL SOURCE sqlserver_test
+  TYPE = 'sqlserver'
+  HOST = '192.0.2.10'
+  PORT = 1433
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  OPTIONS(
+    'tls_enabled' = 'true',
+    'trust_server_certificate' = 'true'
+  );
+
+-- Oracle：DATABASE 为服务名，SCHEMA 为默认 schema
+CREATE EXTERNAL SOURCE oracle_prod
+  TYPE = 'oracle'
+  HOST = 'oracle.example.com'
+  PORT = 1521
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = 'ORCLPDB1'
+  SCHEMA = 'TELEMETRY'
+  OPTIONS(
+    'connect_timeout_ms' = '5000',
+    'read_timeout_ms' = '60000'
+  );
+```
+
+以下示例说明超时、未知参数和删除参数的行为：
+
+```sql
+-- 合法：显式设置为无限等待
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '0');
+
+-- 非法：1 到 99 不在允许范围内
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '99');
+
+-- 非法：未知参数会返回 TSDB_CODE_PAR_SYNTAX_ERROR
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('unknown_opt' = 'x');
+
+-- 合法：删除已有参数
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('ssl_mode' = '');
+```
+
+## 管理外部数据源
+
+### 查看外部数据源列表
+
+使用 `SHOW EXTERNAL SOURCES` 查看已注册外部数据源：
+
+#### 语法
+
+```sql
+SHOW EXTERNAL SOURCES;
+```
+
+#### 返回字段
+
+返回字段如下：
+
+| 字段 | 说明 |
+| ------------- | --- |
+| `source_name` | 外部数据源名称。 |
+| `TYPE`        | 外部源类型。 |
+| `HOST`        | 外部源地址。 |
+| `PORT`        | 外部源端口。 |
+| `USER`        | 外部源访问账号。 |
+| `PASSWORD`    | 外部源访问密码，脱敏显示。 |
+| `DATABASE`    | 默认数据库，未配置时为空。 |
+| `SCHEMA`      | 默认 schema，未配置时为空。 |
+| `OPTIONS`     | 已配置的 key-value 参数，敏感值脱敏。 |
+| `create_time` | 外部源创建时间。 |
+
+**注意事项**：`SHOW` 和 `DESCRIBE` 中，`password`、`api_token`、`tls_client_cert` 和 `tls_client_key` 会脱敏显示。
+
+### 查看外部数据源详情
+
+使用 `DESCRIBE EXTERNAL SOURCE source_name` 查看某个外部数据源的定义：
+
+#### 语法
+
+```sql
+DESCRIBE EXTERNAL SOURCE mysql_prod;
+```
+
+#### 说明
+
+该命令返回与 `SHOW EXTERNAL SOURCES` 相同的定义字段；`PASSWORD` 及敏感 `OPTIONS` 值始终脱敏。
+
+### 查询外部数据源系统表
+
+外部数据源定义也可从 `information_schema.ins_ext_sources` 查询：
+
+#### 示例
+
+```sql
+SELECT
+  source_name,
+  type,
+  host,
+  port,
+  DATABASE,
+  schema,
+  create_time
+FROM information_schema.ins_ext_sources
+WHERE type = 'mysql';
+```
+
+`information_schema.ins_ext_sources` 的字段如下：
+
+| 列名 | 类型 | 说明 |
+| ------------- | --- | --- |
+| `source_name` | VARCHAR | 全局唯一的外部数据源名称。 |
+| `type`        | VARCHAR | 外部源类型。 |
+| `host`        | VARCHAR | 外部数据源地址。 |
+| `port`        | INT | 外部数据源端口。 |
+| `user`        | VARCHAR | 外部数据源访问账号，所有用户可见。 |
+| `password`    | VARCHAR | 外部数据源密码，所有用户只能看到 `******`。 |
+| `database`    | VARCHAR | 默认数据库，未配置时为空。 |
+| `schema`      | VARCHAR | 默认 schema，未配置时为空。 |
+| `options`     | VARCHAR | JSON 格式的可选参数，敏感值脱敏。 |
+| `create_time` | TIMESTAMP | 外部源创建时间。 |
+
+**注意事项**：所有用户均可查询该系统表，但无法通过该表获取原始密码。
+
+### 修改外部数据源
+
+使用 `ALTER EXTERNAL SOURCE` 修改连接信息：
+
+#### 语法
+
+```sql
+ALTER EXTERNAL SOURCE source_name SET HOST = 'hostname', PORT = port_number;
+```
+
+#### 可修改字段
+
+| 字段 | 是否可修改 | 说明 |
+| ------------------------------- | --- | --- |
+| `source_name`                   | 否 | 仅用于定位外部数据源。 |
+| `HOST`、`PORT`、`USER`、`PASSWORD` | 是 | 修改连接地址、端口和访问凭证。 |
+| `DATABASE`、`SCHEMA`             | 是 | 修改默认命名空间。 |
+| `OPTIONS`                       | 是 | 增量新增或覆盖参数；未写出的 key 保留；空字符串删除 key。 |
+| `TYPE`                          | 否 | 不支持修改，需要删除后重新创建。 |
+
+#### 注意事项
+
+- 修改操作同样不检查外部连接，新配置会在后续查询时验证。
+- `ALTER EXTERNAL SOURCE ... SET OPTIONS(...)` 按增量合并处理，未写出的 key 保持原值；将 value 设置为空字符串 `''` 可删除任意已有 key。
+
+#### 示例
+
+```sql
+-- 切换到只读从库
+ALTER EXTERNAL SOURCE mysql_prod SET HOST = 'mysql-ro.example.com', PORT = 3307;
+
+-- 修改 PostgreSQL 账号和密码
+ALTER EXTERNAL SOURCE pg_prod SET USER = 'new_reader', PASSWORD = 'new_password';
+
+-- 修改默认数据库
+ALTER EXTERNAL SOURCE mysql_prod SET DATABASE = power_v2;
+
+-- 增量增加读取超时，已有参数仍保留
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('read_timeout_ms' = '3000');
+```
+
+### 刷新外部数据源
+
+外部对象结构发生变化后，使用 `REFRESH EXTERNAL SOURCE` 强制刷新外部元数据和缓存：
+
+#### 语法
+
+```sql
+REFRESH EXTERNAL SOURCE mysql_prod;
+```
+
+**说明**：外部表结构、列定义或其他元数据变化后，应先刷新再重新查询。
+
+### 删除外部数据源
+
+使用 `DROP EXTERNAL SOURCE` 删除外部数据源：
+
+#### 语法
+
+```sql
+DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
+```
+
+**注意事项**：`IF EXISTS` 使对象不存在时不报错。删除正在被查询或被其他对象引用的外部数据源可能导致当前查询失败。
+
+## 外部对象和类型映射
+
+### 外部对象映射
+
+| 外部源 | 外部对象 | TDengine 查询对象 |
+| ---------- | --- | --- |
+| MySQL      | Database | 数据库。 |
+| MySQL      | Table、View | 普通表。视图可不含时间戳列；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
+| PostgreSQL | Database 和 Schema | 一个查询命名空间。 |
+| PostgreSQL | Table、View、FDW、Inheritance | 普通表。视图不受时间戳主键约束；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
+| InfluxDB   | Database | 数据库。 |
+| InfluxDB   | Measurement | 超级表。 |
+| InfluxDB   | Tag | 标签列，保留索引和分组语义。 |
+| InfluxDB   | Field | 数据列。 |
+| InfluxDB   | Tag Set | 子表，每个唯一 Tag 组合对应一个子表。 |
+| InfluxDB   | `time` | 时间戳主键。 |
+| SQL Server | Database 和 Schema | 一个查询命名空间。 |
+| SQL Server | Table、View | 普通表。视图可不含时间戳列；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
+| Oracle     | Schema | 一个查询命名空间。 |
+| Oracle     | Table、View、Materialized View | 普通表。视图可不含时间戳列；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
+
+MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触发器，以及 SQL Server 的同义词、存储过程、触发器、索引、约束和 SQL Server Agent 对象不参与联邦查询。InfluxDB 1.8 的 RP 决定读取的数据范围，由外部源的 `retention_policy` 指定，省略时使用目标 database 的默认 RP；3.x 按 database 和 Measurement 访问，数据保留期限由 InfluxDB 管理，不使用该选项。两个版本均不在联邦查询路径中增加独立的 RP 层级。Oracle 的同义词、序列、PL/SQL 包/过程/函数、触发器、索引、约束和调度对象不参与联邦查询，同义词出现在路径中时按对象不存在处理。
+
+**说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写；SQL Server 由对象所在 database 的排序规则决定，跨 database 时可能不同，使用方括号或双引号引用的标识符保留原始名称；Oracle 区分大小写、按精确拼写匹配：未加引号创建的对象在 Oracle 中存储为大写，引用时需用反引号保留原始拼写。
+
+### 时间戳主键要求
+
+直接对外部表（Table / Measurement）执行联邦查询并使用**依赖时间线**的操作时，外部表须具备可映射为 TDengine `TIMESTAMP` 的主键时间列。该列用于时间范围过滤、排序、窗口与时序函数。虚拟表通过 `REFERENCE` 显式指定时间列时，按该声明建立时间轴。
+
+- MySQL 的时间戳主键列须为 `DATETIME` 或 `TIMESTAMP` 类型。
+- PostgreSQL 的时间戳主键列须为 `TIMESTAMP` 或 `TIMESTAMPTZ` 类型。
+- InfluxDB Measurement 的 `time` 列天然满足该要求。
+- SQL Server 的时间戳主键列须为 `datetime2`、`datetimeoffset`、`datetime`、`smalldatetime` 或 `date` 类型；`timestamp` / `rowversion` 是行版本二进制值，`time` 只表示一天内的时间且不含日期，均不能作为时间戳主键。
+- Oracle 的时间戳主键列须为 `DATE` 或 `TIMESTAMP[(n)]` 类型；`TIMESTAMP(n) WITH TIME ZONE` 与 `TIMESTAMP(n) WITH LOCAL TIME ZONE` 受 Oracle 限制不能作为主键（`ORA-02329`），不能作为时间戳主键。
+
+**说明**：时间戳主键可以是复合主键中的一列，复合主键中的其他列以及其他索引均可存在；但同一外部表不能有第二个可映射为 TDengine `TIMESTAMP` 的主键列。**MySQL / PostgreSQL / SQL Server / Oracle 视图（View）不受时间戳主键约束**；结果集不含时间戳列时的规则见下节。
+
+### 无时间线的外部表
+
+指 MySQL / PostgreSQL / SQL Server / Oracle 中不含可映射为 `TIMESTAMP` 的主键时间列的普通表，或结果集不含时间戳列的外部视图。典型场景包括设备台账、资产维度表等。InfluxDB Measurement 均含 `time`，不适用本节。
+
+| 场景 | 是否支持 | 说明 |
+| --- | --- | --- |
+| 单表查询 | **部分支持** | 支持 `COUNT` 等不依赖时间线的查询；外部视图可直接作为查询对象 |
+| 放入虚拟表 | **支持显式选择时间列** | 源对象含可映射为 `TIMESTAMP` 的列时，可通过 [`REFERENCE`](../02-ddl/04-virtualtable.md#显式指定外部时间列) 为外部表或视图指定时间列。直接外部列路径沿用主键时间列要求 |
+| 与带时间线表 `JOIN` | **不支持** | 外部表 `JOIN` 的 `ON` 条件必须包含主时间戳列；无时间线外部表没有可用的主时间戳列，不能只按业务键关联 |
+
+无主键外部表作为 [TIME_ALIGN](03-function.md#time_align) 的输入时按视图输入处理：按输出行序插值，不要求存在 `TIMESTAMP` 列，时间范围参数无效；有主键的外部表按表输入处理。
+
+**不依赖时间线的查询**示例：
+
+```sql
+-- 统计无时间戳主键的外部表行数
+SELECT COUNT(*)
+FROM pg_prod.public.device_info;
+
+-- 查询不含时间戳列的外部视图
+SELECT *
+FROM mysql_prod.v_device_dim
+LIMIT 100;
+
+-- SQL Server 无时间戳主键的外部维度表
+SELECT *
+FROM sqlserver_prod.dbo.device_info;
+
+-- Oracle 无时间戳主键的外部维度表
+SELECT *
+FROM oracle_prod.`TELEMETRY`.device_info;
+```
+
+无时间线外部表不能直接用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN 或 Window JOIN。源对象具有合适时间列时，可以先通过 `REFERENCE` 建立虚拟表时间轴，再查询虚拟表。直接外部列路径仍使用源主键时间列及其列过滤校验规则。
+
+### 类型映射
+
+#### 映射规则
+
+外部列在查询时映射为 TDengine 数据类型，遵循以下规则：
+
+- 可精确对应的类型直接映射，例如 MySQL `INT` 映射为 `INT`、PostgreSQL `double precision` 映射为 `DOUBLE`、InfluxDB `Float64` 映射为 `DOUBLE`、SQL Server `int` 映射为 `INT`、`float` 映射为 `DOUBLE`、Oracle `NUMBER(p,0)`（p ≤ 18）映射为 `BIGINT`、`BINARY_DOUBLE` 映射为 `DOUBLE`。
+- 可降级转换的类型允许映射，但可能存在精度或语义损失。例如 `DATE` 在零点转换为 `TIMESTAMP`，`TIME` 转换为从午夜开始的毫秒数并存入 `BIGINT`，`SET` 序列化为逗号分隔字符串，`uuid` 转换为 `VARCHAR(36)`；Oracle 将空字符串 `''` 存储为 `NULL`，读取结果为 `NULL`，`CHAR(n)` 按定长读取（含补位空格）。发生降级转换时会记录日志。
+- 数组、范围、复合类型和 `hstore` 等结构化类型序列化为 JSON 或文本字符串并存入 `NCHAR` 或 `VARCHAR`，结构语义不保留，并会记录日志。
+- 无法识别或支持的外部类型码报错处理；若 `SELECT *` 展开到不可映射列，整条查询失败。
+
+#### 特殊类型和精度
+
+**注意事项**：外部源中的 `JSON`、`JSONB` 和 string 列统一序列化为字符串存入 `NCHAR`，不会映射为 TDengine 原生 JSON 类型。对此类列使用 JSON 子字段运算符 `->` 或 `CONTAINS` 会返回 错误。Oracle 的 JSON 数据存储在 `VARCHAR2` / `CLOB` / `BLOB` 中，同样按文本读取。
+
+外部已知类型的声明长度、precision、scale 或容器容量超过 TDengine 上限时，不会仅因声明超限而失败。结果列使用 TDengine 支持的最大范围；只有实际值无法无损表示时才在执行期报错，不会静默截断、舍入、替换为 `NULL` 或跳过。
+
+外部时间戳列的时区和精度规则如下：
+
+- PostgreSQL `timestamptz`、MySQL `TIMESTAMP`、SQL Server `datetimeoffset` 等带时区类型按其自带时区解释。
+- PostgreSQL `timestamp`、MySQL `DATETIME` 和 `DATE`、SQL Server `datetime2` / `datetime` / `smalldatetime` / `date`、Oracle `DATE` 与 `TIMESTAMP[(n)]` 等不带时区类型，按连接时区或客户端时区解释。
+- Oracle `TIMESTAMP(n) WITH TIME ZONE` 与 `TIMESTAMP(n) WITH LOCAL TIME ZONE` 属于带时区类型，按其自带的偏移或绝对时刻解释。
+- 单库查询中，TDengine 数据库使用其 `PRECISION`；MySQL、PostgreSQL 和 SQL Server 使用微秒精度，InfluxDB 使用纳秒精度，Oracle 按表内时间列的最大精度使用微秒或纳秒精度（存在 `TIMESTAMP(7-9)` 时为纳秒，`DATE` 的秒精度按毫秒补零）。
+- 多库查询中，结果时间戳采用参与数据库的最高精度，低精度值补零扩展。例如 TDengine 毫秒库与 MySQL 联合查询得到微秒精度；与 InfluxDB 联合查询得到纳秒精度。
+- 创建引用 SQL Server 外部列的虚拟表时，按所用时间列的类型声明检查目标数据库精度。`date`、`smalldatetime`、`datetime2(0-3)` 和 `datetimeoffset(0-3)` 可以用于毫秒库。`datetime`、更细精度或省略精度的 `datetime2` / `datetimeoffset` 要求微秒或更高精度。`REFERENCE` 使用其显式选择的时间列执行此检查。
+- Oracle `DATE` 为秒精度（按毫秒补零），`TIMESTAMP` 默认 `TIMESTAMP(6)`。创建引用 Oracle 外部列的虚拟表时，虚拟表所在数据库的精度不得低于该时间戳列的声明精度：`DATE` 与 `TIMESTAMP(0-3)` 为毫秒，`TIMESTAMP(4-6)` 为微秒，`TIMESTAMP(7-9)` 为纳秒；不满足时返回 `TSDB_CODE_EXT_SCHEMA_CHANGED`。
+
+## 外部路径和 USE
+
+### 外部表路径
+
+#### 说明
+
+在查询的 `FROM` 子句中，外部表路径解析到表级别：
+
+| 外部源 | 使用默认命名空间 | 显式指定命名空间 |
+| ---------- | --- | --- |
+| MySQL      | `source_name.table` | `source_name.database.table` |
+| PostgreSQL | `source_name.table` | `source_name.schema.table` |
+| InfluxDB   | `source_name.table` | `source_name.database.table` |
+| SQL Server | `source_name.table` | `source_name.schema.table`、`source_name.database.schema.table` |
+| Oracle     | `source_name.table` | `source_name.schema.table` |
+
+两段式路径使用创建外部数据源时指定的默认 `DATABASE` 或 `SCHEMA`；未设置默认值时必须使用完整路径。
+
+**InfluxDB 1.8 路径说明**：例如 `influx18_prod.telegraf.meters` 仍为三段式表路径，不写 RP；RP 来自外部源配置或目标 database 的默认值。
+
+**SQL Server 路径说明**：三段式 `source_name.schema.table` 的中间段为 schema，database 取默认值；四段式 `source_name.database.schema.table` 依次给出 database 和 schema。四段式路径只能访问同一 SQL Server 实例上、登录账号有权限的其他 database，不支持跨实例访问。
+
+**Oracle 路径说明**：三段式 `source_name.schema.table` 的中间段为 schema；服务名不进入表路径，不支持四段及以上的表路径。
+
+### 虚拟表外部列路径
+
+#### 说明
+
+虚拟表 DDL 中的外部列引用在表路径后追加列名：
+
+| 外部源 | 使用默认命名空间 | 显式指定命名空间 |
+| ---------- | --- | --- |
+| MySQL      | `source_name.table.column` | `source_name.database.table.column` |
+| PostgreSQL | `source_name.table.column` | `source_name.schema.table.column` |
+| InfluxDB   | `source_name.table.column` | `source_name.database.table.column` |
+| SQL Server | `source_name.table.column`（需默认 `DATABASE` 和 `SCHEMA`）、`source_name.schema.table.column`（需默认 `DATABASE`） | `source_name.database.schema.table.column` |
+| Oracle     | `source_name.table.column`（需默认 `SCHEMA`） | `source_name.schema.table.column` |
+
+**SQL Server 列路径说明**：SQL Server 外部列引用支持三段式、四段式和五段式三种形式：
+
+| 形式 | 路径 | 依赖的源默认值 |
+| ---------- | --- | --- |
+| 三段式 | `source_name.table.column` | `DATABASE` + `SCHEMA` |
+| 四段式 | `source_name.schema.table.column` | `DATABASE` |
+| 五段式 | `source_name.database.schema.table.column` | 无 |
+
+这三种形式均可用于 `CREATE VTABLE` 的列定义、`ALTER VTABLE ... ADD COLUMN ... FROM`、`ALTER VTABLE ... ALTER COLUMN ... SET` 以及虚拟子表（`CREATE VTABLE ... USING vstb`）的列定义。相对形式（三段式、四段式）在写入虚拟表元数据时展开为五段式完整命名空间，因此 `SHOW CREATE VTABLE` 和 `information_schema.ins_columns.col_source` 始终显示 `source.database.schema.table.column`；后续 `ALTER EXTERNAL SOURCE` 修改默认命名空间也不会改变已创建虚拟表的绑定。
+
+**Oracle 列路径说明**：支持三段式 `source_name.table.column` 与四段式 `source_name.schema.table.column`。相对形式在写入虚拟表元数据时展开为四段式，`SHOW CREATE VTABLE` 和 `information_schema.ins_columns.col_source` 始终显示 `source.schema.table.column`。
+
+**注意事项**：内部列路径仍为 `table.column` 或 `db.table.column`。外部路径的 `source_name`、`database`、`schema` 和 `column` 最大为 64 字节，`table` 最大为 192 字节；超限对象会直接报错，不会截断、改名或按前缀匹配。
+
+**说明**：三段式路径 `A.B.C` 在虚拟表 DDL 中按首段消歧：首段匹配已注册外部数据源时，解析为 `source_name.table.column`；首段匹配本地数据库时，解析为 `db.table.column`。外部数据源名称不得与本地数据库同名，因此不会产生冲突。查询 `FROM` 子句中的三段式路径始终解析为 `source_name.{database|schema}.table`。
+
+```sql
+-- 查询外部表
+SELECT *
+FROM mysql_prod.meters;
+
+SELECT *
+FROM mysql_prod.power.meters;
+
+SELECT *
+FROM pg_prod.devices;
+
+SELECT *
+FROM pg_prod.public.devices;
+
+SELECT *
+FROM sqlserver_prod.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.telemetry.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.Archive.telemetry.sensor_data;
+
+SELECT *
+FROM oracle_prod.sensor_data;
+
+SELECT *
+FROM oracle_prod.`TELEMETRY`.sensor_data;
+
+-- 虚拟表 DDL 中引用外部列
+current FLOAT FROM mysql_prod.meters.current
+current FLOAT FROM mysql_prod.power.meters.current
+owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+
+-- SQL Server 三段式（源需配置默认 database 和 schema）
+value FLOAT FROM sqlserver_prod.sensor_data.value
+
+-- SQL Server 四段式（源需配置默认 database，schema 由路径给出）
+value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+
+-- SQL Server 五段式（完整命名空间）
+value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
+
+-- Oracle 三段式（源需配置默认 schema）
+value FLOAT FROM oracle_prod.sensor_data.value
+
+-- Oracle 四段式（显式 schema）
+value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
+```
+
+### 使用 USE 切换外部命名空间
+
+#### 语法
+
+`USE` 可将当前会话切换到外部数据源命名空间，使后续查询使用单段表名：
+
+```sql
+USE source_name;
+
+USE source_name.database;
+
+USE source_name.schema;
+```
+
+#### 说明
+
+`USE source_name` 要求外部源已经设置默认命名空间：MySQL 和 InfluxDB 需要 `DATABASE`，PostgreSQL 需要 `SCHEMA`，SQL Server 需要 `DATABASE` 和 `SCHEMA` 组合后均不为空。未设置时返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`。`USE source_name.database` 为 MySQL 或 InfluxDB 显式指定数据库；`USE source_name.schema` 为 PostgreSQL 显式指定 schema，PostgreSQL 的数据库仍以创建外部源时指定的 `DATABASE` 为准。
+
+SQL Server 的 `USE` 语义为：`USE source_name` 使用默认 database 和默认 schema；`USE source_name.database` 切换 database，schema 使用默认值；`USE source_name.database.schema` 同时切换 database 和 schema。首版不提供只切换 schema 的 `USE` 形式，需要替换 schema 时使用三段式表路径 `source_name.schema.table`。`USE` 只影响当前 TDengine 会话的后续短路径解析，不改变外部源定义，也不影响已创建虚拟表的外部列来源。
+
+Oracle 的 `USE` 语义为：`USE source_name` 使用默认 schema；`USE source_name.schema` 切换 schema。服务名不是命名空间，不能通过 `USE source_name.database` 切换。
+
+**注意事项**：解析 `USE` 的名称时，系统先匹配已注册外部数据源，再匹配本地数据库；由于两者禁止同名，不会产生歧义。
+
+#### 示例
+
+```sql
+-- 使用 MySQL 默认数据库
+USE mysql_prod;
+
+SELECT *
+FROM meters
+LIMIT 10;
+
+-- 显式选择 MySQL 数据库
+USE mysql_prod.power;
+
+SELECT *
+FROM meters
+LIMIT 10;
+
+-- 显式选择 PostgreSQL schema
+USE pg_prod.public;
+
+SELECT *
+FROM devices
+LIMIT 10;
+
+-- 使用 SQL Server 默认命名空间
+USE sqlserver_prod;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
+
+-- 显式切换 SQL Server database（schema 使用默认值）
+USE sqlserver_prod.Archive;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
+
+-- 同时切换 SQL Server database 和 schema
+USE sqlserver_prod.Archive.telemetry;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
+
+-- 使用 Oracle 默认 schema
+USE oracle_prod;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
+
+-- 显式选择 Oracle schema
+USE oracle_prod.`TELEMETRY`;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
+
+-- 切回本地数据库并清除外部上下文
+USE power;
+
+SELECT *
+FROM meters
+LIMIT 10;
+```
+
+## 查询外部数据
+
+### 查询示例
+
+```sql
+-- 单一外部源查询
+SELECT
+  ts,
+  current,
+  voltage
+FROM mysql_prod.power_meters
+WHERE meter_id = 1001
+  AND ts >= '2026-04-01 00:00:00'
+  AND ts < '2026-04-02 00:00:00'
+ORDER BY ts
+LIMIT 1000;
+
+-- 两个均含时间戳主键的外部时序表关联（ON 须包含主时间戳列）
+SELECT
+  m.ts,
+  m.current,
+  a.voltage
+FROM mysql_prod.meters m
+JOIN pg_prod.public.archive_meters a
+  ON m.ts = a.ts
+ AND m.meter_id = a.meter_id
+WHERE m.ts >= '2026-04-01 00:00:00'
+  AND m.ts < '2026-04-02 00:00:00';
+
+-- SQL Server 外部表范围查询
+SELECT
+  ts,
+  value
+FROM sqlserver_prod.telemetry.sensor_data
+WHERE ts >= '2026-01-01 00:00:00'
+  AND ts < '2026-01-02 00:00:00'
+ORDER BY ts;
+
+-- Oracle 外部表范围查询
+SELECT
+  ts,
+  value
+FROM oracle_prod.`TELEMETRY`.sensor_data
+WHERE ts >= '2026-01-01 00:00:00'
+  AND ts < '2026-01-02 00:00:00'
+ORDER BY ts;
+```
+
+更多示例如下：
+
+```sql
+-- InfluxDB 外部表窗口聚合（按 Tag 组合分组）
+SELECT
+  _wstart AS ts,
+  location,
+  AVG(temperature) AS avg_temp
+FROM influx_prod.telegraf.sensor_readings
+WHERE ts >= '2026-04-01 00:00:00'
+  AND ts < '2026-04-02 00:00:00'
+PARTITION BY location
+INTERVAL(10m)
+ORDER BY ts;
+
+-- 外部时序表分组统计
+SELECT
+  location,
+  COUNT(*) AS point_cnt,
+  AVG(temperature) AS avg_temperature
+FROM influx_prod.telegraf.sensor_readings
+WHERE ts >= '2026-04-01 00:00:00'
+  AND ts < '2026-04-02 00:00:00'
+GROUP BY location
+ORDER BY point_cnt DESC;
+
+-- 本地库与外部归档库 UNION ALL 统一分析
+SELECT
+  ts,
+  meter_id,
+  current
+FROM power.meters
+WHERE ts >= '2026-03-01 00:00:00'
+  AND ts < '2026-03-15 00:00:00'
+UNION ALL
+SELECT
+  ts,
+  meter_id,
+  current
+FROM mysql_prod.power_archive
+WHERE ts >= '2026-03-01 00:00:00'
+  AND ts < '2026-03-15 00:00:00'
+ORDER BY ts;
+```
+
+当外部源具备等价语义且连接器支持相应下推时，系统优先在源端执行可等价的计算，以减少数据传输；外部源不具备等价语义或源端执行失败时，系统读取必要原始数据并在本地完成计算。执行位置只影响性能，不影响正常完成查询的结果。
+
+### 功能限制
+
+#### TBNAME
+
+外部表不支持 `TBNAME` 伪列，例如 `SELECT TBNAME`、`WHERE TBNAME = ...`、`JOIN ON ... TBNAME` 等。InfluxDB 的 `PARTITION BY TBNAME` 是例外，等价于按全部 Tag 列分组。
+
+#### TAGS
+
+MySQL、PostgreSQL、SQL Server 和 Oracle 外部表不支持 `SELECT TAGS ...`；InfluxDB 外部表支持 `TAGS`，但仅返回至少有一条数据的 Tag 组合。TDengine 中无数据子表也可返回 Tag 值，二者语义不同。
+
+#### JOIN 约束
+
+查询中一旦引用外部表，**JOIN 的 ON 条件须包含 TIMESTAMP 列**（如 `a.ts = b.ts`）。不能仅用业务键（如 `meter_id`）将本地时序表与无时间线的外部维度表做 JOIN；此类场景应先将维度数据同步到 TDengine，或由外部系统提供带时间戳主键的关联结果。含外部表的两表 JOIN 若 ON 不含 TIMESTAMP 列，将返回 `External source JOIN requires primary timestamp column in ON condition` 错误。
+
+#### 列、Tag 和时间戳约束
+
+外部表或 Measurement 的总列数和总 Tag 数可超过 TDengine 上限。只有当前语句实际引用的列或 Tag 数量超过上限时才报错；`SELECT *`、过滤、分组、排序、关联和函数所引用的列或 Tag 均计入该数量。
+
+外部访问必须通过外部数据源对象完成，路径必须遵循数据源类型约束，TDengine 既有功能限制同样适用于联邦查询。
+
+#### InfluxDB 1.8 类型冲突
+
+同一 Measurement 中，同名 Field 跨 shard 存在不同类型、Field 与 Tag 同名，或列名仅大小写不同且本地无法区分时，查询返回 `TSDB_CODE_EXT_SCHEMA_CONFLICT`。同一 Measurement 在其他 RP 中存在 Field 类型冲突时，也可能被拒绝。应统一类型或拆分 Measurement、消除名称冲突，再执行 `REFRESH EXTERNAL SOURCE`。
+
+### 性能退化场景
+
+以下查询可以使用，但在外部源没有等价语义时会读取更多原始数据并在本地计算，大数据量场景可能出现性能退化：
+
+- TDengine 专有时序功能，如部分窗口计算、函数。
+- 本地表与外部表、或不同外部源之间的 JOIN。
+- ASOF JOIN 和 Window JOIN。
+- 标量和聚合 UDF。
+- 其他外部源没有直接等价语义的函数、运算符和功能。
+
+**注意事项**：对于支持相应源端执行能力的数据源，可通过缩小时间范围、增加过滤条件和减少返回列来降低外部读取量；同时检查外部数据库的慢查询和索引状态。
+
+## 虚拟表引用外部列
+
+### 使用说明
+
+虚拟表的列引用可指向外部数据源中的表或视图列。虚拟表本身必须创建在 TDengine 内部数据库中，即使其所有数据列均来自外部源，也必须先创建或 `USE` 一个本地数据库。
+
+查询包含外部引用的虚拟表时，系统读取外部列并与本地列按时间戳归并为统一结果。直接外部列路径要求来源为具有时间戳主键的表。使用 `REFERENCE` 时，可为 SQL Server、MySQL、PostgreSQL 和 Oracle 的表或视图显式指定可映射为 `TIMESTAMP` 的时间列。
+
+### 创建虚拟普通表
+
+创建虚拟普通表时，外部列引用语法如下：
+
+```sql
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
+
+create_definition:
+    ts_col_name TIMESTAMP
+  | vtb_col_name type_name [FROM column_reference]
+
+column_reference:
+    [db_name.]table_name.col_name
+  | source_name.table_name.col_name
+  | source_name.{database|schema}_name.table_name.col_name
+```
+
+### 创建虚拟子表
+
+创建虚拟子表时，可在列引用中使用相同的外部路径：
+
+```sql
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
+  USING [db_name.]stb_name
+  [(tag_name [, tag_name] ...)]
+  TAGS (tag_value [, tag_value] ...)
+
+create_definition:
+  [stb_col_name FROM] column_reference
+
+tag_value:
+  const_value | table_name.tag_name
+```
+
+### InfluxDB SERIES 列引用
+
+对于 InfluxDB 1.8 和 3.x，均可在创建虚拟普通表或虚拟子表时使用 `SERIES` 声明，将一个别名绑定到由 Tag 条件确定的具体 Series：
+
+```sql
+SERIES series_alias AS source_name.database_name.measurement_name
+  (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+```
+
+该语法具有以下约束：
+
+- 仅支持 InfluxDB 外部数据源，不支持 MySQL、PostgreSQL 或 SQL Server。
+- `SERIES` 目标必须使用完整的三段式路径 `source_name.database_name.measurement_name`，不能省略外部源名称或数据库名称。
+- 必须指定至少一个 Tag 条件。条件仅支持 `tag_name = 'tag_value'`，并且在声明时必须完整且不重复地包含该 Measurement 的全部 Tag；缺少 Tag、包含未知 Tag 或重复指定同一 Tag 均会报错。
+- `series_alias.field_name` 表示该 Tag 条件所限定的 Measurement Field。别名在同一虚拟表中必须唯一，且不能通过别名引用 InfluxDB Tag。
+
+以下示例将 `s1` 绑定到 `device = 'd1'` 的 Series；`s1.value` 会展开为带有该 Tag 条件的 `influx_source.metrics.meters.value` 外部列引用：
+
+```sql
+CREATE VTABLE v_a1 (
+  ts    TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+  SERIES s1 AS influx_source.metrics.meters(device = 'd1');
+```
+
+对于上文的 `influx18_prod`，RP 已由外部源配置为 `autogen`，`SERIES` 目标仍写为 `influx18_prod.telegraf.meters`。假设 `meters` 仅包含 `device` 一个 Tag，且 `value` 为浮点 Field，以下示例同时创建虚拟普通表、虚拟超级表和虚拟子表：
+
+```sql
+CREATE DATABASE IF NOT EXISTS influx18_demo
+  PRECISION 'ns';
+
+USE influx18_demo;
+
+CREATE VTABLE v_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
+
+CREATE STABLE vst_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device BINARY(32)
+)
+  VIRTUAL 1;
+
+CREATE VTABLE vc_influx18 (
+  value FROM s1.value
+)
+  USING vst_influx18
+  TAGS ('d1')
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
+
+SELECT
+  ts,
+  value
+FROM v_influx18
+ORDER BY ts;
+
+SELECT
+  ts,
+  value
+FROM vst_influx18
+ORDER BY ts;
+```
+
+本地数据库使用纳秒精度，以保留 InfluxDB 的时间精度。`device = 'd1'` 是列引用的 Series 定位条件，即使查询未写 `WHERE`，读取的数据也只来自该 Series；虚拟子表的本地 `TAGS ('d1')` 不能替代 `SERIES` 声明中的 Tag 条件。
+
+可以使用 `ALTER VTABLE` 为已有虚拟表增加 `SERIES`、绑定列、解除绑定并删除 `SERIES`：
+
+```sql
+CREATE VTABLE v_a2 (
+  ts    TIMESTAMP,
+  value DOUBLE
+);
+
+ALTER VTABLE v_a2 ADD SERIES s1 AS influx_source.metrics.meters(device = 'd1');
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
+
+ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+
+ALTER VTABLE v_a2 REMOVE SERIES s1;
+```
+
+`ADD SERIES` 与创建时的 `SERIES` 声明采用相同的目标路径和 Tag 条件约束。删除 `SERIES` 前，必须先通过 `ALTER COLUMN ... SET NULL` 或将列改为其他引用，确保没有虚拟表列继续引用该别名。
+
+### 创建虚拟超级表
+
+虚拟超级表语法保持不变，仅定义 schema，不包含外部列引用：
+
+```sql
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  VIRTUAL 1;
+```
+
+### 示例
+
+以下示例将本地时序数据和外部 MySQL 时序数据合并到一个虚拟表：
+
+```sql
+CREATE EXTERNAL SOURCE meter_mysql
+  TYPE = 'mysql'
+  HOST = '10.0.0.1'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password';
+
+CREATE VTABLE v_d1001 (
+  ts          TIMESTAMP,
+  current     FLOAT FROM power.d1001.current,
+  voltage     INT FROM power.d1001.voltage,
+  temperature FLOAT FROM meter_mysql.asset_db.meter_samples.temperature,
+  humidity    FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
+);
+```
+
+### 时间戳键要求
+
+虚拟表按时间戳归并内部和外部数据：
+
+- 虚拟表自身须声明 `TIMESTAMP` 列（如 `ts TIMESTAMP`）；该列不能使用 `FROM` 直接引用外部列。
+- 通过完整外部列路径直接引用的 **外部时序表** 须满足[时间戳主键要求](#时间戳主键要求)，该直接引用方式要求来源为表。
+- 使用 `REFERENCE` 引用 SQL Server、MySQL、PostgreSQL 或 Oracle 的表和视图时，通过 `TIMESTAMP time_column` 显式选择时间列。所选列须能映射为 TDengine `TIMESTAMP`，可以是源对象的普通时间列，源对象可以没有时间戳主键。
+- `REFERENCE` 查询按所选时间列对齐数据，并在实际读取范围内校验转换后的时间戳。遇到 `NULL`、重复或逆序时间戳时返回错误。
+
+虚拟表自身的主时间列以及各来源绑定选定的时间列共同决定数据的时间对齐。直接外部列路径沿用时间戳主键及业务主键过滤覆盖规则，`REFERENCE` 使用显式时间列及各列保存的过滤条件。
+
+### 查询行为
+
+含外部引用的虚拟表支持所有标准 TDengine 查询语法，包括普通查询、聚合和窗口聚合：
+
+```sql
+SELECT
+  ts,
+  current,
+  voltage,
+  temperature
+FROM v_d1001
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
+ORDER BY ts;
+
+SELECT
+  COUNT(*),
+  AVG(current),
+  AVG(temperature)
+FROM v_d1001
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
+GROUP BY humidity;
+
+SELECT
+  _wstart,
+  AVG(current),
+  AVG(voltage)
+FROM v_d1001
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-02'
+INTERVAL(1h);
+```
+
+## EXPLAIN
+
+联邦查询支持使用 `EXPLAIN` 命令进行计划展示与执行过程分析。
+
+InfluxDB 1.8 的扫描节点会显示 `InfluxDB version=1.8 RP=...`。如果 RP 在执行时确定，`EXPLAIN` 可能显示 `RP=(runtime)`；可使用 `EXPLAIN ANALYZE` 查看扫描实际使用的 RP。
+
+```sql
+EXPLAIN
+SELECT
+  ts,
+  voltage,
+  current
+FROM mysql_prod.power.sensor_data
+WHERE ts >= '2024-01-01'
+ORDER BY ts
+LIMIT 1000;
+```
+
+输出示例如下：
+
+```text
+FederatedScan on mysql_prod.power.sensor_data
+  Remote SQL: SELECT ts, voltage, current FROM sensor_data WHERE ts >= '2024-01-01' ORDER BY ts LIMIT 1000
+  Output: rows=1000, width=24
+```
+
+## 错误码和排查
+
+### 外部源运行时错误
+
+外部源运行时错误如下：
+
+| 错误码 | 说明 |
+| ---------------------------------- | --- |
+| `TSDB_CODE_EXT_CONNECT_FAILED`     | 外部连接建立失败或连接中断。 |
+| `TSDB_CODE_EXT_AUTH_FAILED`        | 外部源认证失败，账号、密码或 Token 无效。 |
+| `TSDB_CODE_EXT_ACCESS_DENIED`      | 外部源权限不足。 |
+| `TSDB_CODE_EXT_QUERY_TIMEOUT`      | 外部查询或网络调用超时。 |
+| `TSDB_CODE_EXT_OBJECT_NOT_FOUND`   | 外部数据库、schema、表或列不存在。 |
+| `TSDB_CODE_EXT_SYNTAX_UNSUPPORTED` | 查询语法错误、方言不兼容或使用了外部表不支持的伪列。 |
+| `TSDB_CODE_EXT_TYPE_NOT_MAPPABLE`  | 外部列类型无法映射。 |
+| `TSDB_CODE_EXT_SCHEMA_CONFLICT` | InfluxDB 1.8 的 Field 类型、Field/Tag 角色或列名存在冲突。 |
+| `TSDB_CODE_EXT_RESOURCE_EXHAUSTED` | 外部源受到并发、配额、内存或限流等资源限制。 |
+| `TSDB_CODE_EXT_TXN_CONFLICT`       | 外部源事务或锁冲突。 |
+| `TSDB_CODE_EXT_REMOTE_INTERNAL`    | 外部源内部错误或未分类错误。 |
+
+### 本地检测错误
+
+本地检测错误如下：
+
+| 错误码 | 说明 |
+| ----------------------------------- | --- |
+| `TSDB_CODE_EXT_SOURCE_NOT_FOUND`    | 引用的外部数据源未注册。 |
+| `TSDB_CODE_EXT_CONSTRAINT_VIOLATED` | 外部表不满足 TDengine 约束，例如缺少时间戳主键列。 |
+| `TSDB_CODE_EXT_PUSHDOWN_FAILED`     | 外部源执行失败，无法完成相应的源端执行。 |
+
+### 常见问题
+
+常见问题的排查方式如下：
+
+| 问题 | 排查方式 |
+| ---------------- | --- |
+| 无法连接外部源   | 检查主机、端口、账号、密码或 Token，检查网络、防火墙及目标数据库是否允许当前来源访问。 |
+| 路径解析失败     | 检查路径层级、默认 database 或 schema、对象名称拼写和大小写。 |
+| 外部对象结构变化 | 执行 `REFRESH EXTERNAL SOURCE source_name` 后重试，并检查类型映射。 |
+| 查询超时         | 调整超时和并发配置，缩小时间范围和返回规模，检查外部源慢查询与索引。 |
+| 虚拟表创建失败   | 检查外部数据源名称、外部 database、表和列、声明类型兼容性、时间戳主键以及外部连接。 |
+| SQL Server 无法连接 | 检查 SQL Server 是否启用 TCP/IP、`PORT` 是否为固定 TCP 端口、防火墙是否放行，以及是否允许 SQL Server Authentication；使用命名实例时应为其配置固定端口，不依赖 SQL Browser。 |
+| SQL Server TLS 或证书错误 | 检查 `tls_enabled`、`tls_ca_cert` 和 `trust_server_certificate` 的组合；生产环境应使用受信任 CA 签发的证书，不应长期启用 `trust_server_certificate = true`。 |
+| SQL Server database 或 schema 错误 | 检查路径顺序：三段式表路径为 `source.schema.table`，四段式为 `source.database.schema.table`；确认登录账号在目标 database 中存在对应用户（或已启用 `guest`），并对目标 schema 下的对象有读取权限。 |
+| Oracle 无法连接 | 检查监听是否可达、`PORT` 是否正确、防火墙是否放行，以及 `DATABASE` 是否为监听暴露的服务名（不能填 SID 或 TNS 别名）；只监听 TCPS 的实例不支持。 |
+| Oracle 客户端与服务端版本不匹配 | 重新执行依赖包安装脚本并选择匹配的服务端版本族（11g / 12c / 18c 使用 19c 客户端，19c 及以上使用 23ai 客户端），然后重启 taosd 与所有客户端进程。 |
+| Oracle 对象不存在或无权限 | Oracle 对对象不存在与无权限统一返回 `ORA-00942`，两者无法区分；先确认对象名拼写与 schema，再用同一账号在 Oracle 侧执行 `SELECT COUNT(*) FROM <owner>.<table>` 验证权限。 |
+
+## 版本和兼容性
+
+### 外部数据库版本
+
+支持和测试的外部数据库版本如下：
+
+| 数据库 | 支持版本 | 测试版本 | 说明 |
+| ---------- | --- | --- | --- |
+| MySQL      | 5.7、8.x | 8.0 | 推荐使用 8.0 及以上。MariaDB 10.x 兼容，但不做专项测试。 |
+| PostgreSQL | 14 及以上 | 16、18.6 | 需要支持标准 SQL 特性集。 |
+| InfluxDB | 1.8.x（OSS）、3.x | 1.8.10、3.0 | 1.8 须显式配置 `version='1.8'`；其他 1.x、2.x，以及 1.8 的 Enterprise 和云兼容接口不在支持范围内。1.8 的平台范围见下文。 |
+| SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
+| Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |
+
+**InfluxDB 1.8 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询，均只使用 HTTP，无需安装联邦查询依赖库。从 `v3.4.3.12` 起支持流式计算，限制见 [使用 InfluxDB 1.8 作为触发源](../../07-stream-processing/01-syntax.md#使用-influxdb-18-作为触发源)。
+
+**SQL Server 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
+
+**Oracle 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。不支持 Oracle 11g Release 1（11.1）及更早版本；仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式；只监听 TCPS 的实例不在支持范围内。需要同时访问 11g 与 26ai 时，应按客户端版本拆分为两个部署。
+
+### 安装、升级和卸载
+
+**说明**：使用需要第三方运行库的外部源时，除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库。Linux 上，SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发。Windows x64 上，SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 放在 `taosd` 同目录。依赖包应安装在实际执行联邦查询的服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
+
+使用 InfluxDB 1.8 时，参与解析和执行的 `taosc` 与 `taosd` 均需使用包含该功能的企业版。Linux x64、Linux ARM64 和 Windows x64 均可查询；1.8 连接器内置于 `taosd`，无需额外安装联邦查询依赖库、Arrow 运行库或 InfluxDB 客户端库。
+
+建议按以下顺序检查：
+
+1. 确认 `taosd` 与 `taosc` 均已启用 `federatedQueryEnable`。
+2. 确认联邦查询依赖库或插件包版本与 TDengine 版本匹配。
+3. 确认目标机器架构受支持（Linux x64、Linux ARM64、Windows x64）。
+4. 执行 `SHOW EXTERNAL SOURCES`、`DESCRIBE EXTERNAL SOURCE ...` 与最小查询样例验证运行时依赖是否可用。
+
+## 使用场景
+
+### 本地和外部时序统一查询
+
+本地库保存近期高频数据，MySQL 保存归档数据时，可以使用 `UNION ALL` 统一分析：
+
+```sql
+SELECT
+  ts,
+  meter_id,
+  current,
+  voltage
+FROM power.meters
+WHERE ts >= '2026-03-10'
+  AND ts < '2026-04-10'
+UNION ALL
+
+SELECT
+  ts,
+  meter_id,
+  current,
+  voltage
+FROM mysql_prod.power_meters
+WHERE ts >= '2026-03-10'
+  AND ts < '2026-03-17'
+ORDER BY ts;
+```
+
+### 直接分析外部时序数据
+
+无需同步数据，也可对 InfluxDB Measurement 使用 TDengine 的窗口聚合：
+
+```sql
+SELECT
+  _wstart AS ts,
+  AVG(temperature) AS avg_temp,
+  MAX(temperature) AS max_temp,
+  MIN(temperature) AS min_temp
+FROM influx_prod.telegraf.sensor_readings
+WHERE ts >= '2026-04-01'
+  AND ts < '2026-04-08'
+INTERVAL(1h)
+ORDER BY ts;
+```
+
+### 跨系统关联分析
+
+外部参与 `JOIN` 的表须有可映射为 `TIMESTAMP` 的主键时间列，且 `ON` 条件须包含该时间列。例如，可将 TDengine 本地时序与外部 PostgreSQL 时序归档按时间戳和设备标识关联：
+
+```sql
+SELECT
+  l.meter_id,
+  AVG(l.current * a.voltage) AS avg_power
+FROM power.meters l
+JOIN pg_prod.public.archive_meters a
+  ON l.ts = a.ts
+ AND l.meter_id = a.meter_id
+WHERE l.ts >= '2026-04-01'
+  AND l.ts < '2026-04-02'
+GROUP BY l.meter_id
+ORDER BY avg_power DESC
+LIMIT 20;
+```

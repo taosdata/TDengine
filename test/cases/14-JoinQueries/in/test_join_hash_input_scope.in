@@ -1,0 +1,71 @@
+USE hash_join_snap;
+
+SELECT a.tbname, CAST(a.ts AS BIGINT), a.val, b.flag FROM sl a JOIN tb_ref b ON a.tbname = b.name ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN ( SELECT ts, device, metric FROM r_norm ) b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a JOIN ( SELECT ts, device, metric FROM r_norm ) b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN ( SELECT ts, device, metric FROM r_norm ) b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a RIGHT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a LEFT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM sl a JOIN sr b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM sl a LEFT JOIN sr b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM sl a RIGHT JOIN sr b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, CAST(b.ts AS BIGINT), b.metric FROM sl a FULL JOIN sr b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val FROM sl a LEFT SEMI JOIN sr b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM sl a LEFT ANTI JOIN sr b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM v_l_norm a LEFT SEMI JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM v_l_norm a LEFT ANTI JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a LEFT JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, b.metric FROM v_l_norm a RIGHT SEMI JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, b.metric FROM v_l_norm a RIGHT ANTI JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val, CAST(b.ts AS BIGINT), b.metric FROM v_l_norm a FULL JOIN v_r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a RIGHT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM ( SELECT ts, device, val FROM l_norm ) a FULL JOIN ( SELECT ts, device, metric FROM r_norm ) b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.region, a.val, b.metric FROM sl a JOIN sr b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.region, a.val, b.metric FROM sl a LEFT JOIN sr b ON a.device = b.device AND a.region = b.region AND a.ts <= b.ts ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.region, CAST(b.ts AS BIGINT), b.metric FROM sl a RIGHT ANTI JOIN sr b ON a.device = b.device AND a.region = b.region AND a.ts <= b.ts ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a JOIN v_r_norm b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2, 3;
+
+SELECT a.device, COUNT(*), SUM(a.val), SUM(b.metric) FROM v_l_norm a JOIN v_r_norm b ON a.device = b.device WHERE b.metric >= 100 PARTITION BY a.device ORDER BY 1;
+
+SELECT a.device, a.val, b.metric FROM v_l_norm a LEFT JOIN ( SELECT ts, device, metric FROM r_norm WHERE status = 1 ) b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val FROM ( SELECT ts, device, val FROM l_norm WHERE val >= 10 ) a LEFT SEMI JOIN v_r_norm b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM ( SELECT ts, device, val FROM l_norm WHERE val >= 10 ) a LEFT ANTI JOIN v_r_norm b ON a.device = b.device AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val, CAST(b.ts AS BIGINT), b.metric FROM v_l_norm a FULL JOIN ( SELECT ts, device, metric FROM r_norm WHERE metric >= 100 ) b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.region, a.val, b.metric FROM ( SELECT ts, device, region, val FROM sl WHERE val >= 1 ) a JOIN ( SELECT ts, device, region, metric FROM sr WHERE metric >= 10 ) b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;

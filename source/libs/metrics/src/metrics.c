@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "metricsInt.h"
 
 // Global shared write metrics counters
@@ -70,7 +73,15 @@ static void cleanExpiredCounterMetrics(taos_counter_t *counter, SHashObj *pValid
   }
 
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
-  if (keys) taosMemoryFree(keys);
+  // [TD-SEC-2026-ITEM84] taos_counter_get_vgroup_ids now returns a *copy* of each key string
+  // (ownership transferred to the caller). Free every copied string before the array to avoid a
+  // persistent, per-cycle memory leak across all write metrics counters.
+  if (keys) {
+    for (int i = 0; i < list_size; i++) {
+      if (keys[i]) taosMemoryFree(keys[i]);
+    }
+    taosMemoryFree(keys);
+  }
 }
 
 int32_t initMetricsManager() {

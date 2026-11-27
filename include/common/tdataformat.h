@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -156,6 +158,9 @@ int32_t tRowBuild(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SRowB
 int32_t tRowBuildWithBlob(SArray *aColVal, const STSchema *pTSchema, SRow **ppRow, SBlobSet *pBlobSet,
                           SRowBuildScanInfo *sinfo);
 int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
+// blobSeq: the rows were built with a blob set (the submit carries one), so a non-empty BLOB cell holds its 8 byte
+// seq; otherwise it holds the blob inline.
+int32_t tRowValidate(SRow *pRow, STSchema *pTSchema, bool blobSeq);
 
 typedef struct {
   uint64_t offset;
@@ -188,6 +193,7 @@ int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
+bool    tRowPrimaryKeyValid(const SRow *pRow);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
 void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet);
@@ -200,25 +206,21 @@ SColVal *tRowIterNext(SRowIter *pIter);
 
 // STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
-// Reorder pTagName in place so its element order matches the cid order of
-// pTagVals after tTagNew() sorted pTagVals by cid. This prevents tag name
-// <-> value misalignment in downstream consumers (e.g. the JSON meta
-// emitted by tmq_get_json_meta for auto-created child tables) when the
-// INSERT/binding column order differs from the STABLE TAGS schema order.
-int32_t tTagAlignNameByCid(const SSchema *pSchema, int32_t numOfTags, SArray *pTagVals, SArray *pTagName);
-// Wrapper that builds STag via tTagNew() and, on success, realigns the
-// caller-supplied pTagName array with the cid-sorted pTagVals. Non-JSON
-// callers MUST prefer this helper over a bare tTagNew() whenever they
-// also maintain a parallel tagName array, to avoid the misalignment bug.
-int32_t tTagNewWithName(SArray *pTagVals, SArray *pTagName, const SSchema *pSchema, int32_t numOfTags,
-                        int32_t version, STag **ppTag);
+int32_t tTagNameCompare(const void *a, const void *b);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
+bool    tTagGetJsonBounded(const STag *pTag, int32_t availableLen, STagVal *pTagVal, bool *pFound);
+// pTag must point to at least sizeof(STag) readable bytes. availableLen is the
+// maximum number of readable bytes starting at pTag, including the header. An
+// empty JSON tag is valid only with nTag == 0 and len == sizeof(STag).
+bool    tTagValidateJson(const STag *pTag, int32_t availableLen);
 char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
+// Checks that a serialized STag of `len` bytes is self-consistent: header, idx[] offsets and every entry lie in len.
+int32_t tTagValidate(const void *pData, uint32_t len);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    destroyTagVal(void *pTag);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
@@ -276,6 +278,7 @@ int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
 int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
+int32_t tDecodeColDataByCid(uint8_t version, SDecoder *pDecoder, col_id_t cid, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 
@@ -469,6 +472,9 @@ STSchema *tBuildTSchema(SSchema *aSchema, int32_t numOfCols, int32_t version);
       pTSchema = NULL;            \
     }                             \
   } while (0)
+// Binary search on pTSchema->columns by colId. The columns must be stored in ascending colId order;
+// tBuildTSchema() does not sort and keeps the caller's column order (TDengine metadata schemas are
+// ordered by colId). A miss does not distinguish "column absent" from "unordered schema".
 const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid);
 
 struct SValueColumn {
@@ -524,6 +530,7 @@ typedef struct {
   int32_t          columnId;
   int32_t          type;
   int32_t          bytes;
+  STypeMod         typeMod;
   TAOS_STMT2_BIND *bind;
 
 } SBindInfo2;
@@ -567,6 +574,19 @@ struct SRowBuildScanInfo {
 
 int8_t schemaHasBlob(const STSchema *pSchema);
 #endif
+
+// Append a tag name and its column ID into a tag-name array whose elemSize is
+// TSDB_COL_NAME_LEN + sizeof(col_id_t).  Using taosArrayPush(arr, name) would
+// copy elemSize bytes from a TSDB_COL_NAME_LEN-byte source, causing an
+// out-of-bounds read.  This helper uses taosArrayReserve to allocate the slot
+// first, then writes the two fields separately.
+static FORCE_INLINE int32_t insTagNameAppend(SArray *pTagNames, const char *name, col_id_t colId) {
+  void *slot = taosArrayReserve(pTagNames, 1);
+  if (NULL == slot) return terrno;
+  memcpy(slot, name, TSDB_COL_NAME_LEN);
+  *(col_id_t *)POINTER_SHIFT(slot, TSDB_COL_NAME_LEN) = colId;
+  return TSDB_CODE_SUCCESS;
+}
 
 #ifdef __cplusplus
 }

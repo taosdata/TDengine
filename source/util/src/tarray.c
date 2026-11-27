@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "tarray.h"
 #include "tcoding.h"
+#include "tdTestSeam.h"
 
 // todo refactor API
 #define BOUNDARY_SIZE         1024 * 1024 * 1024  // 1G
@@ -107,6 +110,8 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 }
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
+  TD_SEAM_RET(taosArrayAddBatch, void* (*)(SArray*, const void*, int32_t), (pArray, pData, nEles));
+
   if (pData == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;

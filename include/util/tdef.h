@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -140,6 +142,12 @@ extern const int32_t TYPE_BYTES[22];
 
 #define TSDB_INS_USER_STABLES_DBNAME_COLID 2
 
+// Key column ids of the xnode system tables, used to recognize pushdown-able equality filters.
+// Must stay in sync with [xnodeTasksSchema] and [xnodeTaskJobSchema] in common/src/systable.c:
+// inserting a column ahead of these shifts the ids and would silently filter the wrong column.
+#define TSDB_INS_XNODE_TASKS_ID_COLID    1
+#define TSDB_INS_XNODE_JOBS_TASKID_COLID 2
+
 static const int64_t TICK_PER_SECOND[] = {
     1000LL,        // MILLISECOND
     1000000LL,     // MICROSECOND
@@ -193,7 +201,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
-  
+
   // unary comparison operator
   OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,
@@ -281,6 +289,12 @@ typedef enum {
 #define TSDB_MAX_COLUMNS_NON_VIRTUAL 4096
 #define TSDB_MIN_COLUMNS             2  // PRIMARY COLUMN(timestamp) + other columns
 
+// Lower bound of colIds allocated to a virtual child table's own (extension) columns/tags
+// (ALTER VTABLE <vchild> ADD COLUMN/TAG, independent of the vstb schema). Own colIds are
+// allocated from this base upwards; the mnode side hard-caps a virtual super table's
+// nextColId below this base, so vstb-assigned colIds can never collide with own colIds.
+#define TSDB_VCHILD_OWN_COL_ID_BASE 0x7800  // 30720
+
 #define TSDB_NODE_NAME_LEN            64
 #define TSDB_TABLE_NAME_LEN           193                                // it is a null-terminated string
 #define TSDB_TOPIC_NAME_LEN           193                                // it is a null-terminated string
@@ -339,7 +353,7 @@ typedef enum {
 #define TSDB_ENCRYPT_ALGR_DESC_LEN      128
 #define TSDB_ENCRYPT_ALGR_TYPE_LEN      64
 #define TSDB_ENCRYPT_ALGR_SM4_NAME      "SM4-CBC:SM4"
-#define TSDB_MNODE_BUILTIN_DATA_VERSION 1
+#define TSDB_MNODE_BUILTIN_DATA_VERSION 2
 
 #define TSDB_VIEW_NAME_LEN  193
 #define TSDB_VIEW_FNAME_LEN (TSDB_DB_FNAME_LEN + TSDB_VIEW_NAME_LEN + TSDB_NAME_DELIMITER_LEN)
@@ -356,8 +370,21 @@ typedef enum {
 
 #define TSDB_MAX_BYTES_PER_ROW         65531  // 49151:65531
 #define TSDB_MAX_BYTES_PER_ROW_VIRTUAL 524283
+// vtable tag-ref chain depth bound -- AUTHORITATIVE SEMANTICS (the three walkers
+// reference this): counts REFERENCE EDGES; with the value 32 a legal chain has at most
+// 33 edges (34 tables incl. the source), the 34th edge is rejected. All three walkers
+//  -  the parser pre-check (checkRefChainDepthAndCircular), the vnode backstop
+// (metaCheckTagRefChainLocal) and the executor resolver (resolveTagRefChain)  -  walk
+// the same hops and must land on this exact boundary; they differ only in how the
+// visited set is seeded for cycle detection (parser/backstop pre-seed the source table
+// into visited, the resolver starts from it directly) -- see their per-site counting
+// notes; pinned by test_vtable_tag_ref_depth_boundary.py.
+#define TSDB_MAX_VTABLE_REF_DEPTH      32
+#define TSDB_MAX_OPERATOR_PARAM_DEPTH  64
 #define TSDB_MAX_TAGS_LEN              16384
 #define TSDB_MAX_TAGS                  128
+#define TSDB_MAX_VST_PARENTS           10
+#define TSDB_MAX_VST_LEAVES            10000
 
 #define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384
@@ -368,6 +395,19 @@ typedef enum {
 #define TSDB_PASSWORD_MAX_LEN                   255
 #define TSDB_PASSWORD_LEN                       32  // this is the length after encryption
 #define TSDB_PASSWORD_SALT_LEN                  31  // length of salt used in password encryption, excluding the terminator '\0'
+// SCRAM-SHA-256 credentials (application-layer SASL auth). StoredKey/ServerKey are raw
+// SHA-256 outputs (32 bytes); the salt is a server-generated random value.
+#define TSDB_SCRAM_KEY_LEN                      32  // SHA-256 digest size: SCRAM StoredKey / ServerKey
+#define TSDB_SCRAM_SALT_LEN                     32  // server-generated SCRAM salt length
+#define TSDB_SCRAM_DEFAULT_ITER                 4096 // PBKDF2 iteration count
+#define TSDB_SCRAM_ALGO_NONE                    0   // not provisioned -> fall back to legacy auth
+#define TSDB_SCRAM_ALGO_SHA256                  1   // SCRAM-SHA-256
+#define TSDB_SASL_MECH_LEN                      24  // SASL mechanism name buffer, e.g. "SCRAM-SHA-256"
+#define TSDB_SASL_AUTH_ID_LEN                   40  // server-assigned handshake id (random hex + '\0')
+// client auth mechanism policy (tsAuthMech)
+#define TSDB_AUTH_MECH_AUTO                     0   // try SCRAM, fall back to legacy if unavailable
+#define TSDB_AUTH_MECH_SCRAM                    1   // require SCRAM-SHA-256 (no fallback)
+#define TSDB_AUTH_MECH_LEGACY                   2   // legacy password CONNECT only
 #define TSDB_USER_PASSWORD_LEN                  129
 #define TSDB_USER_PASSWORD_LONGLEN              256
 #define TSDB_TOTP_SECRET_LEN                    32
@@ -401,11 +441,24 @@ typedef enum {
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN         16
 #define TSDB_FILENAME_LEN         128
+/* Buffers that hold a whole "<dataDir>/vnode/vnodeN/.../<file>" path need far
+ * more room than a bare file name: the data dir alone can reach the platform
+ * path limit, so a 128 byte buffer silently truncates the suffix and the file
+ * that gets created no longer matches the name the open path expects.  Windows
+ * keeps its 260 byte MAX_PATH, so 512 covers it completely; the platforms with
+ * a POSIX backend already read long paths and keep the old size, which leaves
+ * their behaviour byte for byte unchanged.  TSDB_FILENAME_LEN must stay 128:
+ * it sizes fields inside the RPC and persisted structures (SBackupFile.relPath,
+ * SDiskCfg.dir, WAL_PATH_LEN, ...), so growing it would change their layout. */
+#ifdef WINDOWS
+#define TSDB_PATH_LEN             512
+#else
+#define TSDB_PATH_LEN             TSDB_FILENAME_LEN
+#endif
 #define TSDB_SHOW_SQL_LEN         2048
 #define TSDB_INS_STREAM_SQL_LEN   (48 * 1024)
 #define TSDB_SHOW_SCHEMA_JSON_LEN TSDB_MAX_COLUMNS * 256
 #define TSDB_SLOW_QUERY_SQL_LEN   512
-#define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_LOG_VAR_LEN          32
 
 #define TSDB_ANALYTIC_ANODE_URL_LEN   128
@@ -428,7 +481,7 @@ typedef enum {
 #define TSDB_XNODE_URL_LEN              256
 #define TSDB_XNODE_STATUS_LEN           16
 #define TSDB_XNODE_TASK_NAME_LEN        64
-#define TSDB_XNODE_TASK_PARSER_LEN      48*1024
+#define TSDB_XNODE_TASK_PARSER_MAX_LEN  (960 * 1024)
 #define TSDB_XNODE_TASK_TRIGGER_LEN     128
 #define TSDB_XNODE_RESOURCE_ID_LEN      8
 #define TSDB_XNODE_RESOURCE_NAME_LEN    64
@@ -436,7 +489,8 @@ typedef enum {
 #define TSDB_XNODE_TASK_SINK_LEN        2048
 #define TSDB_XNODE_TASK_REASON_LEN      1024
 #define TSDB_XNODE_TASK_OPTIONS_MAX_NUM 64
-#define TSDB_XNODE_TASK_JOB_CONFIG_LEN  48*1024
+#define TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN      (1024 * 1024)
+#define TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN (2 * 1024 * 1024)
 #define TSDB_XNODE_TASK_LABELS_LEN      4096
 #define TSDB_XNODE_AGENT_NAME_LEN       TSDB_XNODE_TASK_NAME_LEN
 #define TSDB_XNODE_AGENT_STATUS_LEN     TSDB_XNODE_STATUS_LEN
@@ -471,6 +525,7 @@ typedef enum {
 #define TSDB_GRANT_CLS_ID_LEN 64
 #define TSDB_GRANT_CLS_TIME_LEN 48
 #define TSDB_GRANT_CLS_REASON_LEN 1024
+#define TSDB_REGISTER_EMAIL_LEN 256
 
 #define TSDB_ACTIVE_KEY_LEN      109
 #define TSDB_CONN_ACTIVE_KEY_LEN 255
@@ -490,12 +545,18 @@ typedef enum {
 
 #define TSDB_MAX_REPLICA               5
 #define TSDB_MAX_LEARNER_REPLICA       10
+// Array-bound guard for a wire-decoded replica count / self index pair: count in [0, max] and
+// selfIndex in [-1, max - 1] (-1 means "this node is not in the list"). It only keeps loops and
+// indices inside the fixed-size arrays; whether selfIndex < count is checked by the vnode mgmt layer.
+static inline bool tsdbReplicaCfgInRange(int32_t count, int32_t selfIndex, int32_t max) {
+  return count >= 0 && count <= max && selfIndex >= -1 && selfIndex < max;
+}
 #define TSDB_SYNC_RESTORE_lEN          20
-#define TSDB_SYNC_APPLY_COMMIT_LEN     100
+// 100 -> 160: reserve space for the snapshot transfer/rate suffix "(t/T,r/s)" in the show vgroups status column
+#define TSDB_SYNC_APPLY_COMMIT_LEN     160
 #define TSDB_SYNC_LOG_BUFFER_SIZE      4096
 #define TSDB_SYNC_LOG_BUFFER_RETENTION 256
 #define TSDB_SYNC_LOG_BUFFER_THRESHOLD (1024 * 1024 * 5)
-#define TSDB_SYNC_NEGOTIATION_WIN      512
 
 #define TSDB_SYNC_SNAP_BUFFER_SIZE 1024
 
@@ -695,7 +756,24 @@ typedef enum {
 #define TSDB_MAX_GEOMETRY_LEN  TSDB_MAX_FIELD_LEN  // 16384-8:65519
 #define TSDB_MAX_VARBINARY_LEN TSDB_MAX_FIELD_LEN  // 16384-8:65519
 
-#define TSDB_MAX_BLOB_LEN (4 << 20)
+// Maximum on-disk size of a single BLOB value, INCLUDING the 4-byte
+// BLOBSTR_HEADER_SIZE, so the maximum payload is (TSDB_MAX_BLOB_LEN - BLOBSTR_HEADER_SIZE).
+// Checks that compare a payload length must therefore use
+// `payload + BLOBSTR_HEADER_SIZE > TSDB_MAX_BLOB_LEN` (see tcompare.c,
+// tdataformat.c, tsdbRead2.c).  Raised from 4MB to 16MB; keep in sync with
+// TSDB_MAX_MSG_SIZE below, since one submit message may inline a whole BLOB value.
+#define TSDB_MAX_BLOB_LEN (16 << 20)
+
+// Maximum amount of BLOB payload a single result block may hold.
+// A result block is serialized into ONE RPC message and rpcMallocCont() rejects any message
+// above TRANS_PACKET_LIMIT (512MB), so a block larger than that cannot be sent at all: the
+// query fails with an out-of-memory error before the client sees a single row.  The int32_t
+// per-row offsets of a var-length column only rule out blocks above 2GB, which is far too
+// lax.  Half of TRANS_PACKET_LIMIT leaves room for the other columns, the offset array and
+// the message envelope.  Only BLOB needs this: every other var-length type is bounded by
+// TSDB_MAX_FIELD_LEN * TSDB_DEFAULT_MAXROWS_FBLOCK (~268MB) because such a block is sized in
+// rows, so for those the row-based limits are already tighter.
+#define TSDB_MAX_BLOB_BYTES_PER_BLOCK (256 * 1024 * 1024)
 
 #define TSDB_MAX_SUBROLE   32
 #define TSDB_MAX_PRIV_OBJS 512
@@ -705,10 +783,11 @@ typedef enum {
 #define TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR 512
 
 #define PRIMARYKEY_TIMESTAMP_COL_ID    1
+#define ROWSET_COL_ID_START            (PRIMARYKEY_TIMESTAMP_COL_ID + 1)
 #define COL_REACH_END(colId, maxColId) ((colId) > (maxColId))
 
 #ifdef WINDOWS
-#define TSDB_MAX_RPC_THREADS 4  // windows pipe only support 4 connections.
+#define TSDB_MAX_RPC_THREADS 64  // uv_pipe_pending_instances() is set to numOfThreads in transSvr.c; must keep in sync
 #else
 #define TSDB_MAX_RPC_THREADS 100
 #endif
@@ -744,7 +823,17 @@ typedef enum {
 #define TSDB_DEFAULT_STABLES_HASH_SIZE  100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
 
-#define TSDB_MAX_MSG_SIZE (1024 * 1024 * 10)
+// Upper bound of a single RPC message.  A submit request inlines the whole BLOB
+// value, so this must stay comfortably above TSDB_MAX_BLOB_LEN to leave room for
+// row headers, tags, batch padding and RPC framing.
+#define TSDB_MAX_MSG_SIZE (32 * 1024 * 1024)
+
+// Baseline message size used by tglobal.c to derive the RPC/WAL queue memory
+// defaults and the documented lower bounds of rpcQueueMemoryAllowed /
+// syncLogBufferMemoryAllowed.  Deliberately NOT tied to TSDB_MAX_MSG_SIZE: raising
+// the single-message limit must not silently raise those configuration minimums
+// (that would reject configs which are valid today).
+#define TSDB_MSG_MEMORY_BASELINE (10 * 1024 * 1024)
 
 #define TSDB_BLOB_MEMORY_LIMIT (1024 * 1024 * 1024 * 1)  // 1GB
 
@@ -823,6 +912,7 @@ enum { RAND_ERR_MEMORY = 1, RAND_ERR_FILE = 2, RAND_ERR_NETWORK = 4 };
 #define TSDB_CONFIG_PATH_LEN     4096
 #define TSDB_CONFIG_INFO_LEN     64
 #define TSDB_CONFIG_CATEGORY_LEN 8
+#define TSDB_CONFIG_REBOOT_LEN   8
 
 #define QUERY_ID_SIZE      20
 #define QUERY_OBJ_ID_SIZE  18
@@ -865,6 +955,9 @@ typedef enum {
   ANALY_ALGO_TYPE_CORREL = 3,
   ANALY_ALGO_TYPE_CLASSIFI = 4,
   ANALY_ALGO_TYPE_MOTIF = 5,
+  ANALY_ALGO_TYPE_REGRESSION = 6,
+  ANALY_ALGO_TYPE_CLUSTERING = 7,
+  ANALY_ALGO_TYPE_SERIES_DIAGNOSIS = 8,
   ANALY_ALGO_TYPE_END = 10,
 } EAnalyAlgoType;
 
@@ -877,6 +970,89 @@ typedef enum {
   TSDB_VERSION_CLOUD,
   TSDB_VERSION_END,
 } EVersionType;
+
+// EMetaTxnStatus: transaction status tag on SMetaEntry in the VNode B+ tree;
+// used for visibility filtering and transaction management.
+// Visibility rules:
+//   NORMAL          - visible normally; no active transaction
+//   PRE_CREATE      - shadow create: invisible to regular queries (not yet committed);
+//                     visible to operations from the same txnId
+//   PRE_CREATE_DROP - CREATE followed by DROP within the same transaction
+//                     (used mainly for STB path recovery)
+//   PRE_ALTER       - shadow alter: queries see old schema (snapshot isolation);
+//                     writes use old schema
+//   PRE_DROP        - shadow drop: queries still see old data (snapshot isolation);
+//                     INSERT is still allowed - the entry stays visible until COMMIT,
+//                     so rows written during the txn are dropped with the table on
+//                     COMMIT and retained together with it on ROLLBACK
+typedef enum {
+  META_TXN_NORMAL = 0,      // normal state; no associated transaction
+  META_TXN_PRE_CREATE,      // shadow create: written to B+ tree but invisible externally; awaiting COMMIT
+  META_TXN_PRE_CREATE_DROP, // shadow create immediately marked for drop: CREATE then DROP in the same txn
+  META_TXN_PRE_ALTER,       // shadow alter: new schema written; old schema still visible externally (snapshot isolation)
+  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries and INSERT both still see it
+} EMetaTxnStatus;
+
+// EUtxnStage: lifecycle stages of a user batch transaction (shared by the client and MNode).
+// The client uses UTXN_STAGE_IDLE/BEGIN_PENDING/ACTIVE/ABORTED in STscObj.txnState.
+// The MNode uses all stages except UTXN_STAGE_BEGIN_PENDING in STxnObj.stage, persisted via Raft WAL.
+// UTXN_STAGE_BEGIN_PENDING (1) is client-side only and never persisted.
+// State transitions:
+//   IDLE            ->  BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
+//   BEGIN_PENDING   ->  ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
+//   BEGIN_PENDING   ->  IDLE           (BEGIN failed; reset by processBeginTxnRsp)
+//   ACTIVE          ->  ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
+//   ACTIVE          ->  PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
+//   ACTIVE/ABORTED  ->  ROLLINGBACK    (ROLLBACK received)
+//   PREPARING       ->  COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
+//   PREPARING       ->  ROLLINGBACK    (any VNode PREPARE failed)
+//   COMMITTING      ->  COMMITTED      (all VNode COMMIT ACKs received)
+//   ROLLINGBACK     ->  ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
+typedef enum {
+  UTXN_STAGE_IDLE = 0,           // initial / destroyed state (object does not exist in memory)
+  UTXN_STAGE_BEGIN_PENDING = 1,  // client-side only: BEGIN sent to MNode; awaiting response
+  UTXN_STAGE_ACTIVE = 2,         // BEGIN accepted; receiving / processing DDL
+  UTXN_STAGE_ABORTED = 3,        // DDL failed; transaction aborted; awaiting explicit ROLLBACK from client
+  UTXN_STAGE_PREPARING = 4,      // COMMIT received; broadcasting PREPARE to VNodes; awaiting all ACKs
+  UTXN_STAGE_COMMITTING = 5,     // COMMITTING written to WAL (no rollback possible); broadcasting COMMIT to VNodes
+  UTXN_STAGE_ROLLINGBACK = 6,    // written to WAL; broadcasting ROLLBACK to VNodes; awaiting all ACKs
+  UTXN_STAGE_COMMITTED = 7,      // all VNodes confirmed COMMIT; transient terminal; deleted from SDB shortly after
+  UTXN_STAGE_ROLLEDBACK = 8,     // all VNodes confirmed ROLLBACK; transient terminal; deleted from SDB shortly after
+  // 9 was UTXN_STAGE_ZOMBIE (designed but never assigned; reserved to avoid persisted-value conflicts)
+  UTXN_STAGE_TIMEOUT_KILLED = 9,  // client-side only: MNode killed txn due to HB timeout; local ROLLBACK only
+} EUtxnStage;
+
+// EVtxnStage: local state of a single transaction participant on the VNode side.
+// Stored in VNode memory only (not persisted to the B+ tree; EMetaTxnStatus
+// marks shadow data in the B+ tree).
+typedef enum {
+  VTXN_STAGE_NONE      = 0,  // no active transaction; normal state
+  VTXN_STAGE_ACTIVE    = 1,  // DDL carrying txnId received; shadow data written to B+ tree; awaiting PREPARE
+  VTXN_STAGE_PREPARED  = 2,  // PREPARE received and written to WAL; awaiting COMMIT/ROLLBACK from MNode
+  VTXN_STAGE_FINISHING = 3,  // COMMIT/ROLLBACK received; making shadow data permanent or rolling it back (atomic)
+} EVtxnStage;
+
+typedef int64_t txn_id_t;
+
+#define TSDB_TXN_TIMEOUT_DEFAULT 300   // Default txn timeout in seconds (5 minutes)
+#define TSDB_TXN_TIMEOUT_MIN     30    // Minimum txn timeout in seconds
+#define TSDB_TXN_TIMEOUT_MAX     3600  // Absolute max txn lifetime in seconds
+#define TSDB_TXN_HB_TIMEOUT      60    // client HB inactivity timeout
+#define TSDB_ORPHAN_TXN_SCAN_MS  (TSDB_TXN_TIMEOUT_DEFAULT * 1000LL)
+
+#define TSDB_TXN_MAX_DDL_OPS_PER_TXN 50000  // Max DDL ops tracked per txn
+#define TSDB_TXN_MAX_ALTER_PER_STB   32     // Max ALTER ops on a single STB within one txn
+#define TSDB_TXN_VACUUM_BATCH_SIZE   1024   // Max UIDs processed per async vacuum batch
+#define TSDB_TXN_INLINE_THRESHOLD    64     // Txns with <= this many UIDs use sync inline path
+
+// ETxnMetaStatus: terminal state of a VNode-side transaction (persisted to txn.meta).
+// COMMIT/ROLLBACK writes a single O(1) terminal record; background vacuum lazily cleans
+// up shadow data in the B+ tree.
+typedef enum {
+  TXN_META_NONE = 0,        // not yet finalised (transaction in progress)
+  TXN_META_COMMITTED = 1,   // committed; pending vacuum (shadow data needs to be made permanent)
+  TXN_META_ROLLEDBACK = 2,  // rolled back; pending vacuum (shadow data needs to be discarded)
+} ETxnMetaStatus;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 

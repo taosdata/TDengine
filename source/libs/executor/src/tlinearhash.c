@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -384,12 +386,16 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
     if (numOfBits > pHashObj->bits) {
       //      printf("extend the bits from %d to %d, new bucket:%d\n", pHashObj->bits, numOfBits, newBucketId);
       if (numOfBits != pHashObj->bits + 1) {
-        qError("linear hash faield at: %s:%d", __func__, __LINE__);
+        qError("linear hash failed at: %s:%d", __func__, __LINE__);
         return TSDB_CODE_INTERNAL_ERROR;
       }
       pHashObj->bits = numOfBits;
     }
 
+    if (pHashObj->bits < 1) {
+      qError("linear hash failed at: %s:%d, invalid bits:%d", __func__, __LINE__, pHashObj->bits);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     int32_t splitBucketId = doGetRelatedSplitBucketId(newBucketId, pHashObj->bits);
 
     // load all data in this bucket and check if the data needs to relocated into the new bucket
@@ -404,7 +410,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       while (pStart - ((char*)p) < p->num) {
         SLHashNode* pNode = (SLHashNode*)pStart;
         if (pNode->keyLen <= 0) {
-          qError("linear hash faield at: %s:%d", __func__, __LINE__);
+          qError("linear hash failed at: %s:%d", __func__, __LINE__);
           return TSDB_CODE_INTERNAL_ERROR;
         }
 

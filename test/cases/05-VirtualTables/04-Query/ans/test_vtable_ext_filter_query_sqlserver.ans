@@ -1,0 +1,60 @@
+
+taos> alter local "timezone" "UTC";
+
+taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_normal where a < 12 or c >= 23 order by ts;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067200000000 |          10 |          20 |
+      1704067201000000 |          11 | NULL        |
+      1704067203000000 |          13 |          23 |
+      1704067206000000 | NULL        |          26 |
+
+taos> select a, c from vfilter_query.filter_normal where a >= 20;
+
+taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_normal where a >= 11 and c >= 23 order by ts;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067203000000 |          13 |          23 |
+
+taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.chain where ts >= '2024-01-01 00:00:01' and ts < '2024-01-01 00:00:06' order by ts desc limit 2 offset 1;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067203000000 |          13 |          23 |
+      1704067202000000 | NULL        |          22 |
+
+taos> select ts_ms, a, c from (select cast(ts as bigint) as ts_ms, a, c from vfilter_query.chain) where a <= 11 or c = 26 order by ts_ms;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067200000000 |          10 |          20 |
+      1704067201000000 |          11 | NULL        |
+      1704067206000000 | NULL        |          26 |
+
+taos> select a as v from vfilter_query.filter_normal where a < 12 union all select c as v from vfilter_query.chain where c >= 23 order by v;
+      v      |
+==============
+          10 |
+          11 |
+          23 |
+          26 |
+
+taos> select cast(l.ts as bigint) as ts_ms, l.a, r.c from vfilter_query.filter_normal l join vfilter_query.chain r on l.ts = r.ts order by l.ts;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067200000000 |          10 |          20 |
+      1704067203000000 |          13 |          23 |
+
+taos> select cast(l.ts as bigint) as ts_ms, l.a, r.c from vfilter_query.filter_normal l left join vfilter_query.chain r on l.ts = r.ts where l.a >= 11 order by l.ts;
+         ts_ms         |      a      |      c      |
+====================================================
+      1704067201000000 |          11 | NULL        |
+      1704067203000000 |          13 |          23 |
+      1704067205000000 |          15 | NULL        |
+
+taos> select scenario, cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_stable where scenario = 1 and a >= 11 and ts <= '2024-01-01 00:00:03' order by ts;
+  scenario   |         ts_ms         |      a      |      c      |
+==================================================================
+           1 |      1704067201000000 |          11 | NULL        |
+           1 |      1704067203000000 |          13 |          23 |
+
+taos> select a, c from vfilter_query.chain_stable where a > 100 or c > 100;
+

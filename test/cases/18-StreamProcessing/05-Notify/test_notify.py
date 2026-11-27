@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import json
 import os
 import time
@@ -39,14 +54,29 @@ def _wait_notify_events(path, min_events, retries=30):
     return _load_notify_events(path)
 
 
+def _assert_no_notify_events(path, settle_seconds=5):
+    time.sleep(settle_seconds)
+    if not os.path.exists(path):
+        return
+    events = _load_notify_events(path)
+    assert len(events) == 0, events
+
+
 def _subevent_key(event):
     cond = event.get("triggerCondition", {})
     return (
         event.get("eventType"),
-        event.get("windowIndex"),
-        cond.get("conditionIndex"),
+        cond.get("conditionPath"),
         event.get("windowStart"),
     )
+
+
+def _assert_condition_path_payload(events):
+    for event in events:
+        cond = event.get("triggerCondition", {})
+        assert "windowIndex" not in event, events
+        assert "conditionIndex" not in cond, events
+        assert isinstance(event.get("parentTriggerId"), list), events
 
 
 class TestStreamNotifyTrigger:
@@ -88,7 +118,7 @@ class TestStreamNotifyTrigger:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
 
         Jira: None
 
@@ -124,8 +154,30 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic18())
         streams.append(self.Basic19())
 
-        tdStream.checkAll(streams)      
-        stop_notify_server_background()
+        try:
+            tdStream.checkAll(streams)
+        finally:
+            stop_notify_server_background()
+        for stream in streams:
+            tdSql.execute(f"drop database {stream.db} force")
+
+    def test_stream_notify_where_filter(self):
+        """Notify WHERE filters result rows
+
+        Verify WHERE filters retain matching rows and suppress notifications
+        when no result rows match.
+
+        Since: v3.4.2.0
+
+        """
+
+        self.start_notify_server()
+        try:
+            tdStream.dropAllStreamsAndDbs()
+            tdStream.ensureSnode()
+            tdStream.checkAll([self.NotifyWhereFilter()])
+        finally:
+            stop_notify_server_background()
 
     class Basic1(StreamCheckItem):
         def __init__(self):
@@ -558,14 +610,29 @@ class TestStreamNotifyTrigger:
             ]
 
             tdSql.executes(sqls)
+
+        def check1(self):
+            # Observe the initial window before deleting its first row.
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+                streamName="sdb2.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660800000,
+                result_pred=lambda rows: not rows,
+            )
+
+        def insert2(self):
             tdSql.execute(f"delete from ct0 where _c0 = '2025-01-01 00:00:00.000';")
 
             tdSql.execute(f"insert into ct0 values('2025-01-01 00:00:05.000', 911, 0, 1.1, 1.1, '1', 23.123456);")
+            # Updates inside an open window are recalculated after that window closes.
+            tdSql.execute("insert into ct0 values('2025-01-01 00:00:11.000', 2, 0, 1.1, 12.1, '1', 14.3333);")
 
-        def check1(self):
+        def check2(self):
             tdLog.info("do check the results")
             
-            for ws in (1735660800000, 1735660805000, 1735660806000):
+            for ws in (1735660801000, 1735660805000, 1735660806000, 1735660811000):
                 expect_event(
                     os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
                     streamName="sdb2.s0",
@@ -574,14 +641,6 @@ class TestStreamNotifyTrigger:
                     result_pred=lambda rows: not rows  # 空
                 )
                 
-            expect_event(
-                os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
-                streamName="sdb2.s0",
-                eventType="WINDOW_OPEN",
-                triggerType="State",
-                windowStart=1735660800000
-            )
-
             expect_event(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
              streamName="sdb2.s0",
              eventType="WINDOW_CLOSE",
@@ -598,12 +657,12 @@ class TestStreamNotifyTrigger:
             windowEnd=1735660804000)
             
             expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
-            rows=4,
+            rows=5,
             streamName="sdb2.s0",
             eventType="WINDOW_CLOSE",
             tableName="res_ct0",
-            windowStart=1735660800000,
-            windowEnd=1735660804000)
+            windowStart=1735660806000,
+            windowEnd=1735660810000)
             
             expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
             rows=1,
@@ -1970,8 +2029,10 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"check1 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
-            tdSql.query(f"select * from {self.db}.ana_ct0_end")
-            tdSql.checkRows(0)
+            tdSql.checkResultsByArray(
+                f"select output_timestamp, c0 from {self.db}.ana_ct0_end order by output_timestamp",
+                [[f"2025-01-01 00:00:0{sec}.000", 6 + sec] for sec in range(5)],
+            )
             
             expect_event_count(
                 os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
@@ -2321,24 +2382,38 @@ class TestStreamNotifyTrigger:
             single_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_single.log")
             events = _wait_notify_events(single_log, 2)
             actual = [_subevent_key(e) for e in events[:2]]
+            # A single sub-event keeps the envelope identity until a second child opens.
             expected = [
-                ("WINDOW_OPEN", -1, 0, 1735660800000),
-                ("WINDOW_CLOSE", -1, 0, 1735660800000),
+                ("WINDOW_OPEN", "", 1735660800000),
+                ("WINDOW_CLOSE", "", 1735660800000),
             ]
             assert actual == expected, events
             assert len(events) == 2, events
+            _assert_condition_path_payload(events)
+            trigger_id = events[0].get("triggerId")
+            assert trigger_id, events
+            assert all(e.get("parentTriggerId") == [] for e in events), events
+            assert all(e.get("triggerId") == trigger_id for e in events), events
 
             order_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_order.log")
             _wait_notify_events(order_log, 1)
             time.sleep(1)
             events = _load_notify_events(order_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "", 1735660800000)], events
+            _assert_condition_path_payload(events)
+            parent_trigger_id = events[0].get("triggerId")
+            assert parent_trigger_id, events
+            assert events[0].get("parentTriggerId") == [], events
 
             history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
             _wait_notify_events(history_log, 1)
             time.sleep(1)
             events = _load_notify_events(history_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "", 1735660800000)], events
+            _assert_condition_path_payload(events)
+            parent_trigger_id = events[0].get("triggerId")
+            assert parent_trigger_id, events
+            assert events[0].get("parentTriggerId") == [], events
 
         def insert2(self):
             tdSql.execute("insert into t_order values ('2025-01-01 00:00:01.000', 0, 1)")
@@ -2350,35 +2425,39 @@ class TestStreamNotifyTrigger:
             events = _wait_notify_events(order_log, 4)
             actual = [_subevent_key(e) for e in events[:4]]
             expected = [
-                ("WINDOW_OPEN", -1, 0, 1735660800000),
-                ("WINDOW_OPEN", 0, 0, 1735660800000),
-                ("WINDOW_CLOSE", 0, 0, 1735660800000),
-                ("WINDOW_OPEN", 1, 1, 1735660801000),
+                ("WINDOW_OPEN", "", 1735660800000),
+                ("WINDOW_OPEN", "0", 1735660800000),
+                ("WINDOW_CLOSE", "0", 1735660800000),
+                ("WINDOW_OPEN", "1", 1735660801000),
             ]
             assert actual == expected, events
+            _assert_condition_path_payload(events[:4])
             parent_open = events[0]
             first_child_open = events[1]
             first_child_close = events[2]
             second_child_open = events[3]
             parent_trigger_id = parent_open.get("triggerId")
             assert parent_trigger_id, events
+            assert parent_open.get("parentTriggerId") == [], events
             assert first_child_open.get("triggerId") != parent_trigger_id, events
             assert first_child_close.get("triggerId") != parent_trigger_id, events
             assert first_child_close.get("triggerId") == first_child_open.get("triggerId"), events
-            assert first_child_open.get("parentTriggerId") == parent_trigger_id, events
-            assert first_child_close.get("parentTriggerId") == parent_trigger_id, events
-            assert second_child_open.get("parentTriggerId") == parent_trigger_id, events
+            assert first_child_open.get("parentTriggerId") == [parent_trigger_id], events
+            assert first_child_close.get("parentTriggerId") == [parent_trigger_id], events
+            assert second_child_open.get("parentTriggerId") == [parent_trigger_id], events
 
             history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
             events = _wait_notify_events(history_log, 4)
             actual = [_subevent_key(e) for e in events[:4]]
             assert actual == expected, events
+            _assert_condition_path_payload(events[:4])
             parent_open = events[0]
             parent_trigger_id = parent_open.get("triggerId")
             assert parent_trigger_id, events
+            assert parent_open.get("parentTriggerId") == [], events
             for child_event in events[1:4]:
                 assert child_event.get("triggerId") != parent_trigger_id, events
-                assert child_event.get("parentTriggerId") == parent_trigger_id, events
+                assert child_event.get("parentTriggerId") == [parent_trigger_id], events
 
     class Basic19(StreamCheckItem):
         def __init__(self):
@@ -2474,3 +2553,99 @@ class TestStreamNotifyTrigger:
 
             tdSql.query("show tables like 'test_stream_alarm'")
             tdSql.checkRows(0)
+
+    class NotifyWhereFilter(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb_notify_where"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create table t (ts timestamp, grp int, val int)")
+            tdSql.execute("create table t_sparse (ts timestamp, val int)")
+            tdSql.execute(
+                "create stream s_partial "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_partial') "
+                "on(window_close) where max_val >= 20 "
+                "into r_partial (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_none "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_none') "
+                "on(window_close) where max_val > 100 "
+                "into r_none (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_sparse_windows "
+                "interval(10s) sliding(10s) from t_sparse "
+                "notify('ws://localhost:12345/notify_where_sparse_windows') "
+                "on(window_close) where max_val >= 20 "
+                "into r_sparse_windows (ts, cnt, max_val) as "
+                "select _twstart, count(*) as cnt, max(val) as max_val from %%trows"
+            )
+
+        def insert1(self):
+            tdSql.execute(
+                "insert into t values "
+                "('2025-01-01 00:00:00.000', 1, 10) "
+                "('2025-01-01 00:00:01.000', 2, 20) "
+                "('2025-01-01 00:00:02.000', 3, 30) "
+                "('2025-01-01 00:00:10.000', 1, 0)"
+            )
+            tdSql.execute(
+                "insert into t_sparse values "
+                "('2025-01-01 00:00:00.000', 20) "
+                "('2025-01-01 00:00:10.000', 0) "
+                "('2025-01-01 00:00:20.000', 30) "
+                "('2025-01-01 00:00:30.000', 0) "
+                "('2025-01-01 00:00:40.000', 40) "
+                "('2025-01-01 00:00:50.000', 0)"
+            )
+
+        def check1(self):
+            partial_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_partial.log")
+            none_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_none.log")
+            sparse_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_sparse_windows.log")
+
+            event = expect_event(
+                partial_log,
+                streamName=f"{self.db}.s_partial",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                result_pred=lambda rows: sorted(
+                    (row["grp"], row["cnt"], row["max_val"]) for row in rows
+                ) == [(2, 1, 20), (3, 1, 30)],
+            )
+            assert event.result["curSize"] == 2, event.raw
+            assert all(set(row) == {"ts", "grp", "cnt", "max_val"} for row in event.resultData), event.raw
+
+            _assert_no_notify_events(none_log)
+
+            tdSql.query("select grp, cnt, max_val from r_partial order by grp")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 10)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 1)
+            tdSql.checkData(1, 2, 20)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 1)
+            tdSql.checkData(2, 2, 30)
+
+            tdSql.query("select grp, cnt, max_val from r_none order by grp")
+            tdSql.checkRows(3)
+
+            sparse_events = _wait_notify_events(sparse_log, 3)
+            sparse_windows = sorted((event["windowStart"], event["result"]["data"][0]["max_val"]) for event in sparse_events)
+            assert sparse_windows == [
+                (1735660800000, 20),
+                (1735660820000, 30),
+                (1735660840000, 40),
+            ], sparse_events

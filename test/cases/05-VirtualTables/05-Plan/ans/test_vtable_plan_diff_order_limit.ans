@@ -1,0 +1,19 @@
+
+taos> set max_binary_display_width 160;
+taos> explain verbose true select _c0, diff(_c0) as timespan, x from vtable_order_limit.vn where _c0 is not null order by _c0 desc limit 1000;
+                                                                            QUERY_PLAN                                                                            |
+===================================================================================================================================================================
+ -> Projection (columns=3 width=20 input_order=desc)                                                                                                              |
+       Output: columns=3 width=20 limit=1000                                                                                                                      |
+       Output: Ignore Group Id: true                                                                                                                              |
+       Merge ResBlocks: True                                                                                                                                      |
+    -> Sort input_order=asc output_order=desc  (columns=3 width=20)                                                                                               |
+          Output: columns=3 width=20 limit=1000                                                                                                                   |
+       -> Indefinite Rows Function (functions=3 width=20)                                                                                                         |
+             Output: columns=3 width=20                                                                                                                           |
+          -> Sort input_order=desc output_order=asc  (columns=2 width=12)                                                                                         |
+                Output: columns=2 width=12                                                                                                                        |
+             -> Table Scan on src0 (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)                                                         |
+                   Output: columns=2 width=12 limit=1001                                                                                                          |
+                   Time Range: [-9223372036854775808, 9223372036854775807]                                                                                        |
+

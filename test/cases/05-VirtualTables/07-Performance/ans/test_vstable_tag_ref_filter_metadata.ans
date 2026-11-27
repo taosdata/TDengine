@@ -1,0 +1,377 @@
+
+taos> USE vt_tag_filter_idmp;
+Database changed.
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000016                      |
+ vt_000032                      |
+ vt_000048                      |
+ vt_000064                      |
+ vt_000080                      |
+ vt_000096                      |
+ vt_000112                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '13800000' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000016                      |
+ vt_000032                      |
+ vt_000048                      |
+ vt_000064                      |
+ vt_000080                      |
+ vt_000096                      |
+ vt_000112                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380' ORDER BY tbname;
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` IS NULL ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000014                      |
+ vt_000030                      |
+ vt_000046                      |
+ vt_000062                      |
+ vt_000078                      |
+ vt_000094                      |
+ vt_000110                      |
+ vt_000126                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` = '' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000015                      |
+ vt_000031                      |
+ vt_000047                      |
+ vt_000063                      |
+ vt_000079                      |
+ vt_000095                      |
+ vt_000111                      |
+ vt_000127                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE NOT (`手机` LIKE '1380%') ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000001                      |
+ vt_000002                      |
+ vt_000003                      |
+ vt_000005                      |
+ vt_000006                      |
+ vt_000007                      |
+ vt_000009                      |
+ vt_000010                      |
+ vt_000011                      |
+ vt_000013                      |
+ vt_000015                      |
+ vt_000017                      |
+ vt_000018                      |
+ vt_000019                      |
+ vt_000021                      |
+ vt_000022                      |
+ vt_000023                      |
+ vt_000025                      |
+ vt_000026                      |
+ vt_000027                      |
+ vt_000029                      |
+ vt_000031                      |
+ vt_000033                      |
+ vt_000034                      |
+ vt_000035                      |
+ vt_000037                      |
+ vt_000038                      |
+ vt_000039                      |
+ vt_000041                      |
+ vt_000042                      |
+ vt_000043                      |
+ vt_000045                      |
+ vt_000047                      |
+ vt_000049                      |
+ vt_000050                      |
+ vt_000051                      |
+ vt_000053                      |
+ vt_000054                      |
+ vt_000055                      |
+ vt_000057                      |
+ vt_000058                      |
+ vt_000059                      |
+ vt_000061                      |
+ vt_000063                      |
+ vt_000065                      |
+ vt_000066                      |
+ vt_000067                      |
+ vt_000069                      |
+ vt_000070                      |
+ vt_000071                      |
+ vt_000073                      |
+ vt_000074                      |
+ vt_000075                      |
+ vt_000077                      |
+ vt_000079                      |
+ vt_000081                      |
+ vt_000082                      |
+ vt_000083                      |
+ vt_000085                      |
+ vt_000086                      |
+ vt_000087                      |
+ vt_000089                      |
+ vt_000090                      |
+ vt_000091                      |
+ vt_000093                      |
+ vt_000095                      |
+ vt_000097                      |
+ vt_000098                      |
+ vt_000099                      |
+ vt_000101                      |
+ vt_000102                      |
+ vt_000103                      |
+ vt_000105                      |
+ vt_000106                      |
+ vt_000107                      |
+ vt_000109                      |
+ vt_000111                      |
+ vt_000113                      |
+ vt_000114                      |
+ vt_000115                      |
+ vt_000117                      |
+ vt_000118                      |
+ vt_000119                      |
+ vt_000121                      |
+ vt_000122                      |
+ vt_000123                      |
+ vt_000125                      |
+ vt_000127                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' OR local_tag = 1 ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000001                      |
+ vt_000003                      |
+ vt_000004                      |
+ vt_000005                      |
+ vt_000007                      |
+ vt_000008                      |
+ vt_000009                      |
+ vt_000011                      |
+ vt_000012                      |
+ vt_000013                      |
+ vt_000015                      |
+ vt_000016                      |
+ vt_000017                      |
+ vt_000019                      |
+ vt_000020                      |
+ vt_000021                      |
+ vt_000023                      |
+ vt_000024                      |
+ vt_000025                      |
+ vt_000027                      |
+ vt_000028                      |
+ vt_000029                      |
+ vt_000031                      |
+ vt_000032                      |
+ vt_000033                      |
+ vt_000035                      |
+ vt_000036                      |
+ vt_000037                      |
+ vt_000039                      |
+ vt_000040                      |
+ vt_000041                      |
+ vt_000043                      |
+ vt_000044                      |
+ vt_000045                      |
+ vt_000047                      |
+ vt_000048                      |
+ vt_000049                      |
+ vt_000051                      |
+ vt_000052                      |
+ vt_000053                      |
+ vt_000055                      |
+ vt_000056                      |
+ vt_000057                      |
+ vt_000059                      |
+ vt_000060                      |
+ vt_000061                      |
+ vt_000063                      |
+ vt_000064                      |
+ vt_000065                      |
+ vt_000067                      |
+ vt_000068                      |
+ vt_000069                      |
+ vt_000071                      |
+ vt_000072                      |
+ vt_000073                      |
+ vt_000075                      |
+ vt_000076                      |
+ vt_000077                      |
+ vt_000079                      |
+ vt_000080                      |
+ vt_000081                      |
+ vt_000083                      |
+ vt_000084                      |
+ vt_000085                      |
+ vt_000087                      |
+ vt_000088                      |
+ vt_000089                      |
+ vt_000091                      |
+ vt_000092                      |
+ vt_000093                      |
+ vt_000095                      |
+ vt_000096                      |
+ vt_000097                      |
+ vt_000099                      |
+ vt_000100                      |
+ vt_000101                      |
+ vt_000103                      |
+ vt_000104                      |
+ vt_000105                      |
+ vt_000107                      |
+ vt_000108                      |
+ vt_000109                      |
+ vt_000111                      |
+ vt_000112                      |
+ vt_000113                      |
+ vt_000115                      |
+ vt_000116                      |
+ vt_000117                      |
+ vt_000119                      |
+ vt_000120                      |
+ vt_000121                      |
+ vt_000123                      |
+ vt_000124                      |
+ vt_000125                      |
+ vt_000127                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' AND local_tag = 0 ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT tbname FROM vst WHERE `手机` LIKE '1380%' GROUP BY tbname ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_000000' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_000000' AND `手机` = '13800000' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE tbname IN ('vt_000000', 'vt_000001') AND `手机` LIKE '1380%' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_missing' AND `手机` IS NULL ORDER BY tbname;
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' ORDER BY tbname LIMIT 3;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000004                      |
+ vt_000008                      |
+

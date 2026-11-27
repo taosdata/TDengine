@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 configure_file("${CMAKE_CURRENT_SOURCE_DIR}/src/version.c.in" "${CMAKE_CURRENT_BINARY_DIR}/version.c.tmp")
 set(_version_c "${CMAKE_CURRENT_SOURCE_DIR}/src/version.c")
 set(_need_update TRUE)
@@ -23,6 +38,11 @@ DEP_ext_lz4(util)
 if(TD_LINUX)
   DEP_ext_xxhash(util)
   DEP_ext_lzma2(util)
+  if(BUILD_WITH_ACCEL_COMPRESS)
+    # tcompression_accel.c needs dlopen/dlsym/dlerror at runtime
+    target_compile_definitions(util PRIVATE TD_BUILD_WITH_ACCEL_COMPRESS)
+    target_link_libraries(util PUBLIC dl)
+  endif()
 endif()
 if (NOT ${TD_WINDOWS})
   DEP_ext_ssl(util)
@@ -62,5 +82,6 @@ target_link_libraries(
 )
 
 if(BUILD_TEST)
+    target_compile_definitions(util PRIVATE BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif()

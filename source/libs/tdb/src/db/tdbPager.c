@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -262,14 +264,16 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int     ret;
   SPage **ppPage;
 
-  if (pPage->isDirty) return 0;
+  if (tdbPageGetFlag(pPage, PAGE_FLAG_DIRTY)) {
+    return 0;
+  }
 
   // ref page one more time so the page will not be release
   int32_t nRef = tdbRefPage(pPage);
   tdbTrace("pager/mdirty page %p/%d/%d, ref:%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id, nRef);
 
   // Set page as dirty
-  pPage->isDirty = 1;
+  tdbPageSetFlag(pPage, PAGE_FLAG_DIRTY);
 
   tdbTrace("tdb/pager-write: put page: %p %d to dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
   SRBTreeNode *tnode = tRBTreePut(&pPager->rbt, (SRBTreeNode *)pPage);
@@ -292,13 +296,30 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
+// Build the per-txn journal file name. The buffer must be sized dynamically: with deep data
+// directories the fixed TDB_FILENAME_LEN(128) buffer truncated "<dbFileName>-journal.<txnId>",
+// collapsing every txn's journal onto one shared (truncated) file name. A later abort/restore
+// would then wrongly apply another txn's stale undo pages and destroy committed data.
+static char *tdbBuildJournalName(SPager *pPager, int64_t txnId) {
+  int32_t nameLen = strlen(pPager->jFileName) + 32;  // 32 is enough for ".<int64>" and '\0'
+  char   *pName = tdbOsMalloc(nameLen);
+  if (pName == NULL) {
+    return NULL;
+  }
+  (void)snprintf(pName, nameLen, "%s.%" PRId64, pPager->jFileName, txnId);
+  return pName;
+}
+
 int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
   // Open the journal
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
   pTxn->jfd = tdbOsOpen(jTxnFileName, TDB_O_CREAT | TDB_O_RDWR, 0755);
   if (TDB_FD_INVALID(pTxn->jfd)) {
     tdbError("failed to open file due to %s. jFileName:%s", strerror(ERRNO), pPager->jFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
@@ -311,36 +332,19 @@ int tdbPagerBegin(SPager *pPager, TXN *pTxn) {
     if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
       tdbWarn("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
     }
+    tdbOsFree(jTxnFileName);
     return ret;
   }
 
+  tdbOsFree(jTxnFileName);
   pPager->pActiveTxn = pTxn;
 
   tdbDebug("pager/begin: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
 
   // TODO: write the size of the file
-  /*
-  pPager->inTran = 1;
-  */
   return 0;
 }
-/*
-int tdbPagerCancelDirty(SPager *pPager, SPage *pPage, TXN *pTxn) {
-  SRBTreeNode *pNode = tRBTreeGet(&pPager->rbt, (SRBTreeNode *)pPage);
-  if (pNode) {
-    pPage->isDirty = 0;
 
-    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    if (pTxn->jPageSet) {
-      hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
-    }
-
-    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
-  }
-
-  return 0;
-}
-*/
 int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
   int    ret;
@@ -378,9 +382,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   iter = tRBTreeIterCreate(&pPager->rbt, 1);
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
-
-    pPage->isDirty = 0;
-
+    tdbPageClearFlag(pPage, PAGE_FLAG_DIRTY);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     if (pTxn->jPageSet) {
       int32_t nt = hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
@@ -404,19 +406,24 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 }
 
 int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
-
   // remove the journal file
   if (tdbOsClose(pTxn->jfd) < 0) {
     tdbError("failed to close jfd: %s. file:%s, %" PRId64, strerror(ERRNO), pPager->jFileName, pTxn->txnId);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
+
   if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
+
+  tdbOsFree(jTxnFileName);
 
   // pPager->inTran = 0;
 
@@ -442,7 +449,9 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
-    if (pPage->isLocal) continue;
+    if (tdbPageGetFlag(pPage, PAGE_FLAG_LOCAL)) {
+      continue;
+    }
 
     SPgno pgno = TDB_PAGE_PGNO(pPage);
     if (pgno > maxPgno) {
@@ -463,8 +472,10 @@ int tdbPagerPrepareAsyncCommit(SPager *pPager, TXN *pTxn) {
   iter = tRBTreeIterCreate(&pPager->rbt, 1);
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
     pPage = (SPage *)pNode;
-    if (pPage->isLocal) continue;
-    pPage->isDirty = 0;
+    if (tdbPageGetFlag(pPage, PAGE_FLAG_LOCAL)) {
+      continue;
+    }
+    tdbPageClearFlag(pPage, PAGE_FLAG_DIRTY);
 
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
@@ -581,7 +592,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
       return terrno = TAOS_SYSTEM_ERROR(ERRNO);
     }
 
-    i64 offset = pPager->pageSize * (pgno - 1);
+    i64 offset = (i64)pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
       tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(ERRNO), pPager->dbFileName, offset);
       tdbOsFree(pageBuf);
@@ -622,9 +633,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     SPgno pgno = TDB_PAGE_PGNO(pPage);
 
     tdbTrace("pager/abort: drop dirty pgno:%d,", pgno);
-
-    pPage->isDirty = 0;
-
+    tdbPageClearFlag(pPage, PAGE_FLAG_DIRTY);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     if (pTxn->jPageSet) {
       int32_t nt = hashset_remove(pTxn->jPageSet, (void *)((long)TDB_PAGE_PGNO(pPage)));
@@ -642,15 +651,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
-  char jTxnFileName[TDB_FILENAME_LEN];
-  (void)snprintf(jTxnFileName, TDB_FILENAME_LEN, "%s.%" PRId64, pPager->jFileName, pTxn->txnId);
+  char *jTxnFileName = tdbBuildJournalName(pPager, pTxn->txnId);
+  if (jTxnFileName == NULL) {
+    return terrno;
+  }
 
   if (tdbOsRemove(jTxnFileName) < 0 && ERRNO != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(ERRNO), jTxnFileName);
+    tdbOsFree(jTxnFileName);
     return terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
-  // pPager->inTran = 0;
+  tdbOsFree(jTxnFileName);
 
   return 0;
 }
@@ -686,7 +698,7 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn, bool *flushed) {
     tdbTrace("tdb/flush:%p, pgno:%d, %d/%d/%d", pPager, pgno, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
     pPager->dbOrigSize = maxPgno;
 
-    pPage->isDirty = 0;
+    tdbPageClearFlag(pPage, PAGE_FLAG_DIRTY);
 
     tdbTrace("pager/flush drop page: %p, pgno:%d, from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
     tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
@@ -697,30 +709,11 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn, bool *flushed) {
 
   tdbDebug("pager/flush: %p, %d/%d, txnId:%" PRId64, pPager, pPager->dbOrigSize, pPager->dbFileSize, pTxn->txnId);
 
-  /*
-  tdbTrace("tdb/flush:%p, %d/%d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize, maxPgno);
-  pPager->dbOrigSize = maxPgno;
-
-  // release the page
-  iter = tRBTreeIterCreate(&pPager->rbt, 1);
-  while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
-    pPage = (SPage *)pNode;
-    nRef = tdbGetPageRef(pPage);
-    if (nRef > 1) {
-      continue;
-    }
-
-    pPage->isDirty = 0;
-
-    tdbTrace("pager/flush drop page: %p %d from dirty tree: %p", pPage, TDB_PAGE_PGNO(pPage), &pPager->rbt);
-    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
-    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
-  }
-  */
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn);
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, bool *pReused,
+                            TXN *pTxn);
 
 int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                       TXN *pTxn) {
@@ -729,6 +722,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   int    ret;
   SPgno  pgno;
   u8     loadPage;
+  bool   reused = false;
   bool   flushed = true;
 
   pgno = *ppgno;
@@ -737,7 +731,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   // alloc new page
   if (pgno == 0) {
     loadPage = 0;
-    ret = tdbPagerAllocPage(pPager, &pgno, pTxn);
+    ret = tdbPagerAllocPage(pPager, &pgno, &reused, pTxn);
     if (ret < 0) {
       tdbError("tdb/pager: %p, ret: %d pgno: %" PRIu32 ", alloc page failed.", pPager, ret, pgno);
       return ret;
@@ -749,15 +743,30 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
-  // fetch a page container
-  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
-  pgid.pgno = pgno;
-  while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn, !flushed, NULL)) == NULL) {
-    flushed = false;
-    int32_t code = tdbPagerFlushPage(pPager, pTxn, &flushed);
-    if (code) {
-      tdbError("tdb/pager: %p, pPage: %p, flush page failed.", pPager, pPage);
-      return code;
+  if (reused) {
+    // Preserve the pre-image, when needed, before reinitializing a reused page.
+    ret = tdbPagerFetchFreePage(pPager, pgno, &pPage, pTxn);
+    if (ret < 0) {
+      tdbError("tdb/pager: %p, ret: %d pgno: %" PRIu32 ", fetch free page failed.", pPager, ret, pgno);
+      return ret;
+    }
+    ret = tdbPagerWrite(pPager, pPage);
+    if (ret < 0) {
+      tdbError("tdb/pager: %p, pPage: %p, journal free page failed.", pPager, pPage);
+      tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+      return ret;
+    }
+  } else {
+    // fetch a page container
+    memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
+    pgid.pgno = pgno;
+    while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn, !flushed, NULL)) == NULL) {
+      flushed = false;
+      int32_t code = tdbPagerFlushPage(pPager, pTxn, &flushed);
+      if (code) {
+        tdbError("tdb/pager: %p, pPage: %p, flush page failed.", pPager, pPage);
+        return code;
+      }
     }
   }
 
@@ -797,12 +806,9 @@ static int initFreePage(SPage *pPage, void *arg, int init) {
   return 0;
 }
 
-// tdbPagerFetchFreePage is only expected to be called in tdbBtreePushFreePage/tdbBtreePopFreePage.
-// in all other cases, please call tdbPagerFetchPage instead.
-//
-// for a page, if it is still in the cache, then the memory copy has the latest data, but for free
-// pages, tdbPagerFetchPage always load the page data from the file, this is not the desired behavior
-// in tdbBtreePushFreePage/tdbBtreePopFreePage, so we need tdbPagerFetchFreePage.
+// Fetch raw free-page contents for stack operations or journaling before reuse.
+// Preserve cache hits because they can contain newer links than the disk image;
+// on a cache miss, load the page without interpreting or changing its contents.
 int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn) {
   SPage *pPage;
   SPgid  pgid;
@@ -880,10 +886,12 @@ static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, bool *pReused,
+                            TXN *pTxn) {
   int ret;
 
   *ppgno = 0;
+  *pReused = false;
 
   // Try to allocate from the free list of the pager
   ret = tdbPagerAllocFreePage(pPager, ppgno, pTxn);
@@ -892,7 +900,10 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   }
 
   ASSERT_CORE(*ppgno <= pPager->dbFileSize, "invalid pgno:%u, db file size:%u.", *ppgno, pPager->dbFileSize);
-  if (*ppgno != 0) return 0;
+  if (*ppgno != 0) {
+    *pReused = true;
+    return 0;
+  }
 
   // Allocate the page by extending the pager
   ret = tdbPagerAllocNewPage(pPager, ppgno);
@@ -1138,7 +1149,7 @@ static int tdbPagerRestore(SPager *pPager, const char *jFileName) {
       return TAOS_SYSTEM_ERROR(ERRNO);
     }
 
-    i64 offset = pPager->pageSize * (pgno - 1);
+    i64 offset = (i64)pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
       tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(ERRNO), pPager->dbFileName, offset);
       tdbOsFree(pageBuf);

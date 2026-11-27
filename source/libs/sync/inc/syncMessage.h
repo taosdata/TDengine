@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,6 +28,7 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
   SYNC_TIMEOUT_HEARTBEAT,
+  SYNC_TIMEOUT_RESTORE_ELECT,  // fallback timer to restore electBaseLine
 } ESyncTimeoutType;
 
 typedef struct SyncTimeout {
@@ -45,6 +48,7 @@ typedef struct SyncClientRequest {
   uint32_t msgType;          // TDMT_SYNC_CLIENT_REQUEST
   uint32_t originalRpcType;  // origin RpcMsg msgType
   uint64_t seqNum;
+  int64_t  txnId;  // batch-meta-txn: copied from origin RpcMsg.info.txnId; 0 = non-transaction
   bool     isWeak;
   int16_t  reserved;
   uint32_t dataLen;  // origin RpcMsg.contLen

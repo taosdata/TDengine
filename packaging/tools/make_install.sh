@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install TAOS time-series database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -11,6 +23,7 @@ source_dir=$1
 binary_dir=$2
 osType=$3
 verNumber=$4
+install_fq_runtime_libs=${TD_INSTALL_FQ_RUNTIME_LIBS:-OFF}
 
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
@@ -68,10 +81,17 @@ NC='\033[0m'
 
 csudo=""
 csudouser=""
-if command -v sudo >/dev/null; then
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null; then
   csudo="sudo "
   csudouser="sudo -u ${USER} "
 fi
+
+function is_true() {
+  case "$1" in
+    ON|on|On|TRUE|true|True|1|YES|yes|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 service_mod=2
 os_type=0
@@ -193,6 +213,12 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosmqtt ] && ${csudo}cp -r ${binary_dir}/build/bin/taosmqtt ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+    # Custom cipher provider (BUILD_TEST only): on Linux the module is
+    # libcustomcrypt.so, on macOS it is .dylib (matches the MODULE build output,
+    # e.g. libtaospyudf.dylib). It is placed next to taosd so the
+    # transparent-encryption test can load it via the encryptExtDir config.
+    _crypt_lib="${binary_dir}/build/bin/libcustomcrypt.so"
+    [ -f "$_crypt_lib" ] && ${csudo}cp -r "$_crypt_lib" ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
@@ -200,6 +226,15 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin || :
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
+    # The custom cipher provider is an OpenSSL provider module that taosd must be
+    # able to READ (and, on macOS/hardened mounts, EXEC) at runtime. The chmod
+    # 0555 above would otherwise drop read permission for non-owner/non-root
+    # users, causing OSSL_PROVIDER_load to fail silently, and would also strip
+    # the exec bit that dlopen/mmap(PROT_EXEC) needs on some platforms. Restore
+    # 0755 (read+exec for all) for the module (both extensions).
+    for _f in libcustomcrypt.so libcustomcrypt.dylib; do
+      [ -f ${install_main_dir}/bin/$_f ] && ${csudo}chmod 0755 ${install_main_dir}/bin/$_f || :
+    done
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
@@ -230,9 +265,21 @@ function install_bin() {
         ${csudo}cp -r ${binary_dir}/build/bin/*explorer ${install_main_dir}/bin
       fi
       ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+      # Custom cipher provider (BUILD_TEST only): module is .dylib on macOS.
+    _crypt_lib="${binary_dir}/build/bin/libcustomcrypt.dylib"
+    [ -f "$_crypt_lib" ] && ${csudo}cp -r "$_crypt_lib" ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
+    # The custom cipher provider is an OpenSSL provider module that taosd must be
+    # able to READ (and, on macOS/hardened mounts, EXEC) at runtime. The chmod
+    # 0555 above would otherwise drop read permission for non-owner/non-root
+    # users, causing OSSL_PROVIDER_load to fail silently, and would also strip
+    # the exec bit that dlopen/mmap(PROT_EXEC) needs on some platforms. Restore
+    # 0755 (read+exec for all) for the module (both extensions).
+    for _f in libcustomcrypt.so libcustomcrypt.dylib; do
+      [ -f ${install_main_dir}/bin/$_f ] && ${csudo}chmod 0755 ${install_main_dir}/bin/$_f || :
+    done
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} > /dev/null 2>&1 || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} > /dev/null 2>&1 || :
@@ -322,16 +369,312 @@ function install_avro() {
   fi
 }
 
+# Preserve general-purpose system library links: legacy installs may have
+# overwritten their original targets. Remove only dedicated FQ exports. Resolve every link
+# before deleting any, so aliases and dangling versioned targets are handled.
+function cleanup_legacy_fq_runtime() {
+  local driver_dir="$1" conf_file="$2" cleanup_sudo="$3"
+  shift 3
+  local canonical_driver dir link target
+  local changed=0
+  local managed_links=()
+  local ownership
+  canonical_driver=$(readlink -m -- "$driver_dir")
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for link in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so* \
+                "$dir"/libltdl.so* "$dir"/libgssapi_krb5.so* "$dir"/libkrb5.so* \
+                "$dir"/libk5crypto.so* "$dir"/libcom_err.so* "$dir"/libkrb5support.so* \
+                "$dir"/libkeyutils.so*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m -- "$link" 2>/dev/null) || continue
+      case "$target" in
+        "$canonical_driver/"*)
+          # Shared runtime SONAMEs may have replaced package-owned links.
+          # Remove them only when a package manager confirms the link path is
+          # unowned; ambiguous query failures preserve the link.
+          case "${link##*/}" in
+            libssl.so*|libcrypto.so*|libz.so*|libltdl.so*|libgssapi_krb5.so*|libkrb5.so*|\
+            libk5crypto.so*|libcom_err.so*|libkrb5support.so*|libkeyutils.so*)
+              ownership=unknown
+              if command -v dpkg-query >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(dpkg-query -S -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"no path found matching pattern"* ]]; then
+                  ownership=unowned
+                fi
+              elif command -v rpm >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(rpm -qf -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"is not owned by any package"* ]]; then
+                  ownership=unowned
+                fi
+              fi
+              if [ "$ownership" = owned ] && command -v rpm >/dev/null 2>&1; then
+                local package rpm_target restored_target
+                package=$(rpm -qf --qf '%{NAME}\n' -- "$link" 2>/dev/null) || package=""
+                rpm_target=""
+                if [ -n "$package" ]; then
+                  rpm_target=$(rpm -q --dump "$package" 2>/dev/null | awk -v path="$link" '$1 == path && $5 ~ /^012/ { print $NF; found=1; exit } END { if (!found) exit 1 }') || rpm_target=""
+                fi
+                if [ -n "$rpm_target" ] && [ -e "$(dirname "$link")/$rpm_target" ]; then
+                  restored_target=$(readlink -m -- "$(dirname "$link")/$rpm_target" 2>/dev/null) || restored_target=""
+                  case "$restored_target" in
+                    "$canonical_driver/"*) restored_target="" ;;
+                  esac
+                  if [ -n "$restored_target" ]; then
+                    ${cleanup_sudo}ln -sfn -- "$rpm_target" "$link"
+                    changed=1
+                    echo "Restored package-owned symlink $link -> $rpm_target"
+                    continue
+                  fi
+                fi
+                echo "Warning: preserving $link; RPM target could not be safely restored" >&2
+                continue
+              fi
+              if [ "$ownership" != unowned ]; then
+                echo "Warning: preserving $link; package ownership is $ownership" >&2
+                continue
+              fi
+              ;;
+          esac
+          managed_links+=("$link")
+          ;;
+      esac
+    done
+  done
+  for link in "${managed_links[@]-}"; do
+    [ -n "$link" ] || continue
+    ${cleanup_sudo}rm -f -- "$link"
+    changed=1
+  done
+  # The old installer wrote exactly one driver path. Leave symlinks and any
+  # customized configuration untouched, even when the filename is the same.
+  if [ -n "$conf_file" ] && [ -f "$conf_file" ] && [ ! -L "$conf_file" ] &&
+     [ "$(cat -- "$conf_file")" = "$driver_dir" ]; then
+    ${cleanup_sudo}rm -f -- "$conf_file"
+    changed=1
+  elif [ -n "$conf_file" ] && { [ -e "$conf_file" ] || [ -L "$conf_file" ]; }; then
+    echo "Warning: customized loader configuration preserved: $conf_file; review FQ driver exports manually" >&2
+  fi
+  if [ "$changed" -eq 1 ] && { [ "$(id -u)" -eq 0 ] || [ -n "$cleanup_sudo" ]; } &&
+     command -v ldconfig >/dev/null 2>&1; then
+    ${cleanup_sudo}ldconfig || echo "Warning: failed to update library cache (ldconfig)" >&2
+  fi
+}
+
 function install_lib() {
+  copy_driver_runtime_libs() {
+    local patterns=()
+    local src=""
+
+    if [ "$osType" != "Darwin" ]; then
+      patterns=(
+        "libssl.so*"
+        "libcrypto.so*"
+      )
+    else
+      patterns=(
+        "libssl*.dylib*"
+        "libcrypto*.dylib*"
+      )
+    fi
+
+    for pattern in "${patterns[@]}"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
+          ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
+      done
+    done
+  }
+
+  remove_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" && return
+
+    ${csudo}rm -rf "${install_main_dir}/driver/oracle" || :
+
+    for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib" \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
+      "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
+      for src in "${install_main_dir}/driver"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}rm -f "${src}" || :
+      done
+    done
+  }
+
+  # Copy one federated-query runtime library into driver/.
+  #
+  # A link whose target is a sibling in the staged set is preserved as a link.
+  # Oracle's Instant Client ships libclntsh and libclntshcore once each under
+  # eight versioned aliases (libclntsh.so.10.1 ... .23.1), so dereferencing
+  # every alias would put nine full copies of a 99 MB library into the package.
+  # All the aliases carry the same SONAME and the preloader only needs the
+  # unversioned one, so the real file is shipped and install.sh's link list
+  # rebuilds the alias on the target machine.  A link pointing outside the
+  # staged set is dereferenced instead, so the package never carries a link
+  # that resolves to nothing.
+  #
+  # Links are handled in a second pass, after every real file is in place:
+  # a preserved link is dangling until its target lands, and chmod/readlink on
+  # a dangling link fails (which `set -e` would turn into an aborted install).
+  copy_fq_runtime_lib() {
+    local src=$1
+    local dst="${install_main_dir}/driver/$(basename "${src}")"
+    local target=""
+
+    if [ -L "${src}" ]; then
+      target="$(readlink "${src}" 2>/dev/null || true)"
+      case "${target}" in
+        /*|"")
+          ${csudo}cp -RfL "${src}" "${dst}"
+          ;;
+        *)
+          if [ -e "${binary_dir}/build/lib/${target}" ]; then
+            ${csudo}rm -f "${dst}"
+            ${csudo}cp -Rdf "${src}" "${dst}"
+          else
+            ${csudo}cp -RfL "${src}" "${dst}"
+          fi
+          ;;
+      esac
+    else
+      ${csudo}cp -RfL "${src}" "${dst}"
+    fi
+    # A preserved link may still be dangling at this point; its target is
+    # copied later in the real-file pass.
+    if [ -e "${dst}" ]; then
+      ${csudo}chmod 755 "${dst}"
+    fi
+    return 0
+  }
+
+  copy_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" || return 0
+    [ -d "${binary_dir}/build/lib" ] || return 0
+
+    # Two passes over the same glob set: real files first, so that every link
+    # preserved below already has its target in place.
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
+      "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" "libz.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        [ -L "${src}" ] && continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        [ -L "${src}" ] || continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+    # MySQL 8 accounts default to caching_sha2_password, which MariaDB
+    # Connector/C loads as a client plugin.  The provider points
+    # MYSQL_PLUGIN_DIR at the client library's directory, so these files must
+    # sit next to libmariadb in driver/ (same build, same version).
+    for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+    if [ -d "${binary_dir}/build/driver/oracle" ]; then
+      ${csudo}mkdir -p "${install_main_dir}/driver/oracle"
+      ${csudo}cp -a "${binary_dir}/build/driver/oracle/." "${install_main_dir}/driver/oracle/"
+    fi
+    if [ -d "${binary_dir}/build/share/resources" ]; then
+      ${csudo}mkdir -p "${install_main_dir}/share/resources"
+      ${csudo}cp -a "${binary_dir}/build/share/resources/." "${install_main_dir}/share/resources/"
+    fi
+  }
+
+  remove_managed_driver_links() {
+    local dir=$1
+    local pattern=""
+    local link_path=""
+    local resolved=""
+
+    [ -d "${dir}" ] || return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" \
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
+      for link_path in "${dir}"/${pattern}; do
+        [ -L "${link_path}" ] || continue
+        resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
+        case "${resolved}" in
+          "${install_main_dir}/driver/"*)
+            ${csudo}rm -f "${link_path}" || :
+            ;;
+        esac
+      done
+    done
+  }
+
   # Remove links
   remove_links() {
     local dir=$1
     if [ -d "$dir" ]; then
-      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
+      for pattern in \
+        "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
           ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
-      done      
+      done
+      remove_managed_driver_links "${dir}"
     fi
   }
+
+  if [ "$osType" != "Darwin" ]; then
+    cleanup_legacy_fq_runtime "${install_main_dir}/driver" \
+      "/etc/ld.so.conf.d/tdengine-connector.conf" "$csudo" "$lib_link_dir" "$lib64_link_dir"
+  fi
 
   remove_links ${lib_link_dir}
 
@@ -405,12 +748,21 @@ function install_lib() {
         ${csudo}ln -sf ${lib64_link_dir}/libtaospyudf.so.1 ${lib64_link_dir}/libtaospyudf.so > /dev/null 2>&1
         fi
     fi
+
+    copy_driver_runtime_libs
+    copy_fq_runtime_libs || :
+    remove_fq_runtime_libs
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
       ${install_main_dir}/driver/libtaos.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaosnative.dylib \
       ${install_main_dir}/driver/libtaosnative.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
+
+    # libtaos re-exports @loader_path/libtaosnative.dylib. Keep that name
+    # beside the versioned payload; a link in /usr/local/lib is insufficient.
+    ${csudo}ln -sf "libtaosnative.${verNumber}.dylib" \
+      "${install_main_dir}/driver/libtaosnative.dylib"
 
     ${csudo}ln -sf ${install_main_dir}/driver/libtaos.${verNumber}.dylib \
       ${lib_link_dir}/libtaos.1.dylib > /dev/null 2>&1 || :
@@ -437,26 +789,48 @@ function install_lib() {
 
       ${csudo}ln -sf ${install_main_dir}/driver/libtaospyudf.${verNumber}.dylib ${lib_link_dir}/libtaospyudf.dylib > /dev/null 2>&1 || :
     fi
+
+    copy_driver_runtime_libs
+    copy_fq_runtime_libs || :
+    remove_fq_runtime_libs
+    if [ "$osType" = "Darwin" ]; then
+      # Preserve the existing macOS linking behavior; Linux uses private RUNPATH.
+      for lib in "${install_main_dir}/driver"/libssl*.dylib* "${install_main_dir}/driver"/libcrypto*.dylib*; do
+        [ -e "${lib}" ] || continue
+        ${csudo}ln -sf "${lib}" "${lib_link_dir}/$(basename "${lib}")"
+      done
+    fi
   fi
 
   install_jemalloc
   #install_avro lib
   #install_avro lib64
 
-  if [ "$osType" != "Darwin" ]; then
-    ${csudo}ldconfig /etc/ld.so.conf.d
-  fi
+  # Do not register driver/ in the global dynamic-loader search path.
 }
 
 function install_header() {
+  local ws_header_file="${binary_dir}/build/taos-connector-rust/output/taosws.h"
+  if [ ! -f "${ws_header_file}" ]; then
+    for candidate in \
+      "${binary_dir}/build/include/taosws.h" \
+      "${binary_dir}/build/taos-connector-rust/target/release/taosws.h" \
+      "${binary_dir}/build/taos-connector-rust/target/debug/taosws.h"; do
+      if [ -f "${candidate}" ]; then
+        ws_header_file="${candidate}"
+        break
+      fi
+    done
+  fi
+
   ${csudo}mkdir -p ${inc_link_dir}
   ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
   ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/util/tdef.h ${source_dir}/include/libs/function/taosudf.h \
     ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
 
-  if [ -f ${binary_dir}/build/include/taosws.h ]; then
-    ${csudo}cp -f ${binary_dir}/build/include/taosws.h ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
+  if [ -f "${ws_header_file}" ]; then
+    ${csudo}cp -f "${ws_header_file}" ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
     ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h > /dev/null 2>&1 ||:
   fi
 
@@ -543,15 +917,16 @@ function install_log() {
 }
 
 function install_data() {
+  ${csudo}rm -rf ${install_main_dir}/data || :
   ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
-  ${csudo}ln -s ${data_dir} ${install_main_dir}/data > /dev/null 2>&1
+  ${csudo}ln -s ${data_dir} ${install_main_dir}/data > /dev/null 2>&1 || :
 }
 
 function install_connector() {
   if find ${source_dir}/src/connector/go -mindepth 1 -maxdepth 1 | read; then
     ${csudo}cp -r ${source_dir}/src/connector/go ${install_main_dir}/connector || :
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   ${csudo}cp -rf ${source_dir}/src/connector/python ${install_main_dir}/connector || :
   ${csudo}cp ${binary_dir}/build/lib/*.jar ${install_main_dir}/connector &>/dev/null && ${csudo}chmod 777 ${install_main_dir}/connector/*.jar || echo &>/dev/null || :

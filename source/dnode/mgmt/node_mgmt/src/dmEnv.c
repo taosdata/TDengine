@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,9 @@
 #include "tss.h"
 #include "tanalytics.h"
 #include "stream.h"
+#include "extConnector.h"
+#include "nodes.h"
+#include "tglobal.h"
 // clang-format on
 
 extern void cryptUnloadProviders();
@@ -201,8 +206,22 @@ int32_t dmInit() {
   if ((code = dmInitMonitor()) != 0) return code;
   if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
+  if ((code = taosInitCpuAllocation()) != 0) return code;
   if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    if ((code = extConnectorModuleInit(&extConnCfg)) != 0) return code;
+  }
+#endif
 
   gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
   if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet, dmGetSynEpset)) != 0) return code;
@@ -229,6 +248,13 @@ void dmCleanup() {
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+#ifndef TAOSD_INTEGRATED
+  // Standalone taosd: the nodes were closed by dmRun and dmCleanupDnode stopped the scheduler,
+  // so no plan can still borrow a cached timezone handle. When the daemon is embedded in the
+  // client library, the client side owns the cache and releases it after this thread is joined.
+  nodesCleanupTimezoneCache();
+#endif
+  extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
   syncCleanUp();
@@ -323,8 +349,13 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
@@ -341,10 +372,16 @@ static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   
   SDnode *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    // ALTER must not double as a deploy. The acquire result used to be discarded, so a
+    // TDMT_DND_ALTER_SNODE frame ran the create path on a dnode hosting no snode - and the
+    // dmReleaseWrapper below then dropped a reference this function never took.
+    code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+    dError("failed to alter snode since %s", tstrerror(code));
+    return terrno = code;
+  }
 
   dInfo("start to process alter-node-request");
-
-  pWrapper = &pDnode->wrappers[ntype];
 
   (void)taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -371,7 +408,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    dError("fail to process alter node type since node not exist");
+    dError("failed to process alter node type since the node does not exist");
     return TSDB_CODE_INVALID_MSG;
   }
   dmReleaseWrapper(pWrapper);
@@ -398,7 +435,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     }
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pWrapper->name);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
 
@@ -427,8 +464,13 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
@@ -507,6 +549,7 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .getMnodeLoadsFp = dmGetMnodeLoads,
       .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
+      .collectVnodeTxnIdleFp = dmCollectVnodeTxnIdle,
       .stopDnodeFp = dmStop,
   };
 

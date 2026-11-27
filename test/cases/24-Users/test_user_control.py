@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, DataSet, tdDnodes
 import taos
 import time
@@ -605,6 +620,23 @@ class TestUserControl:
                     time.sleep(1)
         raise Exception(f"Query failed after {nRetry} retries: {qStr}")
 
+    def connect_with_retry(self, user, passwd, nRetry=10):
+        # Under heavy parallel CI load, taos.connect() can transiently fail at the
+        # transport/socket layer (e.g. 0x012f "third party error") even with valid
+        # credentials. Such failures are not auth errors, so retry the connect.
+        last_err = None
+        for i in range(nRetry):
+            try:
+                conn = taos.connect(user=user, password=passwd)
+                tdLog.info(f"Connect success: user={user}")
+                return conn
+            except Exception as e:
+                last_err = e
+                tdLog.info(f"Connect retry {i + 1}/{nRetry} failed for user={user}: {e}")
+                if i < nRetry - 1:
+                    time.sleep(1)
+        raise Exception(f"Connect failed after {nRetry} retries for user={user}: {last_err}")
+
     def test_user_control(self):
         """User control 
         
@@ -624,8 +656,7 @@ class TestUserControl:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:
@@ -717,7 +748,7 @@ class TestUserControl:
             user.error("create database ordinary_user_db")
 
         tdLog.printNoPrefix("==========step5: enable info")
-        taos1_conn = taos.connect(user=self.__user_list[1], password=f"new{self.__passwd_list[1]}")
+        taos1_conn = self.connect_with_retry(self.__user_list[1], f"new{self.__passwd_list[1]}")
         taos1_conn.query(f"show databases")
         tdSql.execute(f"alter user {self.__user_list[1]} enable 0")
         tdSql.execute(f"alter user {self.__user_list[2]} enable 0")
@@ -742,7 +773,7 @@ class TestUserControl:
             tdLog.info("taos 2 connect except error occured,  enable == 0, can not login")
 
         tdLog.printNoPrefix("==========step6: sysinfo info")
-        taos3_conn = taos.connect(user=self.__user_list[3], password=f"new{self.__passwd_list[3]}")
+        taos3_conn = self.connect_with_retry(self.__user_list[3], f"new{self.__passwd_list[3]}")
         taos3_conn.query(f"show dnodes")
         taos3_conn.query(f"show {DBNAME}.vgroups")
         tdSql.execute(f"alter user {self.__user_list[3]} sysinfo 0")
@@ -759,7 +790,7 @@ class TestUserControl:
         else:
             tdLog.info("taos 3 query except error occured,  sysinfo == 0, can not show dnode/vgroups")
 
-        taos4_conn = taos.connect(user=self.__user_list[4], password=f"new{self.__passwd_list[4]}")
+        taos4_conn = self.connect_with_retry(self.__user_list[4], f"new{self.__passwd_list[4]}")
         taos4_except = True
         try:
             taos4_conn.query(f"show mnodes")

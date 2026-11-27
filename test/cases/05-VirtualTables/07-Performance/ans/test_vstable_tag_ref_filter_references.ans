@@ -1,0 +1,48 @@
+
+taos> USE vt_tag_filter_idmp;
+Database changed.
+
+taos> CREATE STABLE tag_hop (ts TIMESTAMP, v INT) TAGS (alias_phone VARCHAR(32)) VIRTUAL 1;
+Create OK, 0 row(s) affected 
+
+taos> CREATE VTABLE tag_mid (v FROM vt_tag_filter_source.data_left.v0) USING tag_hop TAGS (alias_phone FROM vt_tag_filter_source.tag_0.phone);
+Create OK, 0 row(s) affected 
+
+taos> CREATE TABLE vt_tag_filter_source.tag_gone USING vt_tag_filter_source.src TAGS ('13809999', 0);
+Create OK, 0 row(s) affected 
+
+taos> CREATE VTABLE vt_multihop ( v0 FROM vt_tag_filter_source.data_left.v0, v1 FROM vt_tag_filter_source.data_left.v1, v2 FROM vt_tag_filter_source.data_left.v2, v3 FROM vt_tag_filter_source.data_left.v3, v4 FROM vt_tag_filter_source.data_left.v4, v5 FROM vt_tag_filter_source.data_left.v5, v6 FROM vt_tag_filter_source.data_left.v6, v7 FROM vt_tag_filter_source.data_left.v7, v8 FROM vt_tag_filter_source.data_left.v8, v9 FROM vt_tag_filter_source.data_left.v9, v10 FROM vt_tag_filter_source.data_left.v10, v11 FROM vt_tag_filter_source.data_left.v11, v12 FROM vt_tag_filter_source.data_left.v12, v13 FROM vt_tag_filter_source.data_left.v13, v14 FROM vt_tag_filter_source.data_left.v14, v15 FROM vt_tag_filter_source.data_left.v15, v16 FROM vt_tag_filter_source.data_left.v16, v17 FROM vt_tag_filter_source.data_left.v17, v18 FROM vt_tag_filter_source.data_left.v18, v19 FROM vt_tag_filter_source.data_left.v19, v20 FROM vt_tag_filter_source.data_left.v20, v21 FROM vt_tag_filter_source.data_left.v21, v22 FROM vt_tag_filter_source.data_left.v22, v23 FROM vt_tag_filter_source.data_left.v23, v24 FROM vt_tag_filter_source.data_left.v24, payload FROM vt_tag_filter_source.data_right.payload ) USING vst TAGS ( `手机` FROM tag_mid.alias_phone, 0, t0 FROM vt_tag_filter_source.tag_0.kind, t1 FROM vt_tag_filter_source.tag_0.kind, t2 FROM vt_tag_filter_source.tag_0.kind, t3 FROM vt_tag_filter_source.tag_0.kind, t4 FROM vt_tag_filter_source.tag_0.kind, t5 FROM vt_tag_filter_source.tag_0.kind, t6 FROM vt_tag_filter_source.tag_0.kind, t7 FROM vt_tag_filter_source.tag_0.kind, t8 FROM vt_tag_filter_source.tag_0.kind, t9 FROM vt_tag_filter_source.tag_0.kind, t10 FROM vt_tag_filter_source.tag_0.kind, t11 FROM vt_tag_filter_source.tag_0.kind, t12 FROM vt_tag_filter_source.tag_0.kind, t13 FROM vt_tag_filter_source.tag_0.kind, t14 FROM vt_tag_filter_source.tag_0.kind, t15 FROM vt_tag_filter_source.tag_0.kind, t16 FROM vt_tag_filter_source.tag_0.kind, t17 FROM vt_tag_filter_source.tag_0.kind, t18 FROM vt_tag_filter_source.tag_0.kind, t19 FROM vt_tag_filter_source.tag_0.kind, t20 FROM vt_tag_filter_source.tag_0.kind, t21 FROM vt_tag_filter_source.tag_0.kind, t22 FROM vt_tag_filter_source.tag_0.kind, t23 FROM vt_tag_filter_source.tag_0.kind, t24 FROM vt_tag_filter_source.tag_0.kind, t25 FROM vt_tag_filter_source.tag_0.kind, t26 FROM vt_tag_filter_source.tag_0.kind, t27 FROM vt_tag_filter_source.tag_0.kind, t28 FROM vt_tag_filter_source.tag_0.kind, t29 FROM vt_tag_filter_source.tag_0.kind, t30 FROM vt_tag_filter_source.tag_0.kind, t31 FROM vt_tag_filter_source.tag_0.kind, t32 FROM vt_tag_filter_source.tag_0.kind, t33 FROM vt_tag_filter_source.tag_0.kind );
+Create OK, 0 row(s) affected 
+
+taos> CREATE VTABLE vt_dangling ( v0 FROM vt_tag_filter_source.data_left.v0, v1 FROM vt_tag_filter_source.data_left.v1, v2 FROM vt_tag_filter_source.data_left.v2, v3 FROM vt_tag_filter_source.data_left.v3, v4 FROM vt_tag_filter_source.data_left.v4, v5 FROM vt_tag_filter_source.data_left.v5, v6 FROM vt_tag_filter_source.data_left.v6, v7 FROM vt_tag_filter_source.data_left.v7, v8 FROM vt_tag_filter_source.data_left.v8, v9 FROM vt_tag_filter_source.data_left.v9, v10 FROM vt_tag_filter_source.data_left.v10, v11 FROM vt_tag_filter_source.data_left.v11, v12 FROM vt_tag_filter_source.data_left.v12, v13 FROM vt_tag_filter_source.data_left.v13, v14 FROM vt_tag_filter_source.data_left.v14, v15 FROM vt_tag_filter_source.data_left.v15, v16 FROM vt_tag_filter_source.data_left.v16, v17 FROM vt_tag_filter_source.data_left.v17, v18 FROM vt_tag_filter_source.data_left.v18, v19 FROM vt_tag_filter_source.data_left.v19, v20 FROM vt_tag_filter_source.data_left.v20, v21 FROM vt_tag_filter_source.data_left.v21, v22 FROM vt_tag_filter_source.data_left.v22, v23 FROM vt_tag_filter_source.data_left.v23, v24 FROM vt_tag_filter_source.data_left.v24, payload FROM vt_tag_filter_source.data_right.payload ) USING vst TAGS ( `手机` FROM vt_tag_filter_source.tag_gone.phone, 0, t0 FROM vt_tag_filter_source.tag_0.kind, t1 FROM vt_tag_filter_source.tag_0.kind, t2 FROM vt_tag_filter_source.tag_0.kind, t3 FROM vt_tag_filter_source.tag_0.kind, t4 FROM vt_tag_filter_source.tag_0.kind, t5 FROM vt_tag_filter_source.tag_0.kind, t6 FROM vt_tag_filter_source.tag_0.kind, t7 FROM vt_tag_filter_source.tag_0.kind, t8 FROM vt_tag_filter_source.tag_0.kind, t9 FROM vt_tag_filter_source.tag_0.kind, t10 FROM vt_tag_filter_source.tag_0.kind, t11 FROM vt_tag_filter_source.tag_0.kind, t12 FROM vt_tag_filter_source.tag_0.kind, t13 FROM vt_tag_filter_source.tag_0.kind, t14 FROM vt_tag_filter_source.tag_0.kind, t15 FROM vt_tag_filter_source.tag_0.kind, t16 FROM vt_tag_filter_source.tag_0.kind, t17 FROM vt_tag_filter_source.tag_0.kind, t18 FROM vt_tag_filter_source.tag_0.kind, t19 FROM vt_tag_filter_source.tag_0.kind, t20 FROM vt_tag_filter_source.tag_0.kind, t21 FROM vt_tag_filter_source.tag_0.kind, t22 FROM vt_tag_filter_source.tag_0.kind, t23 FROM vt_tag_filter_source.tag_0.kind, t24 FROM vt_tag_filter_source.tag_0.kind, t25 FROM vt_tag_filter_source.tag_0.kind, t26 FROM vt_tag_filter_source.tag_0.kind, t27 FROM vt_tag_filter_source.tag_0.kind, t28 FROM vt_tag_filter_source.tag_0.kind, t29 FROM vt_tag_filter_source.tag_0.kind, t30 FROM vt_tag_filter_source.tag_0.kind, t31 FROM vt_tag_filter_source.tag_0.kind, t32 FROM vt_tag_filter_source.tag_0.kind, t33 FROM vt_tag_filter_source.tag_0.kind );
+Create OK, 0 row(s) affected 
+
+taos> DROP TABLE vt_tag_filter_source.tag_gone;
+Drop OK, 0 row(s) affected 
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` IS NULL ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000014                      |
+ vt_000030                      |
+ vt_000046                      |
+ vt_000062                      |
+ vt_000078                      |
+ vt_000094                      |
+ vt_000110                      |
+ vt_000126                      |
+ vt_dangling                    |
+
+taos> SELECT DISTINCT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000000                      |
+ vt_000016                      |
+ vt_000032                      |
+ vt_000048                      |
+ vt_000064                      |
+ vt_000080                      |
+ vt_000096                      |
+ vt_000112                      |
+ vt_multihop                    |
+

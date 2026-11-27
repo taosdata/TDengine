@@ -1,0 +1,325 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import platform
+import subprocess
+import sys
+import threading
+import time
+
+from taos.cinterface import *
+from taos.error import *
+from taos.tmq import Consumer
+
+from new_test_framework.utils import etool, tdCom, tdLog, tdSql
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# taosBenchmark write params: 10 child tables x 10,000 rows = 100,000 rows total
+_TABLE_COUNT   = 10
+_ROWS_PER_TBL  = 10_000
+_TOTAL_ROWS    = _TABLE_COUNT * _ROWS_PER_TBL   # 100,000
+_ALTER_TRIGGER = 30_000                          # alter replica after consuming 30,000 rows
+_POLL_ERROR_STALL_SEC = 120
+
+
+class TestCase:
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+        cls.dbName    = "db_bench_consume_replica"
+        cls.stbName   = "meters"          # default super table created by taosBenchmark
+        cls.topicName = "topic_bench_consume_replica"
+
+    # ------------------------------------------------------------------
+    # Start taosBenchmark as a background process and return the Popen object.
+    # taosBenchmark creates the database automatically (-y auto-confirms).
+    # -v 1 : 1 vgroup  -a 1 : replica=1  -B 1 : batch size 1
+    # ------------------------------------------------------------------
+    def _startBenchmark(self, benchmarkPath, cfg_dir):
+        cmd = [
+            benchmarkPath, "-c", cfg_dir, "-y", "-d", self.dbName,
+            "-t", str(_TABLE_COUNT), "-n", str(_ROWS_PER_TBL),
+            "-v", "1", "-a", "1", "-B", "1", "-k", "1000", "-z", "1000",
+        ]
+        tdLog.info(f"starting taosBenchmark: {cmd}")
+        # Keep the actual writer PID so cleanup finishes before restoring logs.
+        kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if platform.system().lower() != "windows":
+            kwargs["start_new_session"] = True
+        return subprocess.Popen(cmd, **kwargs)
+
+    # ------------------------------------------------------------------
+    # Consumer thread: poll continuously, signal alter at 30K rows,
+    # exit when 100K rows have been consumed or no data for 60 seconds.
+    # Logs consumed row count every 1,000 rows.
+    # ------------------------------------------------------------------
+    def _consumerThread(self, alterTriggerEvent, consumeDoneEvent,
+                        consumedCounter, errorHolder):
+        consumer = None
+        try:
+            consumer = Consumer({
+                "group.id":                     "cgrp_bench_replica",
+                "client.id":                    "client1",
+                "td.connect.user":              "root",
+                "td.connect.pass":              "taosdata",
+                "enable.auto.commit":           "true",
+                "auto.commit.interval.ms":      "1000",
+                "auto.offset.reset":            "earliest",
+                "session.timeout.ms":           "12000",
+                "experimental.snapshot.enable": "false",
+            })
+            consumer.subscribe([self.topicName])
+            tdLog.info("consumer subscribed to topic, start polling")
+
+            lastLogged = 0
+            noDataCount = 0
+            pollErrorStart = None
+            while True:
+                res = consumer.poll(2)
+                if not res:
+                    err = taos_errno(None)
+                    if err == 0:
+                        noDataCount += 1
+                        if noDataCount >= 30:
+                            tdLog.info("no new data for 60 seconds, consumer exits")
+                            break
+                        continue
+                    else:
+                        pollError = taos_errstr(None)
+                        if pollErrorStart is None:
+                            pollErrorStart = time.monotonic()
+                        stalled = time.monotonic() - pollErrorStart
+                        tdLog.info(
+                            f"poll error: {pollError}, code={err}, "
+                            f"consumed={consumedCounter[0]}, stalled={stalled:.1f}s"
+                        )
+                        if stalled >= _POLL_ERROR_STALL_SEC:
+                            errorHolder.append(
+                                f"poll errors without data for {stalled:.1f}s: "
+                                f"code={err}, error={pollError}, consumed={consumedCounter[0]}"
+                            )
+                            break
+                        time.sleep(2)
+                        continue
+
+                noDataCount = 0
+                err = res.error()
+                if err is not None:
+                    errorHolder.append(str(err))
+                    break
+
+                val = res.value()
+                if val:
+                    for block in val:
+                        blockRows = len(block.fetchall())
+                        consumedCounter[0] += blockRows
+                        if blockRows:
+                            pollErrorStart = None
+
+                # print progress every 10,000 rows
+                if consumedCounter[0] // 10000 > lastLogged // 10000:
+                    tdLog.info(f"consumed rows: {consumedCounter[0]}")
+                    lastLogged = consumedCounter[0]
+
+                # trigger alter replica after consuming 30,000 rows
+                if (not alterTriggerEvent.is_set()
+                        and consumedCounter[0] >= _ALTER_TRIGGER):
+                    tdLog.info(
+                        f"consumed {consumedCounter[0]} rows, "
+                        f"triggering alter replica 3"
+                    )
+                    alterTriggerEvent.set()
+
+                # exit after consuming all 100,000 rows
+                if consumedCounter[0] >= _TOTAL_ROWS:
+                    tdLog.info(
+                        f"consumed {consumedCounter[0]} rows, target reached, exiting"
+                    )
+                    break
+
+        except Exception as e:
+            errorHolder.append(str(e))
+            tdLog.info(f"consumer thread exception: {e}")
+        finally:
+            if consumer:
+                consumer.close()
+            consumeDoneEvent.set()
+
+    # ------------------------------------------------------------------
+    # Main test logic
+    # ------------------------------------------------------------------
+    def _runCase(self):
+        tdSql.execute(f"alter all dnodes 'tqdebugflag 135'")
+        tdSql.execute(f"alter all dnodes 'wdebugflag 135'")
+        tdSql.execute(f"alter all dnodes 'qdebugflag 135'")
+
+        tdLog.printNoPrefix(
+            "======== test: concurrent write + consume + alter replica ========"
+        )
+
+        benchmarkPath = etool.benchMarkFile()
+
+        with etool.benchmark_write_log() as cfg_dir:
+            benchProc = self._startBenchmark(benchmarkPath, cfg_dir)
+            try:
+                # 1. Start taosBenchmark in background; it creates the DB automatically
+                tdLog.info("taosBenchmark started, waiting for table creation to complete")
+                # Wait for taosBenchmark to finish creating meters stb + d0~d9 child tables
+                time.sleep(10)
+
+                # 2. Create topic with earliest offset to cover all written data
+                tdSql.execute(f"drop topic if exists {self.topicName}")
+                tdSql.execute(
+                    f"create topic {self.topicName} "
+                    f"as select * from {self.dbName}.{self.stbName}"
+                )
+                tdLog.info(f"topic {self.topicName} created")
+
+                # 3. Shared state between threads
+                consumedCounter   = [0]               # mutable row counter
+                alterTriggerEvent = threading.Event() # fired when 30K rows consumed
+                consumeDoneEvent  = threading.Event() # fired when consumer exits
+                errorHolder       = []                # consumer thread errors
+
+                # 4. Start consumer thread
+                ct = threading.Thread(
+                    target=self._consumerThread,
+                    args=(alterTriggerEvent, consumeDoneEvent,
+                          consumedCounter, errorHolder),
+                    daemon=True,
+                )
+                ct.start()
+                tdLog.info("consumer thread started")
+
+                # 5. Wait until 30K rows consumed, then alter replica 1 -> 3
+                tdLog.info("waiting for consumer to reach 30,000 rows...")
+                alterTriggerEvent.wait(timeout=3600)
+
+                if alterTriggerEvent.is_set():
+                    tdLog.info("executing alter database replica 3")
+                    # Use a dedicated connection to avoid sharing cursor with consumer thread
+                    alterSql = tdCom.newTdSql()
+                    try:
+                        alterSql.execute(f"flush database {self.dbName}")
+                        alterSql.execute(f"alter database {self.dbName} replica 3")
+                        tdLog.info("alter database replica 3 submitted, waiting for transaction")
+                        tdCom.waitTransactionZeroWithTdsql(alterSql)
+                        tdLog.info("alter replica 3 completed")
+                    except Exception as e:
+                        tdLog.info(f"alter replica exception (cluster may have insufficient nodes): {e}")
+                else:
+                    tdLog.info("WARNING: timed out waiting for alter replica trigger")
+
+                # 6. Wait for taosBenchmark to finish writing
+                tdLog.info("waiting for taosBenchmark to finish writing...")
+                try:
+                    benchProc.wait(timeout=7200)
+                except subprocess.TimeoutExpired as exc:
+                    raise AssertionError("taosBenchmark did not finish within 7200 seconds") from exc
+                if benchProc.returncode != 0:
+                    raise AssertionError(f"taosBenchmark failed: exit={benchProc.returncode}")
+                tdLog.info("taosBenchmark write finished")
+
+            finally:
+                if benchProc.poll() is None:
+                    benchProc.terminate()
+                    try:
+                        benchProc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        benchProc.kill()
+                        benchProc.wait()
+
+        # 7. Wait for consumer to finish consuming all data
+        tdLog.info("waiting for consumer to finish consuming all 100,000 rows...")
+        consumeDoneEvent.wait(timeout=3600)
+        ct.join(timeout=60)
+
+        # 8. Validate
+        if errorHolder:
+            for sql in ("SHOW DNODES", "SHOW CONSUMERS", "SHOW SUBSCRIPTIONS",
+                        f"SHOW {self.dbName}.VGROUPS"):
+                try:
+                    tdLog.info(f"TMQ failure snapshot: sql={sql}, result={tdSql.getResult(sql)}")
+                except Exception as e:
+                    tdLog.info(f"TMQ failure snapshot unavailable: sql={sql}, error={e}")
+            tdLog.exit(f"consumer thread errors: {errorHolder}")
+
+        tdSql.query(f"select count(*) from {self.dbName}.{self.stbName}")
+        totalInserted = tdSql.getData(0, 0) or 0
+        consumedRows  = consumedCounter[0]
+
+        tdLog.info(
+            f"total inserted: {totalInserted}, "
+            f"total consumed: {consumedRows}, "
+            f"expected: {_TOTAL_ROWS}"
+        )
+
+        if totalInserted != _TOTAL_ROWS:
+            tdLog.exit(
+                f"inserted rows {totalInserted} != expected {_TOTAL_ROWS}"
+            )
+
+        if consumedRows < _TOTAL_ROWS:
+            tdLog.exit(
+                f"consumed rows {consumedRows} < expected {_TOTAL_ROWS}"
+            )
+
+        tdLog.info("validation passed: consumed rows match inserted rows (100,000)")
+
+        # 9. Cleanup
+        tdSql.execute(f"drop topic if exists {self.topicName}")
+        tdLog.printNoPrefix("======== test finished ========")
+
+    # ------------------------------------------------------------------
+    # pytest entry point
+    # ------------------------------------------------------------------
+    def test_tmq_write_consume_alter_replica(self):
+        """Concurrent: write, consume and alter replica
+
+        While taosBenchmark continuously writes 100,000 rows, a TMQ consumer
+        reads from the earliest offset. After consuming 30,000 rows the
+        database replica is altered from 1 to 3. Finally the test verifies that
+        the total consumed row count equals 100,000.
+
+        Steps:
+        1. Start taosBenchmark to write 100,000 rows (10 tables x 10K rows,
+           replica=1, vgroups=1). taosBenchmark creates the database automatically.
+        2. Wait for taosBenchmark to finish creating tables, then create TMQ topic
+           with auto.offset.reset=earliest.
+        3. Start Python TMQ consumer thread to poll and count rows in real time.
+        4. When consumed rows reach 30,000, alter database replica from 1 to 3
+           using a dedicated connection.
+        5. Wait for taosBenchmark to finish all 100,000 writes.
+        6. Wait for consumer to finish consuming all data.
+        7. Verify total consumed rows == 100,000.
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-04-16 wangmm0220 Created
+            - 2026-07-10 wangmm0220 Reduce data volume from 1M to 100K rows (and
+              alter trigger from 300K to 30K) to fit within CI's pytest-timeout
+              budget (Meego 7044980044)
+
+        """
+        self._runCase()
+
+
+event = threading.Event()

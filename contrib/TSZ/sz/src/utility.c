@@ -31,23 +31,35 @@ int is_lossless_compressed_data(unsigned char* compressedBytes, size_t cmpSize)
 	return -1; //fast mode (without GZIP or ZSTD)
 }
 
-size_t sz_lossless_compress(int losslessCompressor, unsigned char* data, size_t dataLength, unsigned char* compressBytes)
+size_t sz_lossless_compress(int losslessCompressor, unsigned char* data, size_t dataLength, unsigned char* compressBytes, size_t compressBytesCapacity)
 {
 	size_t outSize = 0; 
 	int level = 3 ; // fast mode
-	size_t estimatedCompressedSize = 0;
+
+	//the destination belongs to the caller: never tell the compressor that more room is available
+	//than compressBytesCapacity bytes, otherwise a raw (incompressible) frame overflows the buffer
+	if(data == NULL || compressBytes == NULL || compressBytesCapacity == 0)
+	{
+		printf("Error: sz_lossless_compress called without an output buffer\n");
+		return 0;
+	}
+
 	switch(losslessCompressor)
 	{
 	case ZSTD_COMPRESSOR:
-		if(dataLength < 100) 
-			estimatedCompressedSize = 200;
-		else
-			estimatedCompressedSize = dataLength*1.2;
 		//*compressBytes = (unsigned char*)malloc(estimatedCompressedSize); // comment by tickduan 
-		outSize = ZSTD_compress(compressBytes, estimatedCompressedSize, data, dataLength, level); //default setting of level is 3
+		outSize = ZSTD_compress(compressBytes, compressBytesCapacity, data, dataLength, level); //default setting of level is 3
+		if(ZSTD_isError(outSize) || outSize == 0)
+		{
+			//the frame does not fit in the buffer we were given: report failure, the caller falls
+			//back to storing the data uncompressed
+			printf("Error: zstd could not compress %zu bytes into %zu bytes\n", dataLength, compressBytesCapacity);
+			return 0;
+		}
 		break;
 	default:
 		printf("Error: Unrecognized lossless compressor in sz_lossless_compress()\n");
+		return 0;
 	}
 	return outSize;
 }

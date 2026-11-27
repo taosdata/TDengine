@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-# filepath: hot_update/client/writer.py
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Background writer process.
-# Inserts 1 row per second into subtable d0.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Retry policy
-# ------------
-# On failure: sleep RETRY_INTERVAL_S and retry (no process exit).
-# After MAX_CONSECUTIVE_RETRIES consecutive failures increment write_error_count
-# (= 1 real failure) and reset the counter.  The process keeps running.
-# Pass/fail judgment is done in main.py: write_error_count == 0 → pass.
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
 import sys
@@ -41,10 +45,10 @@ def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     # no rows are written before TMQ offset is established (avoids leading gap).
     _wait_start = time.time()
     while not metrics.get("subscribe_ready", False):
-        if time.time() - _wait_start > 30:
+        if time.time() - _wait_start > 180:
             sys.stderr.write("[writer] subscribe_ready timeout, starting anyway\n")
             break
-        time.sleep(0.1)
+        time.sleep(1)
     sys.stderr.write("   [writer] subscriber ready, starting writes\n")
 
     def _connect() -> taos.TaosConnection:

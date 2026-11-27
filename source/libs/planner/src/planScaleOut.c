@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,9 +23,27 @@ typedef struct SScaleOutContext {
   int32_t       subplanId;
 } SScaleOutContext;
 
+static int32_t setSubplanVgroup(SLogicSubplan* pSubplan, const SVgroupInfo* pVgroup) {
+  pSubplan->pVgroupList = taosMemoryCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo));
+  if (NULL == pSubplan->pVgroupList) {
+    return terrno;
+  }
+  memcpy(pSubplan->pVgroupList->vgroups, pVgroup, sizeof(SVgroupInfo));
+  pSubplan->pVgroupList->numOfVgroups = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubplan* pSrc, int32_t level) {
+  // Log pRemoteLogicPlan on external scans before cloning.
+  if (pSrc->pNode != NULL && nodeType(pSrc->pNode) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+      ((SScanLogicNode*)pSrc->pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+    SScanLogicNode* pS = (SScanLogicNode*)pSrc->pNode;
+    planDebug("FQ-SCALEOUT: before clone scan=%p pRemoteLogicPlan=%p type=%d",
+              pS, pS->pRemoteLogicPlan,
+              pS->pRemoteLogicPlan ? (int)nodeType(pS->pRemoteLogicPlan) : -1);
+  }
   SLogicSubplan* pDst = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pDst);
+  int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pDst);
   if (NULL == pDst) {
     terrno = code;
     return NULL;
@@ -40,8 +60,17 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.queryId = pSrc->id.queryId;
   pDst->id.groupId = pSrc->id.groupId;
   pDst->id.subplanId = pCxt->subplanId++;
+  pDst->splitFlag = pSrc->splitFlag;
   pDst->processOneBlock = pSrc->processOneBlock;
   pDst->dynTbname = pSrc->dynTbname;
+  // Log pRemoteLogicPlan on external scans after cloning.
+  if (pDst->pNode != NULL && nodeType(pDst->pNode) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+      ((SScanLogicNode*)pDst->pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+    SScanLogicNode* pS = (SScanLogicNode*)pDst->pNode;
+    planDebug("FQ-SCALEOUT: after  clone scan=%p pRemoteLogicPlan=%p type=%d",
+              pS, pS->pRemoteLogicPlan,
+              pS->pRemoteLogicPlan ? (int)nodeType(pS->pRemoteLogicPlan) : -1);
+  }
   return pDst;
 }
 
@@ -93,11 +122,15 @@ static int32_t scaleOutByVgroups(SScaleOutContext* pCxt, SLogicSubplan* pSubplan
     if (NULL == pNewSubplan) {
       return terrno;
     }
-    code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
+    code = setSubplanVgroup(pNewSubplan, pSubplan->pVgroupList->vgroups + i);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setScanVgroup(pNewSubplan->pNode, pSubplan->pVgroupList->vgroups + i);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pGroup, (SNode*)pNewSubplan);
     }
     if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pNewSubplan);
       break;
     }
   }
@@ -112,7 +145,7 @@ static int32_t scaleOutForInsertValues(SScaleOutContext* pCxt, SLogicSubplan* pS
                                        SNodeList* pGroup) {
   SVnodeModifyLogicNode* pNode = (SVnodeModifyLogicNode*)pSubplan->pNode;
   size_t                 numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
-  int32_t code = 0;
+  int32_t                code = 0;
   for (int32_t i = 0; i < numOfVgroups; ++i) {
     SLogicSubplan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
     if (NULL == pNewSubplan) {
@@ -169,7 +202,7 @@ static int32_t pushHierarchicalPlanForCompute(SNodeList* pParentsGroup, SNodeLis
   SNode*  pChild = NULL;
   SNode*  pParent = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pParentsGroup->length == pCurrentGroup->length) {  
+  if (pParentsGroup->length == pCurrentGroup->length) {
     FORBOTH(pChild, pCurrentGroup, pParent, pParentsGroup) {
       code = nodesListMakeAppend(&(((SLogicSubplan*)pParent)->pChildren), pChild);
       if (TSDB_CODE_SUCCESS == code) {
@@ -190,7 +223,7 @@ static int32_t pushHierarchicalPlanForCompute(SNodeList* pParentsGroup, SNodeLis
       }
     }
   }
-  
+
   return code;
 }
 
@@ -233,7 +266,7 @@ static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurren
 
 static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pParentsGroup) {
   SNodeList* pCurrentGroup = NULL;
-  int32_t code = nodesMakeList(&pCurrentGroup);
+  int32_t    code = nodesMakeList(&pCurrentGroup);
   if (NULL == pCurrentGroup) {
     return code;
   }
@@ -281,7 +314,7 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
 
 static SQueryLogicPlan* makeQueryLogicPlan() {
   SQueryLogicPlan* pLogicPlan = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN, (SNode**)&pLogicPlan);
+  int32_t          code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN, (SNode**)&pLogicPlan);
   if (NULL == pLogicPlan) {
     terrno = code;
     return NULL;
