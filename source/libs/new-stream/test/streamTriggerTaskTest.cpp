@@ -3869,6 +3869,7 @@ static SHashObj* failRealtimePipelineDataSinkHashInit(size_t, _hash_fn_t, bool, 
 struct PipelineQueuedControl {
   void*   pCont = nullptr;
   int32_t contLen = 0;
+  STraceId traceId = {};
 };
 
 struct PipelinePendingSend {
@@ -4960,14 +4961,14 @@ class RealtimePipelineHarness {
     return processZeroRowWal(dataIndex, gids);
   }
 
-  bool feedGroups(const std::vector<PipelineWalGroup>& groups) {
+  bool feedGroups(const std::vector<PipelineWalGroup>& groups, int64_t nextCursor = 0) {
     int32_t lastTsIndex = findPull(STRIGGER_PULL_LAST_TS);
     if (lastTsIndex >= 0 && processLastTs(lastTsIndex) != TSDB_CODE_SUCCESS) return false;
     int32_t dataIndex = findPull(STRIGGER_PULL_WAL_META_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_META_NEW);
     if (dataIndex < 0) return false;
-    return processGroupWal(dataIndex, groups) == TSDB_CODE_SUCCESS;
+    return processGroupWal(dataIndex, groups, nextCursor) == TSDB_CODE_SUCCESS;
   }
 
   bool feedUnitMetadata(int64_t gid, int64_t ticks, int64_t version) {
@@ -5438,6 +5439,11 @@ class RealtimePipelineHarness {
     return static_cast<int32_t>(std::count(groupColPullGids_.begin(), groupColPullGids_.end(), gid));
   }
 
+  int64_t pendingGroupColReader(int64_t gid) const {
+    int32_t i = findGroupColPull(gid);
+    return i < 0 ? 0 : pendingSends_[i].readerTaskId;
+  }
+
   PipelineCalcAttempt* calcAttempt(int32_t index) {
     return index < 0 || index >= static_cast<int32_t>(calcAttempts_.size()) ? nullptr : &calcAttempts_[index];
   }
@@ -5495,7 +5501,7 @@ class RealtimePipelineHarness {
                      : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, responseCode, nullptr, 0);
   }
 
-  int32_t dispatchGroupColValue(int64_t gid, int64_t value, const char* tableName = nullptr) {
+  int32_t dispatchGroupColValue(int64_t gid, int64_t value, const char* tableName = nullptr, bool empty = false) {
     int32_t index = findGroupColPull(gid);
     if (index < 0) return TSDB_CODE_INVALID_PARA;
 
@@ -5511,7 +5517,7 @@ class RealtimePipelineHarness {
       groupValue.data.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(tableName));
       groupValue.data.nData = static_cast<int32_t>(strlen(tableName));
     }
-    if (taosArrayPush(info.gInfo, &groupValue) == nullptr) {
+    if (!empty && taosArrayPush(info.gInfo, &groupValue) == nullptr) {
       taosArrayDestroy(info.gInfo);
       return terrno;
     }
@@ -5913,6 +5919,7 @@ class RealtimePipelineHarness {
     PipelineQueuedControl control;
     control.pCont = pMsg->pCont;
     control.contLen = pMsg->contLen;
+    control.traceId = pMsg->info.traceId;
     gRealtimePipelineHarness->controls_.push_back(control);
     pMsg->pCont = nullptr;
     return TSDB_CODE_SUCCESS;
@@ -5957,6 +5964,8 @@ class RealtimePipelineHarness {
       if (nextCalcSendCode_ != TSDB_CODE_SUCCESS) {
         int32_t code = nextCalcSendCode_;
         nextCalcSendCode_ = TSDB_CODE_SUCCESS;
+        rpcFreeCont(pMsg->pCont);
+        pMsg->pCont = nullptr;
         return code;
       }
       if (pMsg->pCont != nullptr && pMsg->contLen > static_cast<int32_t>(sizeof(SMsgHead))) {
@@ -6112,6 +6121,7 @@ class RealtimePipelineHarness {
     response.msgType = TDMT_STREAM_TRIGGER_CTRL;
     response.pCont = control.pCont;
     response.contLen = control.contLen;
+    response.info.traceId = control.traceId;
     int64_t errorTaskId = 0;
     int32_t code = stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
     rpcFreeCont(control.pCont);
@@ -6429,7 +6439,7 @@ class RealtimePipelineHarness {
     }
 
     const int64_t      version = versions.back().version;
-    const bool         dataOnly = pullType == STRIGGER_PULL_WAL_CALC_DATA_NEW;
+    const bool         dataOnly = pullType == STRIGGER_PULL_WAL_DATA_NEW || pullType == STRIGGER_PULL_WAL_CALC_DATA_NEW;
     SSTriggerWalNewRsp response = {.indexHash = pIndexHash,
                                    .dataBlock = pDataBlock,
                                    .metaBlock = dataOnly ? nullptr : pMetaBlock,
@@ -9218,7 +9228,10 @@ struct CheckpointGenerationProbe {
   int32_t              encodeStarts = 0;
   int32_t              writes = 0;
   int32_t              syncs = 0;
+  std::function<void()> onWrite;
   int32_t              writeCode = TSDB_CODE_SUCCESS;
+  int32_t              syncCode = TSDB_CODE_SUCCESS;
+  std::vector<uint8_t> syncBytes;
   std::vector<uint8_t> bytes;
   std::vector<uint8_t> storedBytes;
 };
@@ -9238,6 +9251,7 @@ static int32_t captureCheckpointEncodeStart(SEncoder* pEncoder) {
 static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->writes;
+  if (pProbe->onWrite) pProbe->onWrite();
   if (pData != nullptr && dataLen > 0) {
     auto* pBytes = static_cast<uint8_t*>(pData);
     pProbe->bytes.assign(pBytes, pBytes + dataLen);
@@ -9246,11 +9260,16 @@ static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
   return pProbe->writeCode;
 }
 
-static int32_t captureCheckpointSync(int64_t, SEpSet*, void* pData, int64_t) {
+static int32_t captureCheckpointSync(int64_t, SEpSet*, void* pData, int64_t dataLen) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->syncs;
+  pProbe->syncBytes.clear();
+  if (pData && dataLen > 0) {
+    auto* pBytes = static_cast<uint8_t*>(pData);
+    pProbe->syncBytes.assign(pBytes, pBytes + dataLen);
+  }
   taosMemoryFree(pData);
-  return TSDB_CODE_SUCCESS;
+  return pProbe->syncCode;
 }
 
 static SEpSet* checkpointGenerationEpSet(int32_t) { return &gCheckpointGenerationEpSet; }
@@ -9316,6 +9335,698 @@ TEST(StreamCheckpointGenerationProbeTest, AllowsConcurrentHeapAllocations) {
   background.join();
 
   EXPECT_EQ(2000, completed.load());
+}
+
+class ScopedWalCheckpointClock {
+ public:
+  ScopedWalCheckpointClock() = default;
+  ~ScopedWalCheckpointClock() { stTriggerTestSetClock(nullptr, nullptr); }
+  ScopedWalCheckpointClock(const ScopedWalCheckpointClock&) = delete;
+  ScopedWalCheckpointClock& operator=(const ScopedWalCheckpointClock&) = delete;
+
+  void set(int64_t now) {
+    wallNs = now;
+    stTriggerTestSetClock(&wallNs, &wallNs);
+  }
+
+  void set(int64_t wall, int64_t mono) {
+    wallNs = wall;
+    monoNs_ = mono;
+    stTriggerTestSetClock(&wallNs, &monoNs_);
+  }
+
+  int64_t wallNs = 0;
+
+ private:
+  int64_t monoNs_ = 0;
+};
+
+static void startStateWalCheckpointTest(RealtimePipelineHarness& h, ScopedWalCheckpointClock& clock,
+                                        bool lowLatency = true, int32_t runnerCount = 3) {
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, runnerCount, lowLatency));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  ASSERT_TRUE(h.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  clock.set(h.context()->lastCheckpointTime);
+}
+
+TEST(StreamStateWalCheckpointTest, AdvancingTriggerTimeLeavesBackgroundClocksAlone) {
+  const int64_t wallBefore = taosGetTimestampNs();
+  const int64_t monoBefore = taosGetMonoTimestampNs();
+  int64_t       observedWall = 0;
+  int64_t       observedMono = 0;
+  {
+    RealtimePipelineHarness  h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    clock.wallNs += 120 * NANOSECOND_PER_MINUTE;
+    std::thread observer([&] {
+      observedWall = taosGetTimestampNs();
+      observedMono = taosGetMonoTimestampNs();
+    });
+    observer.join();
+  }
+  EXPECT_GE(observedWall, wallBefore);
+  EXPECT_LE(observedWall, taosGetTimestampNs());
+  EXPECT_GE(observedMono, monoBefore);
+  EXPECT_LE(observedMono, taosGetMonoTimestampNs());
+}
+
+static Stub*         gArrayReadStub = nullptr;
+static const SArray* gCountedArray = nullptr;
+static int64_t       gArrayReads = 0;
+
+static void* countTestArrayRead(const SArray* array, size_t index) {
+  if (array == gCountedArray) ++gArrayReads;
+  gArrayReadStub->reset(taosArrayGet);
+  void* result = taosArrayGet(array, index);
+  gArrayReadStub->set(taosArrayGet, countTestArrayRead);
+  return result;
+}
+
+template <typename F>
+static int64_t measureArrayReads(const SArray* array, F run) {
+  Stub stub;
+  gArrayReadStub = &stub;
+  gCountedArray = array;
+  gArrayReads = 0;
+  stub.set(taosArrayGet, countTestArrayRead);
+  run();
+  stub.reset(taosArrayGet);
+  gArrayReadStub = nullptr;
+  gCountedArray = nullptr;
+  return gArrayReads;
+}
+
+TEST(StreamStateWalCheckpointTest, ChecksCapturedSlotsLinearlyAcrossReplies) {
+  constexpr int                     kRequests = 32;
+  std::vector<std::vector<uint8_t>> savedCheckpoints;
+  for (bool reverse : {false, true}) {
+    SCOPED_TRACE(reverse);
+    RealtimePipelineHarness h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, true, kRequests + 1));
+    ScopedCheckpointGenerationProbe checkpoint;
+    const auto*                     reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    for (int i = 0; i < kRequests; ++i) {
+      ASSERT_TRUE(h.feedGroups({{42 + i, 1001 + i, {100, 101}, {1, 2}, i + 1}}, i + 2));
+      ASSERT_EQ(i + 1, h.calcAttemptCount());
+      // One slot per Runner, filled in the order used to capture the checkpoint.
+      ASSERT_EQ(h.kRunnerTaskId + i, h.calcAttempt(i)->decoded.runnerTaskId);
+    }
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, kRequests + 1}}, kRequests + 2));
+    ASSERT_EQ(kRequests, taosArrayGetSize(h.context()->pWalCheckpointWaits));
+    SSTriggerCalcRequest* reused = nullptr;
+    const auto            reads = measureArrayReads(h.context()->pWalCheckpointWaits, [&] {
+      for (int i = 0; i < kRequests; ++i) {
+        int   attempt = reverse ? kRequests - 1 - i : i;
+        auto* slot = h.calcAttempt(attempt)->pooledRequest();
+        ASSERT_EQ(1, reader->doneVer);
+        ASSERT_EQ(0, checkpoint.probe().writes);
+        ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+        ASSERT_EQ(0, h.dispatchCalcAttempt(attempt, 0));
+        if (i == 0) {
+          ASSERT_EQ(0, stTriggerTaskAcquireRequest(h.task(), h.context()->sessionId, 9999, &reused));
+          ASSERT_EQ(slot, reused);
+        }
+      }
+    });
+    RecordProperty(reverse ? "reverse_slot_visits" : "ordered_slot_visits", static_cast<int>(reads));
+    EXPECT_GT(reads, 0);
+    EXPECT_LE(reads, 2 * kRequests);
+    EXPECT_EQ(kRequests + 2, reader->doneVer);
+    EXPECT_EQ(1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    savedCheckpoints.push_back(checkpoint.probe().storedBytes);
+    ASSERT_EQ(0, stTriggerTaskReleaseRequest(h.task(), &reused, true));
+  }
+  for (auto& saved : savedCheckpoints) {
+    ASSERT_FALSE(saved.empty());
+    RealtimePipelineHarness restarted;
+    ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+    restarted.setCheckpointBytes(std::move(saved));
+    ASSERT_TRUE(restarted.start());
+    const auto* reader = recoveryWalProgress(restarted, restarted.kVgId);
+    ASSERT_NE(nullptr, reader);
+    EXPECT_EQ(kRequests + 2, reader->savedVer);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, DrainsOnlyAfterThirtyMinutesWithoutProgress) {
+  using H = RealtimePipelineHarness;
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    const auto* reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+
+    ScopedCheckpointGenerationProbe checkpoint;
+    const int64_t                   start = h.context()->lastCheckpointTime;
+    auto minute = [&clock, start](int m) { clock.wallNs = start + m * NANOSECOND_PER_MINUTE; };
+    // An hour with no WAL debt must not cause the first page to stall.
+    minute(60);
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    ASSERT_EQ(1, reader->doneVer);
+    minute(85);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+    ASSERT_EQ(3, reader->doneVer);
+
+    // Start a new stall. A normal checkpoint during the stall must not reset its age.
+    minute(90);
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 3}}, 4));
+    minute(119);
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {2}, 4}}, 5));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    ASSERT_EQ(3, reader->doneVer);
+    const int writes = checkpoint.probe().writes;
+    ASSERT_GT(writes, 0);
+
+    minute(120);
+    ASSERT_TRUE(h.feedGroups({{44, 1003, {300, 301}, {1, 2}, 5}}, 6));
+    ASSERT_EQ(3, h.calcAttemptCount());
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    {
+      static int realtimeChecks;
+      realtimeChecks = 0;
+      Stub check;
+      check.set(
+          stTaskStatsRecordTriggerCheck, +[](SStreamTaskStats*, bool history, uint64_t, int64_t, int64_t) {
+            if (!history) ++realtimeChecks;
+          });
+      ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+      EXPECT_EQ(0, realtimeChecks);
+    }
+    ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(3, reader->doneVer);
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    // The final ACK must publish the cut and resume even without another input or timer tick.
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    EXPECT_EQ(6, reader->doneVer);
+    EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    saved = checkpoint.probe().storedBytes;
+  }
+  H restarted;
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(6, reader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, ObservesIdleAndResumeWhileCalculationIsOutstanding) {
+  constexpr int64_t       stallNs = 30 * NANOSECOND_PER_MINUTE;
+  constexpr int64_t       timeoutMs = (stallNs + 5 * NANOSECOND_PER_SEC) / NANOSECOND_PER_MSEC;
+  RealtimePipelineHarness h;
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME, 0, 1, true, timeoutMs));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.task()->addOptions |= NOTIFY_ON_FAILURE_PAUSE;
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  ASSERT_TRUE(h.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  ScopedWalCheckpointClock clock;
+  clock.set(h.context()->lastCheckpointTime);
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+
+  // The idle timeout expires five seconds after the stalled-checkpoint deadline.
+  clock.wallNs += stallNs;
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(0, h.legacySendCount());
+  clock.wallNs += 5 * NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(1, h.legacySendCount());
+  std::unique_ptr<cJSON, decltype(&cJSON_Delete)> idle(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+  const auto* idleType = cJSON_GetObjectItemCaseSensitive(nestedNoticeEvent(idle.get()), "eventType");
+  ASSERT_STREQ("IDLE", cJSON_GetStringValue(idleType));
+  gLegacyNotifyPayload.clear();
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId, 2));
+  ASSERT_EQ(1, h.legacySendCount());
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(2, h.legacySendCount());
+  std::unique_ptr<cJSON, decltype(&cJSON_Delete)> resume(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+  const auto* resumeType = cJSON_GetObjectItemCaseSensitive(nestedNoticeEvent(resume.get()), "eventType");
+  ASSERT_STREQ("RESUME", cJSON_GetStringValue(resumeType));
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  EXPECT_EQ(2, h.legacySendCount());
+}
+
+TEST(StreamStateWalCheckpointTest, PartialCheckpointPreservesBothReaderCursors) {
+  using H = RealtimePipelineHarness;
+  auto startTwoReaders = [](H& h, const std::vector<uint8_t>& bytes) {
+    ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                       STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, false, 2));
+    h.task()->stateExtend = 0;
+    h.task()->stateTrueForInfo = {};
+    h.retainCalcAttempts();
+    h.setCheckpointBytes(bytes);
+    ASSERT_TRUE(h.start());
+  };
+  std::vector<uint8_t> saved;
+  ASSERT_TRUE(makeRecoveryCheckpoint({{H::kVgId, 5, 9}}, {}, 1, &saved, 2));
+  {
+    H h;
+    ASSERT_NO_FATAL_FAILURE(startTwoReaders(h, saved));
+    const auto* oldReader = recoveryWalProgress(h, H::kVgId);
+    const auto* addedReader = recoveryWalProgress(h, H::kVgId + 1);
+    ASSERT_NE(nullptr, oldReader);
+    ASSERT_NE(nullptr, addedReader);
+    ASSERT_EQ(5, oldReader->startVer);
+    ASSERT_EQ(9, oldReader->savedVer);
+    ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_SUCCESS, saved);
+    ScopedWalCheckpointClock        clock;
+    clock.set(h.context()->lastCheckpointTime);
+    ASSERT_EQ(2, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    EXPECT_EQ(5, oldReader->pullReq.walMetaDataNewReq.lastVer);
+    EXPECT_EQ(0, addedReader->pullReq.walMetaDataNewReq.lastVer);
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 9));
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    ASSERT_EQ(saved, checkpoint.probe().storedBytes);
+    int64_t len = 0;
+    ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(h.task(), nullptr, &len, 18));
+    ASSERT_EQ(0, len);
+    const PipelineWalGroup first{43, 1002, {200}, {1}, 11};
+    ASSERT_TRUE(h.feedGroups({first}, 12));
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    ASSERT_EQ(saved, checkpoint.probe().storedBytes);
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 9));
+    // Recovery stopped at this Reader's saved cursor of zero. Replay its first retained row for live output.
+    ASSERT_EQ(0, addedReader->pullReq.walMetaDataNewReq.lastVer);
+    ASSERT_TRUE(h.feedGroups({first}, 12));
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 10));
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {201}, {2}, 12}}, 13));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    const auto& request = h.calcAttempt(0)->decoded;
+    ASSERT_EQ(1, taosArrayGetSize(request.params));
+    const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(request.params, 0));
+    EXPECT_EQ(200, window->wstart);
+    EXPECT_EQ(200, window->wend);
+
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 11));
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {2}, 13}}, 14));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int writes = checkpoint.probe().writes;
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+    ASSERT_EQ(writes + 1, checkpoint.probe().writes);
+    ASSERT_NE(saved, checkpoint.probe().storedBytes);
+    ASSERT_EQ(2, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    saved = checkpoint.probe().storedBytes;
+  }
+  H restored;
+  ASSERT_NO_FATAL_FAILURE(startTwoReaders(restored, saved));
+  const auto* oldReader = recoveryWalProgress(restored, H::kVgId);
+  const auto* addedReader = recoveryWalProgress(restored, H::kVgId + 1);
+  ASSERT_NE(nullptr, oldReader);
+  ASSERT_NE(nullptr, addedReader);
+  EXPECT_EQ(5, oldReader->startVer);
+  EXPECT_EQ(11, oldReader->savedVer);
+  EXPECT_EQ(0, addedReader->startVer);
+  EXPECT_EQ(14, addedReader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, UninitializedReaderCannotReleaseForcedCheckpoint) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  const int writes = checkpoint.probe().writes;
+  {
+    // An encoder without a confirmed Reader boundary returns success with no bytes.
+    Stub encoder;
+    encoder.set(
+        stTriggerTaskDoGenCheckpoint, +[](SStreamTriggerTask*, uint8_t*, int64_t* len, int32_t) -> int32_t {
+          *len = 0;
+          return TSDB_CODE_SUCCESS;
+        });
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_TRUE(h.task()->pendingPeriodicCheckpoint);
+    EXPECT_TRUE(h.context()->drainingWalCheckpoint);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+  EXPECT_FALSE(h.context()->drainingWalCheckpoint);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, WatermarkedRecoveryEmitsOnlyTheNextStateChange) {
+  using H = RealtimePipelineHarness;
+  using Window = std::pair<TSKEY, TSKEY>;
+  auto windows = [](H& h) {
+    std::vector<Window> result;
+    for (int i = 0; i < h.calcAttemptCount(); ++i) {
+      const auto* params = h.calcAttempt(i)->decoded.params;
+      for (int j = 0; j < taosArrayGetSize(params); ++j) {
+        const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, j));
+        result.emplace_back(param->wstart, param->wend);
+      }
+    }
+    return result;
+  };
+
+  // WAL version 1 closes two windows. The watermark holds back timestamp 150.
+  const PipelineWalGroup history{H::kGid, H::kUid, {100, 110, 120, 150}, {1, 2, 3, 3}, 1, false, 0, 100};
+  auto                   feedHistory = [&](H& h) {
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+    ASSERT_TRUE(h.feedGroups({history}, 2));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+    ASSERT_TRUE(h.feedRows({100, 110, 120}, {1, 2, 3}, 100, 1));
+  };
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    h.setDeployWatermark(10);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_NO_FATAL_FAILURE(feedHistory(h));
+    ASSERT_EQ((std::vector<Window>{{100, 100}, {110, 110}}), windows(h));
+
+    // Leave the Runner request outstanding across the stall deadline.
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    const int meta = h.prepareMetadataResponse(true);
+    ASSERT_GE(meta, 0);
+    ASSERT_EQ(0, h.processMetadataNoData(meta, 2 * sizeof(int64_t), 2));
+    ASSERT_TRUE(h.respondWalDataNoData(2));
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+    const int writes = checkpoint.probe().writes;
+    for (int i = 0; i < h.calcAttemptCount(); ++i) ASSERT_EQ(0, h.dispatchCalcAttempt(i, TSDB_CODE_SUCCESS));
+    ASSERT_EQ(writes + 1, checkpoint.probe().writes);
+    saved = checkpoint.probe().storedBytes;
+  }
+
+  H restarted;
+  restarted.setDeployWatermark(10);
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.task()->stateExtend = 0;
+  restarted.task()->stateTrueForInfo = {};
+  restarted.retainCalcAttempts();
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  ASSERT_EQ(1, reader->lastScanVer);
+  ASSERT_EQ(2, reader->savedVer);
+  ASSERT_TRUE(restarted.context()->recovering);
+  ASSERT_NO_FATAL_FAILURE(feedHistory(restarted));
+  EXPECT_EQ((std::vector<Window>{}), windows(restarted));
+
+  const PipelineWalGroup next{H::kGid, H::kUid, {160, 180}, {4, 4}, 2, false, 0, 160};
+  ASSERT_EQ(1, restarted.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+  ASSERT_TRUE(restarted.feedGroups({next}, 3));
+  ASSERT_EQ(1, restarted.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+  ASSERT_TRUE(restarted.feedVersionedRows({{H::kGid, H::kUid, {150}, {3}, 1}, {H::kGid, H::kUid, {160}, {4}, 2}}));
+  EXPECT_EQ((std::vector<Window>{{120, 150}}), windows(restarted));
+}
+
+TEST(StreamStateWalCheckpointTest, HoldsWalWhileRetryingRunnerOrCheckpoint) {
+  using H = RealtimePipelineHarness;
+  H    h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  const int64_t start = h.context()->lastCheckpointTime;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  const int64_t due = start + 30 * NANOSECOND_PER_MINUTE;
+  clock.wallNs = due;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(1, recoveryWalProgress(h, H::kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+  clock.wallNs = due + NANOSECOND_PER_SEC;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeRetryCode());
+  ASSERT_EQ(2, h.calcAttemptCount());
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_TRUE(checkpoint.probe().storedBytes.empty());
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(2, checkpoint.probe().writes);
+  EXPECT_FALSE(checkpoint.probe().storedBytes.empty());
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, ReplicaSubmissionRetriesLatestLocalCheckpointWhileWalContinues) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+  gCheckpointGenerationProbe->syncCode = TSDB_CODE_OUT_OF_MEMORY;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_EQ(1, checkpoint.probe().syncs);
+  const auto    first = checkpoint.probe().storedBytes;
+  const int32_t version = h.task()->checkpointVersion;
+  ASSERT_FALSE(first.empty());
+  h.setCheckpointBytes(first);
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_EQ(version, h.task()->checkpointVersion);
+  EXPECT_EQ(2, checkpoint.probe().syncs);
+  EXPECT_EQ(first, checkpoint.probe().syncBytes);
+
+  clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {104}, {2}, 4}}, 5));
+  ASSERT_EQ(2, checkpoint.probe().writes);
+  const auto latest = checkpoint.probe().storedBytes;
+  ASSERT_NE(first, latest);
+  ASSERT_EQ(latest, checkpoint.probe().syncBytes);
+  h.setCheckpointBytes(latest);
+
+  gCheckpointGenerationProbe->syncCode = TSDB_CODE_SUCCESS;
+  const int syncs = checkpoint.probe().syncs;
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {105}, {2}, 5}}, 6));
+  EXPECT_EQ(syncs + 1, checkpoint.probe().syncs);
+  EXPECT_EQ(latest, checkpoint.probe().syncBytes);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {106}, {2}, 6}}, 7));
+  EXPECT_EQ(syncs + 1, checkpoint.probe().syncs);
+  EXPECT_EQ(2, checkpoint.probe().writes);
+  EXPECT_EQ(version + 1, h.task()->checkpointVersion);
+  EXPECT_EQ(7, recoveryWalProgress(h, RealtimePipelineHarness::kVgId)->doneVer);
+}
+
+TEST(StreamStateWalCheckpointTest, FailedCalculationCannotBeConfirmedByAnotherReply) {
+  using H = RealtimePipelineHarness;
+  for (bool inDrain : {false, true}) {
+    SCOPED_TRACE(inDrain);
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+    const int64_t                   start = h.context()->lastCheckpointTime;
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    const int64_t due = start + (inDrain ? 30 : 29) * NANOSECOND_PER_MINUTE;
+    clock.wallNs = due;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {202, 203}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(inDrain ? 0 : 1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int priorWrites = checkpoint.probe().writes;
+    ASSERT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(0, TSDB_CODE_INTERNAL_ERROR));
+    EXPECT_EQ(inDrain ? TSDB_CODE_INTERNAL_ERROR : 0, h.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+    EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(1, recoveryWalProgress(h, H::kVgId)->doneVer);
+    EXPECT_EQ(inDrain ? 0 : 1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(priorWrites, checkpoint.probe().writes);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, DeferredCalculationsCanFinishWithWalPaused) {
+  RealtimePipelineHarness      h;
+  ScopedWalCheckpointClock     clock;
+  ScopedStreamBatchRequestWait batchWait(1000);
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(0, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(1, h.group(43)->pPendingCalcParams.neles);
+  // The ACK releases a Runner slot after the wall clock moves back one hour.
+  const int64_t drainTime = clock.wallNs;
+  clock.set(drainTime - 60 * NANOSECOND_PER_MINUTE, drainTime + NANOSECOND_PER_SEC);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(0, checkpoint.probe().writes);
+  ASSERT_EQ(2, h.calcAttemptCount());
+  EXPECT_EQ(43, h.calcAttempt(1)->decoded.gid);
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(3, recoveryWalProgress(h, RealtimePipelineHarness::kVgId)->doneVer);
+  EXPECT_EQ(1, checkpoint.probe().writes);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, FirstPageFailureWithFullSlotsKeepsPreviousCut) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  std::vector<PipelineWalGroup>   groups;
+  for (int i = 0; i < 8; ++i) groups.push_back({42 + i, 1001 + i, {100, 101}, {1, 2}, 1});
+  ASSERT_TRUE(h.feedGroups(groups, 2));
+  ASSERT_EQ(STRIGGER_CONTEXT_ACQUIRE_REQUEST, h.context()->status);
+  ASSERT_EQ(0, h.context()->walStallDeadlineUs);
+  ASSERT_GT(h.calcAttemptCount(), 1);
+  ASSERT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(0, TSDB_CODE_INTERNAL_ERROR));
+  EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(TSDB_CODE_INTERNAL_ERROR, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(1, recoveryWalProgress(h, h.kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+}
+
+TEST(StreamStateWalCheckpointTest, LocalResendFailureKeepsPreviousCut) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  h.failNextCalcSend(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchSerializedRealtimeRetryCode());
+  EXPECT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(1, recoveryWalProgress(h, h.kVgId)->doneVer);
+  EXPECT_EQ(0, checkpoint.probe().writes);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+}
+
+static void checkExpiredMaxDelayAfterWalCheckpoint(bool multiGroup, bool expiresDuringWrite = false) {
+  constexpr int64_t            stall = 30 * NANOSECOND_PER_MINUTE;
+  RealtimePipelineHarness      h;
+  ScopedWalCheckpointClock     clock;
+  ScopedStreamBatchRequestWait batchWait(1000);
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+  h.task()->multiGroupBatch = multiGroup;
+  h.task()->maxDelayNs = stall + 2 * NANOSECOND_PER_SEC + (expiresDuringWrite ? 10 : -10) * NANOSECOND_PER_MSEC;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+
+  // Hold all slots until the drain has a pair of closed B windows to dispatch.
+  auto blockers = holdAllCalcSlots(h.task(), 9000, 900);
+  ASSERT_FALSE(blockers.empty());
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 102}, {1, 1}, 1}, {43, 1002, {200, 201}, {1, 2}, 1}}, 2));
+  clock.wallNs += stall;
+  ASSERT_TRUE(h.feedGroups({{43, 1002, {202}, {3}, 2}}, 3));
+  releaseCalcSlots(h.task(), &blockers);
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(0, h.calcAttemptCount());
+  ASSERT_EQ(2, h.group(43)->pPendingCalcParams.neles);
+
+  // B's open window is still well short of MAX_DELAY.
+  clock.wallNs += NANOSECOND_PER_SEC;
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  auto onlyGroupParams = [&](int attempt, int64_t gid) -> const SArray* {
+    const auto& req = h.calcAttempt(attempt)->decoded;
+    EXPECT_EQ(multiGroup, req.isMultiGroupCalc);
+    if (!req.isMultiGroupCalc) {
+      EXPECT_EQ(gid, req.gid);
+      return req.params;
+    }
+    EXPECT_EQ(1, tSimpleHashGetSize(req.pGroupCalcInfos));
+    const auto* group =
+        static_cast<const SSTriggerGroupCalcInfo*>(tSimpleHashGet(req.pGroupCalcInfos, &gid, sizeof(gid)));
+    return group ? group->pParams : nullptr;
+  };
+  const auto* closed = onlyGroupParams(0, 43);
+  ASSERT_NE(nullptr, closed);
+  ASSERT_EQ(2, taosArrayGetSize(closed));
+  for (int i = 0; i < 2; ++i) {
+    const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(closed, i));
+    EXPECT_EQ(200 + i, param->wstart);
+    EXPECT_EQ(200 + i, param->wend);
+  }
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_TRUE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  clock.wallNs += NANOSECOND_PER_SEC;
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  if (expiresDuringWrite) {
+    ASSERT_EQ(clock.wallNs + 10 * NANOSECOND_PER_MSEC, h.group(42)->nextExecTime);
+    gCheckpointGenerationProbe->onWrite = [&clock] { clock.wallNs += 50 * NANOSECOND_PER_MSEC; };
+  }
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* open = onlyGroupParams(1, 42);
+  ASSERT_NE(nullptr, open);
+  ASSERT_EQ(1, taosArrayGetSize(open));
+  const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(open, 0));
+  EXPECT_EQ(100, param->wstart);
+  EXPECT_EQ(102, param->wend);
+  EXPECT_EQ(clock.wallNs, param->triggerTime);
+  ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  // The first resumed WAL page closes A. Its overdue open calculation has already been sent.
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 3}}, 4));
+  EXPECT_EQ(2, h.calcAttemptCount());
+}
+
+TEST(StreamStateWalCheckpointTest, SingleGroupMaxDelayWaitsForDurableCutBeforeWalResumes) {
+  checkExpiredMaxDelayAfterWalCheckpoint(false);
+}
+
+TEST(StreamStateWalCheckpointTest, MultiGroupMaxDelayWaitsForDurableCutBeforeWalResumes) {
+  checkExpiredMaxDelayAfterWalCheckpoint(true);
+}
+
+TEST(StreamStateWalCheckpointTest, OpenWindowBecomesDueDuringCheckpointWrite) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    checkExpiredMaxDelayAfterWalCheckpoint(multiGroup, true);
+  }
 }
 
 TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCheckpoint) {
@@ -25941,6 +26652,361 @@ TEST_F(StreamTriggerTaskTest, OrdinaryRealtimeSameGroupRunsConcurrentlyWithoutTr
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
 }
 
+static void capturePartitionRetryTimer(Stub& clock) {
+  clock.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  clock.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  clock.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+}
+
+static void processPartitionRetryWake(RealtimePipelineHarness& h) {
+  ASSERT_EQ(1, h.queuedControlCount());
+  bool processed = false;
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValuePreservesClosedWindow) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness h;
+    ScopedWalCheckpointClock clock;
+    Stub                     timer;
+    ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                       STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, multiGroup, 1, true));
+    h.task()->stateExtend = 0;
+    h.task()->stateTrueForInfo = {};
+    if (multiGroup) {
+      // A partition made solely of constants is present even when the Reader returns zero dynamic values.
+      nodesDestroyList(h.task()->pPartitionCols);
+      h.task()->pPartitionCols = nullptr;
+      SNode* constant = nullptr;
+      ASSERT_EQ(0, nodesMakeValueNodeFromInt32(42, &constant));
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&h.task()->pPartitionCols, constant));
+    }
+    h.retainCalcAttempts();
+    ASSERT_TRUE(h.start());
+    ASSERT_TRUE(h.feedLastTsForReader(h.kReaderTaskId, 0));
+    clock.set(h.context()->lastCheckpointTime);
+    ScopedCheckpointGenerationProbe checkpoint;
+
+    clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100}, {1}, 1}}, 2));
+    const auto* reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    const auto saved = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(saved.empty());
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {101}, {2}, 2}}, 3));
+    ASSERT_EQ(1, h.groupColPullCount(42));
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(42));
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    EXPECT_EQ(0, h.calcAttemptCount());
+    EXPECT_EQ(2, reader->doneVer);
+    EXPECT_EQ(saved, checkpoint.probe().storedBytes);
+    EXPECT_EQ(1, h.groupColPullCount(42));
+
+    ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+    const int64_t due = clock.wallNs + NANOSECOND_PER_SEC;
+    const int64_t earlierWall = clock.wallNs - 10 * NANOSECOND_PER_MINUTE;
+    clock.set(clock.wallNs, due - 1);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(0, h.queuedControlCount());
+    // Move the wall clock back either before enqueue or between enqueue and dispatch.
+    clock.set(multiGroup ? earlierWall : due, due);
+    if (multiGroup) {
+      // Requeue a failed control delivery on the same monotonic clock.
+      h.failNextQueuePut(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_EQ(0, h.queuedControlCount());
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_EQ(0, h.queuedControlCount());
+      clock.set(earlierWall, due + NANOSECOND_PER_SEC);
+    }
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    clock.set(earlierWall, multiGroup ? due + NANOSECOND_PER_SEC : due);
+    ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+    ASSERT_EQ(1, h.groupColPullCount(42));
+    ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+    ASSERT_EQ(2, h.groupColPullCount(42));
+    ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200, nullptr, multiGroup));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    const auto& request = h.calcAttempt(0)->decoded;
+    const auto* group = multiGroup ? pipelineGroupCalcInfo(&request, 42) : nullptr;
+    if (multiGroup) ASSERT_NE(nullptr, group);
+    const auto* params = group ? group->pParams : request.params;
+    ASSERT_EQ(1, taosArrayGetSize(params));
+    const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+    EXPECT_EQ(100, window->wstart);
+    EXPECT_EQ(100, window->wend);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 3}}, 4));
+    EXPECT_EQ(4, reader->doneVer);
+    EXPECT_EQ(1, h.calcAttemptCount());
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValueCanBeReadFromAnotherVnodeDuringDrain) {
+  using H = RealtimePipelineHarness;
+  constexpr int readerCount = 32;
+  H    h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true, readerCount, true));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+  ASSERT_TRUE(h.start());
+  for (int i = 0; i < readerCount; ++i) ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId + i, 0));
+  clock.set(h.context()->lastCheckpointTime);
+  ScopedCheckpointGenerationProbe checkpoint;
+
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId, {{42, 1001, {100, 101}, {1, 2}, 2}}));
+  for (int i = 1; i < readerCount; ++i) ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId + i, 2));
+  ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_NE(nullptr, pipelineGroupCalcInfo(&h.calcAttempt(0)->decoded, 42));
+  const auto* reader = recoveryWalProgress(h, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  const auto confirmed = reader->doneVer;
+
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId, 3));
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId + 1, {{43, 1002, {200}, {1}, 3}}));
+  ASSERT_TRUE(h.feedGroupsForReader(H::kReaderTaskId + 2, {{43, 1003, {201}, {2}, 3}}));
+  for (int i = 3; i < readerCount; ++i) ASSERT_TRUE(h.feedZeroRowWalForReader(H::kReaderTaskId + i, 3));
+  const int64_t owner = h.pendingGroupColReader(43);
+  ASSERT_TRUE(owner == H::kReaderTaskId + 1 || owner == H::kReaderTaskId + 2);
+  ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_TRUE(h.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(1, h.groupColPullCount(43));
+  EXPECT_EQ(1, h.calcAttemptCount());
+  EXPECT_EQ(confirmed, reader->doneVer);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  const int writes = checkpoint.probe().writes;
+
+  ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+  ASSERT_EQ(owner, h.pendingGroupColReader(43));
+  // Every explicit miss starts the next lookup without another clock tick.
+  for (int i = 1; i < readerCount; ++i) {
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_GROUP_COL_VALUE));
+    EXPECT_EQ(H::kReaderTaskId + (owner - H::kReaderTaskId + i) % readerCount, h.pendingGroupColReader(43));
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(confirmed, reader->doneVer);
+  }
+  ASSERT_EQ(0, h.dispatchGroupColValue(43, 4300));
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* group = pipelineGroupCalcInfo(&h.calcAttempt(1)->decoded, 43);
+  ASSERT_NE(nullptr, group);
+  ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+  const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+  EXPECT_EQ(200, win->wstart);
+  EXPECT_EQ(200, win->wend);
+  EXPECT_EQ(confirmed, reader->doneVer);
+  EXPECT_EQ(writes, checkpoint.probe().writes);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+  EXPECT_EQ(3, reader->doneVer);
+  EXPECT_EQ(writes + 1, checkpoint.probe().writes);
+  EXPECT_EQ(readerCount, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  EXPECT_EQ(2, h.calcAttemptCount());
+}
+
+static void initPartitionStateCheckpointHarness(RealtimePipelineHarness& h) {
+  ASSERT_TRUE(h.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                     STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, true, 1, true));
+  h.task()->stateExtend = 0;
+  h.task()->stateTrueForInfo = {};
+  h.retainCalcAttempts();
+}
+
+TEST(StreamStateWalCheckpointTest, MissingPartitionValueReplaysFromLastConfirmedWindowAfterUndeploy) {
+  using H = RealtimePipelineHarness;
+  const PipelineWalGroup open{42, 1001, {100}, {1}, 1};
+  const PipelineWalGroup close{42, 1001, {101}, {2}, 2};
+  for (bool priorCheckpoint : {false, true}) {
+    SCOPED_TRACE(priorCheckpoint);
+    std::vector<uint8_t> saved;
+    {
+      H    h;
+      ScopedWalCheckpointClock clock;
+      Stub                     timer;
+      ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(h));
+      ASSERT_TRUE(h.start());
+      ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId, 0));
+      clock.set(h.context()->lastCheckpointTime);
+      ScopedCheckpointGenerationProbe checkpoint;
+      if (priorCheckpoint) clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+      ASSERT_TRUE(h.feedGroups({open}, 2));
+      ASSERT_EQ(priorCheckpoint, !checkpoint.probe().storedBytes.empty());
+      ASSERT_TRUE(h.feedGroups({close}, 3));
+      ASSERT_EQ(0, h.dispatchGroupColNoContext(42));
+      ASSERT_NO_FATAL_FAILURE(capturePartitionRetryTimer(timer));
+      clock.wallNs += NANOSECOND_PER_SEC;
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      ASSERT_NO_FATAL_FAILURE(processPartitionRetryWake(h));
+      ASSERT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, h.dispatchGroupColNoContext(42));
+      EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, h.dispatchSerializedRealtimeStartCode());
+      EXPECT_EQ(2, recoveryWalProgress(h, H::kVgId)->doneVer);
+      EXPECT_EQ(0, h.calcAttemptCount());
+      h.task()->task.undeployMsg.doCheckpoint = 1;
+      h.task()->task.undeployMsg.doCleanup = 0;
+      ASSERT_EQ(0, h.hardUndeploy());
+      saved = checkpoint.probe().storedBytes;
+      ASSERT_FALSE(saved.empty());
+    }
+    H restored;
+    ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(restored));
+    restored.setCheckpointBytes(std::move(saved));
+    ASSERT_TRUE(restored.start());
+    ASSERT_EQ(1, recoveryWalProgress(restored, H::kVgId)->lastScanVer);
+    ASSERT_EQ(2, recoveryWalProgress(restored, H::kVgId)->savedVer);
+    ASSERT_TRUE(restored.feedGroups({open}, 2));
+    ASSERT_EQ(0, restored.calcAttemptCount());
+    ASSERT_TRUE(restored.feedGroups({close}, 3));
+    ASSERT_EQ(0, restored.dispatchGroupColValue(42, 4200));
+    ASSERT_EQ(1, restored.calcAttemptCount());
+    const auto* group = pipelineGroupCalcInfo(&restored.calcAttempt(0)->decoded, 42);
+    ASSERT_NE(nullptr, group);
+    ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+    const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+    EXPECT_EQ(100, win->wstart);
+    EXPECT_EQ(100, win->wend);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, UndeployDuringPartitionMissSavesNewerConfirmedOutput) {
+  using H = RealtimePipelineHarness;
+  const PipelineWalGroup openA{42, 1001, {100}, {1}, 1};
+  const PipelineWalGroup closeA{42, 1001, {101}, {2}, 2};
+  const PipelineWalGroup openB{43, 1002, {200}, {1}, 3};
+  const PipelineWalGroup closeB{43, 1002, {201}, {2}, 4};
+  auto                   checkWindow = [](H& h, int attempt, int64_t gid, TSKEY ts) {
+    const auto* group = pipelineGroupCalcInfo(&h.calcAttempt(attempt)->decoded, gid);
+    ASSERT_NE(nullptr, group);
+    ASSERT_EQ(1, taosArrayGetSize(group->pParams));
+    const auto* win = static_cast<const SSTriggerCalcParam*>(taosArrayGet(group->pParams, 0));
+    EXPECT_EQ(ts, win->wstart);
+    EXPECT_EQ(ts, win->wend);
+  };
+
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(h));
+    ASSERT_TRUE(h.start());
+    ASSERT_TRUE(h.feedLastTsForReader(H::kReaderTaskId, 0));
+    clock.set(h.context()->lastCheckpointTime + 10 * NANOSECOND_PER_MINUTE);
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({openA}, 2));
+    const auto* reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    const auto prior = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(prior.empty());
+
+    ASSERT_TRUE(h.feedGroups({closeA}, 3));
+    ASSERT_EQ(0, h.dispatchGroupColValue(42, 4200));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_NO_FATAL_FAILURE(checkWindow(h, 0, 42, 100));
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_TRUE(h.feedGroups({openB}, 4));
+    ASSERT_EQ(4, reader->doneVer);
+    ASSERT_TRUE(h.feedGroups({closeB}, 5));
+    ASSERT_EQ(0, h.dispatchGroupColNoContext(43));
+    ASSERT_EQ(4, reader->doneVer);
+    ASSERT_EQ(5, reader->lastScanVer);
+    ASSERT_EQ(prior, checkpoint.probe().storedBytes);
+    ASSERT_EQ(1, h.calcAttemptCount());
+    h.task()->task.undeployMsg.doCheckpoint = 1;
+    h.task()->task.undeployMsg.doCleanup = 0;
+    ASSERT_EQ(0, h.hardUndeploy());
+    saved = checkpoint.probe().storedBytes;
+  }
+
+  H restored;
+  ASSERT_NO_FATAL_FAILURE(initPartitionStateCheckpointHarness(restored));
+  restored.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restored.start());
+  const auto* reader = recoveryWalProgress(restored, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(4, reader->savedVer);
+  ASSERT_TRUE(restored.feedGroups({openA}, 2));
+  ASSERT_TRUE(restored.feedGroups({closeA}, 3));
+  if (restored.pendingGroupColReader(42)) ASSERT_EQ(0, restored.dispatchGroupColValue(42, 4200));
+  EXPECT_EQ(0, restored.calcAttemptCount());
+  ASSERT_TRUE(restored.feedGroups({openB}, 4));
+  ASSERT_TRUE(restored.feedGroups({closeB}, 5));
+  ASSERT_EQ(0, restored.dispatchGroupColValue(43, 4300));
+  ASSERT_EQ(1, restored.calcAttemptCount());
+  ASSERT_NO_FATAL_FAILURE(checkWindow(restored, 0, 43, 200));
+  ASSERT_EQ(0, restored.dispatchCalcAttempt(0, 0));
+  ASSERT_TRUE(restored.feedZeroRowWalForReader(H::kReaderTaskId, 5));
+  EXPECT_EQ(5, reader->doneVer);
+  EXPECT_EQ(1, restored.calcAttemptCount());
+}
+
+TEST(StreamStateWalCheckpointTest, FailedInitialTimerDispatchKeepsPreviousCut) {
+  for (bool multiGroup : {true, false}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    Stub                         timer;
+    ScopedStreamBatchRequestWait batchWait(1000);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+    h.task()->multiGroupBatch = multiGroup;
+    ScopedCheckpointGenerationProbe checkpoint;
+    clock.wallNs += 10 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {99}, {1}, 1}}, 2));
+    const auto* reader = recoveryWalProgress(h, h.kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_EQ(2, reader->doneVer);
+    ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+    const auto saved = checkpoint.probe().storedBytes;
+
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(0, h.calcAttemptCount());
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 3}}, 4));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(1, h.calcAttemptCount());
+    ASSERT_EQ(1, h.context()->calcParamPool.size);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int writes = checkpoint.probe().writes;
+    const int syncs = checkpoint.probe().syncs;
+
+    // Keep A in flight while the checkpoint timer flushes B for the first time.
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+    clock.wallNs += NANOSECOND_PER_SEC;
+    h.failNextCalcSend(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    bool processed = false;
+    ASSERT_FALSE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    ASSERT_EQ(0, h.context()->calcParamPool.size);
+    ASSERT_EQ(1, h.calcAttemptCount());
+
+    const int32_t ack = h.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(ack == TSDB_CODE_SUCCESS || ack == TSDB_CODE_RPC_NETWORK_UNAVAIL);
+    EXPECT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, h.dispatchSerializedRealtimeStartCode());
+    EXPECT_EQ(2, reader->doneVer);
+    EXPECT_EQ(saved, checkpoint.probe().storedBytes);
+    EXPECT_EQ(writes, checkpoint.probe().writes);
+    EXPECT_EQ(syncs, checkpoint.probe().syncs);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+}
+
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeCalcFailureIsFatalWithoutRetry) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
@@ -26108,6 +27174,375 @@ TEST_F(StreamTriggerTaskTest, VtableRetryKeepsPeriodPollingAndDedicatedWake) {
   ASSERT_TRUE(harness.processNextControl(&processed));
   EXPECT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
   EXPECT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+}
+
+TEST(StreamStateWalCheckpointTest, OneSlotPreservesBothDueWindowsAcrossTheNextWalPage) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    ScopedStreamBatchRequestWait noBatchWait(0);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false, 1));
+    h.task()->multiGroupBatch = multiGroup;
+    h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+    ScopedCheckpointGenerationProbe checkpoint;
+
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {90, 100, 102}, {1, 2, 2}, 1}, {43, 1002, {200, 202}, {1, 1}, 1}}, 2));
+    ASSERT_EQ(1, h.calcAttemptCount());
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {103}, {2}, 2}}, 3));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_EQ(1, checkpoint.probe().writes);
+    ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+    ASSERT_EQ(2, h.calcAttemptCount());
+
+    // Give the next WAL page priority over the Runner ACK as soon as reading resumes.
+    int nextAck = 1;
+    if (!multiGroup) {
+      ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+      // Waiting for the slot must not add another full MAX_DELAY cycle to the paused cut.
+      clock.wallNs += 32 * NANOSECOND_PER_MINUTE;
+      ASSERT_EQ(0, h.dispatchCalcAttempt(nextAck++, 0));
+      ASSERT_EQ(3, h.calcAttemptCount());
+      const auto* params = h.calcAttempt(2)->decoded.params;
+      ASSERT_EQ(1, taosArrayGetSize(params));
+      const auto* resumed = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+      EXPECT_EQ(clock.wallNs, resumed->triggerTime);
+    }
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    // Extend then close both windows so the close ranges differ from the overdue open ranges.
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {104, 105}, {2, 3}, 3}, {43, 1002, {203, 204}, {1, 2}, 3}}, 4));
+    while (nextAck < h.calcAttemptCount()) {
+      ASSERT_LE(h.calcAttemptCount(), 5);  // Initial close, two MAX_DELAYs and two closes.
+      ASSERT_EQ(0, h.dispatchCalcAttempt(nextAck++, 0));
+    }
+    std::vector<int64_t> dueGroups;
+    for (int i = 1; i < h.calcAttemptCount(); ++i) {
+      const auto& req = h.calcAttempt(i)->decoded;
+      for (int64_t gid : {42, 43}) {
+        const SArray* params = req.gid == gid ? req.params : nullptr;
+        if (const auto* group = pipelineGroupCalcInfo(&req, gid)) params = group->pParams;
+        for (int j = 0; j < taosArrayGetSize(params); ++j) {
+          const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, j));
+          if ((gid == 42 && param->wstart == 100 && param->wend == 103) ||
+              (gid == 43 && param->wstart == 200 && param->wend == 202)) {
+            dueGroups.push_back(gid);
+          }
+        }
+      }
+    }
+    std::sort(dueGroups.begin(), dueGroups.end());
+    EXPECT_EQ((std::vector<int64_t>{42, 43}), dueGroups);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, SlowMaxDelayRepliesLetWalResume) {
+  using H = RealtimePipelineHarness;
+  std::vector<uint8_t> saved;
+  {
+    H    h;
+    ScopedWalCheckpointClock clock;
+    Stub                     timer;
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, true, 4));
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+    h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+    ScopedCheckpointGenerationProbe checkpoint;
+    const auto*                     reader = recoveryWalProgress(h, H::kVgId);
+    ASSERT_NE(nullptr, reader);
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+    ASSERT_EQ(2, h.calcAttemptCount());  // One closed window per group.
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    auto checkTimer = [&](int attempt, int64_t gid, TSKEY start) {
+      invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+      bool processed = false;
+      ASSERT_TRUE(h.processNextControl(&processed));
+      ASSERT_TRUE(processed);
+      ASSERT_EQ(attempt + 1, h.calcAttemptCount());
+      const auto& req = h.calcAttempt(attempt)->decoded;
+      ASSERT_EQ(gid, req.gid);
+      ASSERT_EQ(1, taosArrayGetSize(req.params));
+      const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(req.params, 0));
+      EXPECT_EQ(start, window->wstart);
+      EXPECT_EQ(start, window->wend);
+      EXPECT_EQ(clock.wallNs, window->triggerTime);
+    };
+
+    // The wall clock jumps past group 42's deadline while only one timer tick elapses.
+    const int64_t mono = clock.wallNs + NANOSECOND_PER_SEC;
+    clock.set(clock.wallNs, mono);
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    EXPECT_EQ(0, h.queuedControlCount());
+    clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+    clock.set(clock.wallNs, mono);
+    ASSERT_NO_FATAL_FAILURE(checkTimer(2, 42, 101));
+    clock.set(clock.wallNs);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));  // Group 43's close still owns the cut.
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_NO_FATAL_FAILURE(checkTimer(3, 43, 201));
+    ASSERT_EQ(0, h.dispatchCalcAttempt(3, 0));  // An open-window ACK cannot confirm the close.
+    EXPECT_EQ(1, reader->doneVer);
+    EXPECT_EQ(0, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    EXPECT_EQ(3, reader->doneVer);
+    EXPECT_EQ(1, checkpoint.probe().writes);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    int64_t running = 0;
+    ASSERT_EQ(0, stTriggerTaskGetRunningReq(h.task(), h.context()->sessionId, &running));
+    EXPECT_EQ(1, running);  // Group 42's timer is still using its Runner slot.
+    saved = checkpoint.probe().storedBytes;
+    ASSERT_FALSE(saved.empty());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+    EXPECT_EQ(1, checkpoint.probe().writes);
+  }
+
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, saved.data(), static_cast<int64_t>(saved.size()));
+  ASSERT_EQ(0, tStartDecode(&decoder));
+  int32_t version = 0;
+  int64_t streamId = 0;
+  int32_t format = 0;
+  ASSERT_EQ(0, tDecodeI32(&decoder, &version));
+  ASSERT_EQ(0, tDecodeI64(&decoder, &streamId));
+  ASSERT_EQ(0, tDecodeI32(&decoder, &format));
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  EXPECT_EQ(15, format);  // Baseline format for an ordinary WAL stream with no repair state.
+  H restarted;
+  ASSERT_TRUE(restarted.init(RealtimePipelinePlan::LegacyParityState));
+  restarted.setCheckpointBytes(std::move(saved));
+  ASSERT_TRUE(restarted.start());
+  const auto* reader = recoveryWalProgress(restarted, H::kVgId);
+  ASSERT_NE(nullptr, reader);
+  EXPECT_EQ(3, reader->savedVer);
+}
+
+TEST(StreamStateWalCheckpointTest, EarlyCheckpointCompletionCancelsPendingWakes) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  h.task()->maxDelayNs = 24 * 60 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+
+  for (int i = 0; i < 3; ++i) {
+    SCOPED_TRACE(i);
+    const int64_t gid = 42 + i;
+    const int64_t uid = 1001 + i;
+    const int64_t ver = 1 + 2 * i;
+    ASSERT_TRUE(h.feedGroups({{gid, uid, {100, 101}, {1, 2}, ver}}, ver + 1));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{gid, uid, {102}, {2}, ver + 1}}, ver + 2));
+    ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+    ASSERT_NE(0, h.task()->walCheckpointWakeId);
+    ASSERT_EQ(0, h.dispatchCalcAttempt(i, 0));
+    ASSERT_EQ(i + 1, checkpoint.probe().writes);
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  }
+
+  // Sweep past every registered deadline before the next WAL response arrives.
+  clock.wallNs += h.task()->maxDelayNs;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(0, h.queuedControlCount());
+}
+
+TEST(StreamStateWalCheckpointTest, CancelledCheckpointWakeIsNotRequeuedAfterDeliveryFails) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+
+  // Complete the checkpoint after the timer takes its node but before queue delivery fails.
+  const auto originalPut = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = [](void*, EQueueType, SRpcMsg*) -> int32_t {
+    EXPECT_EQ(0, gRealtimePipelineHarness->dispatchCalcAttempt(0, 0));
+    return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  };
+  clock.wallNs += 2 * NANOSECOND_PER_MINUTE;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  gStreamMgmt.msgCb.putToQueueFp = originalPut;
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_FALSE(h.context()->drainingWalCheckpoint);
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(0, h.queuedControlCount());
+}
+
+TEST(StreamStateWalCheckpointTest, QueuedCheckpointWakeExpiresAfterFinalAck) {
+  for (bool laterDrain : {false, true}) {
+    SCOPED_TRACE(laterDrain);
+    RealtimePipelineHarness      h;
+    ScopedWalCheckpointClock     clock;
+    Stub                         timer;
+    ScopedStreamBatchRequestWait batchWait(1000);
+    ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock, false));
+    timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+    timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+    timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+    ScopedCheckpointGenerationProbe checkpoint;
+    ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+    clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+    ASSERT_TRUE(h.feedGroups({{43, 1002, {200, 201}, {1, 2}, 2}}, 3));
+
+    // Leave the timer's control in the worker queue while the final Runner replies complete the cut.
+    clock.wallNs += NANOSECOND_PER_SEC;
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+    ASSERT_EQ(2, h.calcAttemptCount());
+    ASSERT_EQ(0, h.dispatchCalcAttempt(1, 0));
+    ASSERT_EQ(1, checkpoint.probe().writes);
+    ASSERT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    if (laterDrain) {
+      ASSERT_TRUE(h.feedGroups({{44, 1003, {300, 301}, {1, 2}, 3}}, 4));
+      clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+      ASSERT_TRUE(h.feedGroups({{44, 1003, {302}, {2}, 4}}, 5));
+      gCheckpointGenerationProbe->writeCode = TSDB_CODE_OUT_OF_MEMORY;
+      ASSERT_EQ(0, h.dispatchCalcAttempt(2, 0));
+      ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+      gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+    } else {
+      ASSERT_TRUE(h.feedZeroRowWalForReader(h.kReaderTaskId, 3));
+      ASSERT_EQ(STRIGGER_CONTEXT_IDLE, h.context()->status);
+    }
+    ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    const int priorWrites = checkpoint.probe().writes;
+    bool      processed = false;
+    ASSERT_TRUE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    EXPECT_EQ(priorWrites, checkpoint.probe().writes);
+    EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+    // Only the current idle poll or the current cut's retry may resume the Reader.
+    clock.wallNs += NANOSECOND_PER_SEC;
+    invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+    ASSERT_EQ(1, h.queuedControlCount());
+    ASSERT_TRUE(h.processNextControl(&processed));
+    ASSERT_TRUE(processed);
+    EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+    EXPECT_EQ(priorWrites + (laterDrain ? 1 : 0), checkpoint.probe().writes);
+  }
+}
+
+TEST(StreamStateWalCheckpointTest, ResumesOverdueWindowAfterAnotherSessionReturnsSlots) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  h.task()->maxDelayNs = 31 * NANOSECOND_PER_MINUTE;
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  ASSERT_EQ(1, h.calcAttemptCount());
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_TRUE(h.context()->drainingWalCheckpoint);
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  ASSERT_TRUE(checkpoint.probe().storedBytes.empty());
+
+  auto otherSessions = holdAllCalcSlots(h.task(), 9000, 900);
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  clock.wallNs += 32 * NANOSECOND_PER_MINUTE;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  bool processed = false;
+  bool retryOk = h.processNextControl(&processed);
+  releaseCalcSlots(h.task(), &otherSessions);
+  ASSERT_TRUE(retryOk && processed);
+  ASSERT_FALSE(checkpoint.probe().storedBytes.empty());
+  ASSERT_EQ(1, h.calcAttemptCount());
+  ASSERT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  // No realtime ACK can wake this task after the other sessions release their slots.
+  clock.wallNs += NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  ASSERT_EQ(2, h.calcAttemptCount());
+  const auto* params = h.calcAttempt(1)->decoded.params;
+  ASSERT_EQ(1, taosArrayGetSize(params));
+  const auto* window = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, 0));
+  EXPECT_EQ(101, window->wstart);
+  EXPECT_EQ(102, window->wend);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+  EXPECT_EQ(2, checkpoint.probe().writes);
+}
+
+TEST(StreamStateWalCheckpointTest, FailedWriteAdmitsHistoryAndRetriesOnMonotonicTimer) {
+  RealtimePipelineHarness h;
+  ScopedWalCheckpointClock clock;
+  Stub                     timer;
+  ASSERT_NO_FATAL_FAILURE(startStateWalCheckpointTest(h, clock));
+  ScopedCheckpointGenerationProbe checkpoint(TSDB_CODE_OUT_OF_MEMORY);
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {100, 101}, {1, 2}, 1}}, 2));
+  clock.wallNs += 30 * NANOSECOND_PER_MINUTE;
+  ASSERT_TRUE(h.feedGroups({{42, 1001, {102}, {2}, 2}}, 3));
+  ASSERT_EQ(0, h.dispatchCalcAttempt(0, 0));
+  ASSERT_EQ(1, checkpoint.probe().writes);
+  SStreamRecalcReq history = {};
+  history.recalcId = 8;
+  history.start = 100;
+  history.end = 101;
+  ASSERT_NE(nullptr, taosArrayPush(h.task()->pUserRecalcRequests, &history));
+  ASSERT_EQ(0, h.dispatchSerializedRealtimeStartCode());
+  EXPECT_EQ(0, taosArrayGetSize(h.task()->pUserRecalcRequests));
+  bool foundHistory = false;
+  for (auto* node = tdListGetHead(h.task()->pRecalcRequests); node; node = TD_DLIST_NODE_NEXT(node)) {
+    auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(node->data);
+    for (int i = 0; i < taosArrayGetSize(request->pContributors); ++i) {
+      auto* contributor = static_cast<SStreamRecalcContributor*>(taosArrayGet(request->pContributors, i));
+      if (contributor->recalcId == history.recalcId) foundHistory = true;
+    }
+  }
+  EXPECT_TRUE(foundHistory);
+  EXPECT_EQ(0, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
+
+  timer.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  timer.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  timer.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  const int64_t wall = clock.wallNs - 10 * NANOSECOND_PER_MINUTE;
+  int64_t       mono = clock.wallNs + NANOSECOND_PER_SEC;
+  clock.set(wall, mono);
+  h.failNextQueuePut(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(0, h.queuedControlCount());
+  mono += NANOSECOND_PER_SEC;
+  clock.set(wall, mono);
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(1, h.queuedControlCount());
+  gCheckpointGenerationProbe->writeCode = TSDB_CODE_SUCCESS;
+  bool processed = false;
+  ASSERT_TRUE(h.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  EXPECT_EQ(1, h.pendingPullCount(STRIGGER_PULL_WAL_META_DATA_NEW));
 }
 
 TEST_F(StreamTriggerTaskTest, VtableRetrySendFailureReleasesRequest) {
@@ -39005,6 +40440,7 @@ struct ManualWaitInfoView {
   uint8_t  padding[3];
   uint64_t manualRecalcChainId;
   uint64_t controlMsgId;
+  int64_t  walWindowDeadline;
 };
 
 void countManualStreamTaskError(int64_t, int64_t, int32_t) { ++gManualStreamErrorCalls; }
@@ -45828,18 +47264,6 @@ TEST(StreamRunnerTaskMgmtReqTest, KeepsPendingRequestInsteadOfReplacingIt) {
 /* A mixed virtual table can queue the same window range twice: an external source may deliver its
  * rows for a window the other sources already closed. Dispatching it twice makes the sink aggregate
  * the same rows twice (defect 7147722181), so the request keeps only the first param per range. */
-static Stub* gPendingDedupArrayStub = nullptr;
-static const SArray* gPendingDedupParams = nullptr;
-static int64_t gPendingDedupArrayReads = 0;
-
-static void* countPendingDedupArrayReads(const SArray* array, size_t index) {
-  if (array == gPendingDedupParams) ++gPendingDedupArrayReads;
-  gPendingDedupArrayStub->reset(taosArrayGet);
-  void* result = taosArrayGet(array, index);
-  gPendingDedupArrayStub->set(taosArrayGet, countPendingDedupArrayReads);
-  return result;
-}
-
 TEST(StreamTriggerPendingCalcDedupTest, BatchDoesNotRescanAssembledParameters) {
   constexpr int32_t kWindowCount = 1024;
   SObjPool pool = {};
@@ -45856,22 +47280,17 @@ TEST(StreamTriggerPendingCalcDedupTest, BatchDoesNotRescanAssembledParameters) {
   ASSERT_NE(params, nullptr);
   int32_t moved = 0;
   int32_t duplicates = 0;
-  Stub arrayStub;
-  gPendingDedupArrayStub = &arrayStub;
-  gPendingDedupParams = params;
-  gPendingDedupArrayReads = 0;
-  arrayStub.set(taosArrayGet, countPendingDedupArrayReads);
-  const int32_t code = stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
-                                                       &moved, &duplicates);
-  arrayStub.reset(taosArrayGet);
-  gPendingDedupArrayStub = nullptr;
-  gPendingDedupParams = nullptr;
+  int32_t    code = 0;
+  const auto reads = measureArrayReads(params, [&] {
+    code =
+        stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, &moved, &duplicates);
+  });
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(moved, kWindowCount);
   EXPECT_EQ(duplicates, 0);
   EXPECT_EQ(pending.neles, 0);
   ASSERT_EQ(taosArrayGetSize(params), kWindowCount);
-  EXPECT_LE(gPendingDedupArrayReads, 2 * kWindowCount);
+  EXPECT_LE(reads, 2 * kWindowCount);
   for (int32_t index = 0; index < kWindowCount; ++index) {
     const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, index));
     EXPECT_EQ(param->wstart, index);

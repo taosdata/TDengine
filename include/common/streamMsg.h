@@ -2100,6 +2100,8 @@ typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,
   STRIGGER_CTRL_STOP = 1,
   STRIGGER_CTRL_CALC_RETRY = 2,
+  STRIGGER_CTRL_WAL_CHECKPOINT = 3,
+  STRIGGER_CTRL_GROUP_COL_RETRY = 4,
 } ESTriggerCtrlType;
 
 typedef enum {
