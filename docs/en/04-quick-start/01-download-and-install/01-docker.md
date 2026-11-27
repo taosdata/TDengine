@@ -93,3 +93,14 @@ Inside the container, you can run Linux commands and try TDengine with tools suc
 For more details on deploying TDengine with Docker, see [Docker Deployment](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md).
 
 <Getstarted/>
+
+## Stop and Remove the Container
+
+After completing the walkthrough, exit the container shell with `exit`, then run the following commands on the host to stop and remove the container:
+
+```shell
+docker stop tdengine-tsdb
+docker rm tdengine-tsdb
+```
+
+These commands preserve the data and logs in the host directories `~/data/taos/dnode/data` and `~/data/taos/dnode/log` mounted in the example above. Removing the container does not delete these directories. If you recreate the container using the same data directory, retain the original node FQDN as described above.
