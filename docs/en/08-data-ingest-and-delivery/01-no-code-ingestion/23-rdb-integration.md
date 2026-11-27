@@ -42,7 +42,7 @@ The three modes use the same parameters: **Start Time**, **End Time**, **Query I
 | Mode | Parameter combination | How it runs | When it ends | Typical use |
 | --- | --- | --- | --- | --- |
 | Full migration | Set start time and end time, and choose **Continuous Synchronization** | Read window by window from the start time until the end time | Stops automatically after data before the end time is read | One-time historical migration |
-| Incremental synchronization | Set start time, leave end time blank, and choose **Continuous Synchronization** | After historical data is read, keep reading new data at the query interval | Does not stop automatically | The source keeps receiving writes and near-real-time sync is required |
+| Incremental synchronization | Set start time, leave end time blank, and choose **Continuous Synchronization** | After historical data is read, keep reading new data, split into windows by the query interval | Does not stop automatically | The source keeps receiving writes and near-real-time sync is required |
 | Scheduled synchronization | Set start time, choose **Scheduled Window Synchronization**, and set an interval or a Cron expression | On each trigger, read from the checkpoint to the safe watermark, then wait for the next trigger | If an end time is set, the task completes when the checkpoint reaches it | The source loads data in batches, or queries should avoid peak hours |
 
 ### Full Migration
@@ -173,8 +173,11 @@ For a type that is not listed, such as a spatial type, `INTERVAL`, `ROWID`, an a
 
 ### Time and Time Zone {#time-and-time-zone}
 
-- A time type without a time zone, such as `DATETIME` or `TIMESTAMP`, is interpreted with the task **Time Zone**. The default is the time zone of the host where taosX runs. If the source stores UTC, set the task time zone to `UTC`.
-- A time type that includes a time zone is converted by the time zone in the value. The task time zone does not apply.
+- **Task time zone**: for MySQL, PostgreSQL, SQL Server, and Oracle tasks, the time zone is set by the task parameter `time_zone`. If it is not set, the UTC offset of Start Time is used, which is the taosExplorer page time zone in effect when Start Time was set. `time_zone` accepts only a fixed UTC offset such as `+08:00` or `+0800`, or `UTC` or `Z`. IANA names such as `Asia/Shanghai` are not supported. The task time zone determines the values of the time placeholders in the SQL template and how query windows are cut (a window never crosses midnight in the task time zone). If the source stores UTC, use a UTC task time zone: in taosExplorer, switch the page time zone to UTC before setting Start Time, or set `time_zone=UTC` through the API or CLI.
+- The task offset sets the session time zone for MySQL and Oracle. MySQL 8.0.19 and later accept `-13:59` through `+14:00`, and earlier versions accept `-12:59` through `+13:00`. Oracle's documented range is `-12:00` through `+14:00`. For PostgreSQL and SQL Server, taosX applies the database-specific range when the SQL template includes a complete `${start}` and `${end}` pair or `${start_time}` and `${end_time}` pair, including templates that also use placeholders without an offset. PostgreSQL accepts `-15:59` through `+15:59`, and SQL Server accepts `-14:00` through `+14:00`. Without either pair, PostgreSQL and SQL Server tasks accept fixed offsets from `-23:59` through `+23:59` for local time conversion. All ranges include their endpoints.
+- Types converted with the session time zone (MySQL `TIMESTAMP` and Oracle `TIMESTAMP WITH LOCAL TIME ZONE`) are converted using the task time zone, which is the session time zone.
+- A time type without a time zone (MySQL `DATETIME`, Oracle `DATE` and `TIMESTAMP`, PostgreSQL `timestamp`) is read as its wall-clock value without conversion by the task time zone. SQL Server `datetime`, `datetime2`, and `smalldatetime` are read as UTC.
+- A time type that includes a time zone (such as Oracle `TIMESTAMP WITH TIME ZONE`, SQL Server `datetimeoffset`, and PostgreSQL `timestamptz`) is converted by the time zone in the value. The task time zone does not apply.
 - **Time precision**: the target database precision must be at least the precision of the source data. If the source is precise to microseconds, use microsecond or nanosecond precision. A coarser target precision truncates the extra part. Distinct times can become the same timestamp and overwrite each other, so the row count drops. [Data Verification](#data-verification) can find this.
 
 ### Numbers and Strings

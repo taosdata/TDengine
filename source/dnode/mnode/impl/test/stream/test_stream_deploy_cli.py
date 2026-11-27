@@ -27,6 +27,8 @@ class DnodeReadinessTest(unittest.TestCase):
         with patch('stream_deploy_cli.time.sleep') as sleep:
             wait_dnode_ready(sql)
         self.assertEqual(sql.call_count, 6)
+        sql.assert_called_with(
+            'select status,`vnodes`,support_vnodes from information_schema.ins_dnodes where id=1')
         self.assertEqual(sleep.call_count, 5)
 
     def test_ready_node_does_not_sleep(self):
@@ -50,7 +52,11 @@ class DnodeReadinessTest(unittest.TestCase):
         sql.assert_called_once()
 
     def test_fixture_waits_before_snode_and_database_creation(self):
-        states = [self.status('offline', 0, 0), self.status('ready', 0, 4)]
+        # (status, vnodes, support_vnodes) as reported by the daemon, in
+        # order.  run_case probes ins_dnodes twice before any DDL: the
+        # readiness wait on the single status column, then wait_dnode_ready,
+        # which also needs two spare vnodes.
+        states = [('offline', 0, 0), ('ready', 0, 4), ('ready', 2, 4)]
         statements = []
 
         def execute(command, **kwargs):
@@ -61,7 +67,11 @@ class DnodeReadinessTest(unittest.TestCase):
             elif statement.startswith('show dnode 1 variables'):
                 text = '| dnode_id | name | value |\n| 1 | logDir | ./log |\n'
             elif 'information_schema.ins_dnodes' in statement:
-                text = states.pop(0)
+                state, vnodes, support = states.pop(0)
+                if statement.startswith('select status,`vnodes`'):
+                    text = self.status(state, vnodes, support)
+                else:
+                    text = f'| status |\n| {state} |\n'
             else:
                 self.assertFalse(states, f'DDL ran before dnode readiness: {statement}')
                 if statement == 'create database testdb vgroups 2':

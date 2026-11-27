@@ -18,7 +18,7 @@
 #ifndef _TD_TRANSPORT_TLS_H
 #define _TD_TRANSPORT_TLS_H
 
-#if defined(TD_ENTERPRISE) && defined(LINUX)
+#if defined(TD_ENTERPRISE) && (defined(LINUX) || defined(WINDOWS))
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/x509.h>

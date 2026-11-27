@@ -44,7 +44,7 @@ static int64_t schJobScanTableNum(SSchJob* pJob) {
   int64_t sum = 0;
   for (int32_t i = 0; i < taosArrayGetSize(pJob->dataSrcTasks); ++i) {
     SSchTask* pTask = taosArrayGetP(pJob->dataSrcTasks, i);
-    sum += pTask->plan->execNodeStat.tableNum;
+    sum += schTaskGetTableNum(pTask);
   }
   return sum;
 }
@@ -87,7 +87,7 @@ int32_t schChkJobNeedFlowCtrl(SSchJob* pJob, SSchLevel* pLevel) {
 
 static void schReserveTaskFlowQuota(SSchFlowControl* ctrl, SSchTask* pTask, const SEp* ep) {
   pTask->flowEp = *ep;
-  pTask->flowTableNum = pTask->plan->execNodeStat.tableNum;
+  pTask->flowTableNum = schTaskGetTableNum(pTask);
   atomic_store_8(&pTask->flowQueued, 0);
   atomic_store_8(&pTask->flowQuotaHeld, 1);
   ctrl->tableNumSum += pTask->flowTableNum;
@@ -138,7 +138,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob* pJob, SSchTask* pTask, bool* enough) {
   }
   if (atomic_load_8(&pTask->flowQueued)) goto _return;
   if (0 == ctrl->execTaskNum ||
-      ctrl->tableNumSum + pTask->plan->execNodeStat.tableNum <= schMgmt.cfg.maxNodeTableNum) {
+      ctrl->tableNumSum + schTaskGetTableNum(pTask) <= schMgmt.cfg.maxNodeTableNum) {
     schReserveTaskFlowQuota(ctrl, pTask, ep);
     *enough = true;
     goto _return;
@@ -176,8 +176,8 @@ static bool schFlowTaskCurrent(const SSchFlowTask* entry) {
 static int32_t schTaskTableNumCompare(const void* left, const void* right) {
   const SSchTask* pLeft = ((const SSchFlowTask*)left)->pTask;
   const SSchTask* pRight = ((const SSchFlowTask*)right)->pTask;
-  int32_t leftTables = pLeft->plan->execNodeStat.tableNum;
-  int32_t rightTables = pRight->plan->execNodeStat.tableNum;
+  int32_t leftTables = schTaskGetTableNum(pLeft);
+  int32_t rightTables = schTaskGetTableNum(pRight);
   return leftTables < rightTables ? 1 : (leftTables > rightTables ? -1 : 0);
 }
 
@@ -199,7 +199,7 @@ int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob* pJob, SSchFlowControl* ctrl) {
         continue;
       }
       if (ctrl->execTaskNum > 0 &&
-          ctrl->tableNumSum + pTask->plan->execNodeStat.tableNum > schMgmt.cfg.maxNodeTableNum) {
+          ctrl->tableNumSum + schTaskGetTableNum(pTask) > schMgmt.cfg.maxNodeTableNum) {
         ++i;
         continue;
       }

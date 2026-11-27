@@ -405,48 +405,6 @@ int32_t tjsonToTArray(const SJson* pJson, const char* pName, FJsonToObject func,
 
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
 
-bool tjsonValidateJson(const char* jIn) {
-  if (!jIn) {
-    return false;
-  }
-
-  // set json real data
-  cJSON* root = cJSON_Parse(jIn);
-  if (root == NULL) {
-    return false;
-  }
-
-  // cJSON_Parse allocates the whole parsed tree; it must be freed on EVERY exit
-  // path, otherwise each validation leaks the parsed cJSON objects (ASan: direct
-  // leak of 320 bytes per STATIS frame that reaches mndProcessStatisReq).
-  bool valid = false;
-  if (!cJSON_IsObject(root)) {
-    goto _over;
-  }
-  int size = cJSON_GetArraySize(root);
-  for (int i = 0; i < size; i++) {
-    cJSON* item = cJSON_GetArrayItem(root, i);
-    if (!item) {
-      goto _over;
-    }
-
-    char* jsonKey = item->string;
-    if (!jsonKey) goto _over;
-    for (size_t j = 0; j < strlen(jsonKey); ++j) {
-      if (isprint(jsonKey[j]) == 0) goto _over;
-    }
-
-    if (item->type == cJSON_Object || item->type == cJSON_Array) {
-      goto _over;
-    }
-  }
-  valid = true;
-
-_over:
-  cJSON_Delete(root);
-  return valid;
-}
-
 const char* tjsonGetError() { return cJSON_GetErrorPtr(); }
 
 void tjsonDeleteItemFromObject(const SJson* pJson, const char* pName) {

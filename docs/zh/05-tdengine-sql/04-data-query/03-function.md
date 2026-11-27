@@ -1077,6 +1077,40 @@ taos> SELECT CHAR(77, NULL, 77);
 Query OK, 1 row(s) in set
 ```
 
+### STRCMP
+
+```sql
+STRCMP(expr1, expr2)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：比较两个字符串，相等返回 0，`expr1` 小于 `expr2` 返回 -1，否则返回 1。
+
+**返回结果类型**：`INT`。
+
+**适用数据类型**：`expr1`、`expr2` 为 VARCHAR 或 NCHAR 类型。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 任一参数为 NULL 时返回 NULL；空串不是 NULL，空串小于任何非空串。
+- 按二进制比较，区分大小写，不忽略尾部空格，`STRCMP('A', 'a')` 返回 -1。与 MySQL 默认排序规则下不区分大小写的行为不同，如需不区分大小写可先使用 `LOWER()` 处理。
+- VARCHAR 与 NCHAR 混合比较时，VARCHAR 按 UTF-8 转换为 NCHAR 后按码点比较。若 VARCHAR 含非法 UTF-8 序列，转换失败并报错。
+- 如果已存在名为 `STRCMP` 的 UDF，升级后将被内置函数遮蔽，请提前重命名。
+
+**示例**
+
+```sql
+taos> select strcmp('abc', 'abe');
+ strcmp('abc', 'abe') |
+=======================
+                   -1 |
+```
+
 ### CHAR_LENGTH
 
 ```sql

@@ -15,7 +15,10 @@
 
 aux_source_directory(src CRYPT_SRC)
 
-if(TD_WINDOWS)
+# envelope_crypto.c is OpenSSL-backed.  Enterprise Windows builds have OpenSSL
+# (see external.cmake), so only the community Windows build falls back to
+# omitting it.
+if(TD_WINDOWS AND NOT TD_ENTERPRISE)
   list(FILTER CRYPT_SRC EXCLUDE REGEX "envelope_crypto[.]c$")
 endif()
 
@@ -32,6 +35,12 @@ target_include_directories(
 
 target_link_libraries(crypt PRIVATE common PRIVATE sm4 PRIVATE os)
 
-if(NOT TD_WINDOWS)
+# OpenSSL exists on Windows only for enterprise builds, matching the ext_ssl
+# ExternalProject guard in external.cmake.
+if(NOT TD_WINDOWS OR TD_ENTERPRISE)
   DEP_ext_ssl(crypt)
+  if(TD_WINDOWS)
+    # Static libssl/libcrypto leave their system dependencies to the consumer.
+    target_link_libraries(crypt PRIVATE ws2_32 crypt32 advapi32 user32 bcrypt)
+  endif()
 endif()

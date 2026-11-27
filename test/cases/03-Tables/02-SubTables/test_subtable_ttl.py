@@ -25,6 +25,20 @@ class TestTtl:
         cls.ttl = 5
         cls.dbname = "test1"
 
+    def wait_table_rows(self, sql, expect, timeout=60, interval=1):
+        # TTL drop is driven by an async background task, so poll until the
+        # row count drops to the expected value instead of a fixed sleep.
+        start = time.time()
+        rows = None
+        while True:
+            tdSql.query(sql)
+            rows = tdSql.queryRows
+            tdLog.info(f"[{time.time() - start:.1f}s] '{sql}' -> {rows} rows, expect {expect}")
+            if rows <= expect or time.time() - start >= timeout:
+                break
+            time.sleep(interval)
+        tdSql.checkRows(expect)
+
     def check_ttl_result(self):
         tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(f'create table {self.dbname}.t1(ts timestamp, c1 int)')
@@ -33,9 +47,7 @@ class TestTtl:
         tdSql.checkRows(2)
         tdSql.execute(f'flush database {self.dbname}')
 
-        time.sleep(self.ttl + 2)
-        tdSql.query(f'show {self.dbname}.tables')
-        tdSql.checkRows(1)
+        self.wait_table_rows(f'show {self.dbname}.tables', 1)
 
     def do_ttl(self):
         self.check_ttl_result()
@@ -60,9 +72,7 @@ class TestTtl:
         tdSql.execute(f'create table {sql}')
 
         tdSql.execute(f'flush database {self.dbname}')
-        time.sleep(self.ttl + self.updatecfgDict['ttlPushInterval'] + 1)
-        tdSql.query('show tables')
-        tdSql.checkRows(90)
+        self.wait_table_rows('show tables', 90)
 
     def check_ttl_result(self):
         tdSql.execute(f'drop database if exists {self.dbname}')
@@ -82,9 +92,7 @@ class TestTtl:
         tdSql.checkRows(2)
 
         tdSql.execute(f'flush database {self.dbname}')
-        time.sleep(self.ttl * 2)
-        tdSql.query(f'show {self.dbname}.tables')
-        tdSql.checkRows(1)
+        self.wait_table_rows(f'show {self.dbname}.tables', 1)
 
     def do_ttl_change_on_write(self):
         self.init_class()
@@ -270,17 +278,18 @@ class TestTtl:
         8. Create/Alter ttl/comment on normal/child table
         9. Verify ttl/comment in information_schema
 
-        
+
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_ttl.py
             - 2025-11-03 Alex Duan Migrated from uncatalog/system-test/0-others/test_ttl_change_on_write.py
             - 2025-12-21 Alex Duan Migrated from uncatalog/system-test/2-query/test_ttl_comment.py
- 
+
         """
         self.do_ttl()
         self.do_ttl_change_on_write()

@@ -2976,7 +2976,7 @@ static int32_t createRelationInputProps(SJoinPropsStore* pStore,
   bool project = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pNode);
   bool sort = QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode);
   bool partition = QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode);
-  bool passthrough = sort || partition ||
+  bool passthrough = sort || partition || nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK ||
       (project && !((SProjectLogicNode*)pNode)->isSetOpProj);
   uint64_t relationId = pStore->nextRelationId++;
   uint64_t outputIndex = 1;
@@ -8269,6 +8269,9 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     return code;
   }
 
+  pVtableScan->canDeferSources = !pTagScan && !pVtableScan->hasTagRef && !pVtableScan->pAlignCols &&
+      taosHashGetSize(pRefTablesMap) > 1 && !inStreamCalcClause(pCxt->pPlanCxt) &&
+      !inStreamTriggerClause(pCxt->pPlanCxt) && !pCxt->pPlanCxt->topicQuery;
   *pLogicNode = (SLogicNode*)pVtableScan;
   taosHashCleanup(pRefTablesMap);
   taosHashCleanup(pRefTableNodeMap);
@@ -13044,6 +13047,13 @@ static int32_t streamEnableMultiGroupCalc(SPlanContext* pPlanCxt, SLogicNode* pR
   return code;
 }
 
+int32_t planFinalizeScalarRewrite(SPlanContext* ctx, SLogicNode* root) {
+  setLogicNodeParent(root);
+  PLAN_ERR_RET(planRebuildJoinInputProps(ctx, root));
+  PLAN_ERR_RET(propagateJoinRequiredColumns(ctx->pJoinPropsStore, root));
+  return adjustLogicNodeDataRequirement(root, DATA_ORDER_LEVEL_NONE);
+}
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   SLogicPlanContext cxt = {
       .pPlanCxt = pCxt,
@@ -13073,11 +13083,10 @@ int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
   code = createQueryLogicNode(&cxt, pCxt->pAstRoot, &pSubplan->pNode);
   if (TSDB_CODE_SUCCESS == code) {
     setLogicNodeParent(pSubplan->pNode);
-    code = buildJoinInputProps(pCxt->pJoinPropsStore, pSubplan->pNode);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore,
-                                        pSubplan->pNode);
+    if (logicTreeHasJoin(pSubplan->pNode)) {
+      code = buildJoinInputProps(pCxt->pJoinPropsStore, pSubplan->pNode);
+      if (code == TSDB_CODE_SUCCESS) code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore, pSubplan->pNode);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     setLogicSubplanType(pCxt, pSubplan);

@@ -160,6 +160,16 @@ void tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
  * 
 */
 void tsortSetMergeLimit(SSortHandle* pHandle, int64_t mergeLimit);
+typedef enum EMergeBlockPrune {
+  MERGE_BLOCK_KEEP,
+  MERGE_BLOCK_SKIP,
+  MERGE_BLOCK_TRIM,
+} EMergeBlockPrune;
+
+EMergeBlockPrune tsortGetMergeBlockPrune(const SSortHandle* pHandle,
+                                       const STimeWindow* pWindow,
+                                       bool allowTrim);
+bool tsortTrimMergeBlock(const SSortHandle* pHandle, SSDataBlock* pBlock);
 
 /**
  *

@@ -147,7 +147,8 @@ class RestoreBasic:
         # stop dnode
         tdLog.info(f"stop dnode {index}")
         dnode.stoptaosd()
-        time.sleep(1)
+        # Do not mistake the previous process's unexpired heartbeat for readiness.
+        self.wait_dnode_status(index, "offline")
 
         # remove dnode folder
         try:
@@ -157,6 +158,23 @@ class RestoreBasic:
             tdLog.exit(f"remove path {dnode.dataDir} error : {x.strerror}")
 
         dnode.starttaosd()
+        self.wait_dnode_status(index, "ready")
+
+    def wait_dnode_status(self, index, status, timeout=60):
+        deadline = time.monotonic() + timeout
+        last_status = None
+        while time.monotonic() < deadline:
+            tdSql.query("show dnodes", queryTimes=1)
+            last_status = next(
+                (row[4] for row in tdSql.queryResult if str(row[0]) == str(index)),
+                None,
+            )
+            if last_status == status:
+                return
+            time.sleep(0.2)
+        raise TimeoutError(
+            f"dnode {index} did not become {status}; last status: {last_status}"
+        )
         
     def restore_dnode_exec(self, index):
         # exec restore

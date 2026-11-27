@@ -21,6 +21,7 @@
 typedef struct SScaleOutContext {
   SPlanContext* pPlanCxt;
   int32_t       subplanId;
+  bool          disableTemplateScaleOut;
 } SScaleOutContext;
 
 static int32_t setSubplanVgroup(SLogicSubplan* pSubplan, const SVgroupInfo* pVgroup) {
@@ -264,6 +265,49 @@ static int32_t pushHierarchicalPlan(SNodeList* pParentsGroup, SNodeList* pCurren
   return pushHierarchicalPlanForNormal(pParentsGroup, pCurrentGroup);
 }
 
+static bool hasTargetSpecificOperator(const SLogicNode* pNode) {
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE ||
+      (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL &&
+       ((const SDynQueryCtrlLogicNode*)pNode)->qType == DYN_QTYPE_VTB_SCAN)) return true;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (pScan->tableType == TSDB_SYSTEM_TABLE &&
+        (strcmp(pScan->tableName.tname, TSDB_INS_TABLE_DNODE_VARIABLES) == 0 ||
+         strcmp(pScan->tableName.tname, TSDB_INS_TABLE_CPU_ALLOCATION) == 0)) return true;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (hasTargetSpecificOperator((SLogicNode*)pChild)) return true;
+  }
+  return false;
+}
+
+static bool canUseTemplateScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pPlan, SNodeList* pParents) {
+  if (!pPlan->pVgroupList || pPlan->pVgroupList->numOfVgroups <= 1 || LIST_LENGTH(pPlan->pChildren) ||
+      isComputeGroup(pParents) || pCxt->disableTemplateScaleOut || pCxt->pPlanCxt->topicQuery ||
+      inStreamCalcClause(pCxt->pPlanCxt) || inStreamTriggerClause(pCxt->pPlanCxt)) return false;
+  bool eligible = pPlan->subplanType == SUBPLAN_TYPE_SCAN || pPlan->subplanType == SUBPLAN_TYPE_HSYSSCAN ||
+                  (pPlan->subplanType == SUBPLAN_TYPE_MODIFY &&
+                   ((SVnodeModifyLogicNode*)pPlan->pNode)->modifyType == MODIFY_TABLE_TYPE_DELETE);
+  return eligible && !hasTargetSpecificOperator(pPlan->pNode);
+}
+
+static int32_t scaleOutTemplate(SScaleOutContext* pCxt, SLogicSubplan* pPlan, int32_t level, SNodeList* pGroup) {
+  SLogicSubplan* pTemplate = singleCloneSubLogicPlan(pCxt, pPlan, level);
+  if (!pTemplate) return terrno;
+  int32_t code = setScanVgroup(pTemplate->pNode, pPlan->pVgroupList->vgroups);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pTemplate);
+    return code;
+  }
+  pTemplate->pVgroupList = pPlan->pVgroupList;
+  pPlan->pVgroupList = NULL;
+  pTemplate->isTemplate = true;
+  pTemplate->baseSubplanId = pTemplate->id.subplanId;
+  pCxt->subplanId += pTemplate->pVgroupList->numOfVgroups - 1;
+  return nodesListStrictAppend(pGroup, (SNode*)pTemplate);
+}
+
 static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32_t level, SNodeList* pParentsGroup) {
   SNodeList* pCurrentGroup = NULL;
   int32_t    code = nodesMakeList(&pCurrentGroup);
@@ -271,22 +315,26 @@ static int32_t doScaleOut(SScaleOutContext* pCxt, SLogicSubplan* pSubplan, int32
     return code;
   }
 
-  switch (pSubplan->subplanType) {
-    case SUBPLAN_TYPE_MERGE:
-      code = scaleOutForMerge(pCxt, pSubplan, level, pCurrentGroup);
-      break;
-    case SUBPLAN_TYPE_SCAN:
-    case SUBPLAN_TYPE_HSYSSCAN:
-      code = scaleOutForScan(pCxt, pSubplan, level, pCurrentGroup);
-      break;
-    case SUBPLAN_TYPE_MODIFY:
-      code = scaleOutForModify(pCxt, pSubplan, level, pCurrentGroup);
-      break;
-    case SUBPLAN_TYPE_COMPUTE:
-      code = scaleOutForCompute(pCxt, pSubplan, level, pCurrentGroup);
-      break;
-    default:
-      break;
+  if (canUseTemplateScaleOut(pCxt, pSubplan, pParentsGroup)) {
+    code = scaleOutTemplate(pCxt, pSubplan, level, pCurrentGroup);
+  } else {
+    switch (pSubplan->subplanType) {
+      case SUBPLAN_TYPE_MERGE:
+        code = scaleOutForMerge(pCxt, pSubplan, level, pCurrentGroup);
+        break;
+      case SUBPLAN_TYPE_SCAN:
+      case SUBPLAN_TYPE_HSYSSCAN:
+        code = scaleOutForScan(pCxt, pSubplan, level, pCurrentGroup);
+        break;
+      case SUBPLAN_TYPE_MODIFY:
+        code = scaleOutForModify(pCxt, pSubplan, level, pCurrentGroup);
+        break;
+      case SUBPLAN_TYPE_COMPUTE:
+        code = scaleOutForCompute(pCxt, pSubplan, level, pCurrentGroup);
+        break;
+      default:
+        break;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -329,13 +377,14 @@ static SQueryLogicPlan* makeQueryLogicPlan() {
   return pLogicPlan;
 }
 
-int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
+int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, bool disableTemplateScaleOut,
+                          SQueryLogicPlan** pLogicPlan) {
   SQueryLogicPlan* pPlan = makeQueryLogicPlan();
   if (NULL == pPlan) {
     return terrno;
   }
 
-  SScaleOutContext cxt = {.pPlanCxt = pCxt, .subplanId = 1};
+  SScaleOutContext cxt = {.pPlanCxt = pCxt, .subplanId = 1, .disableTemplateScaleOut = disableTemplateScaleOut};
   int32_t          code = doScaleOut(&cxt, pLogicSubplan, 0, pPlan->pTopSubplans);
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicPlan = pPlan;

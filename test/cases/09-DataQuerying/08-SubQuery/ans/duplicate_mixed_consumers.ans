@@ -56,7 +56,7 @@ taos> select (select max(h.v) from matrix_history h), (select max(h.v) from matr
                                       20 |                                      20 |                                                      20 |                                                      20 | NULL                                                            | NULL                                                            |
                                       20 |                                      20 | NULL                                                    | NULL                                                    | false                                                           | false                                                           |
 
-taos> explain select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+taos> explain select /*+ NO_DECORRELATE() */ (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection (columns=6 width=18 input_order=asc)
 *************************** 2.row ***************************
@@ -92,7 +92,7 @@ QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
 *************************** 17.row ***************************
 QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
 
-taos> explain analyze select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+taos> explain analyze select /*+ NO_DECORRELATE() */ (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection ( rows=5 columns=6 width=18 input_order=asc)
 *************************** 2.row ***************************
@@ -145,7 +145,7 @@ taos> select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from
            2 |                                      20 |                                                      20 | NULL                                                            | true                                                    |
  NULL        |                                      20 | NULL                                                    | false                                                           | true                                                    |
 
-taos> explain select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+taos> explain select /*+ NO_DECORRELATE() */ r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection (columns=5 width=14 input_order=asc)
 *************************** 2.row ***************************
@@ -175,7 +175,7 @@ QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
 *************************** 14.row ***************************
 QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
 
-taos> explain analyze select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+taos> explain analyze select /*+ NO_DECORRELATE() */ r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection ( rows=5 columns=5 width=14 input_order=asc)
 *************************** 2.row ***************************
@@ -220,7 +220,7 @@ taos> select (select max(h.v) from matrix_history h), (select max(v) from matrix
                                       20 |                               100 |                                                      20 | NULL                                                            | NULL                                                            |
                                       20 |                               100 | NULL                                                    | false                                                           | false                                                           |
 
-taos> explain select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+taos> explain select /*+ NO_DECORRELATE() */ (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection (columns=5 width=14 input_order=asc)
 *************************** 2.row ***************************
@@ -256,7 +256,7 @@ QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
 *************************** 17.row ***************************
 QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
 
-taos> explain analyze select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+taos> explain analyze select /*+ NO_DECORRELATE() */ (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Projection ( rows=5 columns=5 width=14 input_order=asc)
 *************************** 2.row ***************************

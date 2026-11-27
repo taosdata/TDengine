@@ -54,6 +54,7 @@ include(cmake/options.cmake)
 include(cmake/check_env.cmake)
 include(cmake/define.cmake)
 include(cmake/test-shared-engine.cmake)
+include(cmake/test-cxx-compatibility.cmake)
 include(cmake/version.cmake)
 
 # Ensure pthread is linked globally (workaround for mold linker issues)
@@ -89,6 +90,13 @@ add_subdirectory(utils)
 
 if(TD_ENTERPRISE)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
+endif()
+
+if(BUILD_TEST)
+  td_apply_test_cxx_compatibility("${CMAKE_CURRENT_SOURCE_DIR}/source")
+  if(TD_ENTERPRISE)
+    td_apply_test_cxx_compatibility("${TD_ENTERPRISE_DIR}")
+  endif()
 endif()
 
 # Optional shared engine for unit tests; must run after all engine libraries

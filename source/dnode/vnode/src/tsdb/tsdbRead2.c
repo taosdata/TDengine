@@ -293,13 +293,20 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
   pSupInfo->pkSrcSlot = -1;
   pSupInfo->pkDstSlot = -1;
   pSupInfo->smaValid = true;
+  pSupInfo->smaOnAnyCol = false;
   pSupInfo->numOfCols = numOfCols;
 
-  pSupInfo->colId = taosMemoryCalloc(numOfCols, sizeof(int16_t) * 2 + POINTER_BYTES);
+  pSupInfo->colId = taosMemoryCalloc(numOfCols, sizeof(int16_t) * 2 + POINTER_BYTES + sizeof(bool));
   TSDB_CHECK_NULL(pSupInfo->colId, code, lino, _end, terrno);
 
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
   pSupInfo->buildBuf = (char**)((char*)pSupInfo->slotId + (sizeof(int16_t) * numOfCols));
+  // Zeroed by the calloc above: a reader that never gets a schema keeps every
+  // column "unknown", which is the conservative answer.
+  pSupInfo->colHasSma = (bool*)((char*)pSupInfo->buildBuf + POINTER_BYTES * numOfCols);
+  // pCols must be in ascending colId order. The merge walks that fill the
+  // aggregate arrays (updateBlockSMAInfo, doFillNullColSMA) and the fill-back
+  // loop in tsdbRetrieveDatablockSMA2 all rely on that order.
   for (int32_t i = 0; i < numOfCols; ++i) {
     TSDB_CHECK_CONDITION(pSlotIdList[i] >= 0 && pSlotIdList[i] <= INT16_MAX, code, lino, _end,
                          TSDB_CODE_INVALID_PARA);
@@ -332,6 +339,36 @@ _end:
   return code;
 }
 
+// Fills the per-column "block SMA enabled" cache used by the per-block synthesis
+// (doFillNullColSMA). Callers must pass a resolved schema: pSupInfo->colId is in
+// ascending order and so are the schema columns, so both are walked in a single
+// merged pass. A requested column that is not in the schema stays false ("unknown
+// statistics"); it must never get a synthesized all-NULL aggregate that could
+// prune real values.
+static void cacheBlockSmaFlags(const STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {
+  if (pSchema == NULL || pSupInfo == NULL || pSupInfo->colHasSma == NULL) {
+    return;
+  }
+
+  int32_t si = 0;
+  pSupInfo->smaOnAnyCol = false;
+  for (int32_t k = 0; k < pSupInfo->numOfCols; ++k) {
+    int16_t colId = pSupInfo->colId[k];
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == colId) {
+      pSupInfo->colHasSma[k] = true;
+      continue;
+    }
+    while (si < pSchema->numOfCols && pSchema->columns[si].colId < colId) {
+      si += 1;
+    }
+    pSupInfo->colHasSma[k] =
+        si < pSchema->numOfCols && pSchema->columns[si].colId == colId && IS_BSMA_ON(&pSchema->columns[si]);
+    if (pSupInfo->colHasSma[k]) {
+      pSupInfo->smaOnAnyCol = true;
+    }
+  }
+}
+
 static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInfo) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
@@ -340,6 +377,11 @@ static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInf
 
   TSDB_CHECK_NULL(pSchema, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pSupInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  // A missing schema (TMQ replay, or a table dropped while the reader is alive)
+  // leaves smaOnAnyCol false. Callers then skip the per-column synthesis and read
+  // the data blocks: conservative and correct, the all-NULL synthesis must never
+  // run without knowing which columns enable block SMA.
 
   while (i < pSchema->numOfCols && j < pSupInfo->numOfCols) {
     pTCol = &pSchema->columns[i];
@@ -360,6 +402,21 @@ static int32_t updateBlockSMAInfo(STSchema* pSchema, SBlockLoadSuppInfo* pSupInf
   }
 
 _end:
+  // LAST_NULL_ONLY and MAX_ONLY consume the block SMA column by column, so a
+  // record can still serve them when only some queried columns have block SMA
+  // enabled. Remember whether any (non primary key) column does; the record
+  // read is skipped entirely otherwise, see tsdbRetrieveDatablockSMA2.
+  //
+  // The per-column answer is cached here, once per reader, because the per-block
+  // synthesis (doFillNullColSMA) would otherwise rescan the schema for every
+  // requested column of every block read. pSchema is non-NULL here: the entry
+  // TSDB_CHECK_NULL above turns a missing schema into a non-success code before
+  // this label is reached, so the cache is never filled from an unknown schema.
+  // A reader whose schema only becomes known later refreshes the cache in
+  // getTableSchemaImpl().
+  if (code == TSDB_CODE_SUCCESS) {
+    cacheBlockSmaFlags(pSchema, pSupInfo);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -669,9 +726,13 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
         conf.files[1].exist = true;
         filesName[1] = pFileObj[1]->fname;
 
-        conf.files[2].file = *pFileObj[2]->f;
-        conf.files[2].exist = true;
-        filesName[2] = pFileObj[2]->fname;
+        // A head-only repair drops the sma file when it cannot be read, so a
+        // file set with head and data but no sma is a valid state to read.
+        if (pFileObj[2] != NULL) {
+          conf.files[2].file = *pFileObj[2]->f;
+          conf.files[2].exist = true;
+          filesName[2] = pFileObj[2]->fname;
+        }
       }
 
       if (pFileObj[3] != NULL) {
@@ -2211,6 +2272,12 @@ static FORCE_INLINE STSchema* getTableSchemaImpl(STsdbReader* pReader, uint64_t 
 
   code = tsdbRowMergerInit(&pReader->status.merger, pReader->info.pSchema);
   TSDB_CHECK_CODE(code, lino, _end);
+
+  // The reader was created without a schema (e.g. a TMQ replay or a table that was
+  // not visible yet), so the per-column block-SMA flags were never cached and the
+  // per-block synthesis would treat every column as unknown for its whole life.
+  // The schema is known now, cache the flags from it.
+  cacheBlockSmaFlags(pReader->info.pSchema, &pReader->suppInfo);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -6751,6 +6818,9 @@ static int32_t setSharedPtr(STsdbReader* pDst, const STsdbReader* pSrc) {
   pDst->pReadSnap->pfSetArray = pSrc->pReadSnap->pfSetArray;
 
   if (pDst->info.pSchema) {
+    // The inner reader may have been created before the schema was known; keep its
+    // block-SMA flag cache in sync with the schema it now shares.
+    cacheBlockSmaFlags(pDst->info.pSchema, &pDst->suppInfo);
     return tsdbRowMergerInit(&pDst->status.merger, pDst->info.pSchema);
   }
 
@@ -7857,6 +7927,37 @@ _end:
   return code;
 }
 
+// Block SMA is enabled per column. A column without it has no statistics in any
+// block, so its absence from the block SMA means "unknown", not "all NULL".
+// Synthesizing an all-NULL aggregate for it would let MAX/LAST prune a block
+// that may hold values, so those columns are left unknown (colId -1). Columns
+// with block SMA enabled but missing from this block's record still get the
+// synthesized all-NULL aggregate LAST needs.
+//
+// The enabled-but-missing branch rests on two invariants:
+//   1. A column's block-SMA flag is fixed at creation (CREATE TABLE ... SMA(...)).
+//      ALTER STB ADD COLUMN carries no field flags, so columns added later are
+//      SMA-enabled by default and existing flags never change. The flag thus
+//      identifies one fixed set of columns for the lifetime of the data. The
+//      only path that rewrites existing flags is the create-as-alter replay of
+//      SML/TAOX (mndBuildStbFromAlter), which no user statement reaches.
+//   2. When a block is written, the writer emits one aggregate for every
+//      SMA-enabled column that has at least one value in that block
+//      (tsdbDataFileDoWriteBlockData). A missing record therefore means the
+//      column had no value there: either the whole column was NULL, or the
+//      column did not exist yet. In both cases numOfNull == numOfRows is exact.
+//      A head-only repair that cannot read the SMA file keeps the data blocks
+//      but drops the .sma from the file set (tsdbRepairBuildHeadOnlyBrinRecord)
+//      and leaves empty records for blocks that do hold values, so the
+//      synthesis in tsdbRetrieveDatablockSMA2 only applies to a file set that
+//      still has its sma file.
+//
+// Cross-version note: when reading data files written by an older release, the
+// synthesis is safe as long as that release also wrote block SMA for every
+// enabled column, and for columns added later the missing record is still the
+// all-NULL case. Do not extend the synthesis to a column whose enablement is
+// unknown; updateBlockSMAInfo deliberately caches "unknown" as false for a
+// column it cannot find in the schema.
 static int32_t doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int32_t numOfCols,
                                 SColumnDataAgg* pTsAgg) {
   // do fill all null column value SMA info
@@ -7864,6 +7965,15 @@ static int32_t doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int
   int32_t lino = 0;
   int32_t i = 0, j = 0;
   int32_t size = 0;
+  // LAST_NULL_ONLY and MAX_ONLY may bypass the smaValid gate, so either can
+  // see a column whose block SMA is disabled. Both apply the per-column flags
+  // cached by updateBlockSMAInfo: disabled columns stay unknown, while enabled
+  // ones absent from this block's record get the synthesized all-NULL
+  // aggregate. The other synthesized mode already requires every requested
+  // column to have SMA enabled.
+  bool onlySmaEnabledCols =
+      pSup != NULL && (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY ||
+                       pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY);
 
   TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -7881,7 +7991,8 @@ static int32_t doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int
     } else if (pAgg->colId < pSup->colId[j]) {
       i += 1;
     } else if (pSup->colId[j] < pAgg->colId) {
-      if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID &&
+          (!onlySmaEnabledCols || pSup->colHasSma[j])) {
         SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
         code = TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
         TSDB_CHECK_CODE(code, lino, _end);
@@ -7894,7 +8005,8 @@ static int32_t doFillNullColSMA(SBlockLoadSuppInfo* pSup, int32_t numOfRows, int
   }
 
   while (j < numOfCols) {
-    if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID) {
+    if (pSup->colId[j] != PRIMARYKEY_TIMESTAMP_COL_ID &&
+        (!onlySmaEnabledCols || pSup->colHasSma[j])) {
       SColumnDataAgg nullColAgg = {.colId = pSup->colId[j], .numOfNull = numOfRows};
       code = TARRAY2_INSERT_PTR(&pSup->colAggArray, i, &nullColAgg);
       TSDB_CHECK_CODE(code, lino, _end);
@@ -7953,9 +8065,19 @@ int32_t tsdbRetrieveDatablockSMA2(void* reader, SSDataBlock* pDataBlock,
 
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
   bool remoteFilter = pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER;
-  // LAST needs complete column statistics to infer NULL values.
-  if (pReader->status.composedDataBlock ||
-      (!pSup->smaValid && !remoteFilter && pSup->blockSmaMode != TSD_READER_BLOCK_SMA_MODE_MAX_ONLY)) {
+  // LAST needs complete column statistics to infer NULL values. LAST_NULL_ONLY
+  // and MAX_ONLY both bypass the smaValid gate below and share the same safety
+  // check in doFillNullColSMA: columns whose SMA is enabled but absent from
+  // this block get a synthesized all-NULL aggregate, while columns with SMA
+  // disabled stay unknown so MAX/LAST cannot mistake "no statistics" for
+  // "all NULL". They consume the record column by column, so the bypass only
+  // pays off when some queried column has block SMA enabled; when none does,
+  // every queried column would stay unknown and the block is read as data
+  // anyway, so the record read is skipped.
+  bool perColumnSma = pSup->smaOnAnyCol &&
+                      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY ||
+                       pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY);
+  if (pReader->status.composedDataBlock || (!pSup->smaValid && !remoteFilter && !perColumnSma)) {
     goto _end;
   }
 
@@ -7981,10 +8103,17 @@ int32_t tsdbRetrieveDatablockSMA2(void* reader, SSDataBlock* pDataBlock,
 
   // Filters can use individual persisted aggregates even when another projected column has SMA disabled.
   *allHave = !remoteFilter || pSup->smaValid;
-  synthesizeAllNullSma = (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) ||
-                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY) ||
-                         (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY &&
-                          pSup->colAggArray.size <= 0);
+  // The writer leaves a record empty for a block in which no SMA-enabled column had a value,
+  // and the modes below synthesize all-NULL for such a block as long as the file set still has
+  // its sma file. A head-only repair that could not read that file drops it from the file set
+  // and writes empty records for blocks that do hold values; without the file nothing is known,
+  // so the block is read as data instead.
+  bool smaFilePresent = tsdbDataFileReaderHasSma(pReader->pFileReader);
+  synthesizeAllNullSma = smaFilePresent &&
+                         ((pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) ||
+                          (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY) ||
+                          (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY &&
+                           pSup->colAggArray.size <= 0));
   if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
     *allHave = false;
     goto _end;
@@ -8266,6 +8395,9 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   // allocate buffer in order to load data blocks from file
   memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
 
+  // colHasSma/smaOnAnyCol are intentionally not reset here: the requested column
+  // list (colId) is fixed at tsdbReaderCreate and the reset keeps the same schema,
+  // so the cached per-column block-SMA flags still describe this reader.
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   pReader->suppInfo.blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   tsdbDataFileReaderClose(&pReader->pFileReader);

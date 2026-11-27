@@ -2332,6 +2332,7 @@ int32_t tableMetaReaderLoadAllDataHandle(SBtableMetaReader *p, SArray *dataHandl
     code = tableLoadBlock(p->pFile, pHandle, &p->blockWrapper);
     TSDB_CHECK_CODE(code, lino, _exit);
 
+    taosArrayClear(pMeta);
     code = blockGetAllMeta(p->blockWrapper.data, pMeta);
     TSDB_CHECK_CODE(code, lino, _exit);
 

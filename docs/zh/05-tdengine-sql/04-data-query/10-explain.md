@@ -350,9 +350,29 @@ AND voltage < (
 
 ### 相关标量子查询
 
-相关标量子查询显示为其实际求值算子下的 `Correlated Scalar Subquery` 表达式行，不使用一次性执行的 `InitPlan`。该行给出模板编号、求值阶段和结果类型；随后列出每个参数的来源作用域及块/槽位，或其继承的参数编号，不显示参数值。`Subquery Plan` 下展开该相关子查询的执行计划，用于查看内部的扫描、聚合、排序等算子。静态 `EXPLAIN` 只展示这些计划信息，不执行相关子查询。
+相关标量子查询在执行计划中有两种形态，取决于优化器是否将其改写为 JOIN：
 
-`EXPLAIN ANALYZE` 还在该表达式下显示 `Input Rows`、`Calls` 和 `Time`：分别为实际到达求值位置的行或 JOIN 候选行对、真正发起的内层调用次数、以及这些调用的累计耗时。`Calls` 不是所属算子的 `execTimes`；重复参数的独立调用仍分别计数。普通 CASE 中实际执行的分支会计入统计，即使最终未选择该分支的值。父调用耗时包含等待其内层调用的时间，因此不能将不同嵌套层级的 `Time` 相加当作整条 SQL 的总耗时。
+- **JOIN 改写路径（默认用于符合条件的等值相关标量子查询）**：计划中不再出现 `Correlated Scalar Subquery` 表达式，而是将内表按关联键分组（`GroupAggregate`）后，与外表执行左连接（`Left Join`）。如果子查询直接返回数据列，计划中还会在 `Left Join` 之上出现 `Scalar Row Check` 算子，用于在运行期检查结果行数（当同一外层行匹配多条内层记录时，查询仍会报错）。如果子查询返回的是 `AVG`、`SUM`、`MIN`、`MAX` 等单值聚合，每组最多产生一个结果，因此不会出现 `Scalar Row Check`。
+- **逐行执行路径（不满足改写条件，或指定了 `NO_DECORRELATE()`）**：相关标量子查询显示为其实际求值算子下的 `Correlated Scalar Subquery` 表达式行，不使用一次性执行的 `InitPlan`。该行给出模板编号、求值阶段和结果类型；随后列出每个参数的来源作用域及块/槽位，或其继承的参数编号，不显示参数值。`Subquery Plan` 下展开该相关子查询的执行计划，用于查看内部的扫描、聚合、排序等算子。静态 `EXPLAIN` 只展示这些计划信息，不执行相关子查询。
+
+在逐行执行路径下，`EXPLAIN ANALYZE` 还会在 `Correlated Scalar Subquery` 表达式下显示 `Input Rows`、`Calls` 和 `Time`：分别为实际到达求值位置的行或 JOIN 候选行对、真正发起的内层调用次数、以及这些调用的累计耗时。`Calls` 不是所属算子的 `execTimes`；重复参数的独立调用仍分别计数。普通 `CASE` 中实际执行的分支会计入统计，即使最终未选择该分支的值。父调用耗时包含等待其内层调用的时间，因此不能将不同嵌套层级的 `Time` 相加当作整条 SQL 的总耗时。
+
+若需确认某条查询是否触发了 JOIN 改写，或验证 `NO_DECORRELATE()` 是否生效，可以对比添加 Hint 前后的 `EXPLAIN` 输出。例如，假设 `alarms` 和 `readings` 的 `k` 列均为 `INT` 类型：
+
+```sql
+-- 默认路径：改写为分组 + Left Join
+EXPLAIN SELECT a.ts, (SELECT r.v FROM readings r WHERE r.k = a.k) FROM alarms a;
+
+-- 禁用改写：回退为逐行执行
+EXPLAIN SELECT a.ts, (SELECT /*+ NO_DECORRELATE() */ r.v FROM readings r WHERE r.k = a.k) FROM alarms a;
+```
+
+对比两条语句的执行计划：
+
+- 第一条查询默认改写为 JOIN，计划中可见按 `k` 分组的 `GroupAggregate` 和与外表连接的 `Left Join`；由于子查询直接返回数据列 `r.v`，计划中还会出现 `Scalar Row Check`。若将子查询改为 `SELECT AVG(r.v) ...`，计划中则不再需要 `Scalar Row Check`。
+- 第二条查询通过 `NO_DECORRELATE()` 禁用了改写，计划中不再出现上述分组和 `Left Join`，而是在外层算子下显示 `Correlated Scalar Subquery` 及对应的 `Subquery Plan`。
+
+关于改写条件与 Hint 用法，参见 [NO_DECORRELATE](./01-query.md#no_decorrelate)。
 
 ## 使用示例
 

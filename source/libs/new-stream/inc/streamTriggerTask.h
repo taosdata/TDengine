@@ -198,6 +198,7 @@ typedef struct SSTriggerNotifyWindow {
   bool        forceWinOpen;
   bool        winOpenEmitted;
   bool        collapsedParent;
+  bool        explicitEventEnd;  // END supplied a signed timestamp for this close
   int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
@@ -309,6 +310,7 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  bool                             firstClosePending;
   bool                             recalcNextOpen;
   TSKEY                            lastOpenRepairStart;
   struct SAlignedFutureRepair     *alignedFuture;
@@ -506,6 +508,7 @@ typedef struct SSTriggerWalProgress {
   } timeAlignWalCheck;
   int64_t                   timeAlignMaxVer;
   bool                      timeAlignHasVersion;
+  bool                      zeroStartConfirmed;  // Cursor zero is a known WAL replay origin.
   void                     *timeAlignBoundRsp;  // staged until every Reader acknowledged this round
   int32_t                   timeAlignBoundLen;
   uint64_t                  timeAlignValidationAck;
@@ -751,7 +754,10 @@ typedef struct SSTriggerExtProgress {
 typedef struct {
   int64_t               gid;
   SSTriggerWalProgress *pProgress;
+  int64_t               retryAt;      // Wall-clock wakeup after a local send failure.
   int32_t               attemptCount;  // 1-based, incremented on each NEED_RETRY for logging
+  bool                  transientGroupColVals;
+  bool                  hasFallbackReader;
 } SSTriggerPendingCreateTableEntry;
 
 typedef enum ESTriggerWalMode {
@@ -1001,10 +1007,21 @@ struct SSTriggerRealtimeContext {
   bool    extCheckpointRecovered;
   bool    needAlignWalForExtTrigger;  // Mixed WAL/EXT trigger data must pull WAL rows before checking groups.
   int64_t lastCheckpointTime;
+  int64_t walStallDeadlineUs;           // Monotonic deadline while scanned WAL is ahead of completed WAL.
+  int64_t walCheckpointMaxDelayCutoff;  // Dispatch deadlines through the local write completion time before new WAL.
+  SArray *pWalCheckpointWaits;          // Realtime slots captured after the paused WAL input has been dispatched.
+  int32_t walCheckpointWaitIndex;       // First captured slot whose completion has not been observed.
+  bool    drainingWalCheckpoint;
+  int32_t walStallError;
 
   // LAST_TS create-table: need groupInfo before send create-table req; pull GROUP_COL_VALUE first
   SArray *pPendingCreateTableGids;  // SArray<SSTriggerPendingCreateTableEntry>, (gid, pProgress) per reader
+  size_t  pendingCreateTableIndex;  // First entry awaiting a successful create request.
+  SArray *pPendingCreateGroupColVals;  // Owned values for an empty virtual group at the queue head.
+  SArray *pPendingCreateFallbackVgIds;  // Distinct backup vnodes for the queue head, stored in reverse pull order.
   TD_DLIST(SSTriggerRealtimeGroup) groupsWithAlignedWork;  // groups following a corrected window chain
+  int32_t calcGroupValueMisses;   // While nonzero, the current calculation still needs its partition values.
+  int64_t calcGroupValueWakeId;   // Identifies the delayed retry of the original Reader.
 };
 
 typedef struct SSTriggerTsdbProgress {
@@ -1168,6 +1185,7 @@ typedef struct SSTriggerCalcSlot {
   uint64_t             generation;
   int64_t              vtableRetryAtMs;  // monotonic deadline; zero when no retry is pending
   int32_t              vtableRetryDelayMs;
+  bool                 createTableOnly;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 
@@ -1218,6 +1236,7 @@ typedef struct SSTriggerRecalcRequest {
   bool                       frozen;
   bool                       noMerge;
   bool                       openWindowRepair;
+  int8_t                      *pFirstCloseDelivered;  // borrowed from the task until history output drains
   bool                         alignedCheckpointWork;
   bool                       waitForOutput;
   struct SStreamTriggerTask *pOpenRepairOwner;
@@ -1407,6 +1426,8 @@ typedef struct SStreamTriggerTask {
 
   SRWLatch   recalcRequestLock;
   bool                   activeAlignedCheckpointWork;
+  SSHashObj             *pFirstCloseRepairs;  // gid -> first ordinary FILL_HISTORY close, across reader changes
+  int8_t                *pActiveFirstCloseDelivered;
   uint64_t               activeAlignedRepairId;
   int32_t                alignedCheckpointHold;
   bool       recalcInProgress;     // Protected by recalcRequestLock through history completion.
@@ -1431,6 +1452,8 @@ typedef struct SStreamTriggerTask {
   volatile int64_t          latestVersionTime;
   bool                      historyCalcStarted;
   bool                      pendingPeriodicCheckpoint;
+  int64_t                   checkpointSyncRetryMonoUs;
+  int64_t                   walCheckpointWakeId;  // Also checked by the timer before retrying delivery.
   char                     *streamName;
   uint64_t                  nestedRecoveryGeneration;
   int32_t                   nestedRecoveryError;
@@ -1524,6 +1547,7 @@ int64_t     stRealtimeContextExtTriggerRecoveryCutoff(const SSTriggerRealtimeCon
 int32_t     stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int64_t gid, SArray **ppBindings);
 
 #if defined(BUILD_TEST)
+void stTriggerTestSetClock(const int64_t *wallNs, const int64_t *monoNs);
 void stTriggerTestPeriodPendingStats(SSTriggerRealtimeContext *pContext, int32_t *pCycles, int64_t *pGroups);
 /* Test seams for streamTriggerTaskTest. They expose the virtual-table patch state machine and the WAL
  * table-change gate so the retry/escalation and replay-dedup rules can be verified without a live

@@ -60,6 +60,7 @@ typedef struct SDataSinkFileMgr {
   int64_t fileBlockUsedCount;
   int64_t fileGroupBlockMaxSize;
   SRBTree pFreeFileBlockList;  // <groupDataStartOffSet, SFileBlockInfo>
+  TdThreadMutex freeBlockLock;  // Shared by readers of different groups and the spill writer.
 
   int64_t   readingGroupId;
   int64_t   writingGroupId;

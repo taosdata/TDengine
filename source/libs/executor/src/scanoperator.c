@@ -393,11 +393,13 @@ static void getAggPruneExprKinds(const SExprSupp* pExprSup, bool* pHasMax, bool*
   }
 }
 
-// One LAST_NULL_ONLY SMA read serves every request in the block, and that mode
-// synthesizes all-null stats for columns without persisted SMA. MAX and LAST
-// treat an all-null aggregate as prunable, which is only valid for a real
-// all-null block, so they must never share the read with another prune kind.
-// TOP/BOTTOM already reject synthesized stats in topBotDynDataReq.
+// One LAST_NULL_ONLY SMA read serves every request in the block. In that mode
+// a column without block SMA stays unknown (colId -1) and never drives
+// pruning; the all-null aggregate it synthesizes only covers SMA-enabled
+// columns absent from the block record, which MAX and LAST may prune as a
+// real all-null block. TOP/BOTTOM reject every all-null aggregate in
+// topBotDynDataReq. Keeping the prune kinds apart is therefore a conservative
+// simplification, not a correctness requirement.
 static bool aggPruneKindsConflict(bool hasMax, bool hasTopBot, bool hasLast) {
   return (int32_t)hasMax + (int32_t)hasTopBot + (int32_t)hasLast >= 2;
 }
@@ -972,8 +974,12 @@ static int32_t resetScanReaderWindow(STableScanBase* base, TsdReader* api) {
   return code;
 }
 
-static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
-                             uint32_t* status) {
+static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo);
+
+static int32_t loadDataBlock(SOperatorInfo* pOperator,
+                             STableScanBase* pTableScanInfo,
+                             SSDataBlock* pBlock, uint32_t* status,
+                             const SSortHandle* pPruneSort) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -1247,6 +1253,15 @@ _dynamic_prune_done:
     }
   }
 
+  if (pPruneSort != NULL) {
+    int64_t loadedRows = pBlock->info.rows;
+    if (tsortTrimMergeBlock(pPruneSort, pBlock)) {
+      pCost->checkRows -= loadedRows - pBlock->info.rows;
+      // The discarded suffix proves that later rows of this table also lose.
+      tableMergeScanDoSkipTable(pBlock->info.id.uid, pOperator);
+    }
+  }
+
   if (!skipSetTagColumnData(pOperator)) {
     code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1297,7 +1312,7 @@ EFuncDataRequired scanTestLastScanDynDataRequired(STableScanInfo* pInfo,
 int32_t scanTestLoadDataBlock(SOperatorInfo* pOperator,
                               STableScanBase* pBase, SSDataBlock* pBlock,
                               uint32_t* status) {
-  return loadDataBlock(pOperator, pBase, pBlock, status);
+  return loadDataBlock(pOperator, pBase, pBlock, status, NULL);
 }
 #endif
 
@@ -1428,6 +1443,113 @@ static bool requiresTableMetaForPseudoColumns(const SExprInfo* pExpr, int32_t nu
   return false;
 }
 
+// Make sure a destination column can take `rows` values before it is filled.
+// Fixed-width columns need both the payload buffer and the NULL bitmap (the
+// NULL filler writes the bitmap and memsets the payload); variable-width ones
+// need the per-row offset array, because colDataSetNItems only grows the
+// payload and then writes varmeta.offset[i]. Capacity is only grown on a column
+// that was never allocated: colInfoDataEnsureCapacity sizes the column to
+// exactly `rows`, which would shrink a block column that was allocated for the
+// larger block capacity, and variable-width payload is reserved by
+// colDataSetNItems itself.
+static int32_t ensureScalarGroupDstCapacity(SColumnInfoData* pDst, int32_t rows) {
+  if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+    if (pDst->varmeta.offset == NULL) {
+      return colInfoDataEnsureCapacity(pDst, rows, false);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pDst->pData == NULL || pDst->nullbitmap == NULL) {
+    return colInfoDataEnsureCapacity(pDst, rows, false);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                        SColumnInfoData* pDst, int32_t rows, bool* pSet) {
+  *pSet = false;
+  if (pTableListInfo == NULL || pTableListInfo->pGroupDataSlots == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t* pDataIndex = taosHashGet(pTableListInfo->pGroupDataSlots, &slotId, sizeof(slotId));
+  if (pDataIndex == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t* pRow = pTableListInfo->pGroupDataRows
+                      ? taosHashGet(pTableListInfo->pGroupDataRows, &uid, sizeof(uid))
+                      : NULL;
+  int32_t groupDataSize = pTableListInfo->pGroupData ? taosArrayGetSize(pTableListInfo->pGroupData) : 0;
+  // A missing per-table row or a released group column is a normal fallback
+  // case (for example a cache-hit path or an aggregate block whose uid is not
+  // a table uid): leave the column unset so the caller evaluates it from the
+  // table's own tags instead of failing the whole query. The data index is
+  // validated independently because the slot map and group data are built in
+  // separate steps.
+  if (pRow == NULL || *pDataIndex < 0 || *pDataIndex >= groupDataSize || *pRow < 0 ||
+      *pRow >= taosArrayGetSize(pTableListInfo->pTableList)) {
+    qTrace("no reusable scalar group result, uid:%" PRIu64 " slot:%d, fallback to table tags", uid, slotId);
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnInfoData* pSrc = taosArrayGetP(pTableListInfo->pGroupData, *pDataIndex);
+  if (pSrc == NULL) {
+    qTrace("no reusable scalar group result, uid:%" PRIu64 " slot:%d, fallback to table tags", uid, slotId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // The cached result must be schema compatible with the output column.
+  // Variable-length values carry their own length and colDataSetNItems sizes
+  // the destination from the data, so a wider declared output column (e.g.
+  // virtual-table widening) is safe to fill. Fixed-width values are copied
+  // with the destination width, so a width mismatch could over-read the
+  // source; fall back to the table tags instead.
+  if (pSrc->info.type != pDst->info.type) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Precision/scale carry semantics for TIMESTAMP and DECIMAL even when the
+  // type and width match, so a differently declared output must fall back as
+  // well instead of copying values with another time unit or scale.
+  if (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(pSrc->info.type) && pSrc->info.bytes != pDst->info.bytes) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Both fill paths write through the payload/bitmap (fixed-width) or the
+  // offset array (variable-width), so size the destination once for the rows
+  // being filled before branching on the source value.
+  int32_t code = ensureScalarGroupDstCapacity(pDst, rows);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (colDataIsNull_s(pSrc, *pRow)) {
+      colDataSetNNULL(pDst, 0, rows);
+    } else {
+      // colDataSetNItems only writes payload. A reused output column may still
+      // carry NULL bits from an earlier fill, so clear them before overwriting
+      // those rows; otherwise the copied values would be read back as NULL.
+      if (!IS_VAR_DATA_TYPE(pDst->info.type) && pDst->nullbitmap != NULL) {
+        memset(pDst->nullbitmap, 0, BitmapLen(rows));
+      }
+      pDst->hasNull = false;
+      code = colDataSetNItems(pDst, 0, colDataGetData(pSrc, *pRow), rows, 1, false);
+    }
+  }
+  // Only claim the column has data once the fill succeeded, so a failed fill
+  // cannot leave a half-initialized column marked as fully populated.
+  if (code == TSDB_CODE_SUCCESS) {
+    pDst->info.noData = false;
+  }
+  *pSet = code == TSDB_CODE_SUCCESS;
+  return code;
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestSetScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                         SColumnInfoData* pDst, int32_t rows, bool* pSet) {
+  return setScalarGroupColumnData(pTableListInfo, slotId, uid, pDst, rows, pSet);
+}
+#endif
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, const STableListInfo* pTableListInfo,
                                STableMetaCacheInfo* pCache) {
@@ -1540,6 +1662,32 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       colInfoDataCleanup(pColInfoData, pBlock->info.rows);
     }
 
+    // A scalar group output is materialized once per group key and then reused
+    // for every row of the block, which skips the per-row pseudo-column path.
+    // With a constant group key the value belongs to the owned const tag column
+    // (one row, uid handshake done by getConstTagOutputColumn), not to the
+    // block placeholder that consumers of that slot never read. Scan pseudo
+    // functions keep their own const handling below.
+    // The const column is resolved once here and handed to the tag fallback
+    // below, so a failed reuse continues from the exact same prepared column
+    // instead of re-preparing a second one.
+    SColumnInfoData* pGroupDst = pColInfoData;
+    SColumnInfoData* pConstGroupCol = NULL;
+    int32_t          groupRows = pBlock->info.rows;
+    if (constGroupKey && !fmIsScanPseudoColumnFunc(functionId)) {
+      pConstGroupCol = getConstTagOutputColumn(pBlock, dstSlotId);
+      if (pConstGroupCol != NULL) {
+        pGroupDst = pConstGroupCol;
+        groupRows = 1;
+      }
+    }
+    bool groupDataSet = false;
+    code = setScalarGroupColumnData(pTableListInfo, dstSlotId, pBlock->info.id.uid, pGroupDst, groupRows, &groupDataSet);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (groupDataSet) {
+      continue;
+    }
+
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
       int32_t fType = pExpr1->pExpr->_function.functionType;
@@ -1579,7 +1727,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {  // these are tags
-      SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, pExpr1->base.resSchema.slotId);
+      // Reuse the const column resolved before the reuse attempt (NULL when
+      // this is a block column) so the fallback keeps the state prepared there.
+      SColumnInfoData* pConstCol = pConstGroupCol;
       int32_t tagRows = pBlock->info.rows;
       if (pConstCol != NULL) {
         pColInfoData = pConstCol;
@@ -2081,7 +2231,8 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     uint32_t status = 0;
-    code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
+    code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status,
+                         NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
@@ -6874,7 +7025,8 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     }
 
     uint32_t status = 0;
-    code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status);
+    code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status,
+                         NULL);
     if (code != 0) {
       pInfo->base.dataReader = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7638,8 +7790,35 @@ static int32_t doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFini
     return code;
   }
 
+  bool hasFilter = pOperator->exprSupp.pFilterInfo != NULL;
+  bool contained = pInfo->base.cond.type == TIMEWINDOW_RANGE_CONTAINED;
+  bool skipUnloaded = pBlock->info.dataLoad == 0 && contained;
+  EMergeBlockPrune prune = MERGE_BLOCK_KEEP;
+
+  // The sort threshold belongs to the current duration.
+  if ((hasFilter || skipUnloaded) && pInfo->pAlignStage == NULL &&
+      !pInfo->base.cond.mainFirst && !pInfo->bNewFilesetEvent &&
+      !pInfo->bNextDurationBlockEvent) {
+    prune = tsortGetMergeBlockPrune(pInfo->pSortHandle, &pBlock->info.window,
+                                   hasFilter && contained);
+  }
+  if (prune == MERGE_BLOCK_SKIP) {
+    uint64_t uid = pBlock->info.id.uid;
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+    if (contained) {
+      // Per-table timestamps stay ordered before and after column filtering.
+      tableMergeScanDoSkipTable(uid, pOperator);
+    }
+    ++pInfo->base.readRecorder.totalBlocks;
+    ++pInfo->base.readRecorder.skipBlocks;
+    *pSkipped = true;
+    return code;
+  }
+
   uint32_t status = 0;
-  code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
+  const SSortHandle* pPruneSort =
+      prune == MERGE_BLOCK_TRIM ? pInfo->pSortHandle : NULL;
+  code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status, pPruneSort);
 
   if (code != TSDB_CODE_SUCCESS) {
     qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));

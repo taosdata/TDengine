@@ -15,6 +15,7 @@
 
 # author : wenzhouwww
 from new_test_framework.utils import tdLog, tdSql, tdCom
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import time
 import os
@@ -114,8 +115,14 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
             else:
                 tdLog.notice(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
 
-    def create_db_replica_3_insertdatas(self, dbname, replica_num ,vgroup_nums ,tb_nums , row_nums ):
+    def create_db_replica_3_insertdatas(self, dbname, replica_num, vgroup_nums, tb_nums, row_nums, schema_ready, insert_allowed, insert_cancelled, inserts_started, first_query_done, progress_query_done):
         newTdSql=tdCom.newTdSql()
+        try:
+            self.create_and_insert(newTdSql, dbname, replica_num, vgroup_nums, tb_nums, row_nums, schema_ready, insert_allowed, insert_cancelled, inserts_started, first_query_done, progress_query_done)
+        finally:
+            newTdSql.close()
+
+    def create_and_insert(self, newTdSql, dbname, replica_num, vgroup_nums, tb_nums, row_nums, schema_ready, insert_allowed, insert_cancelled, inserts_started, first_query_done, progress_query_done):
         drop_db_sql = "drop database if exists {}".format(dbname)
         create_db_sql = "create database {} replica {} vgroups {}".format(dbname,replica_num,vgroup_nums)
 
@@ -135,35 +142,149 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp)
             '''
         )
-        
+        schema_ready.set()
+        insert_allowed.wait()
+        if insert_cancelled.is_set():
+            return
+
         for i in range(tb_nums):
             sub_tbname = "sub_tb_{}".format(i)
             newTdSql.execute("create table {} using stb1 tags({})".format(sub_tbname,i))
             # insert datas about new database
 
             for row_num in range(row_nums):
-                if row_num %100 ==0:
-                    tdLog.info(" === writing is going now === ")
+                # Keep one insert pending until a query observes the writer's progress.
+                if i == tb_nums - 1 and row_num == row_nums - 1:
+                    if not progress_query_done.wait(60):
+                        raise TimeoutError(f"Progress query did not finish in {dbname}")
+                    if insert_cancelled.is_set():
+                        return
                 ts = self.ts + 1000*row_num
                 newTdSql.execute(f"insert into {sub_tbname} values ({ts}, {row_num} ,{row_num}, 10 ,1 ,{row_num} ,{row_num},true,'bin_{row_num}','nchar_{row_num}',now) ")
+
+                if not inserts_started.is_set():
+                    inserts_started.set()
+                    if not first_query_done.wait(60):
+                        raise TimeoutError(f"First query did not finish in {dbname}")
+                if insert_cancelled.is_set():
+                    return
 
         tdLog.notice(" ==== create database {} and insert rows execute end =====".format(dbname))
 
     
 
-    def check_insert_status(self, newTdSql ,dbname, tb_nums , row_nums):
-        
-        newTdSql.execute("use {}".format(dbname))
-        newTdSql.query("select count(*) from {}.{}".format(dbname,'stb1'))
-        # tdSql.checkData(0 , 0 , tb_nums*row_nums)
-        newTdSql.query("select distinct tbname from {}.{}".format(dbname,'stb1'))
-        # tdSql.checkRows(tb_nums)
+    def check_insert_status(self, newTdSql, dbname, row_nums, previous_rows, previous_tables):
+        newTdSql.query("select count(*) from {}.{}".format(dbname, 'stb1'))
+        newTdSql.checkRows(1)
+        inserted_rows = newTdSql.getData(0, 0)
+        assert previous_rows <= inserted_rows <= self.tb_nums * row_nums, (
+            f"Unexpected row count in {dbname}: previous={previous_rows}, current={inserted_rows}"
+        )
+        newTdSql.query("select distinct tbname from {}.{}".format(dbname, 'stb1'))
+        # The writer can advance between the row-count and table-count queries.
+        minimum_tables = max(previous_tables, (inserted_rows + row_nums - 1) // row_nums)
+        newTdSql.checkRowsRange(range(minimum_tables, self.tb_nums + 1))
+        return inserted_rows, newTdSql.queryRows
 
-    def loop_query_constantly(self, times ,  db_name, tb_nums ,row_nums):
+    def loop_query_constantly(self, times, db_name, row_nums, writing, inserts_started, first_query_done, progress_query_done):
         newTdSql=tdCom.newTdSql()
-        for loop_time in range(times):
-            tdLog.debug(" === query is going ,this is {}_th query === ".format(loop_time))
-            self.check_insert_status( newTdSql ,db_name, tb_nums , row_nums)
+        try:
+            self.wait_for_event(inserts_started, writing, 60, "First insert")
+            previous_rows, previous_tables = 0, 0
+            first_rows = 0
+            loop_time = 0
+            while loop_time < times or not progress_query_done.is_set():
+                tdLog.debug(" === query is going ,this is {}_th query === ".format(loop_time))
+                if writing.done():
+                    writing.result()
+                previous_rows, previous_tables = self.check_insert_status(
+                    newTdSql, db_name, row_nums, previous_rows, previous_tables,
+                )
+                if loop_time == 0:
+                    assert previous_rows == 1, f"Expected the first insert in {db_name}: {previous_rows}"
+                    first_rows = previous_rows
+                    progress_deadline = time.monotonic() + 60
+                    first_query_done.set()
+                elif not progress_query_done.is_set():
+                    if previous_rows > first_rows:
+                        assert previous_rows < self.tb_nums * row_nums, "No insert remains after the progress query"
+                        if writing.done():
+                            writing.result()
+                        assert not writing.done(), "Writer finished before the progress query"
+                        progress_query_done.set()
+                    else:
+                        if time.monotonic() >= progress_deadline:
+                            raise TimeoutError(f"Inserts did not advance after the first query in {db_name}")
+                        time.sleep(0.1)
+                loop_time += 1
+        finally:
+            newTdSql.close()
+
+    def wait_database_ready(self, writing, timeout=60):
+        deadline = time.monotonic() + timeout
+        database_status = []
+        while time.monotonic() < deadline:
+            if writing.done():
+                writing.result()
+            tdSql.query(f"select status from information_schema.ins_databases where name = '{self.db_name}'", queryTimes=1)
+            database_status = tdSql.queryResult
+            if database_status and database_status[0][0] == "ready":
+                tdLog.info(f"Database {self.db_name} is ready: {database_status}")
+                return
+            time.sleep(0.1)
+        tdSql.query("select * from information_schema.ins_vgroups")
+        tdLog.info(f"Vgroup status: {tdSql.queryResult}")
+        tdSql.query("select * from information_schema.ins_dnodes")
+        tdLog.info(f"Dnode status: {tdSql.queryResult}")
+        raise TimeoutError(f"Database {self.db_name} did not become ready: {database_status}")
+
+    def wait_for_event(self, event, writing, timeout, description):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if event.wait(0.1):
+                return
+            if writing.done():
+                writing.result()
+        if writing.done():
+            writing.result()
+        raise TimeoutError(f"{description} did not finish in {self.db_name}")
+
+    def do_concurrent_insert_query(self):
+        schema_ready = threading.Event()
+        insert_allowed = threading.Event()
+        insert_cancelled = threading.Event()
+        inserts_started = threading.Event()
+        first_query_done = threading.Event()
+        progress_query_done = threading.Event()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            writing = executor.submit(
+                self.create_db_replica_3_insertdatas,
+                self.db_name, self.replica, self.vgroups, self.tb_nums, self.row_nums,
+                schema_ready, insert_allowed, insert_cancelled, inserts_started, first_query_done, progress_query_done,
+            )
+            try:
+                self.wait_database_ready(writing)
+                self.wait_for_event(schema_ready, writing, 60, "Table creation")
+                tdSql.query(f"show {self.db_name}.stables")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, "stb1")
+                tdSql.query(f"select count(*) from {self.db_name}.stb1")
+                tdSql.checkData(0, 0, 0)
+                insert_allowed.set()
+                self.loop_query_constantly(
+                    self.query_times, self.db_name, self.row_nums, writing, inserts_started, first_query_done, progress_query_done,
+                )
+                writing.result()
+            finally:
+                insert_cancelled.set()
+                insert_allowed.set()
+                first_query_done.set()
+                progress_query_done.set()
+        tdSql.query(f"select count(*) from {self.db_name}.stb1")
+        tdSql.checkData(0, 0, self.tb_nums * self.row_nums)
+        tdSql.query(f"select distinct tbname from {self.db_name}.stb1")
+        tdSql.checkRows(self.tb_nums)
+        print("concurrent insert and query ......................... [ passed ]")
 
     def test_4dnode1mnode_basic_replica3_insertdatas_querys(self):
         """Cluster 4 dnodes 1 mnode replica 3 insert-query
@@ -178,10 +299,15 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
         8. Insert each subtable 100 rows data
         9. Ensure above insert success by query
         10. Check vgroups info , ensure each vgroup only has 1 leader role
+        11. Wait for database readiness and schema creation before querying stables
+        12. Verify the empty stable before releasing inserts and the final row and table counts
+        13. Query during independent inserts with bounded, nondecreasing row and table counts
+        14. Observe row-count growth while the writer still has an insert pending
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -190,21 +316,7 @@ class Test4dnode1mnodeBasicReplica3InsertdatasQuerys:
         """
         self.check_setup_cluster_status()
         self.create_db_check_vgroups()
-        
-        # start writing constantly 
-        writing = threading.Thread(target = self.create_db_replica_3_insertdatas, args=(self.db_name , self.replica , self.vgroups , self.tb_nums , self.row_nums))
-        writing.start()
-        tdSql.query(" show {}.stables ".format(self.db_name))
-        while not tdSql.queryResult:
-            print(tdSql.queryResult)
-            time.sleep(0.1)
-            tdSql.query(" show {}.stables ".format(self.db_name))
-
-        reading = threading.Thread(target = self.loop_query_constantly, args=(self.query_times,self.db_name , self.tb_nums , self.row_nums))
-        reading.start()
-        
-        writing.join()
-        reading.join()
+        self.do_concurrent_insert_query()
 
 
 

@@ -10887,6 +10887,13 @@ int32_t tSerializeSBackupVnodeSnapReq(void *buf, int32_t bufLen, SBackupVnodeSna
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->backupId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isFull));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->op));
+  if (!pReq->isFull) {
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->baseVersion));
+    if (pReq->op == BACKUP_VNODE_SNAP_BEGIN) {
+      if (pReq->fileSets == NULL || pReq->fileSetsLen == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->fileSets, pReq->fileSetsLen));
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -10911,6 +10918,16 @@ int32_t tDeserializeSBackupVnodeSnapReq(void *buf, int32_t bufLen, SBackupVnodeS
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->backupId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isFull));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->op));
+  pReq->baseVersion = 0;
+  pReq->fileSets = NULL;
+  pReq->fileSetsLen = 0;
+  if (!pReq->isFull) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->baseVersion));
+    if (pReq->op == BACKUP_VNODE_SNAP_BEGIN) {
+      TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pReq->fileSets, &pReq->fileSetsLen));
+      if (pReq->fileSetsLen == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -15365,10 +15382,20 @@ int32_t tDeserializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char*    pStr = NULL;
+  uint32_t wireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->queryStrId));
+  // queryStrId is a fixed-size array used as a NUL-terminated C string downstream, so the wire
+  // payload must carry its NUL terminator. wireLen == 0 must be rejected as well: for an empty
+  // encoding tDecodeBinary() yields a one-past-end pointer when the field is last in the
+  // message, and tDecodeCStrToN() would read one byte past the decoded region (CWE-125).
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pStr, &wireLen));
+  if (wireLen == 0 || wireLen > sizeof(pReq->queryStrId) || pStr[wireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->queryStrId, pStr, wireLen);
   tEndDecode(&decoder);
 
 _exit:
@@ -17402,16 +17429,20 @@ int32_t tValidateCorrelationParams(const SArray* pDefs, const SArray* pValues) {
                                      ? pMatch->dataLen <= pDef->dataType.bytes
                                      : pMatch->dataLen == pDef->dataType.bytes))),
                           code, lino, _return, TSDB_CODE_INVALID_MSG);
+    const size_t dataLen = (size_t)pMatch->dataLen;
     if (!pMatch->isNull && (IS_STR_DATA_TYPE(pDef->dataType.type) ||
                             TSDB_DATA_TYPE_GEOMETRY == pDef->dataType.type)) {
-      QUERY_CHECK_CONDITION(pMatch->dataLen >= VARSTR_HEADER_SIZE &&
-                                varDataTLen(pMatch->pData) == pMatch->dataLen,
-                            code, lino, _return, TSDB_CODE_INVALID_MSG);
+      // The payload can point into a wire frame at any byte offset.
+      VarDataLenT len = 0;
+      QUERY_CHECK_CONDITION(dataLen >= sizeof(len), code, lino, _return, TSDB_CODE_INVALID_MSG);
+      memcpy(&len, pMatch->pData, sizeof(len));
+      QUERY_CHECK_CONDITION(len == dataLen - sizeof(len), code, lino, _return, TSDB_CODE_INVALID_MSG);
     }
     if (!pMatch->isNull && IS_STR_DATA_BLOB(pDef->dataType.type)) {
-      QUERY_CHECK_CONDITION(pMatch->dataLen >= BLOBSTR_HEADER_SIZE &&
-                                blobDataTLen(pMatch->pData) == pMatch->dataLen,
-                            code, lino, _return, TSDB_CODE_INVALID_MSG);
+      BlobDataLenT len = 0;
+      QUERY_CHECK_CONDITION(dataLen >= sizeof(len), code, lino, _return, TSDB_CODE_INVALID_MSG);
+      memcpy(&len, pMatch->pData, sizeof(len));
+      QUERY_CHECK_CONDITION(len == dataLen - sizeof(len), code, lino, _return, TSDB_CODE_INVALID_MSG);
     }
   }
 
@@ -17565,15 +17596,13 @@ _exit:
   return code;
 }
 
-static int32_t tDecodeCorrelationParams(SDecoder* pDecoder, SArray** ppDefs, SArray** ppValues) {
+static int32_t tDecodeCorrelationParamsImpl(SDecoder* pDecoder, int32_t count, SArray** ppDefs, SArray** ppValues,
+                                            bool skip) {
+  // Validate skipped parameters using borrowed wire values, including type and length checks.
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
-  int32_t  count = 0;
   uint8_t* pPendingData = NULL;
-  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &count));
-  QUERY_CHECK_CONDITION(count >= 0 && count <= MAX_CORRELATION_PARAM_COUNT, code, lino, _exit,
-                        TSDB_CODE_INVALID_MSG);
-  if (count > 0) {
+  if (count > 0 && *ppDefs == NULL) {
     *ppDefs = taosArrayInit(count, sizeof(SCorrelationParamDef));
     QUERY_CHECK_NULL(*ppDefs, code, lino, _exit, terrno);
   }
@@ -17586,7 +17615,7 @@ static int32_t tDecodeCorrelationParams(SDecoder* pDecoder, SArray** ppDefs, SAr
   int32_t valueCount = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &valueCount));
   QUERY_CHECK_CONDITION(valueCount == count, code, lino, _exit, TSDB_CODE_INVALID_MSG);
-  if (count > 0) {
+  if (count > 0 && *ppValues == NULL) {
     *ppValues = taosArrayInit(count, sizeof(SCorrelationWireValue));
     QUERY_CHECK_NULL(*ppValues, code, lino, _exit, terrno);
   }
@@ -17604,7 +17633,9 @@ static int32_t tDecodeCorrelationParams(SDecoder* pDecoder, SArray** ppDefs, SAr
                           TSDB_CODE_INVALID_MSG);
     TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pWireData, &decodedLen));
     QUERY_CHECK_CONDITION(decodedLen == value.dataLen, code, lino, _exit, TSDB_CODE_INVALID_MSG);
-    if (decodedLen > 0) {
+    if (skip) {
+      value.pData = decodedLen ? pWireData : NULL;
+    } else if (decodedLen > 0) {
       value.pData = taosMemoryMalloc(decodedLen);
       QUERY_CHECK_NULL(value.pData, code, lino, _exit, terrno);
       pPendingData = value.pData;
@@ -17619,6 +17650,24 @@ _exit:
   taosMemoryFree(pPendingData);
   if (TSDB_CODE_SUCCESS != code) {
     uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Skipped values borrow their payload from the frame. Only their descriptors need scratch storage.
+static int32_t tSkipCorrelationParams(SDecoder* decoder, int32_t count) {
+  enum { inlineCapacity = 16 };
+  SCorrelationParamDef defs[inlineCapacity];
+  SCorrelationWireValue values[inlineCapacity];
+  SArray defArray = {.capacity = inlineCapacity, .elemSize = sizeof(defs[0]), .pData = defs};
+  SArray valueArray = {.capacity = inlineCapacity, .elemSize = sizeof(values[0]), .pData = values};
+  bool useHeap = count > inlineCapacity;
+  SArray* pDefs = useHeap ? NULL : &defArray;
+  SArray* pValues = useHeap ? NULL : &valueArray;
+  int32_t code = tDecodeCorrelationParamsImpl(decoder, count, &pDefs, &pValues, true);
+  if (useHeap) {
+    taosArrayDestroy(pDefs);
+    taosArrayDestroy(pValues);
   }
   return code;
 }
@@ -17779,26 +17828,31 @@ _exit:
 }
 
 int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
+  return tDeserializeSSubQueryMsgExt(buf, bufLen, pReq, 0);
+}
+
+int32_t tDeserializeSSubQueryMsgExt(void *buf, int32_t bufLen, SSubQueryMsg *pReq, uint32_t skipFlags) {
+  const bool skipEndpoints = (skipFlags & TSDB_SUBQ_DEC_SKIP_ENDPOINTS) != 0;
+  const bool skipCorrelation = (skipFlags & TSDB_SUBQ_DEC_SKIP_CORRELATION) != 0;
+  uint8_t inlineSeen[32] = {0};
+  uint8_t *seen = inlineSeen;
+  int32_t producerNum = 0;
   int32_t   code = 0;
   int32_t   lino;
   int32_t   headLen = sizeof(SMsgHead);
-  if (NULL == buf || NULL == pReq || bufLen < headLen + sizeof(int32_t)) {
+  if (NULL == buf || NULL == pReq || bufLen < headLen + (int32_t)sizeof(int32_t)) {
     return TSDB_CODE_INVALID_MSG;
   }
-  SMsgHead *pHead = buf;
-  pHead->vgId = pReq->header.vgId;
-  pHead->contLen = pReq->header.contLen;
+  // The vnode and qworker inspect the same RPC buffer. Its routing header belongs to the transport.
 
   SDecoder decoder = {0};
   tDecoderInit(&decoder, (char *)buf + headLen, bufLen - headLen);
   int32_t frameLen = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &frameLen));
-  if (frameLen < 0 || frameLen != bufLen - headLen - sizeof(int32_t)) {
+  if (frameLen < 0 || frameLen != bufLen - headLen - (int32_t)sizeof(int32_t)) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  decoder.pos = 0;
-
-  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  // The exact frame length was validated above. Decode directly inside this frame.
 
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->sId));
   TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->queryId));
@@ -17813,17 +17867,29 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compress));
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->sqlLen));
   if (pReq->sqlLen > 0) {
-    uint64_t sqlBinLen = 0;
-    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->sql, &sqlBinLen));
-    if (sqlBinLen != (uint64_t)pReq->sqlLen + 1) {
-      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    uint8_t *sql = NULL;
+    uint32_t len = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &sql, &len));
+    if (len != (uint64_t)pReq->sqlLen + 1 || sql[len - 1] != 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    if (skipFlags & TSDB_SUBQ_DEC_SKIP_SQL) {
+      pReq->sqlLen = 0;
+    } else {
+      pReq->sql = taosMemoryMalloc(len);
+      if (!pReq->sql) TAOS_CHECK_EXIT(terrno);
+      memcpy(pReq->sql, sql, len);
     }
   }
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->msgLen));
-  uint64_t msgBinLen = 0;
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->msg, &msgBinLen));
-  if (msgBinLen != (uint64_t)pReq->msgLen) {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  uint8_t *msg = NULL;
+  uint32_t len = 0;
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &msg, &len));
+  if (len != pReq->msgLen) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  if (skipFlags & TSDB_SUBQ_DEC_SKIP_MSG) {
+    pReq->msgLen = 0;
+  } else if (len > 0) {
+    pReq->msg = taosMemoryMalloc(len);
+    if (!pReq->msg) TAOS_CHECK_EXIT(terrno);
+    memcpy(pReq->msg, msg, len);
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pReq->clientId));
@@ -17833,7 +17899,13 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
 
   int32_t subEndpointNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &subEndpointNum));
-  if (subEndpointNum > 0) {
+  if (subEndpointNum < 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  if (skipEndpoints) {
+    for (int32_t i = 0; i < subEndpointNum; ++i) {
+      SDownstreamSourceNode source = {0};
+      TAOS_CHECK_EXIT(tDeserializeSDownstreamSourceNode(&decoder, &source));
+    }
+  } else if (subEndpointNum > 0) {
     pReq->subEndPoints = taosArrayInit(subEndpointNum, POINTER_BYTES);
     if (NULL == pReq->subEndPoints) {
       TAOS_CHECK_EXIT(terrno);
@@ -17865,21 +17937,31 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
     pReq->txnId = 0;
   }
 
-  bool followerReadDecoded = false;
-
-  // The follower-read flag is an optional one-byte tail after the optional
-  // correlation payload. Decode it before producerNum when it is the only
-  // remaining byte, otherwise it would be interpreted as a truncated int32.
-  if (decoder.size - decoder.pos == sizeof(bool)) {
-    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->allowFollowerRead));
-    followerReadDecoded = true;
-  }
-
-  if (!tDecodeIsEnd(&decoder)) {
-    int32_t producerNum = 0;
+  // A single remaining byte is the optional follower-read flag, including
+  // after producer overrides when there is no correlation payload.
+  if (decoder.size - decoder.pos > 1) {
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &producerNum));
     if (producerNum < 0 || producerNum > subEndpointNum) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (skipEndpoints && producerNum && subEndpointNum > (int32_t)sizeof(inlineSeen) * 8) {
+      // The writer emits indices in order. Only an out-of-order producer list
+      // needs a larger bitmap to preserve legacy duplicate-index validation.
+      SDecoder probe = decoder;
+      int32_t previous = -1;
+      seen = NULL;
+      for (int32_t i = 0; i < producerNum; ++i) {
+        int32_t index = 0;
+        uint64_t id = 0;
+        TAOS_CHECK_EXIT(tDecodeI32(&probe, &index));
+        TAOS_CHECK_EXIT(tDecodeU64(&probe, &id));
+        if (index <= previous) {
+          seen = taosMemoryCalloc(((size_t)subEndpointNum + 7) / 8, 1);
+          if (!seen) TAOS_CHECK_EXIT(terrno);
+          break;
+        }
+        previous = index;
+      }
     }
     for (int32_t i = 0; i < producerNum; ++i) {
       int32_t index = -1;
@@ -17889,6 +17971,14 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       if (index < 0 || index >= subEndpointNum || 0 == producerQueryId) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
+      if (skipEndpoints) {
+        if (seen) {
+          uint8_t bit = 1U << (index % 8);
+          if (seen[index / 8] & bit) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          seen[index / 8] |= bit;
+        }
+        continue;
+      }
       SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, index);
       if (0 != pSource->producerQueryId) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
@@ -17896,7 +17986,7 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       pSource->producerQueryId = producerQueryId;
     }
   }
-  if (!tDecodeIsEnd(&decoder)) {
+  if (decoder.size - decoder.pos > 1) {
     int8_t version = 0;
     int8_t flags = 0;
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &version));
@@ -17912,14 +18002,17 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
           pReq->correlation.templateId < -1) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
-      TAOS_CHECK_EXIT(tDecodeCorrelationParams(&decoder, &pReq->pCorrelationParamDefs,
-                                               &pReq->pCorrelationParamValues));
-      for (int32_t i = 0; i < subEndpointNum; ++i) {
-        SDownstreamSourceNode* pSource = taosArrayGetP(pReq->subEndPoints, i);
-        if (0 == pSource->producerQueryId) {
-          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
-        }
+      int32_t count = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(&decoder, &count));
+      if (count < 0 || count > MAX_CORRELATION_PARAM_COUNT) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      if (skipCorrelation) {
+        TAOS_CHECK_EXIT(tSkipCorrelationParams(&decoder, count));
+      } else {
+        TAOS_CHECK_EXIT(tDecodeCorrelationParamsImpl(&decoder, count, &pReq->pCorrelationParamDefs,
+                                                    &pReq->pCorrelationParamValues, false));
       }
+      if (producerNum != subEndpointNum) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      if (skipCorrelation) memset(&pReq->correlation, 0, sizeof(pReq->correlation));
     }
     if (flags & 2) {
       uint8_t* pWire = NULL;
@@ -17932,11 +18025,15 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       if (decodedLen != pReq->correlationTemplatesLen) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
-      pReq->pCorrelationTemplates = taosMemoryMalloc(decodedLen);
-      if (NULL == pReq->pCorrelationTemplates) {
-        TAOS_CHECK_EXIT(terrno);
+      if (skipCorrelation) {
+        pReq->correlationTemplatesLen = 0;
+      } else {
+        pReq->pCorrelationTemplates = taosMemoryMalloc(decodedLen);
+        if (NULL == pReq->pCorrelationTemplates) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        memcpy(pReq->pCorrelationTemplates, pWire, decodedLen);
       }
-      memcpy(pReq->pCorrelationTemplates, pWire, decodedLen);
     }
     if (flags & 4) {
       uint8_t* pWire = NULL;
@@ -17949,11 +18046,15 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       if (decodedLen != pReq->correlationTimeInitLen) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
-      pReq->pCorrelationTimeInit = taosMemoryMalloc(decodedLen);
-      if (NULL == pReq->pCorrelationTimeInit) {
-        TAOS_CHECK_EXIT(terrno);
+      if (skipCorrelation) {
+        pReq->correlationTimeInitLen = 0;
+      } else {
+        pReq->pCorrelationTimeInit = taosMemoryMalloc(decodedLen);
+        if (NULL == pReq->pCorrelationTimeInit) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        memcpy(pReq->pCorrelationTimeInit, pWire, decodedLen);
       }
-      memcpy(pReq->pCorrelationTimeInit, pWire, decodedLen);
     }
     if (flags & 8) {
       int32_t count = 0;
@@ -17961,14 +18062,14 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
       if (count <= 0 || count > MAX_CORRELATION_PARAM_COUNT) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
-      pReq->pCorrelationNodeList = taosArrayInit(count, sizeof(SQueryNodeLoad));
-      if (NULL == pReq->pCorrelationNodeList) {
-        TAOS_CHECK_EXIT(terrno);
+      if (!skipCorrelation) {
+        pReq->pCorrelationNodeList = taosArrayInit(count, sizeof(SQueryNodeLoad));
+        if (!pReq->pCorrelationNodeList) TAOS_CHECK_EXIT(terrno);
       }
       for (int32_t i = 0; i < count; ++i) {
         SQueryNodeLoad node = {0};
         TAOS_CHECK_EXIT(tDecodeSQueryNodeLoad(&decoder, &node));
-        if (NULL == taosArrayPush(pReq->pCorrelationNodeList, &node)) {
+        if (!skipCorrelation && NULL == taosArrayPush(pReq->pCorrelationNodeList, &node)) {
           TAOS_CHECK_EXIT(terrno);
         }
       }
@@ -17976,15 +18077,16 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->allowFollowerRead));
-  } else if (!followerReadDecoded) {
+  } else {
     pReq->allowFollowerRead = false;
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
-  tEndDecode(&decoder);
+
 
 _exit:
+  if (seen != inlineSeen) taosMemoryFree(seen);
   tDecoderClear(&decoder);
   if (code != 0) {
     tFreeSSubQueryMsg(pReq);
@@ -22511,7 +22613,19 @@ static int32_t decodeAlterTableUpdateTagVal(SDecoder *pDecoder, SVAlterTbReq *pR
 
   SUpdatedTagVal     tag = {0};
   tag.colId = pReq->colId;
-  TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+  {
+    // tagName is matched with strcmp() in updatedTagValueArrayToHashMap(), so the
+    // terminating '\0' must live inside the length-prefixed payload. A zero-length
+    // payload yields a one-past-end pointer and is rejected; a 1-byte "\0" payload
+    // is a legitimate empty string and stays accepted.
+    uint8_t *pTagNameWire = NULL;
+    uint32_t tagNameWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+    if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    tag.tagName = (char *)pTagNameWire;
+  }
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
   if (!tag.isNull) {
@@ -22559,7 +22673,17 @@ static int32_t decodeAlterTableUpdateMultiTagVal(SDecoder *pDecoder, SVAlterTbRe
   for (int32_t i = 0; i < nTags; i++) {
     SUpdatedTagVal tag = {0};
     TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+    {
+      // same C-string consumer as the other SET TAG decoders (strcmp in
+      // updatedTagValueArrayToHashMap()); only zero-length payloads are rejected
+      uint8_t *pTagNameWire = NULL;
+      uint32_t tagNameWireLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+      if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      tag.tagName = (char *)pTagNameWire;
+    }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
     if (!tag.isNull) {
@@ -22612,11 +22736,37 @@ static int32_t decodeAlterTableUpdateMultiTableTagVal(SDecoder *pDecoder, SVAlte
       int8_t useRegexp;
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+      {
+        // tagName is matched with strcmp() in updatedTagValueArrayToHashMap(), so the
+        // terminating '\0' must live inside the length-prefixed payload. A zero-length
+        // payload yields a one-past-end pointer and is rejected; a 1-byte "\0" payload
+        // is a legitimate empty string and stays accepted.
+        uint8_t *pTagNameWire = NULL;
+        uint32_t tagNameWireLen = 0;
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+        if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        tag.tagName = (char *)pTagNameWire;
+      }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
       if (useRegexp) {
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
+        // regexp is handed to threadGetRegComp()/regcomp() and replacement to the
+        // substitution builder, both of which walk them as C strings.
+        uint8_t *pRegexpWire = NULL;
+        uint8_t *pReplacementWire = NULL;
+        uint32_t regexpWireLen = 0;
+        uint32_t replacementWireLen = 0;
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pRegexpWire, &regexpWireLen));
+        if (regexpWireLen == 0 || pRegexpWire[regexpWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReplacementWire, &replacementWireLen));
+        if (replacementWireLen == 0 || pReplacementWire[replacementWireLen - 1] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        tag.regexp = (char *)pRegexpWire;
+        tag.replacement = (char *)pReplacementWire;
       } else {
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
         if (!tag.isNull) {
@@ -22752,11 +22902,33 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
         int8_t useRegexp;
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &useRegexp));
         TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &tag.colId));
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.tagName));
+        {
+          // same C-string consumers as UPDATE_MULTI_TABLE_TAG_VAL above; only
+          // zero-length payloads are rejected
+          uint8_t *pTagNameWire = NULL;
+          uint32_t tagNameWireLen = 0;
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pTagNameWire, &tagNameWireLen));
+          if (tagNameWireLen == 0 || pTagNameWire[tagNameWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          tag.tagName = (char *)pTagNameWire;
+        }
         TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.tagType));
         if (useRegexp) {
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.regexp));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &tag.replacement));
+          uint8_t *pRegexpWire = NULL;
+          uint8_t *pReplacementWire = NULL;
+          uint32_t regexpWireLen = 0;
+          uint32_t replacementWireLen = 0;
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pRegexpWire, &regexpWireLen));
+          if (regexpWireLen == 0 || pRegexpWire[regexpWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pReplacementWire, &replacementWireLen));
+          if (replacementWireLen == 0 || pReplacementWire[replacementWireLen - 1] != '\0') {
+            TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+          }
+          tag.regexp = (char *)pRegexpWire;
+          tag.replacement = (char *)pReplacementWire;
         } else {
           TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &tag.isNull));
           if (!tag.isNull) {

@@ -337,6 +337,10 @@ static FORCE_INLINE int32_t tDecodeU32v(SDecoder* pCoder, uint32_t* val) {
   uint32_t tval = 0;
   for (int32_t i = 0;; i++) {
     TAOS_CHECK_RETURN(tDecodeU8(pCoder, &byte));
+    // The fifth byte contains at most the four high bits of a uint32_t.
+    if (i == 4 && byte > 0x0f) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+    }
     if (byte < ENCODE_LIMIT) {
       tval |= (((uint32_t)byte) << (7 * i));
       break;
@@ -524,35 +528,39 @@ static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize) {
 }
 
 // Decode a length-prefixed C string into a caller-owned fixed-size buffer, rejecting the message
-// when the string does not fit.
+// when the string does not fit or is not NUL-terminated.
 //
-// Unlike tDecodeCStrToN(), this is strict: the decoded length must be smaller than dstSize, so the
+// Unlike tDecodeCStrToN(), this is strict: the raw wire length must not exceed dstSize, so the
 // historical tEncodeCStrWithLen(x, sizeof(x)) encoding that carries one byte more than the
 // destination is rejected even when the string is NUL-terminated inside it. Use it only for
 // fields whose encoder never emits that form, e.g. SMndCheckColRefReq.tbFName / colName.
+//
+// The length prefix alone is not enough: tDecodeCStrAndLen() only subtracts one from it and assumes
+// the last payload byte is the terminating '\0'. A payload that exactly fills the destination
+// (wireLen == dstSize) without a trailing NUL would otherwise be accepted and handed to C string
+// consumers (%s, strlen, strcmp) as an unterminated buffer. Require the terminator to be present in
+// the payload itself; tEncodeCStr() always emits it (wireLen == strlen + 1).
 // FORCE_INLINE matches the rest of this header and keeps the helper out of -Wunused-function in TUs
 // that include tencode.h without calling it.
 static FORCE_INLINE int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize) {
   char*    pStr = NULL;
-  uint32_t len = 0;  // decoded string length, excluding the terminating '\0'
-  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
+  uint32_t wireLen = 0;  // raw payload length, including the terminating '\0'
+  TAOS_CHECK_RETURN(tDecodeBinary(pCoder, (uint8_t**)&pStr, &wireLen));
 
-  // len + 1 bytes are copied below; comparing len (rather than len + 1) against dstSize keeps the
-  // addition from wrapping and still enforces that the terminating '\0' fits in the buffer.
-  if (len >= dstSize) {
-    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
-  }
-
-  // A NULL / empty encoding (tEncodeCStr(NULL) / "") carries no payload after the length prefix:
-  // tDecodeCStrAndLen returns len == 0 with pStr pointing at (or, when the field is the last one
-  // in the message, one past) the decoded region. Copying len + 1 == 1 bytes from pStr would
-  // therefore read one byte that does not belong to the field. Write an empty string instead.
-  if (len == 0) {
+  // tEncodeCStr(NULL) emits a zero length and no payload: pStr then points at (or, when the field
+  // is the last one in the message, one past) the decoded region, so do not read from it.
+  if (wireLen == 0) {
     val[0] = '\0';
     return 0;
   }
 
-  TAOS_MEMCPY(val, pStr, len + 1);
+  // wireLen == dstSize is fine when the last payload byte is '\0': the string and its terminator
+  // fill the buffer exactly. A string that does not fit, or a fill without a terminator, is rejected.
+  if (wireLen > dstSize || pStr[wireLen - 1] != '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  TAOS_MEMCPY(val, pStr, wireLen);
   return 0;
 }
 
