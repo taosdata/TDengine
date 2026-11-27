@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,9 +17,30 @@
 
 #define _DEFAULT_SOURCE
 #include "tcompare.h"
+#include "tutil.h"
 #include "thash.h"
 #include "types.h"
 #include "xxhash.h"
+
+#ifndef __has_attribute
+#define __has_attribute(x) 0
+#endif
+
+#if defined(WINDOWS)
+#define TAOS_NO_SANITIZE_ADDR_UB
+#elif defined(__clang__) && __has_attribute(no_sanitize)
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize("address", "undefined")))
+#elif defined(__GNUC__) && !defined(__clang__)
+#if (__GNUC__ > 4) || ((__GNUC__ == 4) && (__GNUC_MINOR__ >= 9))
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize_address, no_sanitize_undefined))
+#elif (__GNUC__ == 4) && (__GNUC_MINOR__ >= 8)
+#define TAOS_NO_SANITIZE_ADDR_UB __attribute__((no_sanitize_address))
+#else
+#define TAOS_NO_SANITIZE_ADDR_UB
+#endif
+#else
+#define TAOS_NO_SANITIZE_ADDR_UB
+#endif
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
 
@@ -106,8 +129,12 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
   const uint8_t *end = data + (len - (len & 7));
 
   while (data != end) {
+#ifndef NO_UNALIGNED_ACCESS
     uint64_t k = *((uint64_t *)data);
-
+#else
+    uint64_t k = 0;
+    memcpy(&k, data, sizeof(uint64_t));
+#endif
     k *= m;
     k ^= k >> r;
     k *= m;
@@ -143,6 +170,9 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len) {
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
+
+
+TAOS_NO_SANITIZE_ADDR_UB
 uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   float f = GET_FLOAT_VAL(key);
   if (isnan(f)) {
@@ -153,8 +183,8 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0;
   }
   if (fabs(f) < FLT_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
+    uint32_t t = (uint32_t)(round(BASE * (f + DLT)));
+    return t;
   } else {
     return 0x7fc00000;
   }
@@ -165,18 +195,19 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0x7fc00000;
   }
 
-  if (FLT_EQUAL(f, 0.0)) {
+  if (DBL_EQUAL(f, 0.0)) {
     return 0;
   }
   if (fabs(f) < DBL_MAX / BASE - DLT) {
-    int32_t t = (int32_t)(round(BASE * (f + DLT)));
-    return (uint32_t)t;
+    uint64_t bits;
+    memcpy(&bits, &f, sizeof(double));
+    return (uint32_t)(bits ^ (bits >> 32));
   } else {
     return 0x7fc00000;
   }
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
-  uint64_t val = *(uint64_t *)key;
+  uint64_t val = taosGetUInt64Aligned((uint64_t *)key);
 
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);
@@ -196,6 +227,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
       fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_UINT:
@@ -235,6 +267,10 @@ int32_t taosDoubleEqual(const void *a, const void *b, size_t UNUSED_PARAM(sz)) {
   return getComparFunc(TSDB_DATA_TYPE_DOUBLE, -1)(a, b);
 }
 
+int32_t taosDecimalEqual(const void* a, const void* b, size_t UNUSED_PARAM(sz)) {
+  return 0;
+}
+
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
   _equal_fn_t fn = NULL;
   switch (type) {
@@ -243,6 +279,10 @@ _equal_fn_t taosGetDefaultEqualFunction(int32_t type) {
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       fn = taosDoubleEqual;
+      break;
+    case TSDB_DATA_TYPE_DECIMAL64:
+    case TSDB_DATA_TYPE_DECIMAL:
+      fn = memcmp;
       break;
     default:
       fn = memcmp;

@@ -1,0 +1,46 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+[tool.ruff]
+target-version = "py310"
+line-length = 140
+exclude = [
+    ".venv",
+    ".ruff_cache",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# E/W: pycodestyle  F: pyflakes  I: isort  N: pep8-naming
+# UP: pyupgrade     C90: mccabe complexity
+select = ["E", "F", "W", "I"]
+ignore = [
+    "N802",   # function name should be lowercase (matches pylint c0103 scope)
+    "N803",   # argument name should be lowercase
+    "N806",   # variable in function should be lowercase (X, X_train etc. are conventional in ML code)
+    "UP007",  # X | Y union syntax — keep `Optional`/`Union` for py3.9 compat
+    "E712",   # Avoid equality comparisons to `True`; use `i.get('builtins'):` for truth checks
+    "E402",   # Module level import not at top of file
+    "F841",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["taosanalytics"]
+
+[tool.ruff.lint.per-file-ignores]
+"packaging/win_release.py" = ["E501"]

@@ -1,0 +1,20 @@
+set max_binary_display_width 300;
+
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 >= "2020-01-01 00:00:00" and _c0 < "2020-01-02 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 >= "2020-01-04 00:00:00" and _c0 < "2020-01-05 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 >= "2020-01-04 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 <= "2020-01-04 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 > "2020-01-04 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 < "2020-01-04 00:00:00" partition by tbname;
+explain verbose true select * from test_vtable_select.vtb_virtual_ntb_full where _c0 = "2020-01-04 00:00:00" partition by tbname;
+
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname STATE_WINDOW(CASE WHEN tbname = 'vtb_virtual_ntb_full' THEN 1 ELSE 0 END);
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname STATE_WINDOW(tbname);
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full STATE_WINDOW(CASE WHEN tbname = 'vtb_virtual_ntb_full' THEN 1 ELSE 0 END);
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full STATE_WINDOW(tbname);
+
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname EVENT_WINDOW START WITH tbname = 'vtb_virtual_ntb_full' END WITH tbname = 'vtb_virtual_ntb_full';
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full EVENT_WINDOW START WITH tbname = 'vtb_virtual_ntb_full' END WITH tbname = 'vtb_virtual_ntb_full';
+
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full partition by tbname EVENT_WINDOW START WITH tbname != 'vtb_virtual_ntb_full' END WITH tbname != 'vtb_virtual_ntb_full';
+explain verbose true select count(*) from test_vtable_select.vtb_virtual_ntb_full EVENT_WINDOW START WITH tbname != 'vtb_virtual_ntb_full' END WITH tbname != 'vtb_virtual_ntb_full';

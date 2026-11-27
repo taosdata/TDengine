@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,21 +33,21 @@
 extern "C" {
 #endif
 
-// tqDebug ===================
 // clang-format off
-#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255,         __VA_ARGS__); }} while(0)
+#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255,         __VA_ARGS__); }} while(0)
+#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  255,         __VA_ARGS__); }} while(0)
+#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  INFO  ", DEBUG_INFO,  255,         __VA_ARGS__); }} while(0)
+#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  DEBUG ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  TRACE ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define IS_OFFSET_RESET_TYPE(_t)  ((_t) < 0)
 
-// tqExec
+// tqExec handle types
 typedef struct {
   char* qmsg;  // SubPlanToString
+  SSchemaWrapper pSW;
 } STqExecCol;
 
 typedef struct {
@@ -55,19 +57,20 @@ typedef struct {
 } STqExecTb;
 
 typedef struct {
-  SHashObj* pFilterOutTbUid;
-} STqExecDb;
-
-typedef struct {
   int8_t      subType;
   STqReader*  pTqReader;
   qTaskInfo_t task;
+
+  // Failed-poll tracking for the recovery log: the first failure of an episode is logged as ERROR,
+  // later failures are rate limited so a handle that keeps failing cannot flood the log.
+  uint32_t failCnt;         // consecutive polls that failed, reset when a poll succeeds
+  uint32_t failLogSkipped;  // failed polls not logged because of the rate limit
+  int64_t  lastFailLogMs;   // last time the failed-poll log was emitted
+
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
-    STqExecDb  execDb;
   };
-  int32_t numOfCols;  // number of out pout column, temporarily used
 } STqExecHandle;
 
 typedef enum tq_handle_status {
@@ -90,74 +93,63 @@ typedef struct {
   // for replay
   SSDataBlock* block;
   int64_t      blockTime;
+  SHashObj*    tableCreateTimeHash;  // for process create table msg in submit if fetch raw data
+
+  // txn-atomic CDC: when tqFetchLog encounters TXN_COMMIT, the cached message
+  // sequence is parked here and consumed one-by-one on subsequent poll iterations.
+  SArray* pTxnPendingMsgs;     // SArray<SWalContCopy*>*; NULL when no pending txn
+  int32_t txnPendingIdx;       // next index to consume from pTxnPendingMsgs
+  int64_t txnPendingFetchVer;  // fetchVer to advance to after pending queue drains
+
+  // retry tracking for txn cache miss: counts consecutive NOT_READY polls
+  // for the same TXN_COMMIT offset.  Reset to 0 whenever offset advances.
+  int32_t txnNotReadyRetries;
+  int64_t txnNotReadyOffset;   // offset at which retries are being counted
 } STqHandle;
 
 struct STQ {
   SVnode*         pVnode;
   char*           path;
   SRWLatch        lock;
-  SHashObj*       pPushMgr;    // subKey -> STqHandle
   SHashObj*       pHandle;     // subKey -> STqHandle
-  SHashObj*       pCheckInfo;  // topic -> SAlterCheckInfo
   SHashObj*       pOffset;     // subKey -> STqOffsetVal
   TDB*            pMetaDB;
   TTB*            pExecStore;
-  TTB*            pCheckStore;
   TTB*            pOffsetStore;
-  SStreamMeta*    pStreamMeta;
 };
 
-int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
-int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
-void    tqDestroyTqHandle(void* data);
+// tqMeta - handle encode/decode and lifecycle
+int32_t tqEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
+int32_t tqDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
+void    tqDestroySTqHandle(void* data);
 
-// tqRead
-int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqBatchMetaRsp* pBatchMetaRsp, STqOffsetVal* offset, int64_t timeout);
-int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset, const SMqPollReq* pRequest);
-int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId);
-
-// tqExec
-int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SPackedData submit, SMqDataRsp* pRsp, int32_t* totalRows, int8_t sourceExcluded);
-int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp,
-                      int32_t type, int32_t vgId);
-void    tqPushEmptyDataRsp(STqHandle* pHandle, int32_t vgId);
-
-// tqMeta
+// tqMeta - meta store operations
 int32_t tqMetaOpen(STQ* pTq);
 void    tqMetaClose(STQ* pTq);
 int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle);
 int32_t tqMetaSaveInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen, const void* value, uint32_t vLen);
 int32_t tqMetaDeleteInfo(STQ* pTq, TTB* ttb, const void* key, uint32_t kLen);
 int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
-int32_t tqMetaDecodeCheckInfo(STqCheckInfo *info, void *pVal, uint32_t vLen);
 int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, uint32_t vLen);
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
-int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
-int32_t tqMetaTransform(STQ* pTq);
-// tqSink
-int32_t tqBuildDeleteReq(STQ* pTq, const char* stbFullName, const SSDataBlock* pDataBlock, SBatchDeleteReq* deleteReq,
-                         const char* pIdStr, bool newSubTableRule);
-void    tqSinkDataIntoDstTable(SStreamTask* pTask, void* vnode, void* data);
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset* pOffset);  // copy-out, free with tDeleteSTqOffset
 
-// tqOffset
-int32_t tqBuildFName(char** data, const char* path, char* name);
+// tqOffset - offset file restore
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
-// tq util
-int32_t tqExtractDelDataBlock(const void* pData, int32_t len, int64_t ver, void** pRefBlock, int32_t type, EStreamType blockType);
+// tqScan - main data extraction entry point (used in tq.c)
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
-int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, const SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
+int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged);
+
+// tqUtil - common response utilities (used across multiple tq source files)
+int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp,
+                      int32_t type, int32_t vgId);
+int32_t tqDoSendDataRsp(const SRpcHandleInfo* pRpcHandleInfo, SMqDataRsp* pRsp, int32_t epoch, int64_t consumerId,
                         int32_t type, int64_t sver, int64_t ever);
 int32_t tqInitDataRsp(SMqDataRsp* pRsp, STqOffsetVal pOffset);
-void    tqUpdateNodeStage(STQ* pTq, bool isLeader);
-int32_t tqSetDstTableDataPayload(uint64_t suid, const STSchema* pTSchema, int32_t blockIndex, SSDataBlock* pDataBlock,
-                                 SSubmitTbData* pTableData, int64_t earlyTs, const char* id);
-int32_t doMergeExistedRows(SSubmitTbData* pExisted, const SSubmitTbData* pNew, const char* id);
-
-int32_t buildAutoCreateTableReq(const char* stbFullName, int64_t suid, int32_t numOfCols, SSDataBlock* pDataBlock,
-                                SArray* pTagArray, bool newSubTableRule, SVCreateTbReq** pReq);
-int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, void** pRefBlock, int32_t type);
+void    tqInitMqRspHead(SMqRspHead* pMsgHead, int32_t type, int32_t epoch, int64_t consumerId, int64_t sver,
+                      int64_t ever);
 
 #define TQ_ERR_GO_TO_END(c)          \
   do {                               \
@@ -177,7 +169,6 @@ int32_t tqExtractDropCtbDataBlock(const void* data, int32_t len, int64_t ver, vo
 
 #define TQ_SUBSCRIBE_NAME "subscribe"
 #define TQ_OFFSET_NAME    "offset-ver0"
-#define TQ_POLL_MAX_TIME  1000
 
 #ifdef __cplusplus
 }

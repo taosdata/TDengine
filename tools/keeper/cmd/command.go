@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package cmd
 
 import (
@@ -47,7 +62,7 @@ func NewCommand(conf *config.Config) *Command {
 			ExpectContinueTimeout: 1 * time.Second,
 			DisableCompression:    true,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: conf.TDengine.SkipVerify,
 			},
 		},
 	}
@@ -181,13 +196,13 @@ func (cmd *Command) TransferTaosdDnodesDataDirs() error {
 }
 
 func (cmd *Command) TransferTaosdMnodesInfo() error {
-	sql := "select cluster_id, mnode_id, mnode_ep, CASE role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as role, ts from m_info a where "
+	sql := "select cluster_id, mnode_id, mnode_ep, CASE `role` WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as `role`, ts from m_info a where "
 	dstTable := "taosd_mnodes_info"
 	return cmd.TransferTableToDst(sql, dstTable, 3)
 }
 
 func (cmd *Command) TransferTaosdVnodesInfo() error {
-	sql := "select cluster_id, 0 as vgroup_id, 'UNKNOWN' as database_name, dnode_id, CASE vnode_role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as role, ts from vnodes_role a where "
+	sql := "select cluster_id, 0 as vgroup_id, 'UNKNOWN' as database_name, dnode_id, CASE vnode_role WHEN 'offline' THEN 0 WHEN 'follower' THEN 100 WHEN 'candidate' THEN 101 WHEN 'leader' THEN 102 WHEN 'learner' THEN 104 ELSE 103 END as `role`, ts from vnodes_role a where "
 	dstTable := "taosd_vnodes_info"
 	return cmd.TransferTableToDst(sql, dstTable, 4)
 }
@@ -216,7 +231,7 @@ func (cmd *Command) ProcessDrop(conf *config.Config) {
 	logger.Infof("use database:%s", conf.Metrics.Database.Name)
 
 	for _, stable := range dropStableList {
-		if _, err := cmd.conn.Exec(ctx, "DROP STABLE IF EXISTS "+stable, util.GetQidOwn()); err != nil {
+		if _, err := cmd.conn.Exec(ctx, "DROP STABLE IF EXISTS "+stable, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			logger.Errorf("drop stable %s, error:%s", stable, err)
 			panic(err)
 		}
@@ -321,7 +336,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		"(ts timestamp, first_ep varchar(255), first_ep_dnode_id INT, cluster_version varchar(20)) " +
 		"tags (cluster_id varchar(50))"
 
-	if _, err := cmd.conn.Exec(ctx, createTableSql, util.GetQidOwn()); err != nil {
+	if _, err := cmd.conn.Exec(ctx, createTableSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("create taosd_cluster_basic error, msg:%s", err)
 		return err
 	}
@@ -332,7 +347,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		querySql := fmt.Sprintf("select cluster_id, first_ep, first_ep_dnode_id, `version` as cluster_version, ts from cluster_info where ts > %d and ts <= %d",
 			current.UnixMilli(), current.Add(time.Duration(delta)).UnixMilli())
 		logger.Tracef("query sql:%s", querySql)
-		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn())
+		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
 			logger.Errorf("query cluster_info error, msg:%s", err)
 			return err
@@ -341,33 +356,37 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 		// transfer data to new table, only this table need use insert statement
 		var buf bytes.Buffer
 
-		// 使用 map 将二维数组切分为多个二维数组
+		// Use a map to split the 2D array into multiple 2D arrays
 		result := make(map[string][][]interface{})
 		for _, row := range data.Data {
 			key := row[0].(string) // 使用第一列的值作为 key
 			result[key] = append(result[key], row)
 		}
 
-		// 按照不同 tag 来迁移数据
+		// Migrate data according to different tags
 		for _, dataByCluster := range result {
 			buf.Reset()
 
 			for _, row := range dataByCluster {
 				if len(buf.Bytes()) == 0 {
+					// Historical values may have been written before the report
+					// endpoint escaped them, so sanitize them the same way the
+					// current write path does before re-executing them as SQL.
+					clusterID := row[0].(string)
 					sql := fmt.Sprintf(
 						"insert into taosd_cluster_basic_%s using taosd_cluster_basic tags ('%s') values ",
-						row[0].(string), row[0].(string))
+						util.ToValidTableName(clusterID), util.EscapeTrunc(clusterID, 50))
 
 					buf.WriteString(sql)
 				}
 
 				sql := fmt.Sprintf(
 					"(%d, '%s', %d, '%s')",
-					row[4].(time.Time).UnixMilli(), row[1].(string), row[2].(int32), row[3].(string))
+					row[4].(time.Time).UnixMilli(), util.EscapeTrunc(row[1].(string), 255), row[2].(int32), util.EscapeTrunc(row[3].(string), 20))
 				buf.WriteString(sql)
 
 				if buf.Len() >= MAX_SQL_LEN {
-					rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn())
+					rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn(config.Conf.InstanceID))
 					if err != nil {
 						logger.Errorf("insert taosd_cluster_basic error, msg:%s", err)
 						return err
@@ -380,7 +399,7 @@ func (cmd *Command) TransferTaosdClusterBasicInfo() error {
 			}
 
 			if buf.Len() > 0 {
-				rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn())
+				rowsAffected, err := cmd.conn.Exec(context.Background(), buf.String(), util.GetQidOwn(config.Conf.InstanceID))
 				if err != nil {
 					logger.Errorf("insert taosd_cluster_basic error, msg:%s", err)
 					return err
@@ -409,7 +428,7 @@ func (cmd *Command) TransferTableToDst(sql string, dstTable string, tagNum int) 
 		querySql := fmt.Sprintf(sql+" a.ts > %d and a.ts <= %d",
 			current.UnixMilli(), current.Add(time.Duration(delta)).UnixMilli())
 		logger.Tracef("query sql:%s", querySql)
-		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn())
+		data, err := cmd.conn.Query(ctx, querySql, util.GetQidOwn(config.Conf.InstanceID))
 		if err != nil {
 			logger.Errorf("query cluster_info error, msg:%s", err)
 			return err

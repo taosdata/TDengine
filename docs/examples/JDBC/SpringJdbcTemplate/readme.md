@@ -27,6 +27,7 @@ Navigate to the `TDengine/tests/examples/JDBC/SpringJdbcTemplate` directory and 
 ```shell
 mvn clean package
 ```
+
 After successfully packaging, navigate to the `target/` directory and execute the following commands to run the tests:
 
 ```shell

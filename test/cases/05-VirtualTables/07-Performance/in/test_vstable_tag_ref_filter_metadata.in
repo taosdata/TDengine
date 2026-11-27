@@ -1,0 +1,20 @@
+USE vt_tag_filter_idmp;
+
+# Referenced-tag predicates include empty virtual children.
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '13800000' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` IS NULL ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` = '' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE NOT (`手机` LIKE '1380%') ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' OR local_tag = 1 ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' AND local_tag = 0 ORDER BY tbname;
+SELECT tbname FROM vst WHERE `手机` LIKE '1380%' GROUP BY tbname ORDER BY tbname;
+
+# Restrict child names before resolving referenced tags.
+SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_000000' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_000000' AND `手机` = '13800000' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE tbname IN ('vt_000000', 'vt_000001') AND `手机` LIKE '1380%' ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE tbname = 'vt_missing' AND `手机` IS NULL ORDER BY tbname;
+SELECT DISTINCT tbname FROM vst WHERE `手机` LIKE '1380%' ORDER BY tbname LIMIT 3;

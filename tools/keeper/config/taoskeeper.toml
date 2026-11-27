@@ -1,5 +1,22 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 instanceId = 64
 
+# Listening host, supports IPv4/Ipv6, default is ""
+host = ""
 # Listen port, default is 6043
 port = 6043
 
@@ -10,11 +27,19 @@ gopoolsize = 50000
 RotationInterval = "15s"
 
 [tdengine]
+# Use square brackets for IPv6 (e.g., "[::1]") and dotted decimal for IPv4.
 host = "127.0.0.1"
 port = 6041
 username = "root"
 password = "taosdata"
 usessl = false
+# Skip TDengine server TLS certificate verification when usessl is true.
+# Default is true for compatibility; set to false to verify the server certificate.
+# Before setting this to false, make sure the CA that signed the server certificate
+# is installed in the system trust store (on Linux you may instead point
+# SSL_CERT_FILE/SSL_CERT_DIR to the CA file), otherwise connections will fail
+# with x509 errors when the server uses a self-signed or internal-CA certificate.
+skipVerify = true
 
 [metrics]
 # metrics prefix in metrics names.
@@ -33,6 +58,17 @@ buffer = 64
 keep = 90
 cachemodel = "both"
 
+# prometheus v2 memory cache mode configuration
+[prometheus]
+# Additional tables to cache (restore from default exclusion list)
+# Example: includeTables = ["taosd_write_metrics", "adapter_c_interface"]
+includeTables = []
+
+# TTL for cached metrics in memory (in seconds)
+# Data older than this will be automatically cleaned up
+# Default: 300 (5 minutes), Minimum: 60 (1 minute)
+cacheTTL = 300
+
 [environment]
 # Whether running in cgroup.
 incgroup = false
@@ -42,9 +78,9 @@ incgroup = false
 # path = "/var/log/taos"
 level = "info"
 # Number of log file rotations before deletion.
-rotationCount = 30
+rotationCount = 3
 # The number of days to retain log files.
-keepDays = 30
+keepDays = 3
 # The maximum size of a log file before rotation.
 rotationSize = "1GB"
 # If set to true, log files will be compressed.

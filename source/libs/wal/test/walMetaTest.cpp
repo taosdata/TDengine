@@ -1,9 +1,30 @@
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <cstring>
 #include <iostream>
 #include <queue>
+#include <thread>
+#include <vector>
+#include <atomic>
 
 #include "walInt.h"
+#include "tglobal.h"
 
 const char*  ranStr = "tvapq02tcp";
 const int    ranStrLen = strlen(ranStr);
@@ -94,6 +115,7 @@ class WalKeepEnv : public ::testing::Test {
     pCfg->retentionPeriod = 0;
     pCfg->retentionSize = 0;
     pCfg->level = TAOS_WAL_FSYNC;
+    taosSetSkipKeyCheckMode();
     pWal = walOpen(pathName, pCfg);
     taosMemoryFree(pCfg);
     ASSERT(pWal != NULL);
@@ -124,7 +146,7 @@ class WalRetentionEnv : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -162,7 +184,7 @@ class WalSkipLevel : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -200,7 +222,7 @@ class WalEncrypted : public ::testing::Test {
   }
 
   void SetUp() override {
-    SWalCfg cfg;
+    SWalCfg cfg = {0};
     cfg.rollPeriod = -1;
     cfg.segSize = -1;
     cfg.committed = -1;
@@ -209,7 +231,7 @@ class WalEncrypted : public ::testing::Test {
     cfg.rollPeriod = 0;
     cfg.vgId = 0;
     cfg.level = TAOS_WAL_FSYNC;
-    cfg.encryptAlgorithm = 1;
+    cfg.encryptAlgr = 1;
     pWal = walOpen(pathName, &cfg);
     ASSERT(pWal != NULL);
   }
@@ -279,10 +301,10 @@ TEST_F(WalKeepEnv, readOldMeta) {
   syncMeta.term = UINT64_MAX;
 
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -312,10 +334,10 @@ TEST_F(WalKeepEnv, readOldMeta) {
 TEST_F(WalCleanEnv, write) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
-    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i + 2, i, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, TSDB_CODE_WAL_INVALID_VER);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -326,7 +348,7 @@ TEST_F(WalCleanEnv, write) {
 TEST_F(WalCleanEnv, rollback) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
@@ -349,12 +371,12 @@ TEST_F(WalCleanEnv, rollback) {
 TEST_F(WalCleanEnv, rollbackMultiFile) {
   int code;
   for (int i = 0; i < 10; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     if (i == 5) {
       walBeginSnapshot(pWal, i, 0);
-      walEndSnapshot(pWal);
+      walEndSnapshot(pWal, false);
     }
   }
   code = walRollback(pWal, 12);
@@ -371,7 +393,7 @@ TEST_F(WalCleanEnv, rollbackMultiFile) {
 
   ASSERT_EQ(pWal->vers.lastVer, 5);
 
-  code = walAppendLog(pWal, 6, 6, syncMeta, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 6, 6, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pWal->vers.lastVer, 6);
 
@@ -383,7 +405,7 @@ TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
   for (i = 0; i < 100; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
     code = walCommit(pWal, i);
@@ -392,15 +414,15 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
-  walEndSnapshot(pWal);
+  walEndSnapshot(pWal, false);
   ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
   ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
 
-  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
   ASSERT_NE(code, 0);
 
   for (; i < 200; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
     ASSERT_EQ(pWal->vers.commitVer, i);
@@ -408,14 +430,14 @@ TEST_F(WalCleanDeleteEnv, roll) {
 
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
 TEST_F(WalKeepEnv, readHandleRead) {
   walResetEnv();
   int         code;
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   int i;
@@ -423,7 +445,7 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
   for (int i = 0; i < 1000; i++) {
@@ -450,10 +472,33 @@ TEST_F(WalKeepEnv, readHandleRead) {
   walCloseReader(pRead);
 }
 
+TEST_F(WalCleanEnv, readResetRestoresSameVersionAfterCursorAdvance) {
+  ASSERT_EQ(walAppendLog(pWal, 0, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL), 0);
+  ASSERT_EQ(walAppendLog(pWal, 1, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL), 0);
+  ASSERT_EQ(walCommit(pWal, 1), 0);
+
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+  ASSERT_EQ(walReadVer(pRead, 0), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 0);
+  ASSERT_EQ(pRead->curVersion, 1);
+
+  // Simulate a failed body read: the file cursor is already after V, but curVersion still names V.
+  pRead->curVersion = 0;
+  walReadReset(pRead);
+  ASSERT_EQ(pRead->curVersion, -1);
+
+  ASSERT_EQ(walReadVer(pRead, 0), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 0);
+  ASSERT_EQ(walReadVer(pRead, 1), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 1);
+  walCloseReader(pRead);
+}
+
 TEST_F(WalKeepEnv, walLogExist) {
   walResetEnv();
   int         code;
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   int i;
@@ -461,7 +506,7 @@ TEST_F(WalKeepEnv, walLogExist) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
   walLogExist(pWal, 0);
@@ -477,7 +522,7 @@ TEST_F(WalKeepEnv, walScanLogGetLastVerHeadMissMatch) {
     sprintf(newStr, "%s-%d", ranStr, 0);
     sprintf(newStr, "%s-%d", ranStr, 0);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, 0, NULL);
   } while (0);
 
   int  i = 0;
@@ -512,7 +557,7 @@ TEST_F(WalKeepEnv, walScanLogGetLastVerBodyMissMatch) {
     sprintf(newStr, "%s-%d", ranStr, 0);
     sprintf(newStr, "%s-%d", ranStr, 0);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, 0, NULL);
   } while (0);
 
   int  i = 0;
@@ -547,7 +592,7 @@ TEST_F(WalKeepEnv, walCheckAndRepairIdxFile) {
     sprintf(newStr, "%s-%d", ranStr, 0);
     sprintf(newStr, "%s-%d", ranStr, 0);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, 0, 0, syncMeta, newStr, len, 0, NULL);
   } while (0);
   SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
   for (int i = 1; i < 100; i++) {
@@ -579,7 +624,7 @@ TEST_F(WalKeepEnv, walRestoreFromSnapshot1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
   code = walRestoreFromSnapshot(pWal, 50);
@@ -595,7 +640,7 @@ TEST_F(WalKeepEnv, walRestoreFromSnapshot2) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
   SWalRef* ref = walOpenRef(pWal);
@@ -613,7 +658,7 @@ TEST_F(WalKeepEnv, walRollback) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
   code = walRollback(pWal, -1);
@@ -627,6 +672,68 @@ TEST_F(WalKeepEnv, walRollback) {
   ASSERT_EQ(code, 0);
 }
 
+TEST_F(WalKeepEnv, walChangeWrite) {
+  walResetEnv();
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walChangeWrite(pWal, 50);
+  ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalCleanEnv, walRepairLogFileTs2) {
+  int code;
+
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  for (i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  // Try to step in ts repair logic.
+  SWalFileInfo* pFileInfo = (SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 2);
+  pFileInfo->closeTs = -1;
+
+  code = walCheckAndRepairMeta(pWal);
+  ASSERT_EQ(code, 0);
+}
+
 TEST_F(WalRetentionEnv, repairMeta1) {
   walResetEnv();
   int code;
@@ -636,7 +743,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
 
@@ -653,7 +760,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
-  SWalReader* pRead = walOpenReader(pWal, NULL, 0);
+  SWalReader* pRead = walOpenReader(pWal, 0);
   ASSERT(pRead != NULL);
 
   for (int i = 0; i < 1000; i++) {
@@ -682,7 +789,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
 
@@ -719,7 +826,7 @@ TEST_F(WalSkipLevel, restart) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, i);
     int len = strlen(newStr);
-    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
     ASSERT_EQ(code, 0);
   }
 
@@ -732,32 +839,957 @@ TEST_F(WalSkipLevel, roll) {
   int code;
   int i;
   for (i = 0; i < 100; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
   }
   walBeginSnapshot(pWal, i - 1, 0);
-  walEndSnapshot(pWal);
-  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen);
+  walEndSnapshot(pWal, false);
+  code = walAppendLog(pWal, 5, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
   ASSERT_NE(code, 0);
   for (; i < 200; i++) {
-    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     code = walCommit(pWal, i);
   }
   code = walBeginSnapshot(pWal, i - 1, 0);
   ASSERT_EQ(code, 0);
-  code = walEndSnapshot(pWal);
+  code = walEndSnapshot(pWal, false);
   ASSERT_EQ(code, 0);
 }
 
 TEST_F(WalEncrypted, write) {
   int code;
   for (int i = 0; i < 100; i++) {
-    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen);
+    code = walAppendLog(pWal, i, i + 1, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
     ASSERT_EQ(code, 0);
     ASSERT_EQ(pWal->vers.lastVer, i);
   }
   code = walSaveMeta(pWal);
   ASSERT_EQ(code, 0);
+}
+
+TEST_F(WalKeepEnv, walSetKeepVersionBasic) {
+  walResetEnv();
+  int code;
+
+  // Test setting keep version
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 50);
+
+  // Test setting different keep version
+  code = walSetKeepVersion(pWal, 100);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, 100);
+
+  // -1 is the valid "release" sentinel (no constraint); other negatives are invalid
+  code = walSetKeepVersion(pWal, -1);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, -1);
+
+  // Values < -1 are invalid
+  code = walSetKeepVersion(pWal, -5);
+  ASSERT_NE(code, 0);
+  // keepVersion must not have changed after the failed call
+  ASSERT_EQ(pWal->keepVersion, -1);
+
+  // Test NULL pointer
+  code = walSetKeepVersion(NULL, 50);
+  ASSERT_NE(code, 0);
+}
+
+// Test: -1 releases the keep constraint so WAL trimming is unrestricted.
+TEST_F(WalCleanDeleteEnv, walSetKeepVersionReleaseAllowsTrim) {
+  int code;
+  int i;
+
+  for (i = 0; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Set keep version, then release it with -1.
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+
+  code = walSetKeepVersion(pWal, -1);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->keepVersion, -1);
+
+  // With keepVersion == -1 the WAL trim check is skipped (pWal->keepVersion >= 0 is false),
+  // so a full snapshot should be allowed to trim everything up to commitVer.
+  walBeginSnapshot(pWal, i - 1, 0);
+  code = walEndSnapshot(pWal, false);
+  ASSERT_EQ(code, 0);
+
+  // firstVer should now be at or near lastVer (all old segments trimmed).
+  ASSERT_GE(pWal->vers.firstVer, 0);
+}
+
+// Test: keepVersion persists across WAL close/open.
+TEST_F(WalKeepEnv, walSetKeepVersionPersists) {
+  walResetEnv();
+  int code;
+
+  code = walSetKeepVersion(pWal, 77);
+  ASSERT_EQ(code, 0);
+
+  TearDown();
+  SetUp();
+
+  // After reopen, keepVersion should be restored from meta.
+  ASSERT_EQ(pWal->keepVersion, 77);
+
+  // Same for the release sentinel.
+  code = walSetKeepVersion(pWal, -1);
+  ASSERT_EQ(code, 0);
+
+  TearDown();
+  SetUp();
+
+  ASSERT_EQ(pWal->keepVersion, -1);
+}
+
+TEST_F(WalCleanDeleteEnv, walSetKeepVersionWithDeletion) {
+  int code;
+  int i;
+  
+  // Write 200 logs
+  for (i = 0; i < 200; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Set keep version to 50, so versions >= 50 should not be deleted
+  code = walSetKeepVersion(pWal, 50);
+  ASSERT_EQ(code, 0);
+
+  // Trigger snapshot, this should not delete logs with version >= 50
+  walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, i - 1);
+  walEndSnapshot(pWal, false);
+  ASSERT_EQ(pWal->vers.snapshotVer, i - 1);
+  ASSERT_EQ(pWal->vers.verInSnapshotting, -1);
+
+  // The firstVer should be no greater than 50
+  ASSERT_LE(pWal->vers.firstVer, 50);
+
+  // Continue writing more logs
+  for (; i < 300; i++) {
+    code = walAppendLog(pWal, i, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL);
+    ASSERT_EQ(code, 0);
+    code = walCommit(pWal, i);
+    ASSERT_EQ(pWal->vers.commitVer, i);
+  }
+
+  // Update keep version to 150
+  code = walSetKeepVersion(pWal, 150);
+  ASSERT_EQ(code, 0);
+
+  // Trigger another snapshot
+  code = walBeginSnapshot(pWal, i - 1, 0);
+  ASSERT_EQ(code, 0);
+  code = walEndSnapshot(pWal, false);
+  ASSERT_EQ(code, 0);
+
+  // The firstVer should be no greater than 150
+  ASSERT_LE(pWal->vers.firstVer, 150);
+}
+
+
+TEST_F(WalKeepEnv, walSetKeepVersionConcurrent) {
+  walResetEnv();
+  int code;
+
+  // Write some logs first
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Test concurrent calls to walSetKeepVersion with multiple threads
+  const int numThreads = 10;
+  const int callsPerThread = 100;
+  std::vector<std::thread> threads;
+  std::atomic<int> successCount(0);
+  
+  for (int i = 0; i < numThreads; i++) {
+    threads.push_back(std::thread([this, i, &successCount, callsPerThread]() {
+      for (int j = 0; j < callsPerThread; j++) {
+        int64_t ver = i * callsPerThread + j;
+        int code = walSetKeepVersion(pWal, ver);
+        if (code == 0) {
+          successCount.fetch_add(1);
+        }
+      }
+    }));
+  }
+
+  // Wait for all threads to complete
+  for (auto& thread : threads) {
+    thread.join();
+  }
+
+  // All calls should succeed
+  ASSERT_EQ(successCount.load(), numThreads * callsPerThread);
+  
+  // The final keepVersion should be one of the values set by the threads
+  // We can't predict which one exactly due to race conditions, but it should be valid
+  int64_t finalVersion = pWal->keepVersion;
+  ASSERT_GE(finalVersion, 0);
+  ASSERT_LT(finalVersion, numThreads * callsPerThread);
+}
+
+// Test walRenameCorruptedDir: delete first wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteFirstFile) {
+  walResetEnv();
+  int code;
+  
+  // Enable walDeleteOnCorruption
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  // Roll to create second file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  // Roll to create third file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List and find the first log file in the WAL directory
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  char firstLogFile[256] = {0};
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      if (firstLogFile[0] == 0 || strcmp(name, firstLogFile) < 0) {
+        strncpy(firstLogFile, name, sizeof(firstLogFile) - 1);
+      }
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  ASSERT_NE(firstLogFile[0], 0);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, firstLogFile);
+  printf("Deleting first log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, 100);
+  ASSERT_EQ(pWal->vers.lastVer, 299);
+  
+  // Verify old directory was renamed
+  char corruptedPath[300];
+  sprintf(corruptedPath, "%s.corrupted", pathName);
+  // The actual path will have a timestamp, so we just verify new dir exists and is empty
+  
+  // Restore old value
+  tsWalDeleteOnCorruption = oldVal;
+}
+
+#ifndef WINDOWS
+// Test walRenameCorruptedDir: delete middle wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteMiddleFile) {
+  walResetEnv();
+  int code;
+  
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List all log files and find the middle one
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  SArray* logFiles = taosArrayInit(10, sizeof(char[256]));
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      char fileName[256];
+      strncpy(fileName, name, sizeof(fileName) - 1);
+      taosArrayPush(logFiles, fileName);
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  int fileCount = taosArrayGetSize(logFiles);
+  ASSERT_GT(fileCount, 1);
+  
+  // Sort to ensure consistent ordering
+  taosArraySort(logFiles, (__compar_fn_t)strcmp);
+  
+  // Delete the middle log file
+  char* middleFile = (char*)taosArrayGet(logFiles, fileCount / 2);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, middleFile);
+  printf("Deleting middle log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  taosArrayDestroy(logFiles);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, -1);
+  ASSERT_EQ(pWal->vers.lastVer, -1);
+  
+  tsWalDeleteOnCorruption = oldVal;
+}
+#endif
+
+// Test walRenameCorruptedDir: delete last wal log file
+TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
+  walResetEnv();
+  int code;
+  
+  bool oldVal = tsWalDeleteOnCorruption;
+  tsWalDeleteOnCorruption = true;
+
+  // Write logs to create multiple wal files
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+  
+  for (int i = 200; i < 300; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+  
+  TearDown();
+  
+  // List all log files and find the last one
+  TdDirPtr pDir = taosOpenDir(pathName);
+  ASSERT_NE(pDir, nullptr);
+  
+  char lastLogFile[256] = {0};
+  TdDirEntryPtr pDirEntry;
+  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+    char* name = taosDirEntryBaseName(taosGetDirEntryName(pDirEntry));
+    if (strstr(name, ".log") != NULL) {
+      if (lastLogFile[0] == 0 || strcmp(name, lastLogFile) > 0) {
+        strncpy(lastLogFile, name, sizeof(lastLogFile) - 1);
+      }
+    }
+  }
+  taosCloseDir(&pDir);
+  
+  ASSERT_NE(lastLogFile[0], 0);
+  char logFile[256];
+  snprintf(logFile, sizeof(logFile), "%s" TD_DIRSEP "%s", pathName, lastLogFile);
+  printf("Deleting last log file: %s\n", logFile);
+  taosRemoveFile(logFile);
+  
+  // Wait for file system to complete the operation (especially important on Windows)
+  taosMsleep(100);
+  
+  // Re-open should trigger walRenameCorruptedDir
+  SetUp();
+  
+  // After rename, WAL should be recreated and empty
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.firstVer, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 199);
+
+  tsWalDeleteOnCorruption = oldVal;
+}
+
+// Test for the bug: data loss after WAL corruption and recovery
+// Scenario:
+// 1. Write data to WAL
+// 2. Simulate crash (close WAL)
+// 3. Manually corrupt the last WAL file by appending garbage data
+// 4. Restart and write new data
+// 5. Restart again - verify new data is not lost
+TEST_F(WalKeepEnv, corruptionRecoveryDataLoss) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Step 1: Write initial data (version 0-9)
+  for (int i = 0; i < 10; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Get the log file path before closing
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t firstVer = pFileInfo->firstVer;
+  int64_t validFileSize = pFileInfo->fileSize;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  printf("Log file: %s, valid size: %" PRId64 "\n", logFileName, validFileSize);
+
+  // Step 2: Simulate crash - close WAL (but don't delete directory)
+  walClose(pWal);
+  pWal = NULL;
+
+  // Step 3: Manually corrupt the WAL file by appending garbage data
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pFile == nullptr) {
+    printf("Failed to open file: %s, error: %s\n", logFileName, strerror(errno));
+  }
+  ASSERT_NE(pFile, nullptr);
+
+  // Append 100 bytes of garbage data
+  char garbage[100];
+  memset(garbage, 0xFF, sizeof(garbage));
+  int64_t written = taosWriteFile(pFile, garbage, sizeof(garbage));
+  ASSERT_EQ(written, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted WAL file: %s (appended %d bytes of garbage)\n", logFileName, (int)sizeof(garbage));
+
+  // Step 4: Restart WAL and write new data (version 10-19)
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // Verify that we recovered to version 9
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+
+  // Write new data after corruption
+  for (int i = 10; i < 20; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Step 5: Restart again and verify all data (0-19) can be read
+  walClose(pWal);
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // After restart, lastVer should still be 19
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Verify we can read all data from 0 to 19
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  for (int i = 0; i < 20; i++) {
+    code = walReadVer(pRead, i);
+    ASSERT_EQ(code, 0) << "Failed to read version " << i;
+
+    ASSERT_EQ(pRead->pHead->head.version, i);
+    char expectedStr[100];
+    sprintf(expectedStr, "%s-%d", ranStr, i);
+    int expectedLen = strlen(expectedStr);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, expectedLen);
+
+    for (int j = 0; j < expectedLen; j++) {
+      EXPECT_EQ(expectedStr[j], pRead->pHead->head.body[j]);
+    }
+  }
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: All data (version 0-19) recovered correctly after corruption\n");
+}
+
+// Test for the bug with multiple files
+// Verify that corruption in the last file doesn't affect data recovery
+TEST_F(WalKeepEnv, corruptionRecoveryMultipleFiles) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Write data to first file (version 0-99)
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Roll to create second file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  // Write data to second file (version 100-199)
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Get the last log file path
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t lastFileFirstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, lastFileFirstVer);
+
+  // Close WAL
+  walClose(pWal);
+  pWal = NULL;
+
+  // Corrupt the last file by appending garbage
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+
+  char garbage[200];
+  memset(garbage, 0xAA, sizeof(garbage));
+  int64_t written = taosWriteFile(pFile, garbage, sizeof(garbage));
+  ASSERT_EQ(written, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted last WAL file: %s\n", logFileName);
+
+  // Restart and write new data
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 199);
+
+  // Write new data (version 200-249)
+  for (int i = 200; i < 250; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  ASSERT_EQ(pWal->vers.lastVer, 249);
+
+  // Restart and verify all data
+  walClose(pWal);
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 249);
+
+  // Verify we can read all data
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  for (int i = 0; i < 250; i++) {
+    code = walReadVer(pRead, i);
+    ASSERT_EQ(code, 0) << "Failed to read version " << i;
+    ASSERT_EQ(pRead->pHead->head.version, i);
+  }
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: All data recovered correctly with multiple files\n");
+}
+
+// Test behavior when corruption is in the middle of a WAL file (file size unchanged).
+// The repair logic triggers a full scan when fileSize != meta fileSize (e.g. appended garbage).
+// For in-place overwrites the file size matches, so the scan is skipped and lastVer stays at 19.
+// Reading entries at/after the corrupted offset will fail with a checksum error.
+TEST_F(WalKeepEnv, corruptionInMiddleOfFile) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Write initial data (version 0-19)
+  for (int i = 0; i < 20; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t validFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  // Close WAL
+  walClose(pWal);
+  pWal = NULL;
+
+  // Corrupt by overwriting middle of file with garbage (file size unchanged)
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr);
+
+  int64_t corruptOffset = validFileSize / 2;
+  taosLSeekFile(pFile, corruptOffset, SEEK_SET);
+
+  char garbage[50];
+  memset(garbage, 0xBB, sizeof(garbage));
+  taosWriteFile(pFile, garbage, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted middle of WAL file at offset %" PRId64 "\n", corruptOffset);
+
+  // Restart - file size matches meta, so repair scan is skipped; lastVer stays at 19
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Reading entries at/after the corrupted offset will fail
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  // Version 0 (before corruption) should be readable
+  code = walReadVer(pRead, 0);
+  ASSERT_EQ(code, 0);
+
+  // At least one entry in the corrupted region should fail
+  bool foundError = false;
+  for (int i = 0; i < 20; i++) {
+    if (walReadVer(pRead, i) != 0) {
+      foundError = true;
+      printf("Read error at version %d as expected\n", i);
+      break;
+    }
+  }
+  ASSERT_TRUE(foundError) << "Expected at least one read failure due to middle corruption";
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: Middle corruption detected at read time as expected\n");
+}
+
+// ---------------------------------------------------------------------------
+// Recovery-scan hardening (forged framing / unbounded bodyLen / termination)
+// ---------------------------------------------------------------------------
+
+// Fill `body` with back-to-back records that are indistinguishable from real framing:
+// WAL_MAGIC, a valid header CRC32C and a valid body CRC32C, all of which an entry
+// proposer can precompute because none of them is keyed. `forgedVer` is the version the
+// forged chain claims. This is what a WAL body looks like when someone wants the
+// recovery scan to adopt their framing instead of the real record chain.
+static void fillWithForgedRecords(char* body, int32_t bodyLen, int64_t forgedVer) {
+  const int32_t kForgedBodyLen = 8;
+  const int32_t kForgedRecLen = (int32_t)sizeof(SWalCkHead) + kForgedBodyLen;
+
+  memset(body, 0x5A, bodyLen);
+
+  for (int32_t pos = 0; pos + kForgedRecLen <= bodyLen; pos += kForgedRecLen) {
+    SWalCkHead* pForged = (SWalCkHead*)(body + pos);
+    memset(pForged, 0, sizeof(SWalCkHead));
+    pForged->magic = WAL_MAGIC;
+    pForged->head.version = forgedVer;
+    pForged->head.bodyLen = kForgedBodyLen;
+    pForged->head.msgType = 0;
+    pForged->head.ingestTs = 0;
+    memset(pForged->head.body, 0x5A, kForgedBodyLen);
+    pForged->cksumBody = walCalcBodyCksum(pForged->head.body, kForgedBodyLen);
+    pForged->cksumHead = walCalcHeadCksum(pForged);
+  }
+}
+
+// Bodies carrying a forged record chain must not influence recovery at all: the segment
+// has to come back with exactly the lastVer/fileSize it would have had if the bodies
+// were ordinary data. The scan used to search the 3 MB below the meta-saved fileSize for
+// the first WAL_MAGIC, which lands inside a body, so the forged chain decided lastVer.
+TEST_F(WalKeepEnv, walScanIgnoresForgedFramingInBody) {
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  taosSetSkipKeyCheckMode();
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // The old scan started its backward magic search at (meta fileSize - WAL_SCAN_BUF_SIZE),
+  // so the forged chain has to cover at least that much of the segment to be the first
+  // magic found. Keep a margin above the buffer size.
+  //
+  // kBodyLen is deliberately not a multiple of the forged record size: a forged chain
+  // that happened to end exactly on the next real header would rejoin the real chain and
+  // hide the bug. With a remainder, the forged chain dead-ends inside the body, which is
+  // what makes the forged version the scan's answer.
+  const int32_t kBodyLen = 4000;
+  const int64_t kForgedVer = 1000000;
+  const int32_t kRecords = (int32_t)(((int64_t)WAL_SCAN_BUF_SIZE + 512 * 1024) / kBodyLen) + 1;
+
+  std::vector<char> body(kBodyLen);
+  for (int32_t i = 0; i < kRecords; i++) {
+    fillWithForgedRecords(body.data(), kBodyLen, kForgedVer);
+    ASSERT_EQ(walAppendLog(pWal, i, 0, syncMeta, body.data(), kBodyLen, 0, NULL), 0);
+  }
+
+  int64_t realLastVer = kRecords - 1;
+  ASSERT_EQ(pWal->vers.lastVer, realLastVer);
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t realFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  // meta is saved on close, then an unclean shutdown is simulated by making the on-disk
+  // size differ from the saved one -- which is what makes walOpen run the scan
+  walClose(pWal);
+  pWal = NULL;
+
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+  char garbage[64];
+  memset(garbage, 0xFF, sizeof(garbage));
+  ASSERT_EQ(taosWriteFile(pFile, garbage, sizeof(garbage)), sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // the forged version must be nowhere in sight, and the damaged tail must be the only
+  // thing that was dropped
+  ASSERT_EQ(pWal->vers.lastVer, realLastVer);
+  pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  ASSERT_EQ(pFileInfo->fileSize, realFileSize);
+
+  // and the real records are all still readable
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+  for (int64_t ver : {(int64_t)0, realLastVer / 2, realLastVer}) {
+    ASSERT_EQ(walReadVer(pRead, ver), 0) << "failed to read index " << ver;
+    ASSERT_EQ(pRead->pHead->head.version, ver);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, kBodyLen);
+  }
+  walCloseReader(pRead);
+}
+
+// A header declaring a negative bodyLen must be rejected before the length reaches a
+// checksum, a read or an offset advance. walValidBodyCksum passes bodyLen to
+// taosCheckChecksum as a uint32_t, so -1 used to mean "CRC32C about 4 GB of heap".
+TEST_F(WalKeepEnv, walScanRejectsNegativeBodyLen) {
+  walResetEnv();
+
+  char newStr[100];
+  sprintf(newStr, "%s-%d", ranStr, 0);
+  int len = strlen(newStr);
+  ASSERT_EQ(walAppendLog(pWal, 0, 0, syncMeta, newStr, len, 0, NULL), 0);
+
+  // append a header whose checksum is valid but whose bodyLen is negative
+  SWalCkHead forged;
+  memset(&forged, 0, sizeof(forged));
+  forged.magic = WAL_MAGIC;
+  forged.head.version = 1;
+  forged.head.bodyLen = -1;
+  forged.head.msgType = 0;
+  forged.head.ingestTs = 0;
+  forged.head.syncMeta = syncMeta;
+  forged.cksumBody = 0;
+  forged.cksumHead = walCalcHeadCksum(&forged);
+  ASSERT_EQ(taosWriteFile(pWal->pLogFile, &forged, sizeof(forged)), sizeof(forged));
+
+  int64_t lastVer = -1;
+  int32_t code = walScanLogGetLastVer(pWal, 0, &lastVer);
+
+  // the valid record survives, the bogus header is reported and dropped
+  ASSERT_NE(code, 0);
+  ASSERT_EQ(lastVer, 0);
+}
+
+// The scan must terminate on every path. The window-based scan exited its outer loop
+// only on terrno != 0 or "window reached EOF"; a forward-stage header failure set
+// neither, so a segment with more than WAL_SCAN_BUF_SIZE of trailing non-record bytes
+// made walOpen re-read the same window forever.
+TEST_F(WalKeepEnv, walScanTerminatesOnLongGarbageTail) {
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  taosSetSkipKeyCheckMode();
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  for (int i = 0; i < 10; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    ASSERT_EQ(walAppendLog(pWal, i, 0, syncMeta, newStr, len, 0, NULL), 0);
+  }
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t realFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  walClose(pWal);
+  pWal = NULL;
+
+  // more than one scan buffer worth of trailing garbage: the records end well below
+  // (EOF - WAL_SCAN_BUF_SIZE), which is exactly the case that used to spin
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+  std::vector<char> garbage((size_t)WAL_SCAN_BUF_SIZE + 1024 * 1024, (char)0xFF);
+  ASSERT_EQ(taosWriteFile(pFile, garbage.data(), garbage.size()), (int64_t)garbage.size());
+  taosCloseFile(&pFile);
+
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+  pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  ASSERT_EQ(pFileInfo->fileSize, realFileSize);
 }

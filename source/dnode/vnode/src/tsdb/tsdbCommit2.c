@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -38,7 +40,6 @@ typedef struct {
     SFileSetCommitInfo *info;
 
     int32_t expLevel;
-    SDiskID did;
     TSKEY   minKey;
     TSKEY   maxKey;
     TABLEID tbid[1];
@@ -75,7 +76,7 @@ static int32_t tsdbCommitOpenWriter(SCommitter2 *committer) {
       .cmprAlg = committer->cmprAlg,
       .fid = committer->ctx->info->fid,
       .cid = committer->cid,
-      .did = committer->ctx->did,
+      .expLevel = committer->ctx->expLevel,
       .level = 0,
   };
 
@@ -104,6 +105,13 @@ _exit:
 
 static int32_t tsdbCommitCloseWriter(SCommitter2 *committer) {
   return tsdbFSetWriterClose(&committer->writer, 0, committer->fopArray);
+}
+
+static void tsdbCommitAbortWriter(SCommitter2 *committer) {
+  int32_t code = tsdbFSetWriterClose(&committer->writer, 1, NULL);
+  if (code) {
+    tsdbError("vgId:%d %s failed since %s", TD_VID(committer->tsdb->pVnode), __func__, tstrerror(code));
+  }
 }
 
 static int32_t tsdbCommitTSData(SCommitter2 *committer) {
@@ -328,12 +336,6 @@ static int32_t tsdbCommitFileSetBegin(SCommitter2 *committer) {
   tsdbFidKeyRange(committer->ctx->info->fid, committer->minutes, committer->precision, &committer->ctx->minKey,
                   &committer->ctx->maxKey);
 
-  TAOS_CHECK_GOTO(tfsAllocDisk(committer->tsdb->pVnode->pTfs, committer->ctx->expLevel, &committer->ctx->did), &lino,
-                  _exit);
-
-  if (tfsMkdirRecurAt(committer->tsdb->pVnode->pTfs, committer->tsdb->path, committer->ctx->did) != 0) {
-    tsdbError("vgId:%d failed to create directory %s", TD_VID(committer->tsdb->pVnode), committer->tsdb->path);
-  }
   committer->ctx->tbid->suid = 0;
   committer->ctx->tbid->uid = 0;
 
@@ -381,6 +383,9 @@ static int32_t tsdbCommitFileSet(SCommitter2 *committer) {
 
 _exit:
   if (code) {
+    tsdbCommitAbortWriter(committer);
+    tsdbCommitCloseIter(committer);
+    tsdbCommitCloseReader(committer);
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   } else {
@@ -628,17 +633,14 @@ static int32_t tsdbCloseCommitter(SCommitter2 *committer, int32_t eno) {
   if (eno == 0) {
     TAOS_CHECK_GOTO(tsdbFSEditBegin(committer->tsdb->pFS, committer->fopArray, TSDB_FEDIT_COMMIT), &lino, _exit);
   } else {
-    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(committer->tsdb->pVnode), __func__, __FILE__, lino,
-              tstrerror(eno));
+    tsdbDebug("vgId:%d %s cleans up after %s", TD_VID(committer->tsdb->pVnode), __func__, tstrerror(eno));
   }
 
+_exit:
   TARRAY2_DESTROY(committer->dataIterArray, NULL);
   TARRAY2_DESTROY(committer->tombIterArray, NULL);
   TARRAY2_DESTROY(committer->sttReaderArray, NULL);
   TARRAY2_DESTROY(committer->fopArray, NULL);
-  TARRAY2_DESTROY(committer->sttReaderArray, NULL);
-
-_exit:
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s, eid:%" PRId64, TD_VID(committer->tsdb->pVnode), __func__, __FILE__,
               lino, tstrerror(code), committer->cid);
@@ -662,6 +664,9 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
 
   int32_t code = 0;
   int32_t lino = 0;
+  bool    committerOpened = false;
+  bool    committerClosed = false;
+  SCommitter2 committer = {0};
 
   SMemTable *imem = tsdb->imem;
   int64_t    nRow = imem->nRow;
@@ -673,19 +678,22 @@ int32_t tsdbCommitBegin(STsdb *tsdb, SCommitInfo *info) {
     (void)taosThreadMutexUnlock(&tsdb->mutex);
     tsdbUnrefMemTable(imem, NULL, true);
   } else {
-    SCommitter2 committer = {0};
-
     TAOS_CHECK_GOTO(tsdbOpenCommitter(tsdb, info, &committer), &lino, _exit);
+    committerOpened = true;
 
     for (int32_t i = 0; i < taosArrayGetSize(tsdb->commitInfo->arr); i++) {
       committer.ctx->info = *(SFileSetCommitInfo **)taosArrayGet(tsdb->commitInfo->arr, i);
       TAOS_CHECK_GOTO(tsdbCommitFileSet(&committer), &lino, _exit);
     }
 
+    committerClosed = true;
     TAOS_CHECK_GOTO(tsdbCloseCommitter(&committer, code), &lino, _exit);
   }
 
 _exit:
+  if (committerOpened && !committerClosed) {
+    (void)tsdbCloseCommitter(&committer, code);
+  }
   if (code) {
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, lino, tstrerror(code));
   } else {

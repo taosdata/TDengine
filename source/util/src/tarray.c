@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "tarray.h"
 #include "tcoding.h"
+#include "tdTestSeam.h"
 
 // todo refactor API
 #define BOUNDARY_SIZE         1024 * 1024 * 1024  // 1G
@@ -107,6 +110,8 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 }
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
+  TD_SEAM_RET(taosArrayAddBatch, void* (*)(SArray*, const void*, int32_t), (pArray, pData, nEles));
+
   if (pData == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
@@ -174,7 +179,12 @@ void* taosArrayAddAll(SArray* pArray, const SArray* pInput) {
 }
 
 void* taosArrayReserve(SArray* pArray, int32_t num) {
-  int32_t code = taosArrayEnsureCap(pArray, pArray->size + num);
+  int32_t code = 0;
+  if (pArray == NULL || num < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  code = taosArrayEnsureCap(pArray, pArray->size + num);
   if (code) {
     terrno = code;
     return NULL;
@@ -205,7 +215,7 @@ void* taosArrayGet(const SArray* pArray, size_t index) {
   }
 
   if (index >= pArray->size) {
-    uError("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
+    uWarn("index is out of range, current:%" PRIzu " max:%" PRIzu, index, pArray->size);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return NULL;
   }
@@ -308,7 +318,34 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
+void taosArrayRemoveP(SArray* pArray, size_t index, void (*fp)(void*)){
+  if (!(index < pArray->size)) {
+    return;
+  }
+
+  if (index == pArray->size - 1) {
+    void** t = taosArrayPop(pArray);
+    if (fp && t!= NULL) {
+      fp(*t);
+    }
+    return;
+  }
+
+  void* p = taosArrayGetP(pArray, index);
+  if (fp) {
+    fp(p);
+  }
+
+  size_t remain = pArray->size - index - 1;
+  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize,
+          remain * pArray->elemSize);
+  pArray->size -= 1;
+}
+
 void taosArrayRemoveBatch(SArray* pArray, size_t index, size_t num, FDelete fp) {
+  if(num == 0) {
+    return;
+  }
   if (index + num <= pArray->size) {
     if (fp) {
       for (int32_t i = 0; i < num; i++) {

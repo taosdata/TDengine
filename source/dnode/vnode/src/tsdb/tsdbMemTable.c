@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tglobal.h"
 #include "tsdb.h"
 #include "util/tsimplehash.h"
 
@@ -151,7 +154,8 @@ _err:
   return code;
 }
 
-int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey) {
+int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey,
+                            int8_t secureDelete) {
   int32_t    code = 0;
   SMemTable *pMemTable = pTsdb->mem;
   STbData   *pTbData = NULL;
@@ -172,6 +176,21 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   code = tsdbGetOrCreateTbData(pMemTable, suid, uid, &pTbData);
   if (code) {
     goto _err;
+  }
+
+  // secureDelete is merged by planner and vnode runtime config.
+  int8_t doSecureErase = secureDelete;
+  if (doSecureErase) {
+
+    // Phase 2: overwrite on-disk (data file + STT file) blocks.
+    // Errors are logged but not fatal: delete markers guarantee correctness
+    // even if the physical overwrite fails.
+    int32_t eraseCode = tsdbSecureEraseFileRange(pTsdb, suid, uid, sKey, eKey);
+    if (eraseCode != 0) {
+      tsdbWarn("vgId:%d, secure erase file range failed for suid:%" PRId64 " uid:%" PRId64
+               " skey:%" PRId64 " eKey:%" PRId64 " since %s",
+               TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, tstrerror(eraseCode));
+    }
   }
 
   // do delete
@@ -204,8 +223,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   }
 
   tsdbTrace("vgId:%d, delete data from table suid:%" PRId64 " uid:%" PRId64 " skey:%" PRId64 " eKey:%" PRId64
-            " at version %" PRId64,
-            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version);
+            " at version %" PRId64 " secureDelete:%d",
+            TD_VID(pTsdb->pVnode), suid, uid, sKey, eKey, version, (int)doSecureErase);
   return code;
 
 _err:

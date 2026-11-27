@@ -1,0 +1,131 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from concurrent.futures import ThreadPoolExecutor
+import time
+from dbutils.pooled_db import PooledDB
+import taosws
+
+
+def insert_timestamps(i: int, base_ts: int):
+    return base_ts + i + 1, base_ts + i + 2, base_ts + i + 3
+
+def init_websocket_pool():
+    return PooledDB(
+        # Set connector driver. If using native mode, please replace taosws with taos
+        creator=taosws,
+        # Maximum number of connections  
+        maxconnections=10,  
+        # TDengine connection parameters (modify according to actual environment)
+        host="localhost",
+        port=6041,
+        user="root",
+        password="taosdata",
+        charset="UTF-8"
+    )
+
+websocket_pool = init_websocket_pool()
+
+def init_db():
+    conn = None
+    try:
+        conn = websocket_pool.connection()
+        cursor = conn.cursor()
+        # create database
+        cursor.execute(f"Drop DATABASE IF EXISTS power")
+        rowsAffected = cursor.execute(f"CREATE DATABASE IF NOT EXISTS power")
+        print(f"Create database power successfully, rowsAffected: {rowsAffected}")
+        assert rowsAffected == 0
+
+        # create super table
+        rowsAffected = cursor.execute(
+            "CREATE TABLE IF NOT EXISTS power.meters (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(64))"
+        )
+        print(f"Create stable power.meters successfully, rowsAffected: {rowsAffected}");
+
+    except Exception as err:
+        print(f"Failed to create db and table; ErrMessage:{err}")
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+def ws_insert_sql(i: int, base_ts: int):
+    conn = None
+    try:
+        conn = websocket_pool.connection()
+        cursor = conn.cursor()
+        ts1, ts2, ts3 = insert_timestamps(i, base_ts)
+        sql = f"""
+            INSERT INTO 
+            power.d1001 USING power.meters (groupid, location) TAGS(2, 'California.SanFrancisco')
+                VALUES ({ts1}, 10.30000, 219, 0.31000)
+                ({ts2}, 12.60000, 218, 0.33000) ({ts3}, 12.30000, 221, 0.31000)
+            power.d1002 USING power.meters (groupid, location)  TAGS(3, 'California.SanFrancisco') 
+                VALUES ({base_ts + i + 1}, 10.30000, 218, 0.25000)
+            """
+        affectedRows = cursor.execute(sql)
+        print(f"Successfully inserted {affectedRows} rows to power.meters.")
+
+    except Exception as err:
+        print(f"Failed to insert data to power.meters; ErrMessage:{err}")
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+# Execute queries using connection pool
+def ws_query(sql: str):
+    conn = None
+    cursor = None
+    try:
+        # Get connection from pool
+        conn = websocket_pool.connection()
+        # Create cursor
+        cursor = conn.cursor()
+        # Execute SQL
+        cursor.execute(sql)
+        # Get results
+        data = cursor.fetchall()
+        print(data)
+        return data
+    except Exception as e:
+        print(f"TDengine query failed: {e}")
+        raise
+    finally:
+        # Close cursor
+        if cursor:
+            cursor.close()
+            cursor = None
+        # Return connection to pool (not actually closed, just marked as idle)
+        if conn:
+            conn.close()
+
+
+if __name__ == "__main__":
+    init_db()  # Initialize database and tables
+    base_ts = time.time_ns() // 1_000_000
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = []
+        for i in range(5):
+            futures.append(pool.submit(ws_insert_sql, i * 10, base_ts))
+            futures.append(pool.submit(ws_query, "SELECT * FROM power.meters"))
+
+        for future in futures:
+            future.result()
+
+    data = ws_query("SELECT count(*) FROM power.meters")
+    assert data[0][0] == 20, "Expected 20 rows in power.meters"
+    print("All sub-threads completed, main thread ending")

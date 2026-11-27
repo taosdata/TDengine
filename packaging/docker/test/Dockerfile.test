@@ -1,0 +1,21 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Image used by the entrypoint regression suite. The real taosd / adapter /
+# keeper / explorer binaries are replaced by stubs so the tests only exercise
+# the process-supervision logic of bin/entrypoint.sh.
+#
+# Build context must be packaging/docker/ (see run-local.sh).
+FROM debian:bookworm-slim
+
+ARG STUBS=test/stubs
+
+RUN mkdir -p /var/lib/taos
+COPY ${STUBS}/ /usr/bin/
+COPY bin/entrypoint.sh /usr/bin/entrypoint.sh
+RUN chmod +x /usr/bin/entrypoint.sh /usr/bin/taosd /usr/bin/taos \
+             /usr/bin/taosadapter /usr/bin/taoskeeper \
+             /usr/bin/taos-explorer /usr/bin/curl
+
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]

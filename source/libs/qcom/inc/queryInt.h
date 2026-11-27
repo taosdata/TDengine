@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,8 +22,9 @@
 extern "C" {
 #endif
 
-#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-#define VALIDNUMOFTAGS(x) ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
+#define VALIDNUMOFCOLS(x)        ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
+#define VALIDNUMOFCOLSVIRTUAL(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
+#define VALIDNUMOFTAGS(x)        ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
 #define QUERY_PARAM_CHECK(_p)                                                \
   do {                                                                       \

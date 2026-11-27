@@ -1,0 +1,7 @@
+
+taos> select val,index_code,ps_code from test1.stb_sxny_cn_test_v003 order by _c0,index_code;
+            val            |           index_code           |            ps_code             |
+==============================================================================================
+                       100 | index_a0                       | pscode_a0                      |
+                     101.5 | index_a0                       | pscode_a0                      |
+

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -260,7 +262,7 @@ void taosqsort_r(void *src, int64_t nelem, int64_t size, const void *arg, __ext_
     run_ptr = base_ptr + size;
     while ((run_ptr += size) <= end_ptr) {
       tmp_ptr = run_ptr - size;
-      while ((*cmp)((void *)run_ptr, (void *)tmp_ptr, arg) < 0) tmp_ptr -= size;
+      while ((tmp_ptr >= base_ptr) &&((*cmp)((void *)run_ptr, (void *)tmp_ptr, arg) < 0)) tmp_ptr -= size;
 
       tmp_ptr += size;
       if (tmp_ptr != run_ptr) {
@@ -331,13 +333,29 @@ int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, con
   int32_t parent;
   int32_t child;
 
+  // sift-down callers such as TOP/BOTTOM pass buf == NULL and can swap many
+  // times; keep small elements on the stack to avoid a malloc/free per adjust.
+  // Such a swap buffer cannot fail to allocate, so the ENOMEM return below
+  // no longer applies to elements that fit on the stack. A non-positive size
+  // leaves tmp NULL, which is safe: the swap loop requires size > 0.
+  enum { TAOS_HEAPADJUST_STACK_BUF_LEN = 256 };
+  char  stackBuf[TAOS_HEAPADJUST_STACK_BUF_LEN];
   char *tmp = NULL;
+  bool  tmpOnHeap = false;
   if (buf == NULL) {
-    tmp = taosMemoryMalloc(size);
-    if (NULL == tmp) {
-      return terrno;
+    if (size > 0 && size <= (int32_t)sizeof(stackBuf)) {
+      tmp = stackBuf;
+    } else {
+      tmp = taosMemoryMalloc(size);
+      if (NULL == tmp) {
+        return terrno;
+      }
+      tmpOnHeap = true;
     }
   } else {
+    // The caller supplied the swap buffer (for example a heap built on a
+    // result buffer). It stays owned by the caller, so tmpOnHeap remains
+    // false and the free below must not run for it.
     tmp = buf;
   }
 
@@ -380,7 +398,7 @@ int32_t taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, con
     }
   }
 
-  if (buf == NULL) {
+  if (tmpOnHeap) {
     taosMemoryFree(tmp);
   }
 

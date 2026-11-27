@@ -1,0 +1,704 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 49,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, tp as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, tp as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "吞吐量 （rec/s）",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, delay_avg as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, delay_avg as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "平均延时 (秒)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, delay_p10 as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, delay_p10 as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "延时 P10 (秒)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 10,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, delay_p50 as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, delay_p50 as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "延时 P50 (秒)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "colNameToGroup": "",
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, delay_p90 as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, delay_p90 as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "延时 P90 (秒)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tdengine-datasource",
+        "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "log": 2,
+              "type": "log"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "A",
+          "sql": "select end_time, delay_p99 as `3.0` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='3.0' and scenario ='$scenario' "
+        },
+        {
+          "datasource": {
+            "type": "tdengine-datasource",
+            "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+          },
+          "formatType": "Time series",
+          "hide": false,
+          "queryType": "SQL",
+          "refId": "B",
+          "sql": "select end_time, delay_p99 as `main` from stream_bench.stb_tp where end_time >= $from-1d and end_time <= $to and version='main' and scenario ='$scenario' "
+        }
+      ],
+      "title": "延时 P99 (秒)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": false,
+  "schemaVersion": 38,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "D1",
+          "value": "D1"
+        },
+        "datasource": {
+          "type": "tdengine-datasource",
+          "uid": "c67ffd50-15f6-4c9f-b0b1-7c7e683ff205"
+        },
+        "definition": "select scenario from stream_bench.stb_tp where run_type='DAILY' group by scenario;",
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "scenario",
+        "options": [],
+        "query": "select scenario from stream_bench.stb_tp where run_type='DAILY' group by scenario;",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "2025-11-30T23:10:27.919Z",
+    "to": "2025-12-01T09:00:56.491Z"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "新流计算性能基准benchmark",
+  "uid": "cb7af558-7a7d-4759-b070-9ef3726d8f4f",
+  "version": 15,
+  "weekStart": ""
+}

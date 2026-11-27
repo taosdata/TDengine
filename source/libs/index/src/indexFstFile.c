@@ -1,10 +1,13 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- * * This program is distributed in the hope that it will be useful, but WITHOUT
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
@@ -44,13 +47,17 @@ static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t block
   return;
 }
 static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
+  if (ctx->writeError != 0) return -1;
   int tlen = len;
   if (ctx->type == TFILE) {
     int32_t cap = ctx->file.wBufCap;
     if (len + ctx->file.wBufOffset >= cap) {
       int32_t nw = cap - ctx->file.wBufOffset;
       memcpy(ctx->file.wBuf + ctx->file.wBufOffset, buf, nw);
-      TAOS_UNUSED(taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap));
+      if (taosWriteFile(ctx->file.pFile, ctx->file.wBuf, cap) != cap) {
+        ctx->writeError = TAOS_SYSTEM_ERROR(EIO);
+        return -1;
+      }
 
       memset(ctx->file.wBuf, 0, cap);
       ctx->file.wBufOffset = 0;
@@ -60,7 +67,10 @@ static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) 
 
       nw = (len / cap) * cap;
       if (nw != 0) {
-        TAOS_UNUSED(taosWriteFile(ctx->file.pFile, buf, nw));
+        if (taosWriteFile(ctx->file.pFile, buf, nw) != nw) {
+          ctx->writeError = TAOS_SYSTEM_ERROR(EIO);
+          return -1;
+        }
       }
 
       len -= nw;
@@ -107,7 +117,7 @@ static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_
   do {
     char key[1024] = {0};
     if (strlen(ctx->file.buf) + 1 + 64 >= sizeof(key)) {
-      return TSDB_CODE_INDEX_INVALID_FILE;
+      return TSDB_CODE_INVALID_PARA;
     }
 
     idxGenLRUKey(key, ctx->file.buf, blkId);
@@ -124,7 +134,7 @@ static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_
         nread = TMIN(left, len);
         int64_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
         if (bytes != nread) {
-          total = TSDB_CODE_INDEX_INVALID_FILE;
+          total = bytes < 0 ? terrno : TSDB_CODE_INDEX_INVALID_FILE;
           break;
         }
 
@@ -139,9 +149,10 @@ static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_
         }
         blk->blockId = blkId;
         blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
-        if (blk->nread < kBlockSize && blk->nread < len) {
+        if (blk->nread != kBlockSize) {
+          int32_t code = blk->nread < 0 ? terrno : TSDB_CODE_INDEX_INVALID_FILE;
           taosMemoryFree(blk);
-          break;
+          return code;
         }
 
         nread = TMIN(blkLeft, len);
@@ -149,8 +160,8 @@ static int64_t idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_
 
         LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
                                          NULL, TAOS_LRU_PRIORITY_LOW, NULL);
-        if (s != TAOS_LRU_STATUS_OK) {
-          return -1;
+        if (s != TAOS_LRU_STATUS_OK && s != TAOS_LRU_STATUS_OK_OVERWRITTEN) {
+          return TSDB_CODE_OUT_OF_MEMORY;
         }
       }
     }
@@ -178,15 +189,20 @@ static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
   return 0;
 }
 static FORCE_INLINE int idxFileCtxDoFlush(IFileCtx* ctx) {
-  if (ctx->type == TFILE) {
+  if (ctx->writeError != 0) return -1;
+  if (ctx->type == TFILE && !ctx->file.readOnly) {
     if (ctx->file.wBufOffset > 0) {
       int32_t nw = taosWriteFile(ctx->file.pFile, ctx->file.wBuf, ctx->file.wBufOffset);
+      if (nw != ctx->file.wBufOffset) {
+        ctx->writeError = TAOS_SYSTEM_ERROR(EIO);
+        return -1;
+      }
       ctx->file.wBufOffset = 0;
     }
-    int ret = taosFsyncFile(ctx->file.pFile);
-    UNUSED(ret);
-  } else {
-    // do nothing
+    if (taosFsyncFile(ctx->file.pFile) != 0) {
+      ctx->writeError = TAOS_SYSTEM_ERROR(EIO);
+      return -1;
+    }
   }
   return 1;
 }
@@ -205,8 +221,9 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     if (readOnly == false) {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
 
+      if (ctx->file.pFile == NULL) goto END;
       code = taosFtruncateFile(ctx->file.pFile, 0);
-      UNUSED(code);
+      if (code != 0) goto END;
 
       code = taosStatFile(path, &ctx->file.size, NULL, NULL);
       UNUSED(code);
@@ -220,8 +237,9 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
       }
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
+      if (ctx->file.pFile == NULL) goto END;
       code = taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
-      UNUSED(code);
+      if (code != 0) goto END;
 
       ctx->file.wBufOffset = 0;
 
@@ -230,7 +248,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
 #endif
     }
     if (ctx->file.pFile == NULL) {
-      indexError("failed to open file, error %d", errno);
+      indexError("failed to open file, error %d", ERRNO);
       goto END;
     }
   } else if (ctx->type == TMEMORY) {
@@ -254,10 +272,15 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
 
   return ctx;
 END:
+  if (code == 0) code = terrno;
   if (ctx->type == TMEMORY) {
     taosMemoryFree(ctx->mem.buf);
+  } else {
+    taosMemoryFree(ctx->file.wBuf);
+    if (ctx->file.pFile != NULL) (void)taosCloseFile(&ctx->file.pFile);
   }
   taosMemoryFree(ctx);
+  terrno = code;
   return NULL;
 }
 void idxFileCtxDestroy(IFileCtx* ctx, bool remove) {
@@ -307,7 +330,7 @@ int32_t idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
   IFileCtx* ctx = write->wrt;
   int       nWrite = ctx->write(ctx, buf, len);
   if (nWrite != len) {
-    code = TAOS_SYSTEM_ERROR(errno);
+    code = TAOS_SYSTEM_ERROR(ERRNO);
     return code;
   }
   write->count += len;

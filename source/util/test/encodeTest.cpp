@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #if 0
 
 #include <iostream>
@@ -364,10 +381,10 @@ TEST(td_encode_test, compound_struct_encode_test) {
   int32_t      buf1size;
   uint8_t     *buf2;
   int32_t      buf2size;
-  SStructA_v1  sa1 = {.A_a = 10, .A_b = 65478, .A_c = (char *)"Hello"};
-  SStructA_v2  sa2 = {.A_a = 10, .A_b = 65478, .A_c = (char *)"Hello", .A_d = 67, .A_e = 13};
-  SFinalReq_v1 req1 = {.pA = &sa1, .v_a = 15, .v_b = 35};
-  SFinalReq_v2 req2 = {.pA = &sa2, .v_a = 15, .v_b = 32, .v_c = 37};
+  SStructA_v1  sa1 = {}; sa1.A_a = 10; sa1.A_b = 65478; sa1.A_c = (char *)"Hello";
+  SStructA_v2  sa2 = {}; sa2.A_a = 10; sa2.A_b = 65478; sa2.A_c = (char *)"Hello"; sa2.A_d = 67; sa2.A_e = 13;
+  SFinalReq_v1 req1 = {}; req1.pA = &sa1; req1.v_a = 15; req1.v_b = 35;
+  SFinalReq_v2 req2 = {}; req2.pA = &sa2; req2.v_a = 15; req2.v_b = 32; req2.v_c = 37;
   SFinalReq_v1 dreq11, dreq21;
   SFinalReq_v2 dreq12, dreq22;
 

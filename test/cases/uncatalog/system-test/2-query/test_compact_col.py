@@ -1,0 +1,97 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
+
+from math import inf
+
+class TestCompactCol:
+    def caseDescription(self):
+        '''
+        case1<shenglian zhou>: [TD-] 
+        ''' 
+        return
+    
+    def setup_class(cls):
+        tdLog.debug("start to execute %s" % __file__)
+        # tdSql.init(conn.cursor(), True)
+        # self.conn = conn
+        
+    def restartTaosd(self, index=1, dbname="db"):
+        tdDnodes.stop(index)
+        tdDnodes.startWithoutSleep(index)
+        tdSql.execute(f"use tbname_vgroup")
+
+    def test_compact_col(self):
+        """summary: xxx
+
+        description: xxx
+
+        Since: xxx
+
+        Labels: common,ci,integration,functional
+        Jira: xxx
+
+        Catalog:
+            - xxx:xxx
+
+        History:
+            - xxx
+            - xxx
+
+        """
+
+        print("running {}".format(__file__))
+        tdSql.execute("drop database if exists tbname_vgroup")
+        tdSql.execute("create database if not exists tbname_vgroup")
+        tdSql.execute('use tbname_vgroup')
+        tdSql.execute('drop database if exists dbvg')
+        tdSql.execute('create database dbvg vgroups 8;')
+
+        tdSql.execute('use dbvg;')
+
+        tdSql.execute('create table st(ts timestamp, f int) tags (t int);')
+
+        tdSql.execute("insert into ct1 using st tags(1) values('2021-04-19 00:00:01', 1)")
+
+        tdSql.execute("insert into ct2 using st tags(2) values('2021-04-19 00:00:02', 2)")
+
+        tdSql.execute("insert into ct3 using st tags(3) values('2021-04-19 00:00:03', 3)")
+
+        tdSql.execute("insert into ct4 using st tags(4) values('2021-04-19 00:00:04', 4)")
+
+
+        tdSql.execute('create table st2(ts timestamp, f int) tags (t int);')
+
+        tdSql.execute("insert into ct21 using st2 tags(1) values('2021-04-19 00:00:01', 1)")
+
+        tdSql.execute("insert into ct22 using st2 tags(2) values('2021-04-19 00:00:02', 2)")
+
+        tdSql.execute("insert into ct23 using st2 tags(3) values('2021-04-19 00:00:03', 3)")
+
+        tdSql.execute("insert into ct24 using st2 tags(4) values('2021-04-19 00:00:04', 4)")
+        
+        
+        col_names = tdSql.getColNameList("compact database tbname_vgroup")
+        if col_names[0] != "result":
+           raise Exception("first column name of compact result shall be result")
+
+        col_names = tdSql.getColNameList("show variables")
+        if col_names[0] != "name":
+           raise Exception("first column name of compact result shall be name")
+
+        tdSql.execute('drop database tbname_vgroup')
+        #tdSql.close()
+

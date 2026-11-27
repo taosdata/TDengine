@@ -1,10 +1,24 @@
 #!/bin/bash
+
+# Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
 #
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
 
-# dockerbuild.sh 
+# dockerbuild.sh
 #             -c [aarch32 | aarch64 | amd64 | x86 | mips64 | loongarch64...]
 #             -n [version number]
 #             -p [password for docker hub]
@@ -17,11 +31,13 @@ cpuTypeAlias=""
 version=""
 passWord=""
 pkgFile=""
+tdgptPkgFile=""
 verType="stable"
 dockerLatest="n"
 cloudBuild="n"
+modelDlUrl=""
 
-while getopts "hc:n:p:f:V:a:b:d:" arg
+while getopts "hc:n:p:f:V:g:u:a:b:d:" arg
 do
   case $arg in
     c)
@@ -48,6 +64,14 @@ do
       #echo "verType=$OPTARG"
       verType=$(echo $OPTARG)
       ;;
+    g)
+      #echo "tdgptPkgFile=$OPTARG"
+      tdgptPkgFile=$(echo $OPTARG)
+      ;;
+    u)
+      #echo "modelDlUrl=$OPTARG"
+      modelDlUrl=$(echo $OPTARG)
+      ;;
     d)
       #echo "cloudBuild=$OPTARG"
       cloudBuild=$(echo $OPTARG)
@@ -61,12 +85,14 @@ do
       echo "                      -n [version number] "
       echo "                      -p [password for docker hub] "
       echo "                      -V [stable | beta] "
+      echo "                      -g [pkg name for tdgpt] "
+      echo "                      -u [model download url] "
       echo "                      -f [pkg file] "
       echo "                      -a [y | n ]   "
       echo "                      -d [cloud build ] "
       exit 0
       ;;
-    ?) #unknow option 
+    ?) #unknow option
       echo "unkonw argument"
       exit 1
       ;;
@@ -82,9 +108,15 @@ done
 if [ "$verType" == "beta" ]; then
   dockername=${cpuType}-${verType}
   dirName=${pkgFile%-beta*}
+  if [ -n "$tdgptPkgFile" ];then
+    tdgptDirName=${tdgptPkgFile%-beta*}
+  fi
 elif [ "$verType" == "stable" ]; then
   dockername=${cpuType}
   dirName=${pkgFile%-Linux*}
+  if [ -n "$tdgptPkgFile" ];then
+    tdgptDirName=${tdgptPkgFile%-Linux*}
+  fi
 else
   echo "unknow verType, nor stabel or beta"
   exit 1
@@ -99,11 +131,15 @@ echo "$(pwd)"
 echo "====NOTES: ${pkgFile} must be in the same directory as dockerbuild.sh===="
 
 scriptDir=$(dirname $(readlink -f $0))
-communityDir=${scriptDir}/../../../community
+communityDir=$(cd "${scriptDir}/../.." && pwd)
 DockerfilePath=${communityDir}/packaging/docker/
 if [ "$cloudBuild" == "y" ]; then
   communityArchiveDir=/nas/TDengine/v$version/cloud
-  Dockerfile=${communityDir}/packaging/docker/DockerfileCloud
+  if [ -n "$tdgptPkgFile" ];then
+    Dockerfile=${communityDir}/packaging/docker/DockerfileCloudTDgpt
+  else
+    Dockerfile=${communityDir}/packaging/docker/DockerfileCloud
+  fi
 else
   communityArchiveDir=/nas/TDengine/v$version/community
   Dockerfile=${communityDir}/packaging/docker/Dockerfile
@@ -123,24 +159,25 @@ else
     echo "Unknown cpuType: ${cpuType}"
     exit 1
 fi
-# check the tdengine cloud base image existed or not
 if [ "$cloudBuild" == "y" ]; then
-  CloudBase=$(docker images | grep tdengine/tdengine-cloud-base ||:)
-  if [[ "$CloudBase" == "" ]]; then
-    echo "Rebuild tdengine cloud base image..."
-    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
+  if [ -n "$tdgptPkgFile" ];then
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloudTDgpt.base" -t tdengine/tdengine-cloud-tdgpt-base "." --build-arg cpuType=${cpuTypeAlias}
   else
-    echo "Already found tdengine cloud base image"
+    docker build --rm -f "${communityDir}/packaging/docker/DockerfileCloud.base" -t tdengine/tdengine-cloud-base "." --build-arg cpuType=${cpuTypeAlias}
   fi
 fi
 
-docker build --rm -f "${Dockerfile}"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg cpuType=${cpuTypeAlias}
+if [ -n "$tdgptPkgFile" ];then
+  docker build --rm -f "${Dockerfile}"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg tdgptPkgFile=${tdgptPkgFile} --build-arg tdgptDirName=${tdgptDirName} --build-arg cpuType=${cpuTypeAlias} --build-arg modelDlUrl=${modelDlUrl}
+else
+  docker build --rm -f "${Dockerfile}"  --network=host -t tdengine/tdengine-${dockername}:${version} "." --build-arg pkgFile=${pkgFile} --build-arg dirName=${dirName} --build-arg cpuType=${cpuTypeAlias}
+fi
 if [ "$cloudBuild" != "y" ]; then
   docker login -u tdengine -p ${passWord}  #replace the docker registry username and password
   docker push tdengine/tdengine-${dockername}:${version}
 fi
 
-# set this version to latest version 
+# set this version to latest version
 if  [ "$cloudBuild" != "y" ] && [ ${dockerLatest} == 'y' ]  ;then
   docker tag tdengine/tdengine-${dockername}:${version} tdengine/tdengine-${dockername}:latest
   docker push tdengine/tdengine-${dockername}:latest

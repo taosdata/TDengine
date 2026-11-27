@@ -1,0 +1,10 @@
+# file_coverage.in — FILE source edge-case and coverage tests
+# Q3: schema narrower than CSV, Q5: type coercion, Q6: wide columns
+CREATE DATABASE IF NOT EXISTS file_src_db;
+USE file_src_db;
+# Q3: schema declares 3 cols, CSV has 8 cols (positional)
+SELECT ts, c1, c2 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_widecols.csv', 'ts TIMESTAMP, c1 INT, c2 INT') f_narrow ORDER BY ts;
+# Q5: bad cell values silently coerce to 0/false
+SELECT c1, c2 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_bad_types.csv', 'ts TIMESTAMP, c1 INT, c2 BOOL') f_bad ORDER BY ts;
+# Q6: 8-column FILE table reads all columns
+SELECT c1, c7 FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_widecols.csv', 'ts TIMESTAMP, c1 INT, c2 INT, c3 INT, c4 INT, c5 INT, c6 INT, c7 INT') f_wide ORDER BY ts;

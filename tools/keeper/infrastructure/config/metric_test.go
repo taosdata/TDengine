@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package config_test
 
 import (
@@ -10,11 +25,12 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/version"
 )
 
 func TestConfig(t *testing.T) {
-	data := `
+	data := fmt.Sprintf(`
 # Start with debug middleware for gin
 debug = true
 # Listen port, default is 6043
@@ -28,9 +44,9 @@ RotationInterval = "10s"
 [tdengine]
 address = "http://localhost:6041"
 authtype = "Basic"
-username = "root"
-password = "taosdata"
-`
+username = "%s"
+password = "%s"
+`, testutil.TestUsername(), testutil.TestPassword())
 	var c config.Config
 	_, err := toml.Decode(data, &c)
 	if err != nil {
@@ -66,18 +82,18 @@ func copyConfigFile() bool {
 		return false
 	}
 
-	source, err := os.Open(sourceFile) //open the source file
+	source, err := os.Open(sourceFile) // open the source file
 	if err != nil {
 		panic(err)
 	}
 	defer source.Close()
 
-	destination, err := os.Create(destinationFile) //create the destination file
+	destination, err := os.Create(destinationFile) // create the destination file
 	if err != nil {
 		panic(err)
 	}
 	defer destination.Close()
-	_, err = io.Copy(destination, source) //copy the contents of source to destination file
+	_, err = io.Copy(destination, source) // copy the contents of source to destination file
 	if err != nil {
 		panic(err)
 	}

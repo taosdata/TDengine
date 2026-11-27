@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,20 @@
  */
 
 #include "meta.h"
+#include "vnd.h"
+#include "tdbUtil.h"
 
 static FORCE_INLINE void *metaMalloc(void *pPool, size_t size) {
+  SVBufPool *pool = (SVBufPool *)pPool;
+  SVnode    *pVnode = pool->pVnode;
+
+  if (pVnode->inUse && pVnode->inUse->size > pVnode->inUse->node.size) {
+    return NULL;
+  }
+
   return vnodeBufPoolMallocAligned((SVBufPool *)pPool, size);
 }
+
 static FORCE_INLINE void metaFree(void *pPool, void *p) { vnodeBufPoolFree((SVBufPool *)pPool, p); }
 
 // begin a meta txn
@@ -96,6 +108,7 @@ int metaAbort(SMeta *pMeta) {
     return 0;
   }
 
+  metaCacheClear(pMeta);
   tdbAbort(pMeta->pEnv, pMeta->txn);
   pMeta->txn = NULL;
   return 0;

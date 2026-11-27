@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,7 @@ extern "C" {
 
 #define nodeType(nodeptr)              (((const SNode*)(nodeptr))->type)
 #define setNodeType(nodeptr, nodetype) (((SNode*)(nodeptr))->type = (nodetype))
+#define isSubQueryNode(nodeptr) (nodeptr && ((QUERY_NODE_SELECT_STMT == nodeType(nodeptr)) || (QUERY_NODE_SET_OPERATOR == nodeType(nodeptr))))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
@@ -32,6 +35,11 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL), *pNext;                                     \
        (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
        cell = pNext)
+
+#define FOREACH_R(node, list)                                                                                   \
+  for (SListCell* cell = (NULL != (list) ? (list)->pTail : NULL), *pPrev;                                     \
+       (NULL != cell ? (node = cell->pNode, pPrev = cell->pPrev, true) : (node = NULL, pPrev = NULL, false)); \
+       cell = pPrev)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -45,6 +53,10 @@ extern "C" {
 
 // only be use in WHERE_EACH
 #define ERASE_NODE(list) cell = nodesListErase((list), cell)
+
+// only be use in WHERE_EACH
+// iterate from the first element AGAIN
+#define WHERE_FIRST(list) cell = (NULL != (list) ? (list)->pHead : NULL);
 
 #define FORBOTH(node1, list1, node2, list2)                                               \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
@@ -103,6 +115,11 @@ typedef struct SNodeAllocator SNodeAllocator;
 
 int32_t nodesInitAllocatorSet();
 void    nodesDestroyAllocatorSet();
+// Release the timezone handles cached by plan decode/clone. Process cleanup only, after all
+// plans/nodes are destroyed.
+void    nodesCleanupTimezoneCache();
+// Validate a nonempty name using the bounded cache shared with plan decoding.
+int32_t nodesValidateTimezoneName(const char* pTimezoneName);
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
 int32_t nodesSimAcquireAllocator(int64_t allocatorId);
 int32_t nodesSimReleaseAllocator(int64_t allocatorId);
@@ -113,6 +130,7 @@ int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
 void    nodesDestroyAllocator(int64_t allocatorId);
 
 int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut);
+bool   nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType);
 void   nodesDestroyNode(SNode* pNode);
 void   nodesFree(void* p);
 
@@ -152,7 +170,6 @@ void nodesRewriteExprPostOrder(SNode** pNode, FNodeRewriter rewriter, void* pCon
 void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
 bool nodesEqualNode(const SNode* a, const SNode* b);
-bool nodeListNodeEqual(const SNodeList* a, const SNode* b);
 
 bool nodesMatchNode(const SNode* pSub, const SNode* pNode);
 
@@ -168,13 +185,37 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
+// Validate decoded nodes, including nodes nested inside a plan; NULL disables validation.
+// A validator returns TSDB_CODE_SUCCESS or a TSDB error code. After its first error,
+// decoding continues without further validation so ownership of the tree is preserved.
+// A decoding error takes precedence over the first validation error. On any error,
+// the decoded tree is destroyed and *pNode is NULL; on success the caller owns *pNode.
+int32_t nodesMsgToNodeWithValidator(const char* pStr, int32_t len, SNode** pNode,
+                                    int32_t (*validator)(const SNode*));
+
+// Restore a borrowed charset context (SConvInfo*, process-cached, never freed by
+// the caller) from a serialized charset name. An empty name, or a name equal to
+// the server charset, leaves *pCharsetCxt untouched (callers must pre-init it to
+// NULL, which every conversion site treats as the server default tsCharsetCxt).
+int32_t nodesDecodeCharsetName(const char* pCharsetName, void** pCharsetCxt);
 
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
+int32_t nodesNodeToSQLFormat(SNode* pNode, char* buf, int32_t bufSize, int32_t* len, bool longFormat);
 char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 void    nodesSortList(SNodeList** pList, int32_t (*)(SNode* pNode1, SNode* pNode2));
 void    destroyFuncParam(void* pFuncStruct);
 int32_t nodesListDeduplicate(SNodeList** pList);
+bool    nodesIsScalarSubQuery(SNode* pNode);
+char*   nodesGetSubSql(SNode* pNode);
+void    nodesGetSubQType(SNode* pNode, int32_t* pType);
+
+// Snapshot the metadata that binds an InfluxDB 1.8 scan, including Tag roles.
+struct SExtTableNode;
+int32_t nodesCaptureInfluxSchema(struct SExtTableNode* pTable);
+
+int32_t nodesFormatReferenceSource(const SColRef *pRef, const SReferenceEntry *pReference,
+                                   char *buffer, int32_t capacity);
 
 #ifdef __cplusplus
 }

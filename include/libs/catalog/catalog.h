@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,6 +32,28 @@ extern "C" {
 #include "tname.h"
 #include "transport.h"
 #include "nodes.h"
+// SExtSourceCapability / EExtSourceType / TSDB_EXT_* are provided by tmsg.h above.
+
+// SExtSourceInfo  -  composite external source descriptor stored by the Catalog.
+// Combines connection info from the mnode (SGetExtSourceRsp) with the
+// SExtSourceInfo  -  composite external source descriptor stored in catalog.
+// Combines mnode connection info (SGetExtSourceRsp) with connector-probed
+// capability.  This is a pure in-memory structure and is NOT serialised over
+// the wire.
+typedef struct SExtSourceInfo {
+  char    source_name[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t  type;         // EExtSourceType
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t port;
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char    database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    schema_name[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];
+  int64_t meta_version;
+  int64_t create_time;
+  SExtSourceCapability capability;
+} SExtSourceInfo;
 
 typedef struct SCatalog SCatalog;
 
@@ -51,11 +75,25 @@ typedef enum {
   AUTH_TYPE_READ_OR_WRITE,
 } AUTH_TYPE;
 
+#define AUTH_OWNED_MASK 0x1
+#define AUTH_AUTHORIZED_MASK 0x2
+
 typedef struct SUserAuthInfo {
-  char      user[TSDB_USER_LEN];
-  SName     tbName;
-  bool      isView;
-  AUTH_TYPE type;
+  char    user[TSDB_USER_LEN];
+  int64_t userId;
+  SName   tbName;
+  bool    isView;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t useDb : 2;  // check use db firstly: 0x1 owned db, 0x2 authorized db
+      uint8_t smlInsert : 1;
+      uint8_t dbOwner : 1;
+      uint8_t reserve : 4;
+    };
+  };
+  EPrivType    privType;
+  EPrivObjType objType;
 } SUserAuthInfo;
 
 typedef enum {
@@ -65,9 +103,21 @@ typedef enum {
 } AUTH_RES_TYPE;
 
 typedef struct SUserAuthRes {
-  bool   pass[AUTH_RES_MAX_VALUE];
-  SNode* pCond[AUTH_RES_MAX_VALUE];
+  bool    pass[AUTH_RES_MAX_VALUE];
+  SNode*  pCond[AUTH_RES_MAX_VALUE];
+  SArray* pCols;  // applicable to basic auth only
 } SUserAuthRes;
+
+typedef struct SUserAuthRsp {
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t exists : 1;
+      uint8_t withInsertCond : 1;
+      uint8_t reserve : 6;
+    };
+  };
+} SUserAuthRsp;
 
 typedef struct SDbInfo {
   int32_t vgVer;
@@ -79,6 +129,7 @@ typedef struct SDbInfo {
 typedef struct STablesReq {
   char    dbFName[TSDB_DB_FNAME_LEN];
   SArray* pTables;
+  uint8_t autoCreate;  // 0x0 not auto create, 0x01 auto create
 } STablesReq;
 
 typedef struct SCatalogReq {
@@ -97,10 +148,14 @@ typedef struct SCatalogReq {
   SArray* pTableTSMAs;    // element is STablesReq
   SArray* pTSMAs;         // element is STablesReq
   SArray* pTableName;     // element is STablesReq
-  bool    qNodeRequired;  // valid qnode
-  bool    dNodeRequired;  // valid dnode
+  SArray* pVStbRefDbs;       // element is SName
+  SArray* pExtSourceCheck;   // element is char[TSDB_TABLE_NAME_LEN]  -  Phase A: probe source by name
+  SArray* pExtTableMeta;     // element is SExtTableMetaReq            -  Phase B: resolve ext table schema
+  bool    qNodeRequired;     // valid qnode
+  bool    dNodeRequired;     // valid dnode
   bool    svrVerRequired;
   bool    forceUpdate;
+  bool    forceUpdateTbMetaOnly;  // preserve cached DB vgroup routing while refreshing table metadata
   bool    cloned;
   bool    forceFetchViewMeta;
 } SCatalogReq;
@@ -124,11 +179,14 @@ typedef struct SMetaData {
   SArray*   pQnodeList;   // pRes = SArray<SQueryNodeLoad>*
   SArray*   pTableCfg;    // pRes = STableCfg*
   SArray*   pTableTag;    // pRes = SArray<STagVal>*
-  SArray*   pDnodeList;   // pRes = SArray<SEpSet>*
+  SArray*   pDnodeList;   // pRes = SArray<SDNodeAddr>*
   SArray*   pView;        // pRes = SViewMeta*
   SArray*   pTableTsmas;  // pRes = SArray<STableTSMAInfo*>
   SArray*   pTsmas;       // pRes = SArray<STableTSMAInfo*>
-  SMetaRes* pSvrVer;      // pRes = char*
+  SArray*   pVStbRefDbs;      // pRes = SArray<SVStbRefDbsRsp*>
+  SArray*   pExtSourceInfo;   // pRes = SExtSourceInfo*
+  SArray*   pExtTableMetaRsp; // pRes = SExtTableMeta*
+  SMetaRes* pSvrVer;          // pRes = char*
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -189,6 +247,7 @@ typedef struct STbSVersion {
   char*   tbFName;
   int32_t sver;
   int32_t tver;
+  int32_t rver; // virtual table's column ref's version
 } STbSVersion;
 
 typedef struct SUserAuthVersion {
@@ -233,6 +292,8 @@ int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName);
 
+int32_t catalogRemoveTableRelatedMeta(SCatalog* pCtg, SName* pTableName);
+
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid);
 
 /**
@@ -266,6 +327,10 @@ int32_t catalogAsyncUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg);
 int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
 int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
+
+// Returns tableType and suid from catalog cache without resolving parent STB schema.
+// Returns TSDB_CODE_SUCCESS with *pTableType=0 and *pSuid=0 if not in cache.
+int32_t catalogGetCachedTableTypeAndSuid(SCatalog* pCtg, const SName* pTableName, int8_t* pTableType, uint64_t* pSuid);
 
 int32_t catalogGetTablesHashVgId(SCatalog* pCtg, SRequestConnInfo* pConn, int32_t acctId, const char* pDb, const char* pTableName[],
                                   int32_t tableNum, int32_t *vgId);
@@ -353,7 +418,30 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
+/*
+ * Collect the cached view versions to report in one heartbeat round.
+ * reqId identifies the heartbeat batch (used to correlate the response).
+ * At most one round is outstanding at a time; a new batch is produced only after the
+ * previous response has been applied (or timed out).
+ */
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion);
+
+/*
+ * Apply the global view version returned by a heartbeat response and mark the slots
+ * carried by the corresponding request as verified. The committed dynViewVer is only
+ * advanced after every view rent slot has been verified (catalogViewSweepTryCommit).
+ */
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+
+// Finish the sweep bookkeeping for one heartbeat batch response.
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+
+// Commit the pending global view version when the whole rent has been verified.
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg);
+
+// Drop the outstanding view heartbeat round after a send/receive failure.
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 
@@ -362,6 +450,21 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion** users, uint32_
 int32_t catalogGetExpiredTsmas(SCatalog* pCtg, STSMAVersion** tsmas, uint32_t* num);
 
 int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg);
+
+int32_t catalogGetVstLeaves(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, int64_t suid,
+                            SVstLeavesRsp* pRsp);
+
+/**
+ * Check whether a column/tag may be renamed by the current privilege policies (RESTRICT dependency check).
+ * @param pCtg (input, got with catalogGetHandle)
+ * @param pConn (input, rpc connection info, mgmt eps must be valid)
+ * @param tbFName (input, table full name, i.e. db.table)
+ * @param colId (input, column/tag id, used for column-list grants)
+ * @param colName (input, column/tag name, used for row-level tag conditions)
+ * @return error code, TSDB_CODE_SUCCESS means no privilege references the column/tag
+ */
+int32_t catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                               const char* colName);
 
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo);
 
@@ -377,7 +480,7 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pAuth, SUserAuthRes* pRes);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, bool* exists);
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
@@ -417,9 +520,75 @@ int32_t catalogGetTableTsmas(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
 
 int32_t catalogGetTsma(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTsmaName, STableTSMAInfo** pTsma);
 
+int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes);
+int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName, char** ppSQL);
+int32_t catalogGetStreamTriggerTable(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                     SName* pTriggerTable);
+
+int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes);
+
+int32_t catalogRefreshUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user);
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 
 int32_t ctgHashValueComp(void const* lp, void const* rp);
+
+/**
+ * Federated query: external source cache management.
+ *
+ * catalogRemoveExtSource  -  invalidate a single external source and all of its
+ *   cached table schemas from the catalog cache (enqueues a cache-write op).
+ *
+ * catalogUpdateExtSourceCapability  -  store connector-probed pushdown flags for
+ *   a source so subsequent planner calls can read them without re-probing.
+ *
+ * catalogDemoteExtSourceCapability - persist a precise demote entry into the
+ *   source capability profile (func/op/clause/type), then enqueue async cache
+ *   write on the catalog update thread.
+ *
+ * catalogClearExtSourceDemotions / catalogClearExtSourceDemoteEntry - clear all
+ *   or one specific persisted demotion entry from the source capability profile.
+ *
+ * catalogGetExtSrcGlobalVer - return the client's currently cached global version
+ *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
+ *   mnode which global version the client has.
+ *
+ * catalogGetExtSrcDdlGen - return the client-local ext-source invalidation
+ *   generation.  It is bumped on every local cache invalidation (DDL pre-clear,
+ *   post-DDL invalidation, error-driven refresh) and is used by the heartbeat
+ *   receive path to reject pushes requested before such an invalidation.
+ *
+ * catalogUpdateAllExtSources  -  atomically replace the entire ext-source cache with
+ *   the pushed list from mnode and record the new global version.  Called when mnode
+ *   detects a version mismatch and pushes all sources in the heartbeat response.
+ *
+ * catalogDisableExtSourceCapabilities - mark all coarse pushdown clauses as
+ *   disabled in catalog capability (compat API kept for legacy callers).
+ *
+ * catalogRestoreExtSourceCapabilities - remove catalog-level demotions for a
+ *   source (compat API kept for legacy callers).
+ */
+int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource);
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName);
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtSourceCapability* pCap, int64_t capFetchedAt);
+int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSourceInfo** ppInfo);
+int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                    SExtSourceInfo** ppInfo);
+int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, const char* dbName,
+                                        const char* tableName, SExtTableMeta** ppMeta);
+int32_t catalogDemoteExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec);
+int32_t catalogGetExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                      SExtSourceCapability* pCap, bool* pFound);
+int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName);
+int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec);
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen);
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 
 /**
  * Destroy catalog and relase all resources

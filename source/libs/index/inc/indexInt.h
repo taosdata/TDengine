@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,12 +34,12 @@ extern "C" {
 #endif
 
 // clang-format off
-#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
-#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
-#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("IDX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
-#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
-#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);} } while (0)
-#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) { taosPrintLog("IDX FATAL ", DEBUG_FATAL, 255,          __VA_ARGS__);}} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) { taosPrintLog("IDX ERROR ", DEBUG_ERROR, 255,          __VA_ARGS__);}} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  { taosPrintLog("IDX WARN  ", DEBUG_WARN,  255,          __VA_ARGS__);}} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("IDX INFO  ", DEBUG_INFO,  255,          __VA_ARGS__);}} while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("IDX DEBUG ", DEBUG_DEBUG, idxDebugFlag, __VA_ARGS__);}} while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX TRACE ", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);}} while (0)
 // clang-format on
 
 extern void* indexQhandle;
@@ -73,6 +75,7 @@ struct SIndex {
   TdThreadMutex mtx;
   tsem_t        sem;
   bool          quit;
+  int32_t       flushError;  // First asynchronous flush failure, sticky until close.
 };
 
 struct SIndexMultiTermQuery {
@@ -111,6 +114,7 @@ typedef struct Iterate {
   IterateValue val;
   bool (*next)(Iterate* iter);
   IterateValue* (*getValue)(Iterate* iter);
+  int32_t error;  // A failed advance must not be treated as end of input during flush.
 } Iterate;
 
 void iterateValueDestroy(IterateValue* iv, bool destroy);

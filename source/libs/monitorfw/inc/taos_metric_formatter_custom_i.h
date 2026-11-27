@@ -22,7 +22,7 @@
 #include <stdint.h>
 #include "tjson.h"
 
-int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
+int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, const char *l_value, double value,
                                       char *ts, char *format, char *metricName, int32_t metric_type, 
                                       SJson *arrayMetricGroups);
 int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format, 

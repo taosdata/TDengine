@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,10 +26,116 @@ extern "C" {
 #include "systable.h"
 #include "tarray.h"
 #include "thash.h"
+#include "tcol.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
 #include "tsimplehash.h"
+#include "ttypes.h"
+
+// Only pointers cross this interface; keep qcom independent of Nodes headers.
+typedef struct SNodeList SNodeList;
+typedef struct SValueNode SValueNode;
+
+// Correlation runtime objects are implemented in node management. Qworker and
+// Executor use this interface without depending on Scheduler's concrete types.
+typedef struct SCorrelationRuntime SCorrelationRuntime;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
+typedef struct SCorrelationCall SCorrelationCall;
+typedef struct SMemPoolJob SMemPoolJob;
+
+typedef struct SCorrelationTaskKey {
+  uint64_t queryId;
+  uint64_t clientId;
+  uint64_t taskId;
+  int32_t  execId;
+  uint64_t seriesId;
+} SCorrelationTaskKey;
+
+typedef struct SCorrelationRootKey {
+  uint64_t executionId;  // New for each SQL execution/retry, including STMT.
+  uint64_t queryId;
+  uint64_t clientId;
+  uint64_t generation;
+} SCorrelationRootKey;
+
+typedef struct SCorrelationParamValue {
+  int32_t   paramId;
+  SDataType dataType;
+  bool      isNull;
+  int32_t   length;
+  // Owned native value storage, independent of source blocks and RPC buffers.
+  // Variable values include their existing varstr/blob header; length is the
+  // total stored byte count. NULL has length 0 and pData NULL. P06 encodes the
+  // typed contents, never this process-local pointer or source block/slot IDs.
+  void*     pData;
+} SCorrelationParamValue;
+
+typedef struct SCorrelationCallKey {
+  SCorrelationRootKey root;
+  SCorrelationTaskKey parent;
+  int32_t             templateId;
+  uint64_t            sequence;
+} SCorrelationCallKey;
+
+typedef struct SCorrelationTaskContext {
+  SCorrelationRootKey root;
+  SCorrelationTaskKey task;
+  int32_t             queryPolicy;
+  int64_t             txnId;  // Inherit unchanged; zero does not start a txn.
+  int8_t              firstDayOfWeek;
+  char                user[TSDB_USER_LEN];
+  char                db[TSDB_DB_FNAME_LEN];
+  const char*         pTimezoneName;
+  const char*         pCharsetName;
+  const SNodeList*    pTemplates;
+  const SArray*       pInheritedParams;  // SCorrelationParamValue entries.
+  const SArray*       pNodeList;         // SQueryNodeLoad candidates for nested jobs.
+  void*               pWorkerCb;
+  SMemPoolJob*        pMemPoolJob;
+} SCorrelationTaskContext;
+
+typedef struct SCorrelationWaitHooks {
+  void*   pContext;
+  // Return TSDB_CODE_SUCCESS after entering the blocking state. Any other
+  // value aborts the wait and is propagated without calling the recovery hook.
+  int32_t (*beforeBlocking)(void* pContext);
+  // Called exactly once after each successful beforeBlocking invocation.
+  void    (*afterRecoverFromBlocking)(void* pContext);
+} SCorrelationWaitHooks;
+
+typedef struct SCorrelationScalarRequest {
+  int32_t               templateId;
+  const SArray*         pParams;  // SCorrelationParamValue entries.
+  const SArray*         pSubquerySources;  // Borrowed SDownstreamSourceNode* entries.
+  SCorrelationWaitHooks wait;
+} SCorrelationScalarRequest;
+
+typedef struct SCorrelationRuntimeOps {
+  // Borrow pContext only during creation. The session copies parameters and
+  // names and holds immutable template references until its last release.
+  // Failure leaves *ppSession NULL and releases partially acquired resources.
+  int32_t (*createTaskSession)(SCorrelationRuntime* pRuntime,
+                               const SCorrelationTaskContext* pContext,
+                               SCorrelationTaskSession** ppSession);
+  void (*retainTaskSession)(SCorrelationTaskSession* pSession);
+  void (*releaseTaskSession)(SCorrelationTaskSession* pSession);
+  // Each call creates an independent job. Request storage and wait hooks are
+  // borrowed until return; asynchronous users must copy/retain their inputs.
+  // Success transfers one owned QUERY_NODE_VALUE (including typed NULL).
+  // Failure leaves *ppResult NULL and preserves the original error code.
+  // Return only after invocation resources/callbacks have drained. Pair every
+  // successful beforeBlocking with one afterRecoverFromBlocking before return.
+  int32_t (*invokeScalar)(SCorrelationTaskSession* pSession,
+                          const SCorrelationScalarRequest* pRequest,
+                          SValueNode** ppResult);
+  const SArray* (*getInheritedParams)(const SCorrelationTaskSession* pSession);
+  int32_t (*reserveResultMemory)(SCorrelationTaskSession* pSession, int64_t bytes);
+  void (*releaseResultMemory)(SCorrelationTaskSession* pSession, int64_t bytes);
+  // Idempotently reject new calls, cancel children and wake waiters. Never
+  // drain callbacks while holding a task lock; references keep callbacks safe.
+  void (*closeTaskSession)(SCorrelationTaskSession* pSession, int32_t code);
+} SCorrelationRuntimeOps;
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -42,8 +150,8 @@ typedef enum {
 } EJobTaskType;
 
 typedef enum {
-  TASK_TYPE_PERSISTENT = 1,
-  TASK_TYPE_TEMP,
+  TASK_TYPE_HQUERY = 1,
+  TASK_TYPE_QUERY,
 } ETaskType;
 
 typedef enum {
@@ -69,9 +177,12 @@ typedef enum {
 #define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
 #define QUERY_MSG_MASK_AUDIT()        (1 << 1)
 #define QUERY_MSG_MASK_VIEW()         (1 << 2)
+#define QUERY_MSG_MASK_SUBQUERY()     (1 << 3)
+
 #define TEST_SHOW_REWRITE_MASK(m)     (((m)&QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
 #define TEST_AUDIT_MASK(m)            (((m)&QUERY_MSG_MASK_AUDIT()) != 0)
 #define TEST_VIEW_MASK(m)             (((m)&QUERY_MSG_MASK_VIEW()) != 0)
+#define TEST_SUBQUERY_MASK(m)         (((m)&QUERY_MSG_MASK_SUBQUERY()) != 0)
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
@@ -90,10 +201,17 @@ typedef struct SIndexMeta {
 
 typedef struct SExecResult {
   int32_t  code;
+  bool     execDispatched;  // At least one task reached RPC/local execution.
   uint64_t numOfRows;
   uint64_t numOfBytes;
   int32_t  msgType;
   void*    res;
+  char*    extErrMsg;  // federated query: remote-side error message (heap-allocated, caller frees)
+  SExtPushdownDiagnostic* extPushdownDiag;  // optional structured pushdown diagnostic (heap-allocated)
+  // Metadata objects a DDL statement actually touched, summed across vgroups. Only set for
+  // TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL, whose reach is resolved by the vnode
+  // pre-scan; the client adds it to txnDdlCount for the per-object accounting of FS Sec.4.13.
+  int32_t  numTouchedObjects;
 } SExecResult;
 
 #pragma pack(push, 1)
@@ -106,13 +224,62 @@ typedef struct SCTableMeta {
 #pragma pack(pop)
 
 #pragma pack(push, 1)
+typedef struct SVCTableMeta {
+  uint64_t uid;
+  uint64_t suid;
+  int32_t  vgId;
+  int8_t   tableType;
+  int32_t  numOfColRefs;
+  int32_t  rversion; // virtual table's column ref's version
+  SColRef* colRef;
+  int32_t  numOfTagRefs;
+  SColRef* tagRef;
+  int32_t       numOfSeries;
+  SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
+  // vchild own (extension) columns/tags, colId >= TSDB_VCHILD_OWN_COL_ID_BASE; packed
+  // behind colRef/tagRef in the same memory block, own columns first then own tags.
+  int32_t  numOfOwnCols;
+  SSchema* ownSchemas;
+  SSchemaExt* ownSchemaExt;  // numOfOwnCols entries, 1:1 with ownSchemas; carries typeMod
+                             // (decimal precision/scale) for own columns. NULL when the source
+                             // carried no own-column ext.
+  int32_t  numOfOwnTags;
+  SSchema* ownTagSchemas;
+} SVCTableMeta;
+#pragma pack(pop)
+
+#pragma pack(push, 1)
 typedef struct STableMeta {
+  // BEGIN: KEEP THIS PART SAME WITH SVCTableMeta
   // BEGIN: KEEP THIS PART SAME WITH SCTableMeta
   uint64_t uid;
   uint64_t suid;
   int32_t  vgId;
   int8_t   tableType;
   // END: KEEP THIS PART SAME WITH SCTableMeta
+
+  int32_t       numOfColRefs;
+  int32_t       rversion; // virtual table's column ref's version
+  SColRef*      colRef;
+  int32_t       numOfTagRefs;
+  SColRef*      tagRef;
+  int32_t       numOfSeries;
+  SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
+  // Same layout as the tail of SVCTableMeta. For a merged per-child meta (vstb schema +
+  // vchild own columns/tags) these stay 0/NULL: own columns/tags are inserted into
+  // schema[] during the catalog merge, which keeps cloneTableMeta()/TABLE_META_FULL_SIZE()
+  // unchanged.
+  int32_t       numOfOwnCols;
+  SSchema*      ownSchemas;
+  SSchemaExt*   ownSchemaExt;  // mirrors SVCTableMeta.ownSchemaExt: keeps the tail layout of
+                               // STableMeta identical to SVCTableMeta. NULL for merged per-child
+                               // metas (own columns are in schema[]); non-NULL only while a cached
+                               // SVCTableMeta is accessed through an STableMeta pointer.
+  int32_t       numOfOwnTags;
+  SSchema*      ownTagSchemas;
+  // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
   // info
@@ -121,13 +288,81 @@ typedef struct STableMeta {
   STableComInfo tableInfo;
   SSchemaExt*   schemaExt;  // There is no additional memory allocation, and the pointer is fixed to the next address of
                             // the schema content.
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t virtualStb : 1;
+      uint8_t isAudit : 1;
+      uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
+      uint8_t hasInheritors : 1;  // 1 if other VSTs inherit from this STB
+      // Synthetic table meta built for federated external sources reuses a local-table
+      // shape (normal/super + schemaExt) for parser/planner compatibility, but it does
+      // not carry real TDengine column-compression metadata.
+      uint8_t extSrcSynthetic : 1;
+      uint8_t reserved : 1;
+    };
+  };
+  int64_t ownerId;
+  int8_t  secureDelete;
   SSchema schema[];
 } STableMeta;
 #pragma pack(pop)
 
+#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
+
+#define TABLE_META_BASE_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
+
+#define TABLE_META_SCHEMA_EXT_SIZE(pMeta) \
+  ((withExtSchema((pMeta)->tableType) && NULL != (pMeta)->schemaExt) ? (pMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt) : 0)
+
+#define TABLE_META_COL_REF_SIZE(pMeta) \
+  ((hasColRef((pMeta)->tableType) && NULL != (pMeta)->colRef) ? (pMeta)->numOfColRefs * sizeof(SColRef) : 0)
+
+#define TABLE_META_TAG_REF_SIZE(pMeta) \
+  ((hasTagRef((pMeta)->tableType) && NULL != (pMeta)->tagRef && (pMeta)->numOfTagRefs > 0) ? (pMeta)->numOfTagRefs * sizeof(SColRef) : 0)
+
+#define TABLE_META_FULL_SIZE(pMeta) \
+  (NULL == (pMeta) ? 0 : (TABLE_META_BASE_SIZE((pMeta)) + TABLE_META_SCHEMA_EXT_SIZE((pMeta)) + TABLE_META_COL_REF_SIZE((pMeta)) + TABLE_META_TAG_REF_SIZE((pMeta))))
+
+static inline void tableMetaResetPointers(STableMeta *pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  char *pCursor = (char *)pMeta + TABLE_META_BASE_SIZE(pMeta);
+
+  if (withExtSchema(pMeta->tableType) && NULL != pMeta->schemaExt) {
+    pMeta->schemaExt = (SSchemaExt *)pCursor;
+    pCursor += pMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
+  } else {
+    pMeta->schemaExt = NULL;
+  }
+
+  if (hasColRef(pMeta->tableType) && NULL != pMeta->colRef) {
+    pMeta->colRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfColRefs * sizeof(SColRef);
+  } else {
+    pMeta->colRef = NULL;
+  }
+
+  if (hasTagRef(pMeta->tableType) && NULL != pMeta->tagRef && pMeta->numOfTagRefs > 0) {
+    pMeta->tagRef = (SColRef *)pCursor;
+    pCursor += pMeta->numOfTagRefs * sizeof(SColRef);
+  } else {
+    pMeta->tagRef = NULL;
+    pMeta->numOfTagRefs = 0;
+  }
+}
+
+static inline bool tableMetaShowCompressOptions(const STableMeta* pMeta) {
+  return NULL != pMeta && withColCompress(pMeta->tableType) && NULL != pMeta->schemaExt && !pMeta->extSrcSynthetic;
+}
+
 typedef struct SViewMeta {
   uint64_t viewId;
-  char*    user;
+  int64_t  ownerId;
+  char*    createUser;
   char*    querySql;
   int8_t   precision;
   int8_t   type;
@@ -136,33 +371,79 @@ typedef struct SViewMeta {
   SSchema* pSchema;
 } SViewMeta;
 
+typedef SRsmaInfoRsp SRsmaMeta;
+typedef SRsmaMeta SRsmaMetaOutput;
+
 typedef struct SDBVgInfo {
-  int32_t   vgVersion;
-  int16_t   hashPrefix;
-  int16_t   hashSuffix;
-  int8_t    hashMethod;
+  int32_t vgVersion;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int8_t  hashMethod;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;  // TS-5868
+      uint8_t padding : 7;
+    };
+  };
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   int64_t   stateTs;
   SHashObj* vgHash;   // key:vgId, value:SVgroupInfo
   SArray*   vgArray;  // SVgroupInfo
 } SDBVgInfo;
 
+typedef struct SVGroupHashInfo {
+  int32_t  vgId;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+} SVGroupHashInfo;
+
+typedef struct SDBVgHashInfo {
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
+  int8_t    hashMethod;
+  bool      vgSorted;
+  SArray*   vgArray;   //SArray<SVGroupHashInfo>
+} SDBVgHashInfo;
+
+typedef struct SColIdName {
+  int16_t colId;
+  char*   colName;
+} SColIdName;
+
+typedef struct SStreamVBuildCtx {
+  int64_t      lastUid;
+  SRefColInfo* lastCol;
+
+  SSHashObj*   lastVg;
+  SSHashObj*   lastVtable;
+  SArray*      lastOtable;
+} SStreamVBuildCtx;
+
 typedef struct SUseDbOutput {
   char       db[TSDB_DB_FNAME_LEN];
   uint64_t   dbId;
   SDBVgInfo* dbVgroup;
+  int8_t     precision;
 } SUseDbOutput;
+typedef SUseDbOutput** SUseDbOutputPPter;
 
-enum { META_TYPE_NULL_TABLE = 1, META_TYPE_CTABLE, META_TYPE_TABLE, META_TYPE_BOTH_TABLE };
+enum { META_TYPE_NULL_TABLE = 1,
+       META_TYPE_CTABLE,
+       META_TYPE_VCTABLE,
+       META_TYPE_TABLE,
+       META_TYPE_BOTH_TABLE,
+       META_TYPE_BOTH_VTABLE};
 
 typedef struct STableMetaOutput {
-  int32_t     metaType;
-  uint64_t    dbId;
-  char        dbFName[TSDB_DB_FNAME_LEN];
-  char        ctbName[TSDB_TABLE_NAME_LEN];
-  char        tbName[TSDB_TABLE_NAME_LEN];
-  SCTableMeta ctbMeta;
-  STableMeta* tbMeta;
+  int32_t       metaType;
+  uint64_t      dbId;
+  char          dbFName[TSDB_DB_FNAME_LEN];
+  char          ctbName[TSDB_TABLE_NAME_LEN];
+  char          tbName[TSDB_TABLE_NAME_LEN];
+  SCTableMeta   ctbMeta;
+  SVCTableMeta* vctbMeta;
+  STableMeta*   tbMeta;
 } STableMetaOutput;
 
 typedef struct SViewMetaOutput {
@@ -189,22 +470,34 @@ typedef struct STargetInfo {
   int32_t     vgId;
 } STargetInfo;
 
+typedef struct STagsInfo {
+  SArray*  STagNames;  // STagVal
+  SArray*  pTagVals;
+  uint8_t* pTagIndex;
+  int32_t  numOfTags;
+} STagsInfo;
+
 typedef struct SBoundColInfo {
   int16_t* pColIndex;  // bound index => schema index
   int32_t  numOfCols;
   int32_t  numOfBound;
   bool     hasBoundCols;
   bool     mixTagsCols;
+  STagsInfo* parseredTags;  // used for partial fixed value stmt
 } SBoundColInfo;
 
 typedef struct STableColsData {
   char    tbName[TSDB_TABLE_NAME_LEN];
   SArray* aCol;
+  SBlobSet* pBlobSet;
   bool    getFromHash;
+  bool    isOrdered;
+  bool    isDuplicateTs;
 } STableColsData;
 
 typedef struct STableVgUid {
   uint64_t uid;
+  uint64_t suid;
   int32_t  vgid;
 } STableVgUid;
 
@@ -221,27 +514,30 @@ typedef struct STableDataCxt {
   STableMeta*    pMeta;
   STSchema*      pSchema;
   SBoundColInfo  boundColsInfo;
-  SArray*        pValues;
+  SArray*        pValues;  // SColVal
   SSubmitTbData* pData;
   SRowKey        lastKey;
   bool           ordered;
   bool           duplicateTs;
+  int8_t         hasBlob;  // if the table has blob column
 } STableDataCxt;
 
 typedef struct SStbInterlaceInfo {
   void*          pCatalog;
   void*          pQuery;
   int32_t        acctId;
-  char*          dbname;
+  char*          dbname; /* heap copy; TAOS client frees with stmt siInfo cleanup (stmtCleanSQLInfo) */
   void*          transport;
   SEpSet         mgmtEpSet;
   void*          pRequest;
   uint64_t       requestId;
   int64_t        requestSelf;
   bool           tbFromHash;
-  SHashObj*      pVgroupHash;
-  SArray*        pVgroupList;
-  SSHashObj*     pTableHash;
+  SHashObj*      pVgroupHash;        // key:vgId, value:SVgroupDataCxt
+  SArray*        pVgroupList;        // SVgroupDataCxt
+  SSHashObj*     pTableHash;         // key:tbname, value:STableVgUid
+  void*          pTableHashMutex;    // TdThreadMutex*, guards producer/worker access to pTableHash
+  SSHashObj*     pTableRowDataHash;  // key:tbname, value:SSubmitTbData->aRowP
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
   char           firstName[TSDB_TABLE_NAME_LEN];
@@ -262,6 +558,13 @@ typedef struct SRequestConnInfo {
   uint64_t requestId;
   int64_t  requestObjRefId;
   SEpSet   mgmtEps;
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
+  // Batch meta txn: borrowed refs to the connection's txn-local state (NULL when the txn has not
+  // touched anything yet). They let the catalog tell which tables this txn has modified, so responses
+  // for untouched tables can still be cached. Whoever sets txnId must fill these too: use
+  // parseCxtToConnInfo(), otherwise txn-touched tables would look untouched and be cached.
+  SHashObj* pTxnTableMeta;  // "db.table" -> STableMeta* (NULL value = dropped in txn)
+  SHashObj* pTxnSuidMap;    // stb suid -> stb full name, for stbs touched in txn
 } SRequestConnInfo;
 
 typedef void (*__freeFunc)(void* param);
@@ -272,6 +575,7 @@ typedef struct SMsgSendInfo {
   STargetInfo          target;  // for update epset
   __freeFunc           paramFreeFp;
   void*                param;
+  int8_t               streamAHandle;
   uint64_t             requestId;
   uint64_t             requestObjRefId;
   int32_t              msgType;
@@ -298,8 +602,12 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+bool    taosInAsyncTask(void);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
+int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
+bool    beginAsyncWorkShutdown();
+bool    mayCreateAsyncWork();
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
@@ -326,36 +634,80 @@ int32_t queryBuildUseDbOutput(SUseDbOutput* pOut, SUseDbRsp* usedbRsp);
 void initQueryModuleMsgHandle();
 
 const SSchema* tGetTbnameColumnSchema();
-bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
+bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual);
 int32_t        getAsofJoinReverseOp(EOperatorType op);
+bool           hasDecimalBytesTypeInfo(int32_t bytes);
+void           schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType);
+bool           isSameRefDataType(const SDataType* pLeft, const SDataType* pRight);
+int32_t        getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName);
 
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
+int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+// Batch meta txn: schema of a super table as seen by the txn that altered it (ALTER STB is applied to the
+// vnodes only at COMMIT). The client ships these with the system table scans listed by qSysTableNeedsTxnStbSchemas() so that
+// the vnode renders child-table rows with the txn's tag/column names and types. Display only: tag values are
+// still read by colId from the vnode, ALTER never changes a colId.
+// Upper bound of the encoded blob. One super table is at most (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS) schemas of well
+// under 64 bytes each (about 2 MB), and a txn alters a handful of them. The bound only exists so that a forged
+// length in a plan cannot turn into a huge allocation: every decoder of the blob must reject anything above it.
+#define TXN_STB_SCHEMAS_MAX_LEN (64 * 1024 * 1024)
+
+typedef struct STxnStbSchema {
+  int64_t        suid;
+  SSchemaWrapper schemaRow;
+  SSchemaWrapper schemaTag;
+  SExtSchema*    pExtSchemas;  // schemaRow.nCols entries (typeMod), never NULL after decode
+} STxnStbSchema;
+
+// Encode the super tables in pStbMetas (element: const STableMeta*, tableType must be TSDB_SUPER_TABLE).
+// *ppBuf is taosMemoryMalloc'd, *ppBuf == NULL / *pLen == 0 when the array is empty.
+int32_t queryEncodeTxnStbSchemas(const SArray* pStbMetas, char** ppBuf, int32_t* pLen);
+// Decode into a hash suid(int64) -> STxnStbSchema (release with queryDestroyTxnStbSchemas).
+int32_t queryDecodeTxnStbSchemas(const char* pBuf, int32_t len, SHashObj** ppHash);
+void    queryDestroyTxnStbSchemas(SHashObj* pHash);
+
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
+// Legacy names: both helpers handle every owned condition string in SColRef.
+void    queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols);
+void    queryFreeTableMeta(STableMeta* pMeta);
+int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst);
+int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
 
 void    destroyQueryExecRes(SExecResult* pRes);
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
-int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
+                  char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
+                  const char* tagCondJson, int32_t tagCondLen);
+int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst);
 void    freeVgInfo(SDBVgInfo* vgInfo);
 void    freeDbCfgInfo(SDbCfgInfo* pInfo);
+void    qDestroyBoundColInfo(void* pInfo);
+
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
-                                          void* (*mallocFp)(int64_t));
+                                          void* (*mallocFp)(int64_t), void (*freeFp)(void*));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
 void* getTaskPoolWorkerCb();
 
-#define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
-#define SET_META_TYPE_CTABLE(t)     (t) = META_TYPE_CTABLE
-#define SET_META_TYPE_TABLE(t)      (t) = META_TYPE_TABLE
-#define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
+#define SET_META_TYPE_NULL(t)        (t) = META_TYPE_NULL_TABLE
+#define SET_META_TYPE_CTABLE(t)      (t) = META_TYPE_CTABLE
+#define SET_META_TYPE_VCTABLE(t)     (t) = META_TYPE_VCTABLE
+#define SET_META_TYPE_TABLE(t)       (t) = META_TYPE_TABLE
+#define SET_META_TYPE_BOTH_TABLE(t)  (t) = META_TYPE_BOTH_TABLE
+#define SET_META_TYPE_BOTH_VTABLE(t) (t) = META_TYPE_BOTH_VTABLE
 
 #define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
   ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_TDB_TABLE_NOT_EXIST ||    \
@@ -364,11 +716,48 @@ void* getTaskPoolWorkerCb();
    (_code) == TSDB_CODE_PAR_INVALID_DROP_COL || ((_code) == TSDB_CODE_TDB_INVALID_TABLE_ID))
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
-#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) \
-  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER || (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER || (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS)
+#define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code)                  \
+  ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER ||           \
+   (_code) == TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT ||      \
+   (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER ||                  \
+   (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS ||                    \
+   (_code) == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
+
+// Federated query: external data source error classification macros
+// NOTE: ext error codes are intentionally NOT merged into NEED_CLIENT_HANDLE_ERROR.
+// External source retries are handled inside the FederatedScan operator (Module B FB-9);
+// once exhausted, the client dispatches through NEED_CLIENT_HANDLE_EXT_ERROR.
+#define NEED_CLIENT_RM_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_SOURCE_NOT_FOUND)
+#define NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_SOURCE_CHANGED || \
+   (_code) == TSDB_CODE_EXT_SCHEMA_CHANGED || \
+   (_code) == TSDB_CODE_EXT_TABLE_NOT_EXIST || \
+   (_code) == TSDB_CODE_EXT_COLUMN_NOT_EXIST)
+#define NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_CONNECT_FAILED || \
+   (_code) == TSDB_CODE_EXT_AUTH_FAILED || \
+   (_code) == TSDB_CODE_EXT_ACCESS_DENIED || \
+   (_code) == TSDB_CODE_EXT_QUERY_TIMEOUT || \
+   (_code) == TSDB_CODE_EXT_FETCH_FAILED || \
+   (_code) == TSDB_CODE_EXT_REMOTE_INTERNAL)
+#define NEED_CLIENT_RETRY_EXT_POOL_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_RESOURCE_EXHAUSTED)
+#define NEED_CLIENT_HANDLE_EXT_ERROR(_code) \
+  (NEED_CLIENT_RM_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_RETRY_EXT_POOL_ERROR(_code) || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY || \
+   (_code) == TSDB_CODE_EXT_PUSHDOWN_FAILED || \
+   (_code) == TSDB_CODE_EXT_CAPABILITY_CHANGED)
 
 #define SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code)                                    \
   ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || \
@@ -387,10 +776,16 @@ void* getTaskPoolWorkerCb();
 
 #define IS_VIEW_REQUEST(_type) ((_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW)
 
-#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
-  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
-   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||     \
-   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA)
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                       \
+  ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE ||      \
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_ALTER_STB || (_type) == TDMT_MND_CREATE_VIEW ||          \
+   (_type) == TDMT_MND_DROP_VIEW ||                                                                             \
+   (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
+   (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
+
+// A CREATE TABLE / CREATE STABLE that succeeded returns the meta of what it really created. A success without meta
+// means nothing was created (IF NOT EXISTS on an existing object), so the cached meta is still valid.
+#define IS_CREATE_TBL_REQUEST(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB)
 
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
@@ -403,53 +798,23 @@ void* getTaskPoolWorkerCb();
 
 #define IS_SYS_DBNAME(_dbname) (IS_INFORMATION_SCHEMA_DB(_dbname) || IS_PERFORMANCE_SCHEMA_DB(_dbname))
 
+#define IS_SYS_PREFIX(_name) (_name[0] == 'S' && _name[1] == 'Y' && _name[2] == 'S')
+
 #define IS_AUDIT_DBNAME(_dbname)    ((*(_dbname) == 'a') && (0 == strcmp(_dbname, TSDB_AUDIT_DB)))
 #define IS_AUDIT_STB_NAME(_stbname) ((*(_stbname) == 'o') && (0 == strcmp(_stbname, TSDB_AUDIT_STB_OPERATION)))
 #define IS_AUDIT_CTB_NAME(_ctbname) \
   ((*(_ctbname) == 't') && (0 == strncmp(_ctbname, TSDB_AUDIT_CTB_OPERATION, TSDB_AUDIT_CTB_OPERATION_LEN)))
 
-#define qFatal(...)                                                                           \
-  do {                                                                                        \
-    if (qDebugFlag & DEBUG_FATAL) {                                                           \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
-    }                                                                                         \
-  } while (0)
-#define qError(...)                                                                           \
-  do {                                                                                        \
-    if (qDebugFlag & DEBUG_ERROR) {                                                           \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
-    }                                                                                         \
-  } while (0)
-#define qWarn(...)                                                                          \
-  do {                                                                                      \
-    if (qDebugFlag & DEBUG_WARN) {                                                          \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
-    }                                                                                       \
-  } while (0)
-#define qInfo(...)                                                                     \
-  do {                                                                                 \
-    if (qDebugFlag & DEBUG_INFO) {                                                     \
-      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
-    }                                                                                  \
-  } while (0)
-#define qDebug(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
-  } while (0)
-#define qTrace(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
-  } while (0)
-#define qDebugL(...)                                                     \
-  do {                                                                   \
-    if (qDebugFlag & DEBUG_DEBUG) {                                      \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                                    \
-  } while (0)
+// clang-format off
+#define qFatal(...) do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qError(...) do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qWarn(...)  do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN  ", DEBUG_WARN,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qInfo(...)  do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebug(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY TRACE ", DEBUG_TRACE, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qDebugL(...)do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY DEBUG ", DEBUG_DEBUG, qDebugFlag,                       __VA_ARGS__); }} while(0)
+#define qInfoL(...) do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLongString("QRY INFO  ", DEBUG_INFO,  tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
 
 #define QRY_ERR_RET(c)                \
   do {                                \

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,7 +45,7 @@ typedef u32 SPgno;
 #include "tdbUtil.h"
 
 // p must be u8 *
-#define TDB_GET_U24(p) ((p)[0] * 65536 + *(u16 *)((p) + 1))
+#define TDB_GET_U24(p) ((p)[0] * 65536 + (p)[1] + (p)[2] * 256)
 #define TDB_PUT_U24(p, v)       \
   do {                          \
     int tv = (v);               \
@@ -80,7 +82,7 @@ typedef struct {
 
 #define TDB_FLAG_IS(flags, flag)     ((flags) == (flag))
 #define TDB_FLAG_HAS(flags, flag)    (((flags) & (flag)) != 0)
-#define TDB_FLAG_NO(flags, flag)     ((flags) & (flag) == 0)
+#define TDB_FLAG_NO(flags, flag)     (((flags) & (flag)) == 0)
 #define TDB_FLAG_ADD(flags, flag)    ((flags) | (flag))
 #define TDB_FLAG_REMOVE(flags, flag) ((flags) & (~(flag)))
 
@@ -127,9 +129,7 @@ typedef struct {
   int     vLen;
   u8     *pVal;
   SPgno   pgno;
-  u8     *pBuf;
   u8      freeKV;
-  SArray *ofps;
 } SCellDecoder;
 
 struct SBTC {
@@ -152,7 +152,16 @@ int  tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, i
 int  tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
 // int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbBtreeGetBatch(SBTree *pBt, STdbTbBatchGetArg *pArgs, int32_t numOfArgs);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt);
+
+// these 3 functions are only for free page management, they are using the b-tree as a stack.
+// they should only be called on the b-tree of the free page table, never call them for other
+// purpose.
+int tdbBtreeToStack(SBTree *pBt);
+int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN *pTxn);
+int tdbBtreePopFreePage(SBTree *pBt, SPgno* pgno, TXN *pTxn);
 
 typedef struct {
   u8      flags;
@@ -190,17 +199,21 @@ int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
+int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn);
 int  tdbPagerInsertFreePage(SPager *pPager, SPage *pPage, TXN *pTxn);
 // int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 int tdbPagerRestoreJournals(SPager *pPager);
 int tdbPagerRollback(SPager *pPager);
 
+#define PAGE_FLAG_ANCHOR 1
+#define PAGE_FLAG_LOCAL  2
+#define PAGE_FLAG_DIRTY  4
+#define PAGE_FLAG_FREE   8
+#define PAGE_FLAG_FORCE  16 // force allocated
+
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
-  u8           isAnchor;   \
-  u8           isLocal;    \
-  u8           isDirty;    \
-  u8           isFree;     \
+  volatile i32 flags;      \
   volatile i32 nRef;       \
   i32          id;         \
   SPage       *pFreeNext;  \
@@ -216,7 +229,7 @@ int tdbPagerRollback(SPager *pPager);
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 void   tdbPCacheClose(SPCache *pCache);
 int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
-SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn, bool force, bool* loaded);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
 void   tdbPCacheMarkFree(SPCache *pCache, SPage *pPage);
 void   tdbPCacheInvalidatePage(SPCache *pCache, SPager *pPager, SPgno pgno);
@@ -277,7 +290,7 @@ struct SPage {
   int       vLen;  // value length of the page, -1 for unknown
   int       maxLocal;
   int       minLocal;
-  int (*xCellSize)(const SPage *, SCell *, int, TXN *pTxn, SBTree *pBt);
+  int (*xCellSize)(const SPage *, SCell *, int *);
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
@@ -324,18 +337,30 @@ static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
 #define TDB_PAGE_FREE_SIZE(pPage)   (*(pPage)->pPageMethods->getFreeBytes)(pPage)
 #define TDB_PAGE_PGNO(pPage)        ((pPage)->pgid.pgno)
 #define TDB_BYTES_CELL_TAKEN(pPage, pCell) \
-  ((*(pPage)->xCellSize)(pPage, pCell, 0, NULL, NULL) + (pPage)->pPageMethods->szOffset)
+  ((*(pPage)->xCellSize)(pPage, pCell, NULL) + (pPage)->pPageMethods->szOffset)
 #define TDB_PAGE_OFFSET_SIZE(pPage) ((pPage)->pPageMethods->szOffset)
 
 int     tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t), void *arg);
 void    tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg);
-void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
-void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt));
+void    tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *));
+void    tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *));
 int     tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int     tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int     tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
 int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl);
 int     tdbPageCapacity(int pageSize, int amHdrSize);
+
+static inline void tdbPageSetFlag(SPage* pPage, i32 flag) {
+  atomic_or_fetch_32(&pPage->flags, flag);
+}
+
+static inline void tdbPageClearFlag(SPage* pPage, i32 flag) {
+  atomic_and_fetch_32(&pPage->flags, ~flag);
+}
+
+static inline bool tdbPageGetFlag(SPage* pPage, i32 flag) {
+  return (atomic_load_32(&pPage->flags) & flag) != 0;
+}
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   SCell *pCell;
@@ -384,8 +409,7 @@ struct STDB {
   TTB *pFreeDb;
 #endif
   int64_t txnId;
-  int32_t encryptAlgorithm;
-  char    encryptKey[ENCRYPT_KEY_LEN + 1];
+  SEncryptData *encryptData;
 };
 
 struct SPager {
@@ -401,8 +425,6 @@ struct SPager {
   SRBTree rbt;
   // u8        inTran;
   TXN    *pActiveTxn;
-  SArray *ofps;
-  SArray *frps;
   SPager *pNext;      // used by TDB
   SPager *pHashNext;  // used by TDB
 #ifdef USE_MAINDB

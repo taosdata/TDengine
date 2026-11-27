@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -29,7 +46,7 @@ void init() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen(pWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
@@ -44,15 +61,15 @@ void cleanup() {
 
 void logStoreTest() {
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
-  assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_INVALID);
+  TD_ALWAYS_ASSERT(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_INVALID);
 
   logStoreLog2((char*)"logStoreTest", pLogStore);
 
   for (int i = 0; i < 5; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
-    assert(pEntry != NULL);
+    TD_ALWAYS_ASSERT(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;
     pEntry->seqNum = 3;
@@ -66,7 +83,7 @@ void logStoreTest() {
     syncEntryDestory(pEntry);
 
     if (i == 0) {
-      assert(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
+      TD_ALWAYS_ASSERT(pLogStore->syncLogLastIndex(pLogStore) == SYNC_INDEX_BEGIN);
     }
   }
   logStoreLog2((char*)"after appendEntry", pLogStore);

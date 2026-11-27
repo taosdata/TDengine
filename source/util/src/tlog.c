@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,6 +31,10 @@
 #define LOG_MAX_STACK_LINE_BUFFER_SIZE (LOG_MAX_STACK_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE         (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 128)
+// estimated bytes per log line, used to estimate line count from file size or a bulk message
+#define LOG_EST_BYTES_PER_LINE 60
+// a bulk message (e.g. a json dump) longer than this is counted as len / LOG_EST_BYTES_PER_LINE lines
+#define LOG_BULK_MSG_THRESHOLD 512
 
 #define LOG_FILE_DAY_LEN 64
 
@@ -93,10 +99,10 @@ typedef struct {
 
 extern SConfig *tsCfg;
 static int8_t   tsLogInited = 0;
+static int8_t   tsLogNeedRotate = 0;
 static SLogObj  tsLogObj = {.fileNum = 1, .slowHandle = NULL};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
-static SRWLatch tsLogRotateLatch = 0;
 
 bool tsLogEmbedded = 0;
 bool tsAsyncLog = true;
@@ -128,6 +134,7 @@ int32_t qDebugFlag = 131;
 int32_t stDebugFlag = 131;
 int32_t wDebugFlag = 131;
 int32_t azDebugFlag = 131;
+int32_t tssDebugFlag = 131;
 int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
@@ -138,7 +145,10 @@ int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 131;
 int32_t sndDebugFlag = 131;
+int32_t bndDebugFlag = 131;
+int32_t xndDebugFlag = 131;
 int32_t simDebugFlag = 131;
+int32_t bseDebugFlag = 131;
 
 int32_t tqClientDebugFlag = 131;
 
@@ -159,6 +169,9 @@ static void      taosWriteSlowLog(SLogBuff *pLogBuf);
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   (void)taosThreadAttrInit(&threadAttr);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&threadAttr, STACK_SIZE_SMALL);
+#endif
   if (taosThreadCreate(&(tsLogObj.logHandle->asyncThread), &threadAttr, taosAsyncOutputLog, tsLogObj.logHandle) != 0) {
     return terrno;
   }
@@ -195,13 +208,40 @@ static void getFullPathName(char *fullName, const char *logName) {
   }
 }
 
-int32_t taosInitSlowLog() {
-  char logFileName[64] = {0};
-#ifdef CUS_PROMPT
-  (void)snprintf(logFileName, 64, "%sSlowLog", CUS_PROMPT);
-#else
-  (void)snprintf(logFileName, 64, "taosSlowLog");
+// Opens a log file for create/truncate/append without ever following a symbolic link.
+// The log directory may be writable by other users, so a link planted at a log path
+// must not make us truncate or write through to its target. When the path is a link
+// it is unlinked - which removes the link itself, never what it points to - and the
+// open is retried once, so logging stays available; a link planted again in the
+// meantime merely makes the retry fail and the caller keeps using the file it
+// already has.
+//
+// Try to set log permissions so restrictive umasks do not hide root's logs.
+// Keep writable logs usable when their permissions cannot be changed.
+static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
+  TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
+  if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
+    TAOS_UNUSED(taosRemoveFile(name));
+    pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
+  }
+#ifndef WINDOWS
+  if (pFile != NULL) {
+    int32_t savedTerrno = terrno;
+    int32_t code = taosFchmodFile(pFile, 0666);
+    if (code != 0) {
+      (void)fprintf(stderr,
+                    "WARNING: failed to set log file permissions:%s, reason:%s, code:%d; "
+                    "continuing with existing permissions\n",
+                    name, tstrerror(code), code);
+      terrno = savedTerrno;
+    }
+  }
 #endif
+  return pFile;
+}
+
+int32_t taosInitSlowLog() {
+  const char *logFileName = CUS_PROMPT "slowlog";
 
   getFullPathName(tsLogObj.slowLogName, logFileName);
 
@@ -210,6 +250,7 @@ int32_t taosInitSlowLog() {
   int32_t code = getDay(day, sizeof(day));
   if (code != 0) {
     (void)printf("failed to get day, reason:%s\n", tstrerror(code));
+    SET_ERROR_MSG("failed to get day, reason:%s", tstrerror(code));
     return code;
   }
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
@@ -218,10 +259,10 @@ int32_t taosInitSlowLog() {
   tsLogObj.slowHandle = taosLogBuffNew(LOG_SLOW_BUF_SIZE);
   if (tsLogObj.slowHandle == NULL) return terrno;
 
-  TAOS_UNUSED(taosUmaskFile(0));
-  tsLogObj.slowHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  tsLogObj.slowHandle->pFile = taosOpenLogFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_APPEND);
   if (tsLogObj.slowHandle->pFile == NULL) {
-    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\nfailed to open slow log file:%s, reason:%s\n", name, strerror(ERRNO));
+    SET_ERROR_MSG("failed to open slow log file:%s, reason:%s", name, strerror(ERRNO));
     return terrno;
   }
 
@@ -339,11 +380,21 @@ void taosCloseLog() {
   taosMemoryFreeClear(tsLogOutput);
 }
 
+/* Offset of the log file's mutual-exclusion token.  Windows byte-range locks
+ * are mandatory: locking the whole file (taosLockFile) would make the live log
+ * unreadable for tail/log collectors/other processes, so the token sits beyond
+ * any real data and readers never touch it. */
+#define LOG_FILE_LOCK_OFFSET ((int64_t)0x7FFFFFFFFFFFFFF0LL)
+
 static bool taosLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return false;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t ret = taosLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t ret = taosLockFile(pFile);
+#endif
     if (ret == 0) {
       return true;
     }
@@ -356,7 +407,11 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t code = taosUnLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t code = taosUnLockFile(pFile);
+#endif
     if (code != 0) {
       TAOS_UNUSED(printf("failed to unlock log file:%p, reason:%s\n", pFile, tstrerror(code)));
     }
@@ -364,7 +419,7 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
 }
 
 static void taosReserveOldLog(char *oldName, char *keepName) {
-  if (tsLogKeepDays <= 0) {
+  if (tsLogKeepDays == 0) {
     keepName[0] = 0;
     return;
   }
@@ -377,33 +432,46 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
     fileSec = ++tsLogObj.lastKeepFileSec;
   }
   snprintf(keepName, PATH_MAX + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
-  if ((code = taosRenameFile(oldName, keepName))) {
-    keepName[0] = 0;
+  if ((code = taosRenameFileEx(oldName, keepName, true))) {
     uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+    keepName[0] = 0;
   }
 }
 
 static void taosKeepOldLog(char *oldName) {
-  if (oldName[0] != 0) {
-    int32_t   code = 0, lino = 0;
-    TdFilePtr oldFile = NULL;
-    if ((oldFile = taosOpenFile(oldName, TD_FILE_READ))) {
-      TAOS_CHECK_GOTO(taosLockFile(oldFile), &lino, _exit2);
-      char compressFileName[PATH_MAX + 20];
-      snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
-      TAOS_CHECK_GOTO(taosCompressFile(oldName, compressFileName), &lino, _exit1);
-      TAOS_CHECK_GOTO(taosRemoveFile(oldName), &lino, _exit1);
-    _exit1:
-      TAOS_UNUSED(taosUnLockFile(oldFile));
-    _exit2:
-      TAOS_UNUSED(taosCloseFile(&oldFile));
-    } else {
-      code = terrno;
+  if (oldName[0] == 0) {
+    return;
+  }
+
+  int32_t   code = 0, lino = 0;
+  TdFilePtr oldFile = NULL;
+  if ((oldFile = taosOpenFile(oldName, TD_FILE_READ | TD_FILE_NOFOLLOW))) {
+    TAOS_CHECK_GOTO(taosLockFile(oldFile), &lino, _close_file);
+    char compressFileName[PATH_MAX + 20];
+    snprintf(compressFileName, PATH_MAX + 20, "%s.gz", oldName);
+#ifdef WINDOWS
+    TAOS_CHECK_GOTO(taosCompressFile(oldFile, compressFileName), &lino, _unlock_file);
+#else
+    TAOS_CHECK_GOTO(taosCompressFileWithMode(oldFile, compressFileName, 0666),
+                    &lino, _unlock_file);
+#endif
+
+  _unlock_file:
+    TAOS_UNUSED(taosUnLockFile(oldFile));
+  _close_file:
+    TAOS_UNUSED(taosCloseFile(&oldFile));
+
+    if (code == TSDB_CODE_SUCCESS) {
+      TAOS_CHECK_GOTO(taosRemoveFile(oldName), &lino, _exit_keep);
     }
-    if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
-      // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
-      fprintf(stderr, "WARN: failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
-    }
+  } else {
+    code = terrno;
+  }
+
+_exit_keep:
+  if (code != 0 && tsLogEmbedded == 1) {  // print error messages only in embedded log mode
+    // avoid using uWarn or uError, as they may open a new log file and potentially cause a deadlock.
+    fprintf(stderr, "WARN: failed at line %d to keep old log file:%s, reason:%s\n", lino, oldName, tstrerror(code));
   }
 }
 typedef struct {
@@ -419,9 +487,7 @@ static OldFileKeeper *taosOpenNewFile() {
   char name[PATH_MAX + 20];
   TAOS_UNUSED(snprintf(name, sizeof(name), "%s.%d", tsLogObj.logName, tsLogObj.flag));
 
-  TAOS_UNUSED(taosUmaskFile(0));
-
-  TdFilePtr pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenLogFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     tsLogObj.flag ^= 1;
     tsLogObj.lines = tsNumOfLogLines - 1000;
@@ -439,7 +505,7 @@ static OldFileKeeper *taosOpenNewFile() {
   tsLogObj.lines = 0;
   OldFileKeeper *oldFileKeeper = taosMemoryMalloc(sizeof(OldFileKeeper));
   if (oldFileKeeper == NULL) {
-    uError("create old log keep info faild! mem is not enough.");
+    uError("failed to create old log keep info! Memory is not enough.");
     return NULL;
   }
   oldFileKeeper->pOldFile = pOldFile;
@@ -454,14 +520,9 @@ static void *taosThreadToCloseOldFile(void *param) {
   if (!param) return NULL;
   OldFileKeeper *oldFileKeeper = (OldFileKeeper *)param;
   taosSsleep(20);
-  taosWLockLatch(&tsLogRotateLatch);
   taosCloseLogByFd(oldFileKeeper->pOldFile);
-  taosKeepOldLog(oldFileKeeper->keepName);
   taosMemoryFree(oldFileKeeper);
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
-  }
-  taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogNeedRotate, 1);
   return NULL;
 }
 
@@ -476,7 +537,9 @@ static int32_t taosOpenNewLogFile() {
     TdThreadAttr attr;
     (void)taosThreadAttrInit(&attr);
     (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
-
+#ifdef TD_COMPACT_OS
+    (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
     OldFileKeeper *oldFileKeeper = taosOpenNewFile();
     if (!oldFileKeeper) {
       tsLogObj.openInProgress = 0;
@@ -525,9 +588,9 @@ void taosOpenNewSlowLogFile() {
   TdFilePtr pFile = NULL;
   char      name[PATH_MAX + TD_TIME_STR_LEN] = {0};
   (void)snprintf(name, PATH_MAX + TD_TIME_STR_LEN, "%s.%s", tsLogObj.slowLogName, day);
-  pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  pFile = taosOpenLogFile(name, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
   if (pFile == NULL) {
-    uError("open new log file fail! reason:%s, reuse lastlog", strerror(errno));
+    uError("open new log file fail! reason:%s, reuse lastlog", strerror(ERRNO));
     (void)taosThreadMutexUnlock(&tsLogObj.logMutex);
     return;
   }
@@ -556,12 +619,13 @@ void taosResetLog() {
 void taosLogObjSetToday(int64_t ts) { tsLogObj.timestampToday = ts; }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
-  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_NOFOLLOW);
   if (pFile == NULL) {
     if (lastErrorIsFileNotExist()) {
       return false;
     } else {
-      printf("\nfailed to open log file:%s, reason:%s\n", logFileName, strerror(errno));
+      printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, logFileName, strerror(ERRNO));
+      SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, logFileName, strerror(ERRNO));
       return true;
     }
   }
@@ -657,13 +721,13 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   (void)snprintf(name, sizeof(name), "%s.%d", tsLogObj.logName, tsLogObj.flag);
   (void)taosThreadMutexInit(&tsLogObj.logMutex, NULL);
 
-  TAOS_UNUSED(taosUmaskFile(0));
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return terrno;
 
-  tsLogObj.logHandle->pFile = taosOpenFile(name, TD_FILE_CREATE | TD_FILE_WRITE);
+  tsLogObj.logHandle->pFile = taosOpenLogFile(name, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE);
   if (tsLogObj.logHandle->pFile == NULL) {
-    (void)printf("\nfailed to open log file:%s, reason:%s\n", name, strerror(errno));
+    (void)printf("\n%s:%d failed to open log file:%s, reason:%s\n", __func__, __LINE__, name, strerror(ERRNO));
+    SET_ERROR_MSG("%s:%d failed to open log file:%s, reason:%s", __func__, __LINE__, name, strerror(ERRNO));
     return terrno;
   }
   TAOS_UNUSED(taosLockLogFile(tsLogObj.logHandle->pFile));
@@ -672,7 +736,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   int64_t filesize = 0;
   TAOS_CHECK_EXIT(taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL));
 
-  tsLogObj.lines = (int32_t)(filesize / 60);
+  tsLogObj.lines = (int32_t)(filesize / LOG_EST_BYTES_PER_LINE);
 
   if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
     TAOS_CHECK_EXIT(terrno);
@@ -690,6 +754,7 @@ _exit:
   if (code != 0) {
     taosUnLockLogFile(tsLogObj.logHandle->pFile);
     TAOS_UNUSED(printf("failed to init normal log file:%s at line %d, reason:%s\n", name, lino, tstrerror(code)));
+    SET_ERROR_MSG("failed to init normal log file:%s at line %d, reason:%s", name, lino, tstrerror(code));
   }
   return code;
 }
@@ -722,12 +787,23 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
   if (ptm == NULL) {
-    uError("%s failed to get local time, code:%d", __FUNCTION__, errno);
-    return 0;
+    // Logging timezone lookup failures must not re-enter the logger.
+    return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE,
+                    "%08" PRId64 " %s %s", taosGetSelfPthreadId(),
+                    LOG_EDITION_FLG, flags);
   }
   return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s",
                   ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,
                   taosGetSelfPthreadId(), LOG_EDITION_FLG, flags);
+}
+
+// a single log (e.g. monitor report json) may span many lines; estimate by length only when it is long.
+// The estimate must never be 0, otherwise a long message would never add lines and the log would never
+// rotate; keep the divide-by-LOG_EST_BYTES_PER_LINE result floored at 1.
+static inline int32_t taosEstimateLogLines(int32_t len) {
+  if (len <= LOG_BULK_MSG_THRESHOLD) return 1;
+  int32_t n = len / LOG_EST_BYTES_PER_LINE;
+  return n > 0 ? n : 1;
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
@@ -740,7 +816,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     }
 
     if (tsNumOfLogLines > 0) {
-      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
+      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, taosEstimateLogLines(len)));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
         TAOS_UNUSED(taosOpenNewLogFile());
       }
@@ -749,7 +825,11 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 
   int fd = 0;
   if (tsLogObj.outputType == LOG_OUTPUT_FILE) {
+#ifndef TAOSD_INTEGRATED    
     if (dflag & DEBUG_SCREEN) fd = 1;
+#else
+    if ((dflag & DEBUG_SCREEN) && tsLogEmbedded) fd = 1;
+#endif
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDOUT) {
     fd = 1;
   } else if (tsLogObj.outputType == LOG_OUTPUT_STDERR) {
@@ -759,9 +839,13 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   if (fd) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#ifndef TD_ASTRA
     if (write(fd, buffer, (uint32_t)len) < 0) {
-      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(errno)));
+      TAOS_UNUSED(printf("failed to write log to screen, reason:%s\n", strerror(ERRNO)));
     }
+#else
+    TAOS_UNUSED(fprintf(fd == 1 ? stdout : stderr, "%s", buffer));
+#endif
 #pragma GCC diagnostic pop
   }
 }
@@ -947,8 +1031,7 @@ static int32_t taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msg
   remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(pLogBuf) - end - 1);
 
   if (lostLine > 0) {
-    snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
-    tmpBufLen = (int32_t)strlen(tmpBuf);
+    tmpBufLen = snprintf(tmpBuf, tListLen(tmpBuf), "...Lost %" PRId64 " lines here...\n", lostLine);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
@@ -993,8 +1076,10 @@ static void taosWriteSlowLog(SLogBuff *pLogBuf) {
   atomic_store_32(&pLogBuf->lock, 0);
 }
 static void taosWriteLog(SLogBuff *pLogBuf) {
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   int32_t start = LOG_BUF_START(pLogBuf);
   int32_t end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   if (start == end) {
     dbgEmptyW++;
@@ -1038,10 +1123,12 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
     }
   }
 
+  (void)taosThreadMutexLock(&LOG_BUF_MUTEX(pLogBuf));
   LOG_BUF_START(pLogBuf) = (LOG_BUF_START(pLogBuf) + pollSize) % LOG_BUF_SIZE(pLogBuf);
 
   start = LOG_BUF_START(pLogBuf);
   end = LOG_BUF_END(pLogBuf);
+  (void)taosThreadMutexUnlock(&LOG_BUF_MUTEX(pLogBuf));
 
   pollSize = taosGetLogRemainSize(pLogBuf, start, end);
   if (pollSize < pLogBuf->minBuffSize) {
@@ -1053,17 +1140,89 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 
 #define LOG_ROTATE_INTERVAL 3600
 #if !defined(TD_ENTERPRISE) || defined(ASSERT_NOT_CORE) || defined(GRANTS_CFG)
-#define LOG_INACTIVE_TIME 7200
+#define LOG_INACTIVE_TIME 30
 #define LOG_ROTATE_BOOT   900
 #else
 #define LOG_INACTIVE_TIME 5
 #define LOG_ROTATE_BOOT   (LOG_INACTIVE_TIME + 1)
 #endif
+static int8_t tsLogRotateRunning = 0;
 
-static void *taosLogRotateFunc(void *param) {
+static bool taosIsSlowLogDay(const char *day) {
+  if (strlen(day) != 10) return false;
+  for (int32_t i = 0; i < 10; ++i) {
+    if (i == 4 || i == 7) {
+      if (day[i] != '-') return false;
+    } else if (!isdigit(day[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Slow log files are named <prefix>.<yyyy-mm-dd>, so the date string orders like the date.
+static void taosRemoveOldSlowLogs() {
+  if (tsLogKeepDays == 0 || tsLogObj.slowHandle == NULL) return;
+
+  const char *slowPrefix = strrchr(tsLogObj.slowLogName, TD_DIRSEP_CHAR);
+  slowPrefix = slowPrefix ? slowPrefix + 1 : tsLogObj.slowLogName;
+  int32_t prefixLen = strlen(slowPrefix);
+  if (prefixLen == 0) return;
+
+  time_t now;
+  if (taosTime(&now) != 0) return;
+  time_t    cutoff = now - (time_t)abs(tsLogKeepDays) * 86400;
+  struct tm tmInfo;
+  char      cutoffDay[TD_TIME_STR_LEN] = {0};
+  if (taosLocalTime(&cutoff, &tmInfo, cutoffDay, sizeof(cutoffDay), NULL) == NULL) return;
+  if (taosStrfTime(cutoffDay, sizeof(cutoffDay), "%Y-%m-%d", &tmInfo) == 0) return;
+
+  TdDirPtr pDir = taosOpenDir(tsLogDir);
+  if (!pDir) return;
+  TdDirEntryPtr de = NULL;
+  while ((de = taosReadDir(pDir))) {
+    if (taosDirEntryIsDir(de)) continue;
+    char *fname = taosGetDirEntryName(de);
+    if (!fname || strncmp(fname, slowPrefix, prefixLen) != 0 || fname[prefixLen] != '.') continue;
+
+    const char *day = fname + prefixLen + 1;
+    if (!taosIsSlowLogDay(day) || strcmp(day, cutoffDay) >= 0) continue;
+
+    char fullName[PATH_MAX] = {0};
+    snprintf(fullName, sizeof(fullName), "%s%s%s", tsLogDir, TD_DIRSEP, fname);
+    if (taosRemoveFile(fullName) == 0) {
+      uInfo("slow log file:%s is removed, keepDays:%d", fullName, tsLogKeepDays);
+    }
+  }
+  if (taosCloseDir(&pDir) != 0) {
+    uWarn("%s:%d failed to close dir %s\n", __func__, __LINE__, tsLogDir);
+  }
+}
+
+static void  *taosLogRotateFunc(void *param) {
   setThreadName("logRotate");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int32_t code = 0;
-  taosWLockLatch(&tsLogRotateLatch);
+  if (0 != atomic_val_compare_exchange_8(&tsLogRotateRunning, 0, 1)) {
+    uInfo("log rotation is already in progress");
+    return NULL;
+  }
+  // get prefix of logfile name
+  char *filePrefix = NULL;
+  char *filePos = strrchr(tsLogObj.logName, TD_DIRSEP_CHAR);
+  if (!filePos || !(++filePos)) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  int32_t filePrefixLen = strlen(filePos);
+  if (!(filePrefix = taosMemoryMalloc(filePrefixLen + 1))) {
+    atomic_store_8(&tsLogRotateRunning, 0);
+    return NULL;
+  }
+  tstrncpy(filePrefix, filePos, filePrefixLen + 1);
+  int32_t i = filePrefixLen - 1;
+  while (i > 0 && isdigit(filePrefix[i])) filePrefix[i--] = '\0';
+
   // compress or remove the old log files
   TdDirPtr pDir = taosOpenDir(tsLogDir);
   if (!pDir) goto _exit;
@@ -1072,10 +1231,15 @@ static void *taosLogRotateFunc(void *param) {
     if (taosDirEntryIsDir(de)) {
       continue;
     }
+    if (!taosDirEntryIsRegular(de)) {
+      continue;
+    }
     char *fname = taosGetDirEntryName(de);
     if (!fname) {
       continue;
     }
+
+    if (!strstr(fname, filePrefix)) continue;
 
     char *pSec = strrchr(fname, '.');
     if (!pSec) {
@@ -1118,7 +1282,7 @@ static void *taosLogRotateFunc(void *param) {
     }
 
     int32_t days = inactiveSec / 86400 + 1;
-    if (tsLogKeepDays > 0 && days > tsLogKeepDays) {
+    if (tsLogKeepDays != 0 && days > abs(tsLogKeepDays)) {
       TAOS_UNUSED(taosRemoveFile(fullName));
       uInfo("file:%s is removed, days:%d, keepDays:%d, sed:%" PRId64, fullName, days, tsLogKeepDays, fileSec);
     } else {
@@ -1129,11 +1293,13 @@ static void *taosLogRotateFunc(void *param) {
     uWarn("%s:%d failed to close dir %s since %s\n", __func__, __LINE__, tsLogDir, tstrerror(code));
   }
 
-  if (tsLogKeepDays > 0) {
-    taosRemoveOldFiles(tsLogDir, tsLogKeepDays);
+  if (tsLogKeepDays != 0) {
+    taosRemoveOldFiles(tsLogDir, abs(tsLogKeepDays));
+    taosRemoveOldSlowLogs();
   }
 _exit:
-  taosWUnLockLatch(&tsLogRotateLatch);
+  atomic_store_8(&tsLogRotateRunning, 0);
+  taosMemFreeClear(filePrefix);
   return NULL;
 }
 
@@ -1142,6 +1308,7 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pSlowBuf = (SLogBuff *)tsLogObj.slowHandle;
 
   setThreadName("log");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   int32_t count = 0;
   int32_t updateCron = 0;
   int32_t writeInterval = 0;
@@ -1175,14 +1342,19 @@ static void *taosAsyncOutputLog(void *param) {
     // process the log rotation every LOG_ROTATE_INTERVAL
     int64_t curSec = taosGetTimestampMs() / 1000;
     if (curSec >= lastCheckSec) {
-      if ((curSec - lastCheckSec) >= LOG_ROTATE_INTERVAL) {
+      if ((atomic_load_8(&tsLogNeedRotate) != 0) ||
+          (curSec - lastCheckSec) >= (LOG_ROTATE_INTERVAL + (taosRand() % LOG_ROTATE_BOOT))) {
         TdThread     thread;
         TdThreadAttr attr;
         (void)taosThreadAttrInit(&attr);
         (void)taosThreadAttrSetDetachState(&attr, PTHREAD_CREATE_DETACHED);
+#ifdef TD_COMPACT_OS
+        (void)taosThreadAttrSetStackSize(&attr, STACK_SIZE_SMALL);
+#endif
         if (taosThreadCreate(&thread, &attr, taosLogRotateFunc, tsLogObj.logHandle) == 0) {
           uInfo("process log rotation");
           lastCheckSec = curSec;
+          atomic_store_8(&tsLogNeedRotate, 0);
         } else {
           uWarn("failed to create thread to process log rotation");
         }
@@ -1214,8 +1386,9 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
   taosPrintLogImp(1, 255, buffer, len);
 
   taosPrintLog(flags, level, dflag, "tAssert at file %s:%d exit:%d", file, line, tsAssert);
+#ifndef TD_ASTRA
   taosPrintTrace(flags, level, dflag, -1);
-
+#endif
   if (tsAssert || core) {
     taosCloseLog();
     taosMsleep(300);
@@ -1229,7 +1402,7 @@ bool taosAssertDebug(bool condition, const char *file, int32_t line, bool core, 
 
   return true;
 }
-
+#ifdef USE_REPORT
 void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, void *sigInfo) {
   const char *flags = "UTL FATAL ";
   ELogLevel   level = DEBUG_FATAL;
@@ -1240,7 +1413,7 @@ void taosLogCrashInfo(char *nodeType, char *pMsg, int64_t msgLen, int signum, vo
   if (pMsg && msgLen > 0) {
     snprintf(filepath, sizeof(filepath), "%s%s.%sCrashLog", tsLogDir, TD_DIRSEP, nodeType);
 
-    pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    pFile = taosOpenLogFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pFile == NULL) {
       taosPrintLog(flags, level, dflag, "failed to open file:%s since %s", filepath, terrstr());
       goto _return;
@@ -1277,16 +1450,17 @@ _return:
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
 // print the stack trace
-#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
-  taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
-               taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  if (sigInfo != NULL) {
+    siginfo_t *pSigInfo = (siginfo_t *)sigInfo;
+    taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", pSigInfo->si_pid,
+                 taosGetCmdlineByPID(pSigInfo->si_pid));
+  }
   taosPrintTrace(flags, level, dflag, 3);
 #else
   taosPrintTrace(flags, level, dflag, 8);
-#endif
 #endif
   taosMemoryFree(pMsg);
 }
@@ -1357,7 +1531,11 @@ static void checkWriteCrashLogToFileInNewThead() {
     }
     taosLogCrashInfo(gCrashBasicInfo.nodeType, pMsg, msgLen, gCrashBasicInfo.signum, gCrashBasicInfo.sigInfo);
     setCrashWriterStatus(CRASH_LOG_WRITER_INIT);
-    tsem_post(&gCrashBasicInfo.sem);
+    int32_t code = tsem_post(&gCrashBasicInfo.sem);
+    if (code != 0 ) {
+      uError("failed to post sem for crashBasicInfo, code:%d", code);
+    }
+    TAOS_UNUSED(tsem_post(&gCrashBasicInfo.sem));
   }
 }
 
@@ -1386,7 +1564,7 @@ void writeCrashLogToFile(int signum, void *sigInfo, char *nodeType, int64_t clus
     gCrashBasicInfo.nodeType = nodeType;
     gCrashBasicInfo.signum = signum;
     gCrashBasicInfo.sigInfo = sigInfo;
-    tsem_wait(&gCrashBasicInfo.sem);
+    TAOS_UNUSED(tsem_wait(&gCrashBasicInfo.sem));
   }
 }
 
@@ -1413,9 +1591,9 @@ void taosReadCrashInfo(char *filepath, char **pMsg, int64_t *pMsgLen, TdFilePtr 
       return;
     }
 
-    pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_WRITE);
+    pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_NOFOLLOW);
     if (pFile == NULL) {
-      if (ENOENT == errno) {
+      if (errorIsFileNotExist(terrno)) {
         return;
       }
 
@@ -1481,6 +1659,7 @@ void taosReleaseCrashLogFile(TdFilePtr pFile, bool truncateFile) {
   TAOS_UNUSED(taosUnLockFile(pFile));
   TAOS_UNUSED(taosCloseFile(&pFile));
 }
+#endif // USE_REPORT
 
 #ifdef NDEBUG
 bool taosAssertRelease(bool condition) {
@@ -1501,3 +1680,47 @@ bool taosAssertRelease(bool condition) {
   return true;
 }
 #endif
+
+#define NUM_BASE 100
+#define DIGIT_LENGTH 2
+#define MAX_DIGITS 24
+
+char* u64toaFastLut(uint64_t val, char* buf) {
+  // Look-up table for 2-digit numbers
+  static const char* lut =
+      "0001020304050607080910111213141516171819202122232425262728293031323334353637383940414243444546474849505152535455"
+      "5657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+
+  char  temp[MAX_DIGITS];
+  char* p = temp + tListLen(temp);
+
+  // Process the digits greater than or equal to 100
+  while (val >= NUM_BASE) {
+    // Get the last 2 digits from the look-up table and add to the buffer
+    p -= DIGIT_LENGTH;
+    TAOS_STRNCPY(p, lut + (val % NUM_BASE) * DIGIT_LENGTH, DIGIT_LENGTH);
+    val /= NUM_BASE;
+  }
+
+  // Process the remaining 1 or 2 digits
+  if (val >= 10) {
+    // If the number is 10 or more, get the 2 digits from the look-up table
+    p -= DIGIT_LENGTH;
+    TAOS_STRNCPY(p, lut + val * DIGIT_LENGTH, DIGIT_LENGTH);
+  } else if (val > 0 || p == temp) {
+    // If the number is less than 10, add the single digit to the buffer
+    p -= 1;
+    *p = val + '0';
+  }
+
+  int64_t len = temp + tListLen(temp) - p;
+  if (len > 0) {
+    memcpy(buf, p, len);
+  } else {
+    buf[0] = '0';
+    len = 1;
+  }
+  buf[len] = '\0';
+
+  return buf + len;
+}

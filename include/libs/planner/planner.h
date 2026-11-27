@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,33 +23,101 @@ extern "C" {
 #endif
 
 #include "plannodes.h"
-#include "taos.h"
+
+#define SYS_SCAN_FLAG  0x01
+#define HSYS_SCAN_FLAG 0x03
+
+#define IS_SYS_SCAN(_flag)  (((_flag) & (SYS_SCAN_FLAG)) != 0)
+#define IS_HSYS_SCAN(_flag) (((_flag) & (HSYS_SCAN_FLAG)) != 0)
+
+#define SET_SYS_SCAN_FLAG(_f) (_f) = SYS_SCAN_FLAG
+#define SET_HSYS_SCAN_FLAG(_f) (_f) = HSYS_SCAN_FLAG
+
+typedef struct SPlanStreamContext {
+  bool        isCalc;
+  bool        isTrigger;
+  bool        isVtableCalc;
+  bool        hasForceOutput;
+  bool        hasNotify;
+  bool        hasExtWindow;
+  bool        disableExtWindow;
+  // Borrowed parser AST inputs; valid only until qCreateQueryPlan() returns.
+  SNode*      pTriggerTable;
+  SNodeList*  pTriggerPartitionList;
+  bool        enableMultiGroupCalc;
+  SArray*     calcScanPlanArray;
+  SNode*      triggerScanSubplan;
+  ENodeType   triggerWinType;
+  SNodeList*  triggerScanList;
+} SPlanStreamContext;
+
+typedef struct SJoinPropsStore SJoinPropsStore;
 
 typedef struct SPlanContext {
   uint64_t    queryId;
   int32_t     acctId;
+  int32_t     groupId;
   SEpSet      mgmtEpSet;
   SNode*      pAstRoot;
   bool        topicQuery;
-  bool        streamQuery;
   bool        rSmaQuery;
   bool        showRewrite;
+  int8_t      xnodeDsnOutputMode;
   bool        isView;
   bool        isAudit;
-  int8_t      triggerType;
-  int64_t     watermark;
-  int64_t     deleteMark;
-  int8_t      igExpired;
-  int8_t      igCheckUpdate;
+  bool        hasScan;
+  bool        splitScan;
+  bool        forceNoMergeDataBlock;
+  int32_t     sysScanFlag;
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
-  int64_t     allocatorId;
-  bool        destHasPrimaryKey;
-  bool        sourceHasPrimaryKey;
-  void*       timezone;
+  int16_t     userAppId;
+  union {
+    uint16_t privInfo;
+    struct {
+      uint16_t minSecLevel : 3;  // user min security level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode   : 1;    // 1 = MAC mandatory (propagated from SParseContext)
+      uint16_t reserved1 : 3;
+    };
+  };
+  int64_t            allocatorId;
+  int64_t            userId;
+  SExtSourceCapability* pExtCapability;
+  SExtCapSessionOverlay* pExtSessionOverlay;
+  int32_t*              pExtPushdownAttempt;
+  SJoinPropsStore*      pJoinPropsStore;
+  void*              pSubqueryState;  // shared planner-only subquery registry for one qCreateQueryPlan run
+  int32_t            subqueryIndex;   // -1 for root query, otherwise original global subQIdx
+  void*              timezone;
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA/POSIX name of client timezone for serialization and federated scan */
+  bool               timezoneExplicit;              /* set by SET TIMEZONE / connection option */
+  int8_t             firstDayOfWeek;  /* resolved: 0-6 */
+  // Connection charset context (SConvInfo*) bound to this query; borrowed, not
+  // owned. Threaded to the system-table physical scan so NCHAR/JSON tag values
+  // render in the client charset instead of the server default tsCharsetCxt.
+  void*              charsetCxt;
+  // Batch meta txn: provider of the encoded txn-local super table schemas (queryEncodeTxnStbSchemas). The planner
+  // calls it at most once per plan, and only when the plan contains a system table scan for which
+  // qSysTableNeedsTxnStbSchemas() is true, so every other statement of a txn pays nothing for it. NULL outside a
+  // txn. *ppBuf (taosMemoryMalloc'd, ownership passes to the planner) may come back NULL / 0: nothing to send.
+  int32_t          (*getTxnStbSchemas)(void* param, char** ppBuf, int32_t* pLen);
+  void*              getTxnStbSchemasParam;
+  SPlanStreamContext streamCxt;
 } SPlanContext;
+
+// Whether a scan of this system table is computed on the vnode from a super table's schema, i.e. whether a batch
+// meta txn must ship its txn-local super table schemas along (SSystemTableScanPhysiNode.pTxnStbSchemas). THE one
+// list: a new vnode-computed system table that reads a super table's columns / tags belongs here.
+bool qSysTableNeedsTxnStbSchemas(const char* pSysTableName);
 
 // Create the physical plan for the query, according to the AST.
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);
@@ -58,6 +128,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 int32_t qContinuePlanPostQuery(void *pPostPlan);
+
+/** Annotate Runner input reuse before child references are rewritten; Readers are borrowed and read-only. */
+int32_t qSetStreamBroadcastReuse(SSubplan* pRunner, const SNodeList* pReaderSubplans);
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,11 +12,16 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
+
+static void qmFreeRpcQitem(void *pItem) {
+  SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  rpcFreeCont(pMsg->pCont);
+}
 
 static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
@@ -117,6 +124,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-query worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->queryWorker.queue, qmFreeRpcQitem);
 
   tsNumOfQueryThreads += tsNumOfQnodeQueryThreads;
 
@@ -132,6 +140,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     dError("failed to start qnode-fetch worker since %s", tstrerror(code));
     return code;
   }
+  taosQueueSetFreeFp(pMgmt->fetchWorker.queue, qmFreeRpcQitem);
 
   dDebug("qnode workers are initialized");
   return code;

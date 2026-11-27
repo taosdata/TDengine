@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "monitor.h"
 #include "monInt.h"
 
@@ -60,8 +63,9 @@ extern char* tsMonFwUri;
 #define CPU_SYSTEM DNODE_TABLE":cpu_system"
 #define CPU_CORE DNODE_TABLE":cpu_cores"
 #define MEM_ENGINE DNODE_TABLE":mem_engine"
-#define MEM_SYSTEM DNODE_TABLE":mem_free"
+#define MEM_FREE DNODE_TABLE":mem_free"
 #define MEM_TOTAL DNODE_TABLE":mem_total"
+#define MEM_CACHE_BUFFER DNODE_TABLE":mem_cache_buffer"
 #define DISK_ENGINE DNODE_TABLE":disk_engine"
 #define DISK_USED DNODE_TABLE":disk_used"
 #define DISK_TOTAL DNODE_TABLE":disk_total"
@@ -107,12 +111,12 @@ void monInitMonitorFW(){
 
   int32_t dnodes_label_count = 3;
   const char *dnodes_sample_labels[] = {"cluster_id", "dnode_id", "dnode_ep"};
-  char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_SYSTEM,
-                           MEM_TOTAL, DISK_ENGINE, DISK_USED, DISK_TOTAL, NET_IN,
+  char *dnodes_gauges[] = {UPTIME, CPU_ENGINE, CPU_SYSTEM, CPU_CORE, MEM_ENGINE, MEM_FREE,
+                           MEM_TOTAL, MEM_CACHE_BUFFER, DISK_ENGINE, DISK_USED, DISK_TOTAL, NET_IN,
                            NET_OUT, IO_READ, IO_WRITE, IO_READ_DISK, IO_WRITE_DISK, /*ERRORS,*/
                            VNODES_NUM, MASTERS, HAS_MNODE, HAS_QNODE, HAS_SNODE,
                            DNODE_LOG_ERROR, DNODE_LOG_INFO, DNODE_LOG_DEBUG, DNODE_LOG_TRACE};
-  for(int32_t i = 0; i < 25; i++){
+  for (int32_t i = 0; i < sizeof(dnodes_gauges)/sizeof(dnodes_gauges[0]); i++) {
     gauge= taos_gauge_new(dnodes_gauges[i], "",  dnodes_label_count, dnodes_sample_labels);
     if(taos_collector_registry_register_metric(gauge) == 1){
       if (taos_counter_destroy(gauge) != 0) {
@@ -332,12 +336,14 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(tableNumGauge) != 0) {
       uError("failed to delete metric " TABLES_NUM);
     }
+    tableNumGauge = NULL;
   }
   taos_gauge_t *statusGauge = taos_gauge_new(STATUS, "",  vgroup_label_count, vgroup_sample_labels);
   if(taos_collector_registry_register_metric(statusGauge) == 1){
     if (taos_counter_destroy(statusGauge) != 0) {
       uError("failed to delete metric " STATUS);
     }
+    statusGauge = NULL;
   }
 
   char cluster_id[TSDB_CLUSTER_ID_LEN] = {0};
@@ -442,11 +448,14 @@ void monGenDnodeInfoTable(SMonInfo *pMonitor) {
   metric = taosHashGet(tsMonitor.metrics, MEM_ENGINE, strlen(MEM_ENGINE));
   if (metric != NULL) (void)taos_gauge_set(*metric, mem_engine, sample_labels);
 
-  metric = taosHashGet(tsMonitor.metrics, MEM_SYSTEM, strlen(MEM_SYSTEM));
-  if (metric != NULL) (void)taos_gauge_set(*metric, pSys->mem_system, sample_labels);
+  metric = taosHashGet(tsMonitor.metrics, MEM_FREE, strlen(MEM_FREE));
+  if (metric != NULL) (void)taos_gauge_set(*metric, pSys->mem_free, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, MEM_TOTAL, strlen(MEM_TOTAL));
   if (metric != NULL) (void)taos_gauge_set(*metric, pSys->mem_total, sample_labels);
+
+  metric = taosHashGet(tsMonitor.metrics, MEM_CACHE_BUFFER, strlen(MEM_CACHE_BUFFER));
+  if (metric != NULL) (void)taos_gauge_set(*metric, pSys->mem_cacheBuffer, sample_labels);
 
   metric = taosHashGet(tsMonitor.metrics, DISK_ENGINE, strlen(DISK_ENGINE));
   if (metric != NULL) (void)taos_gauge_set(*metric, pSys->disk_engine, sample_labels);
@@ -549,6 +558,10 @@ void monGenDnodeStatusInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(gauge) != 0) {
       uError("failed to delete metric " DNODE_STATUS);
     }
+    // Avoid a use-after-free: registration failure destroys the gauge.
+    // Clear the pointer so the later (gauge != NULL) check cannot pass.
+    // Otherwise taos_gauge_set may access freed memory and cause corruption or a crash.
+    gauge = NULL;
   }
 
   char cluster_id[TSDB_CLUSTER_ID_LEN];
@@ -778,7 +791,7 @@ void monGenVnodeRoleTable(SMonInfo *pMonitor){
 
 void monSendPromReport() {
   char ts[50] = {0};
-  (void)tsnprintf(ts, 50, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
+  (void)snprintf(ts, 50, "%" PRId64, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
 
   char* promStr = NULL;
   char* pCont = (char *)taos_collector_registry_bridge_new(TAOS_COLLECTOR_REGISTRY_DEFAULT, ts, "%" PRId64, &promStr);
@@ -788,13 +801,13 @@ void monSendPromReport() {
       uDebugL("report cont prom:\n%s", promStr);
     }
     else{
-      uInfo("report cont is null");
+      uInfo("report cont is null, since %s", tstrerror(terrno));
     }
   }
   if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     char          tmp[100] = {0};
-    (void)tsnprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
+    (void)snprintf(tmp, 100, "0x%" PRIxLEAST64, tGenQid64(tsMonitor.dnodeId));
     uDebug("report cont with QID:%s", tmp);
     if (taosSendHttpReportWithQID(tsMonitor.cfg.server, tsMonFwUri, tsMonitor.cfg.port, pCont, strlen(pCont), flag,
                                   tmp) != 0) {

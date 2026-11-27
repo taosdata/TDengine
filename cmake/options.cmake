@@ -1,0 +1,241 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+if(TD_COMMUNITY_STANDALONE)
+  option(BUILD_ENTERPRISE    "If build enterprise edition (requires sibling taos-internal repo)" OFF)
+  option(BUILD_TEST          "If build unit tests using googletest"  OFF)
+  option(BUILD_TEST_SHARED_ENGINE "Link unit tests against a shared server engine (CI only)" OFF)
+  option(BUILD_TOOLS         "Build tools component"                 OFF)
+  option(BUILD_SANITIZER     "Enable sanitizers"                     OFF)
+  option(BUILD_COVERAGE      "Enable code coverage"                  OFF)
+  option(BUILD_JEMALLOC      "Enable jemalloc allocator"             OFF)
+  option(BUILD_CONTRIB       "Build thirdpart from source"           ON)
+  option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" ON)
+
+  set(BUILD_VER_NUMBER      "" CACHE STRING "Version number override")
+  set(BUILD_VER_COMPATIBLE  "" CACHE STRING "Compatible version number override")
+  set(BUILD_VER_TYPE        "" CACHE STRING "Version type override (e.g. stable)")
+  set(BUILD_VER_DATE        "" CACHE STRING "Version date override (e.g. %Y-%m-%d %H:%M:%S %z)")
+  set(BUILD_VER_CPUTYPE     "" CACHE STRING "CPU type override")
+  set(BUILD_VER_OSTYPE      "" CACHE STRING "OS type override")
+  set(BUILD_GITINFO         "" CACHE STRING "Git commit ID override")
+  set(BUILD_GITINFOI        "" CACHE STRING "Internal git commit ID override")
+endif()
+
+option(USE_CONAN               "Use Conan for dependency management"  OFF)
+option(BUILD_ADVANCED_SECURITY "If enable advanced security"          OFF)
+option(BUILD_ASSERT_NOT_CORE   "If assert not generate core file"     OFF)
+option(BUILD_WEBSOCKET         "Enable websocket"                     OFF)
+option(BUILD_PTHREAD_TWEAK     "Tweak pthread for CentOS7.9/Ubuntu18" OFF)
+option(BUILD_ASTRA             "Build for Astra platform"             OFF)
+option(BUILD_ASTRA_RPC         "Build with Astra RPC transport"       OFF)
+
+if(TD_WINDOWS AND NOT BUILD_ASTRA)
+  option(BUILD_PTHREAD     "If build pthread on Windows"            ON)
+  option(BUILD_GNUREGEX    "If build gnu regex on Windows"          ON)
+  option(BUILD_WITH_ICONV  "If build iconv on Windows"              ON)
+  option(BUILD_MSVCREGEX   "If build msvcregex on Windows"          ON)
+  option(BUILD_WCWIDTH     "If build wcwidth on Windows"            ON)
+  option(BUILD_WINGETOPT   "If build wingetopt on Windows"          ON)
+  option(BUILD_CRASHDUMP   "If build crashdump on Windows"          ON)
+endif()
+
+option(BUILD_WITH_LEMON    "If build with lemon"                    ON)
+option(BUILD_WITH_UDF      "If build with UDF"                      ON)
+option(BUILD_PYUDF         "If build Python UDF plugin (libtaospyudf)" ON)
+
+# Python UDF: auto-download a single CPython SDK from python-build-standalone
+# for compile-time headers/import-lib. Runtime still probes installed Python at
+# execution time via udfd.
+set(BUILD_PYUDF_PYTHON_VERSION  "3.15.0b1" CACHE STRING
+  "Single Python version for pyudf SDK selection (must match PBS release)")
+
+if(NOT BUILD_ASTRA)
+  option(BUILD_GEOS          "If build with geos"                   ON)
+  option(BUILD_SHARED_LIBS   "If build shared libraries"            OFF)
+  option(RUST_BINDINGS       "If build with rust-bindings"          ON)
+  option(BUILD_PCRE2         "If build with pcre2"                  ON)
+  option(BUILD_ADDR2LINE     "If build addr2line"                   OFF)
+  option(BUILD_WITH_LEVELDB  "If build with leveldb"                OFF)
+  if(TD_LINUX)
+    option(BUILD_ROCKSDB     "If build rocksdb from source"         OFF)
+    option(ROCKSDB_USE_DEPS  "If use prebuilt rocksdb from deps/"   ON)
+  else()
+    option(BUILD_ROCKSDB     "If build rocksdb from source"         ON)
+    option(ROCKSDB_USE_DEPS  "If use prebuilt rocksdb from deps/"   OFF)
+  endif()
+  option(TD_USE_ROCKSDB      "If enable rocksdb support"            ON)
+  option(BUILD_WITH_LZ4      "If build with lz4"                    ON)
+else()
+  option(BUILD_ROCKSDB     "If build rocksdb from source"           OFF)
+  option(TD_USE_ROCKSDB      "If enable rocksdb support"            OFF)
+  option(BUILD_WITH_LZMA2    "If build with lzma2"                  ON)
+endif()
+
+if(TD_LINUX OR TD_WINDOWS)
+  option(BUILD_SHARED_STORAGE "If build with shared storage"        ON)
+  option(BUILD_WITH_S3        "If build with s3"                    ON)
+  option(BUILD_WITH_COS       "If build with cos"                   OFF)
+endif()
+
+if(TD_LINUX)
+  option(BUILD_WITH_LZMA2     "If build with lzma2"                 ON)
+endif()
+
+if(TD_LINUX OR TD_WINDOWS)
+  option(BUILD_WITH_ANALYSIS  "If build with analysis"              ON)
+else()
+  option(BUILD_WITH_ANALYSIS  "If build with analysis"              OFF)
+endif()
+
+# NOTE: set option variable in this ways is not a good practice
+if(NOT TD_ENTERPRISE)
+  MESSAGE("switch shared storage off with community edition")
+  set(BUILD_SHARED_STORAGE OFF)
+  set(BUILD_WITH_S3 OFF)
+  set(BUILD_WITH_COS OFF)
+ELSE()
+  MESSAGE("switch shared storage ON with enterprise edition")
+  set(BUILD_SHARED_STORAGE ON)
+  set(BUILD_WITH_S3 ON)
+ENDIF ()
+
+IF(${BUILD_SHARED_STORAGE})
+  IF(${BUILD_WITH_S3})
+    # NOTE: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    option(BUILD_WITH_COS "If build with cos" OFF)
+  ELSE ()
+    # NOTE1: BUILD_WITH_S3 does NOT coexist with BUILD_WITH_COS?
+    # option(BUILD_WITH_COS "If build with cos" ON)
+    MESSAGE("shared storage does not support COS at present, please use s3 instead")
+  ENDIF ()
+ELSE ()
+  option(BUILD_WITH_S3 "If build with s3" OFF)
+  option(BUILD_WITH_COS "If build with cos" OFF)
+ENDIF ()
+
+
+option(BUILD_WITH_SQLITE   "If build with sqlite"                  OFF)
+option(BUILD_WITH_BDB      "If build with BDB"                     OFF)
+option(BUILD_WITH_LUCENE   "If build with lucene"                  OFF)
+option(BUILD_WITH_NURAFT   "If build with NuRaft"                  OFF)
+
+if(NOT BUILD_ASTRA)
+  option(BUILD_WITH_UV            "If build with libuv"            ON)
+  option(BUILD_WITH_UV_TRANS      "If build with libuv_trans"      ON)
+  if(TD_LINUX)
+    option(BUILD_DEPENDENCY_TESTS "If build dependency tests"      ON)
+  endif()
+  option(BUILD_WITH_INVERTEDINDEX "If use invertedIndex"           ON)
+endif()
+
+option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
+
+set(TD_MIMALLOC_SUPPORTED OFF)
+if(TD_WINDOWS AND MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8
+   AND CMAKE_C_COMPILER_ARCHITECTURE_ID STREQUAL "x64"
+   AND NOT BUILD_SANITIZER AND NOT BUILD_TAOSD_INTEGRATED)
+  set(TD_MIMALLOC_SUPPORTED ON)
+endif()
+option(BUILD_MIMALLOC "Build and package optional mimalloc DLLs and minject for Windows taosd" ${TD_MIMALLOC_SUPPORTED})
+option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
+option(BUILD_RELEASE          "If build release version"             OFF)
+# Offline diagnostic tools for storage corruption (tools/cache-rdb-verify,
+# tools/rdb-selftest). Not part of taosd and not needed for a normal build, so
+# they stay off; enable when investigating a corruption report on a host.
+option(BUILD_DIAG_TOOLS       "If build storage diagnostic tools"    OFF)
+if(TD_LINUX)
+  option(BUILD_CONTRIB        "If build thirdpart from source"       OFF)
+else()
+  option(BUILD_CONTRIB        "If build thirdpart from source"       ON)
+endif()
+option(BUILD_LIBSASL          "If build libsasl2"                    ON)
+option(BUILD_LIBGSASL         "If build libgsasl (GNU SASL) for SCRAM-SHA-256 auth" ON)
+option(BUILD_FLEX_DEPLOY      "If enable flexible deployment mode"   OFF)
+option(BUILD_WITH_RAND_ERR    "If build with random error injection" OFF)
+option(BUILD_TSZ_ENABLED      "If build with TSZ compression"        ON)
+option(BUILD_USE_PUBLIC_DEPS "Use public (internet) URLs for all external dependencies instead of internal mirrors" OFF)
+
+# Runtime-pluggable accelerated L2 compression backends.
+# When ON (Linux only, the default), taosd can dlopen a user-built drop-in
+# zlib/zstd/lz4 (e.g. Intel QAT/IAA, ISA-L) at startup and route the L2
+# dispatch table through it. If the env vars are unset or the dlopen/dlsym
+# fails, the statically linked stock implementations are used unchanged.
+# Activated by: TAOS_COMPRESS_ACCEL=<dir> (or per-codec TAOS_COMPRESS_ACCEL_{ZLIB,ZSTD,LZ4}).
+# See docs/zh/15-internals/08-compress.md for the operator-facing contract.
+if(TD_LINUX)
+  option(BUILD_WITH_ACCEL_COMPRESS "Build runtime-pluggable accelerated L2 compression backends (Linux only)" ON)
+endif()
+
+# When BUILD_RELEASE is ON, force CMAKE_BUILD_TYPE to Release so that
+# CMake built-in Release flags and ExternalProject configuration align.
+if(BUILD_RELEASE)
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+  message(STATUS "[options] BUILD_RELEASE=ON => CMAKE_BUILD_TYPE forced to Release")
+endif()
+
+if(TD_ENTERPRISE)
+    option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
+    option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
+    option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+    option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
+    option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
+    # SHA256 of the Oracle Instant Client artifact published on the dependency
+    # mirror.  The Instant Client is binary-only and cannot be built, so the
+    # driver is staged from a prebuilt tarball; the hash pins it.  external.cmake
+    # already carries the hash of the published artifact for each architecture,
+    # so this only overrides it (e.g. a locally repacked bundle); empty keeps
+    # that default, and an architecture without a published artifact is skipped
+    # with a status message.
+    set(EXT_ORACLE_ARTIFACT_SHA256 "" CACHE STRING
+        "SHA256 of the Oracle Instant Client artifact (empty = use the pinned default)")
+    if(TD_WINDOWS)
+        # Arrow Flight SQL has no Windows build here (gRPC/Arrow Flight is not
+        # built), so BUILD_WITH_ARROW on Windows only controls the InfluxDB
+        # provider, which is built with its HTTP transport (curl) instead.
+        # MySQL / PostgreSQL / SQL Server (ODBC) providers are fully supported.
+        # INSTALL_FQ_RUNTIME_LIBS stays user-controlled: on Windows the FQ
+        # package carries the provider DLLs and the Microsoft ODBC Driver 18
+        # MSI (EXT_MSODBC_MSI) instead of the Linux .so set; without the MSI
+        # the installer falls back to a driver already registered on the
+        # machine.
+        message(STATUS
+            "[options] TD_WINDOWS=ON: InfluxDB provider uses the HTTP transport "
+            "(Arrow Flight SQL unavailable); taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+    endif()
+    if(TD_DARWIN)
+        # SQL Server support targets Linux servers: the Microsoft driver is a
+        # Linux artifact and the unixODBC provider build differs on Darwin.
+        # Keep the ODBC provider off on macOS, like the Windows case above.
+        set(BUILD_WITH_ODBC OFF CACHE BOOL
+            "If build with unixODBC (ext source: SQL Server)" FORCE)
+        message(STATUS
+            "[options] TD_DARWIN=ON: SQL Server (unixODBC/ODBC) provider is disabled on macOS")
+    endif()
+else()
+    set(BUILD_WITH_MARIADB OFF)
+    set(BUILD_WITH_LIBPQ   OFF)
+    set(BUILD_WITH_ARROW   OFF)
+    set(INSTALL_FQ_RUNTIME_LIBS OFF)
+endif()
+
+message(STATUS "BUILD_WITH_MARIADB:${BUILD_WITH_MARIADB}")
+message(STATUS "BUILD_WITH_LIBPQ:${BUILD_WITH_LIBPQ}")
+message(STATUS "BUILD_WITH_ARROW:${BUILD_WITH_ARROW}")
+message(STATUS "INSTALL_FQ_RUNTIME_LIBS:${INSTALL_FQ_RUNTIME_LIBS}")
+
+message(STATUS
+  "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
+)

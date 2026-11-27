@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,7 +27,7 @@ extern "C" {
 
 struct tMemBucket;
 
-int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, double minval, double maxval, bool hasWindowOrGroup,
+int32_t tMemBucketCreate(int32_t nElemSize, int16_t dataType, STypeMod typeMod, double minval, double maxval, bool hasWindowOrGroup,
                          struct tMemBucket **pBucket, int32_t numOfElements);
 
 void tMemBucketDestroy(struct tMemBucket **pBucket);

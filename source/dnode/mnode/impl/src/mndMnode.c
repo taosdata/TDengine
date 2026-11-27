@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,6 +38,7 @@ static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNe
 static int32_t  mndProcessCreateMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropMnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessFlushMnodeReq(SRpcMsg *pReq);
 static int32_t  mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 static void     mndReloadSyncConfig(SMnode *pMnode);
@@ -59,6 +62,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_MNODE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_DROP_MNODE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_FLUSH_MNODE, mndProcessFlushMnodeReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndRetrieveMnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_MNODE, mndCancelGetNextMnode);
@@ -84,8 +88,17 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
 
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   int32_t   code = 0;
+
+  SMnodeObj *pExist = mndAcquireMnode(pMnode, 1);
+  if (pExist != NULL) {
+    pMnode->selfDnodeId = pExist->id;
+    mndReleaseMnode(pMnode, pExist);
+    TAOS_RETURN(0);
+  }
+
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = 1;
+  pMnode->selfDnodeId = mnodeObj.id;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
@@ -252,6 +265,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     return;
   }
 
+  syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
+
+  /*
   SSdb   *pSdb = pMnode->pSdb;
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 0) {
@@ -289,6 +305,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     }
     epsetSort(pEpSet);
   }
+    */
 }
 
 static int32_t mndSetCreateMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
@@ -363,6 +380,7 @@ static int32_t mndBuildCreateMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *p
       .contLen = contLen,
       .msgType = TDMT_DND_CREATE_MNODE,
       .acceptableCode = TSDB_CODE_MNODE_ALREADY_DEPLOYED,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -394,6 +412,7 @@ static int32_t mndBuildAlterMnodeTypeRedoAction(STrans *pTrans, SDAlterMnodeType
       .msgType = TDMT_DND_ALTER_MNODE_TYPE,
       .retryCode = TSDB_CODE_MNODE_NOT_CATCH_UP,
       .acceptableCode = TSDB_CODE_MNODE_ALREADY_IS_VOTER,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -452,6 +471,7 @@ static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDrop
       .contLen = contLen,
       .msgType = TDMT_DND_DROP_MNODE,
       .acceptableCode = TSDB_CODE_MNODE_NOT_DEPLOYED,
+      .groupId = -1,
   };
 
   if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
@@ -496,6 +516,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   memcpy(createReq.learnerReplicas[numOfLearnerReplicas].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to new mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -544,6 +566,8 @@ int32_t mndSetRestoreCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   createReq.learnerReplica++;
 
   createReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored mnode
+  createReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -587,6 +611,8 @@ static int32_t mndSetAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -635,6 +661,8 @@ int32_t mndSetRestoreAlterMnodeTypeRedoActions(SMnode *pMnode, STrans *pTrans, S
   alterReq.replica++;
 
   alterReq.lastIndex = pObj->lastIndex;
+  // Pass current sdb encryption status to restored and altered mnode
+  alterReq.encrypted = pSdb->encrypted ? 1 : 0;
 
   createEpset.inUse = 0;
   createEpset.numOfEps = 1;
@@ -693,11 +721,12 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   SMnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateMnodeReq createReq = {0};
+  int64_t          tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
   mInfo("mnode:%d, start to create", createReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_MNODE), NULL, _OVER);
 
   pObj = mndAcquireMnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
@@ -726,12 +755,17 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   code = mndCreateMnode(pMnode, pReq, pDnode, &createReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char    obj[40] = {0};
-  int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
-  if ((uint32_t)bytes < sizeof(obj)) {
-    auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen);
-  } else {
-    mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char    obj[40] = {0};
+    int32_t bytes = snprintf(obj, sizeof(obj), "%d", createReq.dnodeId);
+    if ((uint32_t)bytes < sizeof(obj)) {
+      int64_t tse = taosGetTimestampMs();
+      double  duration = (double)(tse - tss);
+      duration = duration / 1000;
+      auditRecord(pReq, pMnode->clusterId, "createMnode", "", obj, createReq.sql, createReq.sqlLen, duration, 0);
+    } else {
+      mError("mnode:%d, failed to audit create req since %s", createReq.dnodeId, tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 
 _OVER:
@@ -754,7 +788,7 @@ static int32_t mndSetDropMnodeRedoLogs(SMnode *pMnode, STrans *pTrans, SMnodeObj
     if (terrno != 0) code = terrno;
     TAOS_RETURN(code);
   }
-  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(mndTransAppendGroupRedolog(pTrans, pRedoRaw, -1));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
   TAOS_RETURN(code);
 }
@@ -788,7 +822,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
     if (force) {
-      mError("cant't force drop dnode, since a mnode on it and replica is 2");
+      mError("cannot force drop dnode, since a mnode is on it and replica is 2");
       code = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       TAOS_RETURN(code);
     }
@@ -847,11 +881,12 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   int32_t        code = -1;
   SMnodeObj     *pObj = NULL;
   SMDropMnodeReq dropReq = {0};
+  int64_t        tss = taosGetTimestampMs();
 
   TAOS_CHECK_GOTO(tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq), NULL, _OVER);
 
   mInfo("mnode:%d, start to drop", dropReq.dnodeId);
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_MNODE), NULL, _OVER);
 
   if (dropReq.dnodeId <= 0) {
     code = TSDB_CODE_INVALID_MSG;
@@ -883,10 +918,15 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   code = mndDropMnode(pMnode, pReq, pObj);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
-  char obj[40] = {0};
-  (void)tsnprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
+  if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
+    char obj[40] = {0};
+    (void)snprintf(obj, sizeof(obj), "%d", dropReq.dnodeId);
 
-  auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen);
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "dropMnode", "", obj, dropReq.sql, dropReq.sqlLen, duration, 0);
+  }
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -895,6 +935,47 @@ _OVER:
 
   mndReleaseMnode(pMnode, pObj);
   tFreeSMCreateQnodeReq(&dropReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessFlushMnodeReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t code = 0;
+
+  // Leader is guaranteed by mndCheckMnodeState (non-leaders are auto-redirected
+  // with the leader epset). No manual leader check / user-facing not-leader error.
+
+  // Per FS section 4.1/section 6: FLUSH MNODE requires sysinfo privilege (gated directly on the
+  // sysInfo flag, not a dedicated RBAC priv object like COMPACT DATABASE's
+  // PRIV_DB_COMPACT) since it force-truncates the WAL and snapshots the mnode
+  // leader; an unprivileged caller must not be able to trigger this.
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_FLUSH_MNODE);
+  if (code != 0) {
+    mError("FLUSH MNODE rejected for user:%s since %s", RPC_MSG_USER(pReq), tstrerror(code));
+    TAOS_RETURN(code);
+  }
+
+  (void)taosThreadMutexLock(&pSdb->filelock);
+  if (pSdb->pWal != NULL && pSdb->sync > 0) {
+    code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
+  }
+  if (code == 0) {
+    code = sdbWriteFileForDump(pSdb, -1);
+  }
+  if (code == 0 && pSdb->pWal != NULL && pSdb->sync > 0) {
+    code = syncEndSnapshot(pSdb->sync, true);  // forceTrim
+  }
+  (void)taosThreadMutexUnlock(&pSdb->filelock);
+
+  if (code == 0) {
+    mInfo("FLUSH MNODE success, applyIndex:%" PRId64, pSdb->applyIndex);
+    pReq->info.rsp = NULL;
+    pReq->info.rspLen = 0;
+  } else {
+    mError("FLUSH MNODE failed since %s", tstrerror(code));
+  }
+  // taosd keeps running; do NOT trigger exit.
   TAOS_RETURN(code);
 }
 
@@ -925,7 +1006,6 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->id, false);
     if (code != 0) {
       mError("mnode:%d, failed to set col data val since %s", pObj->id, tstrerror(code));
-      sdbCancelFetch(pSdb, pShow->pIter);
       sdbRelease(pSdb, pObj);
       goto _out;
     }

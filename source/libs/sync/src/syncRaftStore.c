@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "tencrypt.h"
 #include "tjson.h"
 
 int32_t raftStoreReadFile(SSyncNode *pNode);
@@ -36,46 +39,26 @@ static int32_t raftStoreDecode(const SJson *pJson, SRaftStore *pStore) {
 
 int32_t raftStoreReadFile(SSyncNode *pNode) {
   int32_t     code = -1, lino = 0;
-  TdFilePtr   pFile = NULL;
   char       *pData = NULL;
   SJson      *pJson = NULL;
   const char *file = pNode->raftStorePath;
   SRaftStore *pStore = &pNode->raftStore;
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    sInfo("vgId:%d, raft store file:%s not exist, use default value", pNode->vgId, file);
+    sInfo("vgId:%d, raft store file:%s does not exist, use the default value", pNode->vgId, file);
     pStore->currentTerm = 0;
     pStore->voteFor.addr = 0;
     pStore->voteFor.vgId = 0;
     return raftStoreWriteFile(pNode);
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    sError("vgId:%d, failed to open raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  int32_t dataLen = 0;
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    sError("vgId:%d, failed to fstat raft store file:%s since %s", pNode->vgId, file, terrstr());
+    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
-
-    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-  }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -87,12 +70,11 @@ int32_t raftStoreReadFile(SSyncNode *pNode) {
   }
 
   code = 0;
-  sInfo("vgId:%d, succceed to read raft store file %s", pNode->vgId, file);
+  sInfo("vgId:%d, successfully read raft store file %s", pNode->vgId, file);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to read raft store file:%s since %s", pNode->vgId, file, terrstr());
@@ -113,11 +95,8 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   int32_t     code = -1, lino = 0;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
-  TdFilePtr   pFile = NULL;
   const char *realfile = pNode->raftStorePath;
   SRaftStore *pStore = &pNode->raftStore;
-  char        file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s.bak", realfile);
 
   pJson = tjsonCreateObject();
   if (pJson == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
@@ -126,16 +105,14 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
   buffer = tjsonToString(pJson);
   if (buffer == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
-  if (taosFsyncFile(pFile) < 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
-
-  TAOS_CHECK_GOTO(taosCloseFile(&pFile), &lino, _OVER);
-  if (taosRenameFile(file, realfile) != 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
+    lino = __LINE__;
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  }
 
   code = 0;
   sInfo("vgId:%d, succeed to write raft store file:%s, term:%" PRId64, pNode->vgId, realfile, pStore->currentTerm);
@@ -143,7 +120,6 @@ int32_t raftStoreWriteFile(SSyncNode *pNode) {
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to write raft store file:%s since %s", pNode->vgId, realfile, terrstr());
@@ -166,23 +142,37 @@ bool raftStoreHasVoted(SSyncNode *pNode) {
 }
 
 void raftStoreVote(SSyncNode *pNode, SRaftId *pRaftId) {
+  int32_t code = 0;
+  SRaftId voteForCopy;
+  int32_t vgId;
+
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = *pRaftId;
-  int32_t code = 0;
-  if ((code = raftStoreWriteFile(pNode)) != 0) {
-    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
-  }
+  voteForCopy = *pRaftId;
+  vgId = pNode->vgId;
+  code = raftStoreWriteFile(pNode);
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  if (code == 0) {
+    sInfo("vgId:%d, succeed to store vote, voteFor:0x%" PRIx64, vgId, voteForCopy.addr);
+  } else {
+    sError("vgId:%d, failed to store vote since %s", vgId, tstrerror(code));
+  }
 }
 
 void raftStoreClearVote(SSyncNode *pNode) {
+  int32_t code = 0;
+  int32_t vgId;
+
   (void)taosThreadMutexLock(&pNode->raftStore.mutex);
   pNode->raftStore.voteFor = EMPTY_RAFT_ID;
-  int32_t code = 0;
-  if ((code = raftStoreWriteFile(pNode)) != 0) {
-    sError("vgId:%d, failed to write raft store file since %s", pNode->vgId, tstrerror(code));
-  }
+  vgId = pNode->vgId;
+  code = raftStoreWriteFile(pNode);
   (void)taosThreadMutexUnlock(&pNode->raftStore.mutex);
+  if (code == 0) {
+    sInfo("vgId:%d, succeed to clear vote", vgId);
+  } else {
+    sError("vgId:%d, failed to clear vote since %s", vgId, tstrerror(code));
+  }
 }
 
 void raftStoreNextTerm(SSyncNode *pNode) {

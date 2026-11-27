@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "taosdef.h"
 #ifndef _TD_TCOL_H_
 #define _TD_TCOL_H_
@@ -22,6 +25,7 @@
 #define TSDB_COLUMN_ENCODE_RLE      "bit-packing"
 #define TSDB_COLUMN_ENCODE_DELTAD   "delta-d"
 #define TSDB_COLUMN_ENCODE_DISABLED "disabled"
+#define TSDB_COLUMN_ENCODE_BYTE_STREAM_SPLIT "bss"
 
 #define TSDB_COLUMN_COMPRESS_UNKNOWN  "unknown"
 #define TSDB_COLUMN_COMPRESS_LZ4      "lz4"
@@ -41,6 +45,7 @@
 #define TSDB_COLVAL_ENCODE_XOR      2
 #define TSDB_COLVAL_ENCODE_RLE      3
 #define TSDB_COLVAL_ENCODE_DELTAD   4
+#define TSDB_COLVAL_ENCODE_BYTE_STREAM_SPLIT 5
 #define TSDB_COLVAL_ENCODE_DISABLED 0xff
 
 #define TSDB_COLVAL_COMPRESS_NOCHANGE 0
@@ -61,7 +66,7 @@
 #define TSDB_CL_COMPRESS_OPTION_LEN 12
 #define TSDB_CL_OPTION_LEN          9
 
-extern const char* supportedEncode[5];
+extern const char* supportedEncode[];
 extern const char* supportedCompress[6];
 extern const char* supportedLevel[3];
 
@@ -79,7 +84,10 @@ uint8_t     columnLevelVal(const char* level);
 uint8_t     columnEncodeVal(const char* encode);
 uint16_t    columnCompressVal(const char* compress);
 
-bool useCompress(uint8_t tableType);
+bool withColCompress(uint8_t tableType);
+bool withExtSchema(uint8_t tableType);
+bool hasColRef(uint8_t tableType);
+bool hasTagRef(uint8_t tableType);
 bool checkColumnEncode(char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnEncodeOrSetDefault(uint8_t type, char encode[TSDB_CL_COMPRESS_OPTION_LEN]);
 bool checkColumnCompress(char compress[TSDB_CL_COMPRESS_OPTION_LEN]);
@@ -99,4 +107,5 @@ int8_t validColEncode(uint8_t type, uint8_t l1);
 
 uint32_t createDefaultColCmprByType(uint8_t type);
 int32_t  validColCmprByType(uint8_t type, uint32_t cmpr);
+int32_t  validAndNormalizeColCmprByType(uint8_t type, uint32_t* cmpr);
 #endif /*_TD_TCOL_H_*/

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -81,16 +83,34 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
 typedef uint16_t VarDataLenT;  // maxVarDataLen: 65535
 #define VARSTR_HEADER_SIZE sizeof(VarDataLenT)
 
-#define varDataLen(v)  ((VarDataLenT *)(v))[0]
-#define varDataVal(v)  ((char *)(v) + VARSTR_HEADER_SIZE)
-#define varDataTLen(v) (sizeof(VarDataLenT) + varDataLen(v))
+#define varDataLen(v)          ((VarDataLenT *)(v))[0]
+#define varDataVal(v)          ((char *)(v) + VARSTR_HEADER_SIZE)
+#define varDataTLen(v)         (sizeof(VarDataLenT) + varDataLen(v))
+#define varDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), varDataTLen(v))
+#define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
+#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
+
+#define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
+#define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
 
 typedef int32_t VarDataOffsetT;
 
+typedef uint32_t BlobDataLenT;  // maxVarDataLen: 2^32 - 1
+#define BLOBSTR_HEADER_SIZE sizeof(BlobDataLenT)
+
+#define blobDataLen(v)          ((BlobDataLenT *)(v))[0]
+#define blobDataVal(v)          ((char *)(v) + BLOBSTR_HEADER_SIZE)
+#define blobDataTLen(v)         (sizeof(BlobDataLenT) + blobDataLen(v))
+#define blobDataCopy(dst, v)    (void)memcpy((dst), (void *)(v), blobDataTLen(v))
+#define blobDataLenByData(v)    (*(BlobDataLenT *)(((char *)(v)) - BLOBSTR_HEADER_SIZE))
+#define blobDataSetLen(v, _len) (((BlobDataLenT *)(v))[0] = (BlobDataLenT)(_len))
+
+typedef int64_t BlobDataOffsetT;
 typedef struct tstr {
   VarDataLenT len;
   char        data[];
 } tstr;
+
 
 #ifdef __cplusplus
 }

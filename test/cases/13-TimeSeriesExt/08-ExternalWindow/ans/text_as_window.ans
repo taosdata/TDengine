@@ -1,0 +1,66 @@
+
+taos> use test;
+Database changed.
+
+taos> select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c, sum(v1) as sv from st1_1 external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000') ('2020-05-13 10:30:00.000', '2020-05-13 10:59:00.000') ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000') win_t) w) order by ws;
+          ws           |          we           |           c           |          sv           |
+================================================================================================
+         1589335200000 |         1589336940000 |                    30 |               3030465 |
+         1589337000000 |         1589338740000 |                    30 |               3031365 |
+         1589338800000 |         1589341140000 |                    40 |               4043220 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, count(*) as c from st1_1 external_window((select ts, endtime, mark from TEXT(ts TIMESTAMP, endtime TIMESTAMP, mark INT) values ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000', 1) ('2020-05-13 10:30:00.000', '2020-05-13 10:59:00.000', 2) ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000', 3) win_t) w) order by ws;
+          ws           |    mark     |           c           |
+==============================================================
+         1589335200000 |           1 |                    30 |
+         1589337000000 |           2 |                    30 |
+         1589338800000 |           3 |                    40 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, count(*) as c from st1_1 external_window((select ts, endtime, mark from TEXT(ts TIMESTAMP, endtime TIMESTAMP, mark INT) values ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000', 1) ('2020-05-13 10:30:00.000', '2020-05-13 10:59:00.000', 2) ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000', 3) win_t where mark >= 2) w) order by ws;
+          ws           |    mark     |           c           |
+==============================================================
+         1589337000000 |           2 |                    30 |
+         1589338800000 |           3 |                    40 |
+
+taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from st1 partition by tbname external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 10:00:00.000', '2020-05-13 11:39:00.000') ('2020-05-13 11:40:00.000', '2020-05-13 13:19:00.000') win_t) w) order by tbname, ws limit 4;
+             tbname             |          ws           |           c           |
+=================================================================================
+ st1_1                          |         1589335200000 |                   100 |
+ st1_2                          |         1589341200000 |                   100 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark, cast(ts as bigint) as ts64, v1 from st1_1 external_window((select ts, endtime, mark from TEXT(ts TIMESTAMP, endtime TIMESTAMP, mark INT) values ('2020-05-13 10:00:00.000', '2020-05-13 10:02:00.000', 10) ('2020-05-13 11:37:00.000', '2020-05-13 11:39:00.000', 20) win_t) w) order by ws, ts64;
+          ws           |    mark     |         ts64          |     v1      |
+============================================================================
+         1589335200000 |          10 |         1589335200000 |      101001 |
+         1589335200000 |          10 |         1589335260000 |      101002 |
+         1589335200000 |          10 |         1589335320000 |      101003 |
+         1589341020000 |          20 |         1589341020000 |      101098 |
+         1589341020000 |          20 |         1589341080000 |      101099 |
+         1589341020000 |          20 |         1589341140000 |      101100 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from st1_1 external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000') ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000') win_t) w) order by ws;
+          ws           |           c           |
+================================================
+         1589335200000 |                    30 |
+         1589338800000 |                    40 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c, sum(v1) as sv from st1_1 external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 10:00:00.000', '2020-05-13 11:39:00.000') win_t) w);
+          ws           |           c           |          sv           |
+========================================================================
+         1589335200000 |                   100 |              10105050 |
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from st1_1 external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 12:00:00.000', '2020-05-13 13:00:00.000') win_t) w);
+
+taos> select cast(_wstart as bigint) as ws, count(*) as c from st1_1 where ts >= '2020-05-13 10:15:00.000' external_window((select ts, endtime from TEXT(ts TIMESTAMP, endtime TIMESTAMP) values ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000') ('2020-05-13 10:30:00.000', '2020-05-13 10:59:00.000') ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000') win_t) w) order by ws;
+          ws           |           c           |
+================================================
+         1589335200000 |                    15 |
+         1589337000000 |                    30 |
+         1589338800000 |                    40 |
+
+taos> select cast(_wstart as bigint) as ws, w.mark * 10 as mark10, count(*) as c from st1_1 external_window((select ts, endtime, mark from TEXT(ts TIMESTAMP, endtime TIMESTAMP, mark INT) values ('2020-05-13 10:00:00.000', '2020-05-13 10:29:00.000', 5) ('2020-05-13 11:00:00.000', '2020-05-13 11:39:00.000', 7) win_t) w) order by ws;
+          ws           |          mark10           |           c           |
+============================================================================
+         1589335200000 |                        50 |                    30 |
+         1589338800000 |                        70 |                    40 |
+

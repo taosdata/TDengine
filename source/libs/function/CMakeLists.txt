@@ -1,11 +1,29 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 aux_source_directory(src FUNCTION_SRC)
 aux_source_directory(src/detail FUNCTION_SRC_DETAIL)
 list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
-IF(COMPILER_SUPPORT_AVX2)
+
+if(COMPILER_SUPPORT_AVX2)
     MESSAGE(STATUS "AVX2 instructions is ACTIVATED")
     set_source_files_properties(src/detail/tminmaxavx.c PROPERTIES COMPILE_FLAGS -mavx2)
-ENDIF()
+endif()
+
 add_library(function STATIC ${FUNCTION_SRC} ${FUNCTION_SRC_DETAIL})
+
 target_include_directories(
     function
     PUBLIC
@@ -13,20 +31,9 @@ target_include_directories(
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
+    "${TD_SOURCE_DIR}/include/libs/crypt"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
-    SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
-ELSE()
-    SET(LINK_JEMALLOC "")
-ENDIF()
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(function jemalloc)
-ENDIF()
 
 target_link_libraries(
     function
@@ -37,180 +44,84 @@ target_link_libraries(
     PRIVATE qcom
     PRIVATE scalar
     PRIVATE geometry
-    PRIVATE transport
-    PUBLIC uv_a
+    PRIVATE decimal
+    PRIVATE crypt
+    PUBLIC transport
 )
 
-add_executable(runUdf test/runUdf.c)
-target_include_directories(
-    runUdf
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
+# SET(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/build/bin)
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(runUdf jemalloc)
-ENDIF()
+if(BUILD_WITH_UDF)
+add_executable(taosudf src/udfd.c)
 
-target_link_libraries(
-    runUdf
-    PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
-)
-
-add_library(udf1 STATIC MODULE test/udf1.c)
-target_include_directories(
-    udf1
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(udf1 jemalloc)
-ENDIF()
-
-target_link_libraries(
-    udf1 PUBLIC os ${LINK_JEMALLOC})
-
-add_library(udf1_dup STATIC MODULE test/udf1_dup.c)
-target_include_directories(
-    udf1_dup
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(udf1_dup jemalloc)
-ENDIF()
-
-target_link_libraries(
-    udf1_dup PUBLIC os ${LINK_JEMALLOC})
-
-add_library(udf2 STATIC MODULE test/udf2.c)
-target_include_directories(
-    udf2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(udf2 jemalloc)
-ENDIF()
-
-target_link_libraries(
-    udf2 PUBLIC os ${LINK_JEMALLOC}
-)
-
-add_library(udf2_dup STATIC MODULE test/udf2_dup.c)
-target_include_directories(
-    udf2_dup
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/include/util"
-    "${TD_SOURCE_DIR}/include/common"
-    "${TD_SOURCE_DIR}/include/client"
-    "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-)
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(udf2_dup jemalloc)
-ENDIF()
-
-target_link_libraries(
-    udf2_dup PUBLIC os ${LINK_JEMALLOC}
-)
-
-set(TARGET_NAMES
-    change_udf_normal
-    change_udf_no_init
-    change_udf_no_process
-    change_udf_no_destroy
-    change_udf_init_failed
-    change_udf_process_failed
-    change_udf_destory_failed
-)
-
-set(COMPILE_DEFINITIONS
-    CHANGE_UDF_NORMAL
-    CHANGE_UDF_NO_INIT
-    CHANGE_UDF_NO_PROCESS
-    CHANGE_UDF_NO_DESTROY
-    CHANGE_UDF_INIT_FAILED
-    CHANGE_UDF_PROCESS_FAILED
-    CHANGE_UDF_DESTORY_FAILED
-)
-
-foreach(index RANGE 0 6)
-    list(GET TARGET_NAMES ${index} target_name)
-    list(GET COMPILE_DEFINITIONS ${index} compile_def)
-
-    add_library(${target_name} STATIC MODULE test/change_udf.c)
-    target_include_directories(
-        ${target_name}
-        PUBLIC
-        "${TD_SOURCE_DIR}/include/libs/function"
-        "${TD_SOURCE_DIR}/include/util"
-        "${TD_SOURCE_DIR}/include/common"
-        "${TD_SOURCE_DIR}/include/client"
-        "${TD_SOURCE_DIR}/include/os"
-        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    )
-    target_compile_definitions(${target_name} PRIVATE ${compile_def})
-    IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-        ADD_DEPENDENCIES(${target_name} jemalloc)
-    ENDIF()
-    target_link_libraries(
-        ${target_name} PUBLIC os ${LINK_JEMALLOC}
-    )
-endforeach()
-
-# SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
-add_executable(udfd src/udfd.c)
-
-if(${TD_DARWIN})
-    target_compile_options(udfd PRIVATE -Wno-error=deprecated-non-prototype)
+if(TD_DARWIN)
+    target_compile_options(taosudf PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
 target_include_directories(
-    udfd
+    taosudf
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/function"
-    "${TD_SOURCE_DIR}/contrib/libuv/include"
     "${TD_SOURCE_DIR}/include/util"
     "${TD_SOURCE_DIR}/include/common"
     "${TD_SOURCE_DIR}/include/libs/transport"
     "${TD_SOURCE_DIR}/include/client"
+    "${TD_SOURCE_DIR}/include/dnode/mgmt"
+    "${TD_SOURCE_DIR}/source/dnode/mgmt/node_util/inc"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-    ADD_DEPENDENCIES(udfd jemalloc)
-ENDIF()
-
 target_link_libraries(
-    udfd
-    PUBLIC uv_a
-    PRIVATE os util common nodes function ${LINK_JEMALLOC}
+    taosudf
+    PRIVATE os util common nodes function dnode
 )
+
+if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
+    # libextconnector.a references nodesRemotePlanToSQL (in libnodes.a).
+    # libextconnector.a appears twice in the transitive link command; the object file that
+    # holds nodesRemotePlanToSQL is only extracted from the second occurrence (after libnodes.a
+    # has already been scanned). Using --undefined forces the linker to extract
+    # nodesRemotePlanToSQL.c.o from libnodes.a on first encounter, making the symbol available
+    # for all subsequent libextconnector.a references.
+    target_link_options(taosudf PRIVATE "LINKER:--undefined=nodesRemotePlanToSQL")
+endif()
+
+# Export convergence for taosudf: no static consumers; UDF plugins (dlopen) need
+# only libc (verified). Hide all non-taos_* (see taosudf.ver). GNU ld only.
+# NOTE: also lets --gc-sections drop dead code previously kept only because it
+# was exported (this tree otherwise fails to link: gsasl_init).
+if(TD_LINUX)
+    target_link_options(taosudf PRIVATE
+        "LINKER:--version-script=${CMAKE_CURRENT_SOURCE_DIR}/taosudf.ver")
+endif()
+
+
+if(NOT TD_WINDOWS)
+    if(APPLE)
+        # macOS uses @loader_path (not $ORIGIN) and one LC_RPATH entry per path.
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "@loader_path;@loader_path/../lib;@loader_path/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    else()
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    endif()
+endif()
+
+if(UNIX AND NOT APPLE)
+    # ref: https://cmake.org/cmake/help/latest/release/3.4.html#deprecated-and-removed-features
+    set_target_properties(taosudf PROPERTIES
+        ENABLE_EXPORTS ON
+    )
+endif()
+
+if(BUILD_TEST)
+    add_subdirectory(test)
+endif()
+
+endif()

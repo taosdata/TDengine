@@ -32,11 +32,6 @@ ENDIF()
 include_directories (${APR_INCLUDE_DIR})
 #include_directories (${APR_UTIL_INCLUDE_DIR})
 
-target_include_directories(
-  cosTest
-  PUBLIC "${TD_SOURCE_DIR}/contrib/cos-c-sdk-v5/cos_c_sdk"
-  )
-
 #find_library(APR_LIBRARY apr-1 PATHS /usr/local/apr/lib/)
 #find_library(APR_UTIL_LIBRARY aprutil-1 PATHS /usr/local/apr/lib/)
 #find_library(MINIXML_LIBRARY mxml)

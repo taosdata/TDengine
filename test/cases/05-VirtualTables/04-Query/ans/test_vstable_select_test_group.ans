@@ -1,0 +1,338 @@
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 limit 10;
+       count(*)        |
+========================
+                     4 |
+                     4 |
+                     4 |
+                     5 |
+                     5 |
+                     5 |
+                     6 |
+                     6 |
+                     6 |
+                     6 |
+
+taos> select u_tinyint_col from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 limit 10;
+ u_tinyint_col |
+================
+             0 |
+             1 |
+             2 |
+             3 |
+             4 |
+             5 |
+             6 |
+             7 |
+             8 |
+             9 |
+
+taos> select u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1,2 limit 10;
+ u_tinyint_col |       count(*)        |
+========================================
+             0 |                    13 |
+             1 |                    12 |
+             2 |                    16 |
+             3 |                     8 |
+             4 |                     4 |
+             5 |                    19 |
+             6 |                     9 |
+             7 |                    12 |
+             8 |                    12 |
+             9 |                    20 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 limit 10;
+      avg(u_int_col)       |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1,2,3,4 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          33130.7267267267 |          1064538143.55292 | NULL                      |         0.998498498498498 |                695.154375 | NULL                      |     -9.22337203685478e+18 |          285.460309712092 | NULL                      |
+                         0 |          38962.5714285714 |              1215416237.5 |              1337158032.6 |                     -22.6 |                     -2462 |         -102055729.076923 |     -9.22337203685478e+18 |           1250.3935546875 |          -8325707.2069061 |
+                         1 |                  19283.25 |                1241098956 |          1262367254.14286 |         -9.33333333333333 |                       248 |              -275791248.5 |     -9.22337203685478e+18 |            60033.53515625 |         -23499812.3121053 |
+                         2 |          31911.8333333333 |                1410162486 |          726892075.444444 |                         3 |                     27447 |           -183356543.8125 |     -9.22337203685478e+18 |            36782.23828125 |           -5903910.639234 |
+                         3 |                     37695 |                1730476555 |                1524040422 |                       -26 |                  -14554.5 |              214281992.25 |     -9.22337203685478e+18 |           55474.486328125 |           57915640.890473 |
+                         4 | NULL                      | NULL                      |                 681865318 | NULL                      | NULL                      |             -445996869.25 | NULL                      | NULL                      |          52690801.7964377 |
+                         5 |                     35260 |               690242198.8 |          1171997310.92308 |                     -16.5 |         -5986.33333333333 |          149383525.789474 |     -9.22337203685478e+18 |           7443.0630859375 |          19800428.2748415 |
+                         6 |          43703.6666666667 |                 867712024 |              1152576684.6 |                       -55 |                     29857 |         -219754136.666667 |     -9.22337203685478e+18 |            -7440.93359375 |          46291195.1494108 |
+                         7 |                  27080.75 |                2017770170 |               572254455.5 |                         4 | NULL                      |               41507294.25 |     -9.22337203685478e+18 |           -31917.80078125 |          -10640835.559697 |
+                         8 |                     15536 |              1049488277.5 |          1087295098.71429 |                        24 |                    8064.5 |         -21389073.6666667 |     -9.22337203685478e+18 |          59750.8310546875 |          5218462.89910772 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col order by 1 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-02 00:00:01.734 |                  53 |                15946 | NULL            |             219803035 |                76 | NULL               |     748228732 |  -9223372036854775808 | NULL                 |           11293837.148055 | false          | NULL                | Hangzhou - San Diego           | 三。San Diego                  | NULL                           |
+ 2020-10-02 00:00:01.808 |                 164 |                51062 |       156409709 |             238828651 | NULL              | NULL               |     464362792 |  -9223372036854775808 |             -76425.7 |           -11837349.87299 | NULL           | NULL                | Shijiazhuang - Cupertino       | 一。San Franc                  | 森尼韦尔 - Sunnyvale           |
+ 2020-10-03 00:00:00.164 |                 209 |                51727 |      2073655116 |            1475676389 |               122 | NULL               |    -287874077 |  -9223372036854775808 |             -76339.8 |          -89789346.360656 | true           | NULL                | Beijing - San Francisco        | 三。San Diego                  | 洛杉矶 - Los Angles            |
+ 2020-10-03 00:00:00.252 |                 162 |                14785 |      1604589148 |            1132736332 |                61 |             -11185 |    -852808434 |  -9223372036854775808 |             -24241.6 |          -76066853.057167 | true           | San Francisco       | Taiyuan - Santa Clara          | 六。Campbell                   | 坎贝尔 - Campbell              |
+ 2020-10-03 00:00:00.372 |                  13 |                36069 | NULL            |             201771098 |                52 | NULL               |      29926526 |  -9223372036854775808 | NULL                 |          -34726908.438469 | true           | NULL                | Harbin - Campbell              | 十。Cupertino                  | NULL                           |
+ 2020-10-03 00:00:00.416 |                  65 |                59116 |        67395645 |             929972486 | NULL              |              -5653 |     894525782 |  -9223372036854775808 |              14375.4 |           -9857721.024968 | NULL           | Los Angles          | Beijing - San Francisco        | 九。Santa Cla                  | 森尼韦尔 - Sunnyvale           |
+ 2020-10-03 00:00:00.486 |                  60 |                33040 |        99604694 |            1269658704 |               -80 | NULL               |    -829683909 |  -9223372036854775808 |             -92445.5 |             72942894.7312 | false          | NULL                | Beijing - San Francisco        | 五。Palo Alto                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:00.506 |                 136 |                52338 |       951456080 |            2048567084 |                48 |             -10462 |      94402732 |  -9223372036854775808 |              25057.3 |           50634052.477041 | true           | San Diego           | Tianjin - Mountain View        | 十。Cupertino                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:00.538 |                 231 |                37261 | NULL            |             428708372 | NULL              | NULL               |     113318764 |  -9223372036854775808 | NULL                 |           79570628.793027 | NULL           | NULL                | Chengdu - San Jose             | 三。San Diego                  | NULL                           |
+ 2020-10-03 00:00:00.558 |                  38 |                 5444 |      1109551332 |            1035314097 |                 5 |             -22264 |     723154131 |  -9223372036854775808 |             -90727.5 |           61953530.991649 | false          | San Francisco       | Shanghai - Los Angles          | 三。San Diego                  | 森尼韦尔 - Sunnyvale           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 limit 10;
+       count(*)        |
+========================
+                     4 |
+                     4 |
+                     4 |
+                     5 |
+                     5 |
+                     5 |
+                     6 |
+                     6 |
+                     6 |
+                     6 |
+
+taos> select u_tinyint_col + 1 from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 limit 10;
+     u_tinyint_col + 1     |
+============================
+                         1 |
+                         2 |
+                         3 |
+                         4 |
+                         5 |
+                         6 |
+                         7 |
+                         8 |
+                         9 |
+                        10 |
+
+taos> select u_tinyint_col + 1, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1,2 limit 10;
+     u_tinyint_col + 1     |       count(*)        |
+====================================================
+                         1 |                    13 |
+                         2 |                    12 |
+                         3 |                    16 |
+                         4 |                     8 |
+                         5 |                     4 |
+                         6 |                    19 |
+                         7 |                     9 |
+                         8 |                    12 |
+                         9 |                    12 |
+                        10 |                    20 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 limit 10;
+      avg(u_int_col)       |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1,2,3,4 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          33130.7267267267 |          1064538143.55292 | NULL                      |         0.998498498498498 |                695.154375 | NULL                      |     -9.22337203685478e+18 |          285.460309712092 | NULL                      |
+                         0 |          38962.5714285714 |              1215416237.5 |              1337158032.6 |                     -22.6 |                     -2462 |         -102055729.076923 |     -9.22337203685478e+18 |           1250.3935546875 |          -8325707.2069061 |
+                         1 |                  19283.25 |                1241098956 |          1262367254.14286 |         -9.33333333333333 |                       248 |              -275791248.5 |     -9.22337203685478e+18 |            60033.53515625 |         -23499812.3121053 |
+                         2 |          31911.8333333333 |                1410162486 |          726892075.444444 |                         3 |                     27447 |           -183356543.8125 |     -9.22337203685478e+18 |            36782.23828125 |           -5903910.639234 |
+                         3 |                     37695 |                1730476555 |                1524040422 |                       -26 |                  -14554.5 |              214281992.25 |     -9.22337203685478e+18 |           55474.486328125 |           57915640.890473 |
+                         4 | NULL                      | NULL                      |                 681865318 | NULL                      | NULL                      |             -445996869.25 | NULL                      | NULL                      |          52690801.7964377 |
+                         5 |                     35260 |               690242198.8 |          1171997310.92308 |                     -16.5 |         -5986.33333333333 |          149383525.789474 |     -9.22337203685478e+18 |           7443.0630859375 |          19800428.2748415 |
+                         6 |          43703.6666666667 |                 867712024 |              1152576684.6 |                       -55 |                     29857 |         -219754136.666667 |     -9.22337203685478e+18 |            -7440.93359375 |          46291195.1494108 |
+                         7 |                  27080.75 |                2017770170 |               572254455.5 |                         4 | NULL                      |               41507294.25 |     -9.22337203685478e+18 |           -31917.80078125 |          -10640835.559697 |
+                         8 |                     15536 |              1049488277.5 |          1087295098.71429 |                        24 |                    8064.5 |         -21389073.6666667 |     -9.22337203685478e+18 |          59750.8310546875 |          5218462.89910772 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col + 1 order by 1 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-02 00:00:01.734 |                  53 |                15946 | NULL            |             219803035 |                76 | NULL               |     748228732 |  -9223372036854775808 | NULL                 |           11293837.148055 | false          | NULL                | Hangzhou - San Diego           | 三。San Diego                  | NULL                           |
+ 2020-10-02 00:00:01.808 |                 164 |                51062 |       156409709 |             238828651 | NULL              | NULL               |     464362792 |  -9223372036854775808 |             -76425.7 |           -11837349.87299 | NULL           | NULL                | Shijiazhuang - Cupertino       | 一。San Franc                  | 森尼韦尔 - Sunnyvale           |
+ 2020-10-03 00:00:00.164 |                 209 |                51727 |      2073655116 |            1475676389 |               122 | NULL               |    -287874077 |  -9223372036854775808 |             -76339.8 |          -89789346.360656 | true           | NULL                | Beijing - San Francisco        | 三。San Diego                  | 洛杉矶 - Los Angles            |
+ 2020-10-03 00:00:00.252 |                 162 |                14785 |      1604589148 |            1132736332 |                61 |             -11185 |    -852808434 |  -9223372036854775808 |             -24241.6 |          -76066853.057167 | true           | San Francisco       | Taiyuan - Santa Clara          | 六。Campbell                   | 坎贝尔 - Campbell              |
+ 2020-10-03 00:00:00.372 |                  13 |                36069 | NULL            |             201771098 |                52 | NULL               |      29926526 |  -9223372036854775808 | NULL                 |          -34726908.438469 | true           | NULL                | Harbin - Campbell              | 十。Cupertino                  | NULL                           |
+ 2020-10-03 00:00:00.416 |                  65 |                59116 |        67395645 |             929972486 | NULL              |              -5653 |     894525782 |  -9223372036854775808 |              14375.4 |           -9857721.024968 | NULL           | Los Angles          | Beijing - San Francisco        | 九。Santa Cla                  | 森尼韦尔 - Sunnyvale           |
+ 2020-10-03 00:00:00.486 |                  60 |                33040 |        99604694 |            1269658704 |               -80 | NULL               |    -829683909 |  -9223372036854775808 |             -92445.5 |             72942894.7312 | false          | NULL                | Beijing - San Francisco        | 五。Palo Alto                  | 旧金山 - San Francisco         |
+ 2020-10-03 00:00:00.506 |                 136 |                52338 |       951456080 |            2048567084 |                48 |             -10462 |      94402732 |  -9223372036854775808 |              25057.3 |           50634052.477041 | true           | San Diego           | Tianjin - Mountain View        | 十。Cupertino                  | 圣地亚哥 - San Diego           |
+ 2020-10-03 00:00:00.538 |                 231 |                37261 | NULL            |             428708372 | NULL              | NULL               |     113318764 |  -9223372036854775808 | NULL                 |           79570628.793027 | NULL           | NULL                | Chengdu - San Jose             | 三。San Diego                  | NULL                           |
+ 2020-10-03 00:00:00.558 |                  38 |                 5444 |      1109551332 |            1035314097 |                 5 |             -22264 |     723154131 |  -9223372036854775808 |             -90727.5 |           61953530.991649 | false          | San Francisco       | Shanghai - Los Angles          | 三。San Diego                  | 森尼韦尔 - Sunnyvale           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1 limit 10;
+       count(*)        |
+========================
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+                     1 |
+
+taos> select u_tinyint_col, tinyint_col from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2 limit 10;
+ u_tinyint_col | tinyint_col |
+==============================
+ NULL          |        -128 |
+ NULL          |        -127 |
+ NULL          |        -126 |
+ NULL          |        -125 |
+ NULL          |        -124 |
+ NULL          |        -123 |
+ NULL          |        -122 |
+ NULL          |        -121 |
+ NULL          |        -120 |
+ NULL          |        -119 |
+
+taos> select u_tinyint_col, tinyint_col, count(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2,3 limit 10;
+ u_tinyint_col | tinyint_col |       count(*)        |
+======================================================
+ NULL          |        -128 |                     1 |
+ NULL          |        -127 |                     4 |
+ NULL          |        -126 |                     7 |
+ NULL          |        -125 |                    11 |
+ NULL          |        -124 |                     9 |
+ NULL          |        -123 |                     5 |
+ NULL          |        -122 |                     5 |
+ NULL          |        -121 |                     4 |
+ NULL          |        -120 |                     8 |
+ NULL          |        -119 |                     3 |
+
+taos> select avg(u_int_col), avg(tinyint_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2 limit 10;
+      avg(u_int_col)       |     avg(tinyint_col)      |
+========================================================
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+ NULL                      | NULL                      |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1,2,3,4 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |                      2518 |                 206399034 | NULL                      |                       -60 |                      7718 | NULL                      |     -9.22337203685478e+18 |           -48459.56640625 | NULL                      |
+ NULL                      |                      5265 | NULL                      | NULL                      |                      -128 | NULL                      | NULL                      |     -9.22337203685478e+18 | NULL                      | NULL                      |
+ NULL                      |                    8747.5 |                 808907649 | NULL                      |                        17 |                     23161 | NULL                      |     -9.22337203685478e+18 |              48808.453125 | NULL                      |
+ NULL                      |          9341.16666666667 |                1060922867 | NULL                      |                       -89 |                    -26530 | NULL                      |     -9.22337203685478e+18 |           -52304.07421875 | NULL                      |
+ NULL                      |                   10777.5 |                 950604064 | NULL                      |                         5 |                   -6477.5 | NULL                      |     -9.22337203685478e+18 |           34084.775390625 | NULL                      |
+ NULL                      |                   13262.5 | NULL                      | NULL                      |                       104 | NULL                      | NULL                      |     -9.22337203685478e+18 | NULL                      | NULL                      |
+ NULL                      |                 14771.125 | NULL                      | NULL                      |                        10 | NULL                      | NULL                      |     -9.22337203685478e+18 | NULL                      | NULL                      |
+ NULL                      |                     16058 | NULL                      | NULL                      |                      -121 | NULL                      | NULL                      |     -9.22337203685478e+18 | NULL                      | NULL                      |
+ NULL                      |          16863.3333333333 | NULL                      | NULL                      |                       -70 | NULL                      | NULL                      |     -9.22337203685478e+18 | NULL                      | NULL                      |
+ NULL                      |                   17310.4 |                 788701352 | NULL                      |                        13 |                      5355 | NULL                      |     -9.22337203685478e+18 |          8062.14404296875 | NULL                      |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by u_tinyint_col, tinyint_col order by 1 limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.006 |                  49 |                51523 | NULL            |                654411 |               -91 | NULL               |    -140653792 |  -9223372036854775808 | NULL                 |            4540042.841226 | true           | NULL                | Shanghai - Los Angles          | 六。Campbell                   | NULL                           |
+ 2020-10-01 00:00:00.012 |                  77 |                36105 | NULL            |            1318736917 |                70 | NULL               |    -944313433 |  -9223372036854775808 | NULL                 |           18127464.490065 | false          | NULL                | Shanghai - Los Angles          | 七。Mountain                   | NULL                           |
+ 2020-10-01 00:00:00.018 |                 195 |                 7319 | NULL            |             586342797 |              -113 | NULL               |    -979420128 |  -9223372036854775808 | NULL                 |          -63915768.853326 | true           | NULL                | Beijing - San Francisco        | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.024 |                 198 |                32618 | NULL            |            2031121720 |                -9 | NULL               |     339152230 |  -9223372036854775808 | NULL                 |           22941053.781623 | false          | NULL                | Xian - Sunnyvale               | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.030 |                 162 |                40009 |       590847882 |            1311877143 |                 9 |             -11185 |    -393387481 |  -9223372036854775808 |              26467.3 |           31137660.109619 | true           | San Francisco       | Xian - Sunnyvale               | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:00.036 |                  73 |                62565 | NULL            |             697129730 |               -69 | NULL               |    -540335831 |  -9223372036854775808 | NULL                 |          -12458279.539132 | true           | NULL                | Xian - Sunnyvale               | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.042 |                 138 |                63023 | NULL            |            1175174571 |               -28 | NULL               |    -309527660 |  -9223372036854775808 | NULL                 |          -44610867.597806 | true           | NULL                | Xian - Sunnyvale               | 十。Cupertino                  | NULL                           |
+ 2020-10-01 00:00:00.048 |                  86 |                28985 | NULL            |            1641500934 |                24 | NULL               |    -819226415 |  -9223372036854775808 | NULL                 |            78716789.82035 | false          | NULL                | Hong Kong - Palo Alto          | 九。Santa Cla                  | NULL                           |
+ 2020-10-01 00:00:00.054 |                 205 |                51902 | NULL            |            1696247163 |               126 | NULL               |    -813840372 |  -9223372036854775808 | NULL                 |           -7254839.451336 | true           | NULL                | Beijing - San Francisco        | 五。Palo Alto                  | NULL                           |
+ 2020-10-01 00:00:00.060 |                  46 |                50802 |       276933212 |             916525139 |                42 |               6152 |     974834340 |  -9223372036854775808 |              71374.6 |           -8400114.137924 | false          | Mountain View       | Hangzhou - San Diego           | 四。San Jose                   | 库比蒂诺 - Cupertino           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+       count(*)        |
+========================
+                  2333 |
+                  2333 |
+                  2333 |
+
+taos> select int_tag from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+   int_tag   |
+==============
+           0 |
+           1 |
+           3 |
+
+taos> select int_tag, count(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+   int_tag   |       count(*)        |
+======================================
+           0 |                  2333 |
+           1 |                  2333 |
+           3 |                  2333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+      avg(u_int_col)       |
+============================
+            1060090812.883 |
+            1061197821.673 |
+            1048580803.461 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                    127.55 |                 32850.583 |            1060090812.883 |            1068586387.986 |                     0.965 |                   129.025 |              -7756037.699 |     -9.22337203685478e+18 |          947.284190338135 |         -1613128.98861563 |
+                   128.024 |                  33309.99 |            1061197821.673 | NULL                      | NULL                      | NULL                      |              22763540.399 |     -9.22337203685478e+18 |          857.099632392883 | NULL                      |
+                   125.962 |                 33145.296 |            1048580803.461 |            1046755966.619 |                     1.512 |                   834.754 |               12289921.77 |     -9.22337203685478e+18 |          1270.58966638184 |         -5616690.45259602 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by int_tag order by int_tag limit 10;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:04.995 |                 230 |                60075 |       997032793 |             589490809 |                24 |              29023 |     355313610 |  -9223372036854775808 |             -83686.8 |          -28742999.611315 | false          | Los Angles          | Xian - Sunnyvale               | 四。San Jose                   | 森尼韦尔 - Sunnyvale           |
+ 2020-10-02 00:00:04.995 |                   2 |                 6263 |       144741502 | NULL                  | NULL              | NULL               |    -233013420 |  -9223372036854775808 |             -47662.2 | NULL                      | NULL           | NULL                | Shanghai - Los Angles          | 七。Mountain                   | 洛杉矶 - Los Angles            |
+ 2020-10-03 00:00:04.995 |                 141 |                27777 |      1814172607 |            1655865704 |                -8 |              26584 |     606933683 |  -9223372036854775808 |              42325.3 |           75553774.727218 | false          | Cupertino           | Shanghai - Los Angles          | 四。San Jose                   | 库比蒂诺 - Cupertino           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10;
+       count(*)        |
+========================
+                  2333 |
+                  2333 |
+                  2333 |
+
+taos> select tbname from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10;
+             tbname             |
+=================================
+ vtb_virtual_ctb_empty          |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_half_full      |
+ vtb_virtual_ctb_mix            |
+
+taos> select tbname, count(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10;
+             tbname             |       count(*)        |
+=========================================================
+ vtb_virtual_ctb_full           |                  2333 |
+ vtb_virtual_ctb_half_full      |                  2333 |
+ vtb_virtual_ctb_mix            |                  2333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10;
+      avg(u_int_col)       |
+============================
+            1060090812.883 |
+            1061197821.673 |
+            1048580803.461 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                    127.55 |                 32850.583 |            1060090812.883 |            1068586387.986 |                     0.965 |                   129.025 |              -7756037.699 |     -9.22337203685478e+18 |          947.284190338135 |         -1613128.98861563 |
+                   128.024 |                  33309.99 |            1061197821.673 | NULL                      | NULL                      | NULL                      |              22763540.399 |     -9.22337203685478e+18 |          857.099632392883 | NULL                      |
+                   125.962 |                 33145.296 |            1048580803.461 |            1046755966.619 |                     1.512 |                   834.754 |               12289921.77 |     -9.22337203685478e+18 |          1270.58966638184 |         -5616690.45259602 |
+
+taos> select last(*) from test_vtable_select.vtb_virtual_stb group by tbname order by tbname limit 10
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:04.995 |                 230 |                60075 |       997032793 |             589490809 |                24 |              29023 |     355313610 |  -9223372036854775808 |             -83686.8 |          -28742999.611315 | false          | Los Angles          | Xian - Sunnyvale               | 四。San Jose                   | 森尼韦尔 - Sunnyvale           |
+ 2020-10-02 00:00:04.995 |                   2 |                 6263 |       144741502 | NULL                  | NULL              | NULL               |    -233013420 |  -9223372036854775808 |             -47662.2 | NULL                      | NULL           | NULL                | Shanghai - Los Angles          | 七。Mountain                   | 洛杉矶 - Los Angles            |
+ 2020-10-03 00:00:04.995 |                 141 |                27777 |      1814172607 |            1655865704 |                -8 |              26584 |     606933683 |  -9223372036854775808 |              42325.3 |           75553774.727218 | false          | Cupertino           | Shanghai - Los Angles          | 四。San Jose                   | 库比蒂诺 - Cupertino           |
+

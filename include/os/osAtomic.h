@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,8 @@
 
 #ifndef _TD_OS_ATOMIC_H_
 #define _TD_OS_ATOMIC_H_
+
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +69,7 @@ int8_t  atomic_add_fetch_8(int8_t volatile *ptr, int8_t val);
 int16_t atomic_add_fetch_16(int16_t volatile *ptr, int16_t val);
 int32_t atomic_add_fetch_32(int32_t volatile *ptr, int32_t val);
 int64_t atomic_add_fetch_64(int64_t volatile *ptr, int64_t val);
+int64_t atomic_add_fetch_64_relax(int64_t volatile *ptr, int64_t val);
 void   *atomic_add_fetch_ptr(void *ptr, int64_t val);
 int8_t  atomic_fetch_add_8(int8_t volatile *ptr, int8_t val);
 int16_t atomic_fetch_add_16(int16_t volatile *ptr, int16_t val);

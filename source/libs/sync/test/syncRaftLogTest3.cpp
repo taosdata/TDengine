@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -40,7 +57,7 @@ void init() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen(pWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   memset(pSyncNode, 0, sizeof(SSyncNode));
@@ -64,7 +81,7 @@ void test1() {
 
   init();
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore);
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
 
@@ -94,11 +111,11 @@ void test1() {
   sTrace("testIndex: %" PRId64 " preTerm: %" PRIu64, testIndex, preTerm);
 
   if (gAssert) {
-    assert(lastIndex == -1);
-    assert(lastTerm == 0);
-    assert(syncStartIndex == 0);
-    assert(preIndex == -1);
-    assert(preTerm == 0);
+    TD_ALWAYS_ASSERT(lastIndex == -1);
+    TD_ALWAYS_ASSERT(lastTerm == 0);
+    TD_ALWAYS_ASSERT(syncStartIndex == 0);
+    TD_ALWAYS_ASSERT(preIndex == -1);
+    TD_ALWAYS_ASSERT(preTerm == 0);
   }
 
   logStoreDestory(pLogStore);
@@ -113,14 +130,14 @@ void test2() {
 
   init();
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore);
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
 
   for (int i = 0; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
-    assert(pEntry != NULL);
+    TD_ALWAYS_ASSERT(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;
     pEntry->seqNum = 3;
@@ -154,9 +171,9 @@ void test2() {
   sTrace("syncStartIndex: %" PRId64, syncStartIndex);
 
   if (gAssert) {
-    assert(lastIndex == 10);
-    assert(lastTerm == 110);
-    assert(syncStartIndex == 11);
+    TD_ALWAYS_ASSERT(lastIndex == 10);
+    TD_ALWAYS_ASSERT(lastTerm == 110);
+    TD_ALWAYS_ASSERT(syncStartIndex == 11);
   }
 
   for (SyncIndex i = 11; i >= 0; --i) {
@@ -170,8 +187,8 @@ void test2() {
       SyncIndex preIndexArr[12] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
       SyncTerm  preTermArr[12] = {0, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110};
 
-      assert(preIndex == preIndexArr[i]);
-      assert(preTerm == preTermArr[i]);
+      TD_ALWAYS_ASSERT(preIndex == preIndexArr[i]);
+      TD_ALWAYS_ASSERT(preTerm == preTermArr[i]);
     }
   }
 
@@ -187,7 +204,7 @@ void test3() {
 
   init();
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore);
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
 
@@ -216,11 +233,11 @@ void test3() {
   sTrace("%d's preTerm: %" PRIu64, 6, preTerm);
 
   if (gAssert) {
-    assert(lastIndex == 5);
-    assert(lastTerm == 100);
-    assert(syncStartIndex == 6);
-    assert(preIndex == 5);
-    assert(preTerm == 100);
+    TD_ALWAYS_ASSERT(lastIndex == 5);
+    TD_ALWAYS_ASSERT(lastTerm == 100);
+    TD_ALWAYS_ASSERT(syncStartIndex == 6);
+    TD_ALWAYS_ASSERT(preIndex == 5);
+    TD_ALWAYS_ASSERT(preTerm == 100);
   }
 
   logStoreDestory(pLogStore);
@@ -235,14 +252,14 @@ void test4() {
 
   init();
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore);
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest4 ----- ", pLogStore);
 
   for (int i = 0; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
-    assert(pEntry != NULL);
+    TD_ALWAYS_ASSERT(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;
     pEntry->seqNum = 3;
@@ -276,9 +293,9 @@ void test4() {
   sTrace("syncStartIndex: %" PRId64, syncStartIndex);
 
   if (gAssert) {
-    assert(lastIndex == 10);
-    assert(lastTerm == 110);
-    assert(syncStartIndex == 11);
+    TD_ALWAYS_ASSERT(lastIndex == 10);
+    TD_ALWAYS_ASSERT(lastTerm == 110);
+    TD_ALWAYS_ASSERT(syncStartIndex == 11);
   }
 
   for (SyncIndex i = 11; i >= 6; --i) {
@@ -301,7 +318,7 @@ void test5() {
 
   init();
   pLogStore = logStoreCreate(pSyncNode);
-  assert(pLogStore);
+  TD_ALWAYS_ASSERT(pLogStore);
   pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
 
@@ -310,7 +327,7 @@ void test5() {
   for (int i = 6; i <= 10; ++i) {
     int32_t         dataLen = 10;
     SSyncRaftEntry* pEntry = syncEntryBuild(dataLen);
-    assert(pEntry != NULL);
+    TD_ALWAYS_ASSERT(pEntry != NULL);
     pEntry->msgType = 1;
     pEntry->originalRpcType = 2;
     pEntry->seqNum = 3;
@@ -354,8 +371,8 @@ void test5() {
       SyncIndex preIndexArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 5, 6, 7, 8, 9, 10};
       SyncTerm  preTermArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 100, 106, 107, 108, 109, 110};
 
-      assert(preIndex == preIndexArr[i]);
-      assert(preTerm == preTermArr[i]);
+      TD_ALWAYS_ASSERT(preIndex == preIndexArr[i]);
+      TD_ALWAYS_ASSERT(preTerm == preTermArr[i]);
     }
   }
 

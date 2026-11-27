@@ -1,0 +1,12 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Test stub for the docker entrypoint regression suite.
+
+# `taos --check` reports a ready mnode so the entrypoint proceeds.
+for a in "$@"; do
+    [ "$a" = "--check" ] && { echo "2: ready"; exit 0; }
+done
+exit 0

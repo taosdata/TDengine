@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -513,7 +515,6 @@ void idxCacheDestroyImm(IndexCache* cache) {
   TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
 
   idxMemUnRef(tbl);
-  idxMemUnRef(tbl);
 }
 void idxCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
@@ -533,32 +534,31 @@ void idxCacheDestroy(void* cache) {
   taosMemoryFree(pCache);
 }
 
-Iterate* idxCacheIteratorCreate(IndexCache* cache) {
-  if (cache->imm == NULL) {
-    return NULL;
-  }
-  Iterate* iter = taosMemoryCalloc(1, sizeof(Iterate));
-  if (iter == NULL) {
-    return NULL;
-  }
-  if (taosThreadMutexLock(&cache->mtx) != 0) {
-    indexError("failed to lock cache mutex");
-    taosMemoryFree(iter);
-    return NULL;
-  }
-
-  idxMemRef(cache->imm);
-
+int32_t idxCacheIteratorCreate(IndexCache* cache, Iterate** out) {
+  *out = NULL;
+  int32_t code = taosThreadMutexLock(&cache->mtx);
+  if (code != 0) return code;
+  // The merge worker owns imm until idxCacheDestroyImm detaches it.
   MemTable* tbl = cache->imm;
-  iter->val.val = taosArrayInit(1, sizeof(uint64_t));
-  iter->val.colVal = NULL;
-  iter->iter = tbl != NULL ? tSkipListCreateIter(tbl->mem) : NULL;
-  iter->next = idxCacheIteratorNext;
-  iter->getValue = idxCacheIteratorGetValue;
-
+  if (tbl != NULL) {
+    Iterate* iter = taosMemoryCalloc(1, sizeof(*iter));
+    if (iter == NULL) {
+      code = terrno;
+    } else {
+      iter->val.val = taosArrayInit(1, sizeof(uint64_t));
+      if (iter->val.val != NULL) iter->iter = tSkipListCreateIter(tbl->mem);
+      if (iter->iter == NULL) {
+        code = terrno;
+        idxCacheIteratorDestroy(iter);
+      } else {
+        iter->next = idxCacheIteratorNext;
+        iter->getValue = idxCacheIteratorGetValue;
+        *out = iter;
+      }
+    }
+  }
   TAOS_UNUSED(taosThreadMutexUnlock(&cache->mtx));
-
-  return iter;
+  return code;
 }
 void idxCacheIteratorDestroy(Iterate* iter) {
   if (iter == NULL) {
@@ -618,7 +618,6 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   bool hasJson = IDX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
 
   IndexCache* pCache = cache;
-  idxCacheRef(pCache);
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
   if (ct == NULL) {
@@ -628,6 +627,10 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   ct->colType = term->colType;
   if (hasJson) {
     ct->colVal = idxPackJsonData(term);
+    if (ct->colVal == NULL) {
+      taosMemoryFree(ct);
+      return terrno;
+    }
   } else {
     ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
     if (ct->colVal == NULL) {
@@ -636,28 +639,34 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
     }
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }
+  idxCacheRef(pCache);
   ct->version = atomic_add_fetch_64(&pCache->version, 1);
   // set value
   ct->uid = uid;
   ct->operaType = term->operType;
   // ugly code, refactor later
-  int64_t estimate = sizeof(ct) + strlen(ct->colVal);
+  int64_t estimate = sizeof(*ct) + strlen(ct->colVal) + 1;
 
   if (taosThreadMutexLock(&pCache->mtx) != 0) {
     indexError("failed to lock cache mutex");
   }
-  pCache->occupiedMem += estimate;
   idxCacheMakeRoomForWrite(pCache);
   MemTable* tbl = pCache->mem;
   idxMemRef(tbl);
-  TAOS_UNUSED(tSkipListPut(tbl->mem, (char*)ct));
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (tSkipListPut(tbl->mem, ct) == NULL) {
+    code = terrno;
+    idxCacheTermDestroy(ct);
+  } else {
+    pCache->occupiedMem += estimate;
+  }
   idxMemUnRef(tbl);
 
   if (taosThreadMutexUnlock(&pCache->mtx) != 0) {
     indexError("failed to unlock cache mutex");
   }
   idxCacheUnRef(pCache);
-  return 0;
+  return code;
 }
 void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
@@ -869,10 +878,11 @@ static bool idxCacheIteratorNext(Iterate* itera) {
     iv->ver = ct->version;
     iv->colVal = taosStrdup(ct->colVal);
     if (iv->colVal == NULL) {
+      itera->error = TSDB_CODE_OUT_OF_MEMORY;
       return false;
     }
     if (taosArrayPush(iv->val, &ct->uid) == NULL) {
-      taosMemoryFree(iv->colVal);
+      itera->error = terrno;
       return false;
     }
   }

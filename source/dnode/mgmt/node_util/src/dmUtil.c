@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -37,8 +39,12 @@ const char *dmNodeName(EDndNodeType ntype) {
       return "qnode";
     case SNODE:
       return "snode";
+    case BNODE:
+      return "bnode";
     case MNODE:
       return "mnode";
+    case XNODE:
+      return "xnode";
     default:
       return "dnode";
   }
@@ -68,7 +74,7 @@ void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   if (code != 0) {
     dError("failed to get proc memory since %s", tstrerror(code));
   }
-  code = taosGetSysMemory(&pInfo->mem_system);
+  code = taosGetSysMemory(&pInfo->mem_system, &pInfo->mem_free, &pInfo->mem_cacheBuffer);
   if (code != 0) {
     dError("failed to get sys memory since %s", tstrerror(code));
   }

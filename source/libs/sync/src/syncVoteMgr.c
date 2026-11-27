@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -68,13 +70,13 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   }
 
   if (pMsg->term != pVotesGranted->term) {
-    sNTrace(pVotesGranted->pNode, "vote grant term:%" PRId64 " not matched with msg term:%" PRId64, pVotesGranted->term,
+    sNTrace(pVotesGranted->pNode, "vote grant term:%" PRId64 " does not match the msg term:%" PRId64, pVotesGranted->term,
             pMsg->term);
     return;
   }
 
   if (!syncUtilSameId(&pVotesGranted->pNode->myRaftId, &pMsg->destId)) {
-    sNFatal(pVotesGranted->pNode, "vote granted raftId not matched with msg");
+    sNFatal(pVotesGranted->pNode, "vote granted raftId does not match the message");
     return;
   }
 
@@ -96,7 +98,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   }
 
   if (pVotesGranted->votes > pVotesGranted->replicaNum) {
-    sNFatal(pVotesGranted->pNode, "votes:%d not matched with replicaNum:%d", pVotesGranted->votes,
+    sNFatal(pVotesGranted->pNode, "votes:%d does not match replicaNum:%d", pVotesGranted->votes,
             pVotesGranted->replicaNum);
     return;
   }

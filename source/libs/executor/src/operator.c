@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,39 +15,79 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "filter.h"
-#include "function.h"
-#include "os.h"
-#include "tname.h"
-
-#include "tglobal.h"
-
 #include "executorInt.h"
-#include "index.h"
+#include "executor.h"
+#include "function.h"
 #include "operator.h"
+#include "osTime.h"
 #include "query.h"
 #include "querytask.h"
-
 #include "storageapi.h"
+#include "taoserror.h"
 #include "tdatablock.h"
+#include "tdef.h"
+#include "tglobal.h"
+#include "tutil.h"
+
+static int32_t optrGetNextFnWithExecRecord(SOperatorInfo* pOperator,
+                                           SSDataBlock** pResBlock);
+static int32_t optrGetNextExtFnWithExecRecord(SOperatorInfo* pOperator,
+                                              SOperatorParam* pParam,
+                                              SSDataBlock** pResBlock);
+static int32_t optrResetStateFnWithExecRecord(SOperatorInfo* pParam);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t cleanup,
                                    __optr_close_fn_t closeFn, __optr_reqBuf_fn_t reqBufFn, __optr_explain_fn_t explain,
                                    __optr_get_ext_fn_t nextExtFn, __optr_notify_fn_t notifyFn) {
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
-      .getNextFn = nextFn,
+      ._nextFn = nextFn,
+      .getNextFn = (nextFn != NULL) ? optrGetNextFnWithExecRecord : NULL,
       .cleanupFn = cleanup,
       .closeFn = closeFn,
       .reqBufFn = reqBufFn,
       .getExplainFn = explain,
-      .getNextExtFn = nextExtFn,
+      ._nextExtFn = nextExtFn,
+      .getNextExtFn = (nextExtFn != NULL) ? optrGetNextExtFnWithExecRecord : NULL,
       .notifyFn = notifyFn,
       .releaseStreamStateFn = NULL,
       .reloadStreamStateFn = NULL,
+      ._resetFn = NULL,
+      .resetStateFn = NULL,
   };
 
   return fpSet;
+}
+
+static int32_t optrGetNextFnWithExecRecord(SOperatorInfo* pOperator,
+                                           SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  recordOpExecBegin(pOperator);
+  int32_t code = pOperator->fpSet._nextFn(pOperator, pResBlock);
+  size_t  rows = (TSDB_CODE_SUCCESS == code && *pResBlock != NULL) ?
+                 (*pResBlock)->info.rows : 0;
+  recordOpExecEnd(pOperator, rows);
+  return code;
+}
+
+static int32_t optrGetNextExtFnWithExecRecord(SOperatorInfo* pOperator,
+                                              SOperatorParam* pParam,
+                                              SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  recordOpExecBegin(pOperator);
+  int32_t code = pOperator->fpSet._nextExtFn(pOperator, pParam, pResBlock);
+  size_t  rows = (TSDB_CODE_SUCCESS == code && *pResBlock != NULL) ?
+                 (*pResBlock)->info.rows : 0;
+  recordOpExecEnd(pOperator, rows);
+  return code;
+}
+
+static int32_t optrResetStateFnWithExecRecord(SOperatorInfo* pOperator) {
+  int32_t code = pOperator->fpSet._resetFn(pOperator);
+  resetOperatorCostInfo(pOperator);
+  return code;
 }
 
 void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relaseFn, __optr_state_fn_t reloadFn) {
@@ -53,9 +95,68 @@ void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relase
   pOperator->fpSet.reloadStreamStateFn = reloadFn;
 }
 
+void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn) {
+  pOperator->fpSet._resetFn = resetFn;
+  pOperator->fpSet.resetStateFn = (resetFn != NULL) ? optrResetStateFnWithExecRecord : NULL;
+}
+
+void setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cleanupFn) {
+  pOperator->fpSet.rowStateCleanupFn = cleanupFn;
+}
+
+// A stream Runner task runs on a snode, which has no vnode attached: stRunnerBuildTask()
+// builds the task from a zeroed SReadHandle, so the task's storage API carries no meta reader.
+// TagRefSource must then resolve the referenced tags over RPC instead of scanning local meta.
+// createOperator() uses this predicate to choose the execution path; buildTagRefSourceScanNode()
+// keeps its own full three-pointer check as defence in depth on the local path only.
+static bool tagRefSourceNeedsRemoteResolve(SExecTaskInfo* pTaskInfo) {
+  return pTaskInfo != NULL && pTaskInfo->storageAPI.metaReaderFn.initReader == NULL;
+}
+
+static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhysiNode* pTagRefSourceNode,
+                                         SExecTaskInfo* pTaskInfo, SScanPhysiNode* pScanNode) {
+  if (pHandle == NULL || pTagRefSourceNode == NULL || pTaskInfo == NULL || pScanNode == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SMetaReader  mr = {0};
+  SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  // Defence in depth: this builder reaches every meta reader entry point below, so verify the
+  // whole set instead of only the one used to make the remote/local decision. getTableEntryByUid
+  // and metaFn.extractTagVal are checked as well because tagRefSourceScanOneTable() needs them
+  // once the table list has been built.
+  if (pAPI->metaReaderFn.initReader == NULL || pAPI->metaReaderFn.clearReader == NULL ||
+      pAPI->metaReaderFn.getTableEntryByName == NULL || pAPI->metaReaderFn.getTableEntryByUid == NULL ||
+      pAPI->metaFn.extractTagVal == NULL) {
+    qError("%s: storage API not initialized, a TagRefSource plan cannot be executed here", __func__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
+  int32_t code = pAPI->metaReaderFn.getTableEntryByName(&mr, pTagRefSourceNode->sourceTableName.tname);
+  if (code != TSDB_CODE_SUCCESS) {
+    pAPI->metaReaderFn.clearReader(&mr);
+    return code;
+  }
+
+  memset(pScanNode, 0, sizeof(*pScanNode));
+  pScanNode->pScanCols = pTagRefSourceNode->pScanCols;
+  pScanNode->uid = mr.me.uid;
+  pScanNode->tableType = mr.me.type;
+  pScanNode->tableName = pTagRefSourceNode->sourceTableName;
+  if (mr.me.type == TSDB_CHILD_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    pScanNode->suid = mr.me.ctbEntry.suid;
+  } else {
+    pScanNode->suid = pTagRefSourceNode->sourceSuid;
+  }
+
+  pAPI->metaReaderFn.clearReader(&mr);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t optrDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
-  pOperator->cost.openCost = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -73,7 +174,6 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 
 void setOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
-  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start) / 1000.0;
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 }
 
@@ -96,44 +196,6 @@ int32_t optrDefaultBufFn(SOperatorInfo* pOperator) {
   }
 }
 
-static int64_t getQuerySupportBufSize(size_t numOfTables) {
-  size_t s1 = sizeof(STableQueryInfo);
-  //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
-  return (int64_t)(s1 * 1.5 * numOfTables);
-}
-
-int32_t checkForQueryBuf(size_t numOfTables) {
-  int64_t t = getQuerySupportBufSize(numOfTables);
-  if (tsQueryBufferSizeBytes < 0) {
-    return TSDB_CODE_SUCCESS;
-  } else if (tsQueryBufferSizeBytes > 0) {
-    while (1) {
-      int64_t s = tsQueryBufferSizeBytes;
-      int64_t remain = s - t;
-      if (remain >= 0) {
-        if (atomic_val_compare_exchange_64(&tsQueryBufferSizeBytes, s, remain) == s) {
-          return TSDB_CODE_SUCCESS;
-        }
-      } else {
-        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-      }
-    }
-  }
-
-  // disable query processing if the value of tsQueryBufferSize is zero.
-  return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
-}
-
-void releaseQueryBuf(size_t numOfTables) {
-  if (tsQueryBufferSizeBytes < 0) {
-    return;
-  }
-
-  int64_t t = getQuerySupportBufSize(numOfTables);
-
-  // restore value is not enough buffer available
-  (void)atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
-}
 
 typedef enum {
   OPTR_FN_RET_CONTINUE = 0x1,
@@ -183,7 +245,7 @@ int32_t extractOperatorInTree(SOperatorInfo* pOperator, int32_t type, const char
 
   if (pOperator == NULL) {
     qError("invalid operator, failed to find tableScanOperator %s", id);
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
   STraverParam p = {.pParam = &type, .pRet = NULL};
@@ -206,7 +268,8 @@ static ERetType extractScanInfo(SOperatorInfo* pOperator, STraverParam* pParam, 
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
       type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE) {
     pInfo->order = TSDB_ORDER_ASC;
     pInfo->scanFlag = MAIN_SCAN;
     return OPTR_FN_RET_ABORT;
@@ -258,7 +321,7 @@ static ERetType doStopDataReader(SOperatorInfo* pOperator, STraverParam* pParam,
     }
     return OPTR_FN_RET_ABORT;
   } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamScanInfo* pInfo = pOperator->info;
+    STmqQueryScanInfo* pInfo = pOperator->info;
 
     if (pInfo->pTableScanOp != NULL) {
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
@@ -280,12 +343,25 @@ int32_t stopTableScanOperator(SOperatorInfo* pOperator, const char* pIdStr, SSto
 }
 
 int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
-                       SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo) {
+                       SNode* pTagIndexCond, const char* pUser, const char* dbname, SOperatorInfo** pOptrInfo,
+                       EOPTR_EXEC_MODEL model) {
   QRY_PARAM_CHECK(pOptrInfo);
 
   int32_t     code = 0;
   int32_t     type = nodeType(pPhyNode);
   const char* idstr = GET_TASKID(pTaskInfo);
+
+  // Capture dataBlockId before any heap allocations.  On the mnode (16+ concurrent query
+  // threads), a concurrent nodesDestroyNode() can free pPhyNode's heap block while an
+  // internal calloc() (e.g. taosArrayInit for column data) picks up the same coalesced
+  // address and zero-fills it. Reading the id here -- before any operator constructor runs
+  // -- guarantees we hold the correct value even if pPhyNode is later corrupted.
+  if (pPhyNode->pOutputDataBlockDesc == NULL) {
+    qError("%s %s: pPhyNode->pOutputDataBlockDesc is NULL, type=%d", __func__, idstr, type);
+    pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int16_t resultBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
@@ -304,11 +380,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+      // Virtual stable scans should not resolve queried schema from local uid metadata here.
+      if (!pTableScanNode->scan.virtualStableScan) {
+        code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
       }
 
       if (pTableScanNode->scan.node.dynamicOp) {
@@ -317,7 +396,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
       } else {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, NULL);
         if (code) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);
@@ -344,20 +423,28 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                     pTagCond, pTagIndexCond, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
-        return code;
-      }
+      if (pTableScanNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTableScanNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTableScanNode->scan.tableType;
+      } else {
+        code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle, pTableListInfo,
+                                       pTagCond, pTagIndexCond, pTaskInfo, NULL);
+        if (code) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
+          return code;
+        }
 
-      code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
-      if (code) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
+        if (!pTableScanNode->scan.virtualStableScan) {
+          code = initQueriedTableSchemaInfo(pHandle, &pTableScanNode->scan, dbname, pTaskInfo);
+          if (code) {
+            pTaskInfo->code = code;
+            tableListDestroy(pTableListInfo);
+            return code;
+          }
+        }
       }
 
       code = createTableMergeScanOperatorInfo(pTableScanNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
@@ -367,7 +454,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return code;
       }
 
-      STableScanInfo* pScanInfo = pOperator->info;
+      STableMergeScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->base.readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       code = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode,
@@ -381,18 +468,18 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
         return terrno;
       }
 
-      if (pHandle->vnode) {
+      if (pHandle->vnode && (pTaskInfo->pSubplan->pVTables == NULL)) {
         code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
+                                       pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo, NULL);
         if (code) {
           pTaskInfo->code = code;
           tableListDestroy(pTableListInfo);
-          qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
+          qError("failed to createScanTableListInfo, code:%s", tstrerror(code));
           return code;
         }
       }
 
-      code = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
+      code = createTmqScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTableListInfo, pTaskInfo, &pOperator);
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
@@ -400,33 +487,141 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
-      code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo, &pOperator);
-    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
+      if (pSysScanPhyNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+      }
+      if (pSysScanPhyNode->scan.virtualStableScan) {
+        STableListInfo*           pTableListInfo = tableListCreate();
+        if (!pTableListInfo) {
+          pTaskInfo->code = terrno;
+          qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+          return terrno;
+        }
+
+        // Temporarily clear dynamicOp so createScanTableListInfo populates the table list.
+        // The systable scan for ins_vc_cols needs the full child table list even when the
+        // operator itself is dynamic (virtualChildTableNeedCollect depends on it).
+        bool savedDynamicOp = pSysScanPhyNode->scan.node.dynamicOp;
+        pSysScanPhyNode->scan.node.dynamicOp = false;
+        code = createScanTableListInfo((SScanPhysiNode*)pSysScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                       pTagIndexCond, pTaskInfo, NULL);
+        pSysScanPhyNode->scan.node.dynamicOp = savedDynamicOp;
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pTableListInfo, pUser, pTaskInfo, &pOperator);
+      } else {
+        code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, NULL, pUser, pTaskInfo, &pOperator);
+      }
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type ||
+               QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE == type) {
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
+      if (pHandle->vnode != NULL && pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
+          pTaskInfo->pStreamRuntimeInfo == NULL &&
+          pTaskInfo->storageAPI.metaFn.isVirtualSuperTable != NULL &&
+          pTaskInfo->storageAPI.metaFn.isVirtualSuperTable(pHandle->vnode, pTagScanPhyNode->scan.suid,
+                                                        pHandle->txnId)) {
+        // The ctb index only contains stored tags, not resolved tag-ref values.
+        pTagScanPhyNode->onlyMetaCtbIdx = false;
+      }
       STableListInfo*    pTableListInfo = tableListCreate();
       if (!pTableListInfo) {
         pTaskInfo->code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
-      if (!pTagScanPhyNode->onlyMetaCtbIdx) {
-        code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
-                                       pTagIndexCond, pTaskInfo);
+
+      if (!pTagScanPhyNode->scan.virtualStableScan &&
+          pTagScanPhyNode->scan.tableType != TSDB_VIRTUAL_CHILD_TABLE &&
+          pTagScanPhyNode->scan.tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
+        code = initQueriedTableSchemaInfo(pHandle, &pTagScanPhyNode->scan, dbname, pTaskInfo);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
-          qError("failed to getTableList, code: %s", tstrerror(code));
           tableListDestroy(pTableListInfo);
           return code;
         }
       }
+
+      if (!pTagScanPhyNode->onlyMetaCtbIdx) {
+        code = createScanTableListInfo((SScanPhysiNode*)pTagScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                       pTagIndexCond, pTaskInfo, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          qError("failed to getTableList, code:%s", tstrerror(code));
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+      }
+
+      if (pTagScanPhyNode->scan.node.dynamicOp) {
+        pTaskInfo->dynamicTask = true;
+        pTableListInfo->idInfo.suid = pTagScanPhyNode->scan.suid;
+        pTableListInfo->idInfo.tableType = pTagScanPhyNode->scan.tableType;
+      }
+
       code = createTagScanOperatorInfo(pHandle, pTagScanPhyNode, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo,
                                        &pOperator);
       if (code) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
+        return code;
+      }
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE == type) {
+      STagRefSourcePhysiNode* pTagRefSourceNode = (STagRefSourcePhysiNode*)pPhyNode;
+      SScanPhysiNode          sourceScan = {0};
+
+      // A stream Runner task executes on a snode, which has no vnode attached: the read
+      // handle carries a zeroed storage API, so the local meta scans below are unavailable.
+      // The operator then resolves the referenced tags over RPC from the source table's
+      // config (tagRefSourceResolveRemote), which needs neither a table list nor vg mapping.
+      bool            remoteTagRef = tagRefSourceNeedsRemoteResolve(pTaskInfo);
+      STableListInfo* pTableListInfo = remoteTagRef ? NULL : tableListCreate();
+      if (!remoteTagRef && !pTableListInfo) {
+        pTaskInfo->code = terrno;
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+        return terrno;
+      }
+
+      if (!remoteTagRef) {
+        code = buildTagRefSourceScanNode(pHandle, pTagRefSourceNode, pTaskInfo, &sourceScan);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        code = initQueriedTableSchemaInfo(pHandle, &sourceScan, dbname, pTaskInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        if (pHandle) {
+          code = createScanTableListInfo(&sourceScan, NULL, false, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
+                                         pTaskInfo, NULL);
+          if (code != TSDB_CODE_SUCCESS) {
+            pTaskInfo->code = code;
+            qError("failed to getTableList for TagRefSource, code:%s", tstrerror(code));
+            tableListDestroy(pTableListInfo);
+            return code;
+          }
+        }
+      }
+
+      code = createTagRefSourceOperatorInfo(pTagRefSourceNode, pHandle, pTableListInfo, remoteTagRef,
+                                            pTaskInfo, &pOperator);
+      if (code) {
+        pTaskInfo->code = code;
+        if (pTableListInfo != NULL) {
+          tableListDestroy(pTableListInfo);
+        }
         return code;
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
@@ -490,7 +685,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
 
       code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo, pTagCond,
-                                     pTagIndexCond, pTaskInfo);
+                                     pTagIndexCond, pTaskInfo, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         tableListDestroy(pTableListInfo);
@@ -512,6 +707,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_PROJECT == type) {
       code = createProjectOperatorInfo(NULL, (SProjectPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
+      // NOTE: this is an patch to fix the physical plan
+      code = createVirtualTableMergeOperatorInfo(NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == type) {
+      SFederatedScanPhysiNode* pFedScan = (SFederatedScanPhysiNode*)pPhyNode;
+      code = createFederatedScanOperatorInfo(NULL, pFedScan, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE == type) {
+      code = createRowsetSourceOperatorInfo(pPhyNode, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;
@@ -519,7 +722,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
 
     if (pOperator != NULL) {  // todo moved away
-      pOperator->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+      pOperator->resultDataBlockId = resultBlockId;
     }
 
     *pOptrInfo = pOperator;
@@ -534,10 +737,23 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     return code;
   }
 
-  for (int32_t i = 0; i < size; ++i) {
-    SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-    code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i]);
+  SListCell* pChildrenCell = NULL != pPhyNode->pChildren ? pPhyNode->pChildren->pHead : NULL;
+  for (int32_t i = 0; i < size;
+       ++i, pChildrenCell = (NULL != pChildrenCell ? pChildrenCell->pNext : NULL)) {
+    SPhysiNode* pChildNode = (SPhysiNode*)(NULL != pChildrenCell ? pChildrenCell->pNode : NULL);
+    pChildNode->pParent = pPhyNode;
+    // For external window parent, pre-initialize runtime from subquery before building children
+    if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
+      // best-effort pre-init; ignore errors here and let later construction handle them
+      (void)extWinPreInitFromSubquery(pPhyNode, pTaskInfo);
+    }
+    code = createOperator(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser, dbname, &ops[i], model);
     if (ops[i] == NULL || code != 0) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, "
+             "parentType:%d(%s), childIdx:%d, childType:%d(%s), childOp:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), i, nodeType(pChildNode),
+             nodesNodeName(nodeType(pChildNode)), ops[i]);
       for (int32_t j = 0; j < i; ++j) {
         destroyOperator(ops[j]);
       }
@@ -554,85 +770,74 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     if (pAggNode->pGroupKeys != NULL) {
       code = createGroupOperatorInfo(ops[0], pAggNode, pTaskInfo, &pOptr);
     } else {
-      code = createAggregateOperatorInfo(ops[0], pAggNode, pTaskInfo, &pOptr);
+      code = createAggregateOperatorInfo(ops, size, pAggNode, pTaskInfo, &pOptr);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
     code = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
-    code = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {
     SMergeAlignedIntervalPhysiNode* pIntervalPhyNode = (SMergeAlignedIntervalPhysiNode*)pPhyNode;
     code = createMergeAlignedIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL == type) {
     SMergeIntervalPhysiNode* pIntervalPhyNode = (SMergeIntervalPhysiNode*)pPhyNode;
     code = createMergeIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL == type) {
-    int32_t children = 0;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_MID_INTERVAL == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     code = createSortOperatorInfo(ops[0], (SSortPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT == type) {
     code = createGroupSortOperatorInfo(ops[0], (SGroupSortPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER == type) {
+    code = createDistinctFilterOperatorInfo(ops[0], (SDistinctFilterPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == type) {
     SMergePhysiNode* pMergePhyNode = (SMergePhysiNode*)pPhyNode;
     code = createMultiwayMergeOperatorInfo(ops, size, pMergePhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
     code = createSessionAggOperatorInfo(ops[0], pSessionNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION == type) {
-    code = createStreamSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION == type) {
-    int32_t children = 0;
-    code = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION == type) {
-    int32_t children = pHandle->numOfVgroups;
-    code = createStreamFinalSessionAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, children, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     code = createPartitionOperatorInfo(ops[0], (SPartitionPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION == type) {
-    code = createStreamPartitionOperatorInfo(ops[0], (SStreamPartitionPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE == type) {
-    SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
+    SStateWindowPhysiNode* pStateNode = (SStateWindowPhysiNode*)pPhyNode;
     code = createStatewindowOperatorInfo(ops[0], pStateNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE == type) {
-    code = createStreamStateAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_EVENT == type) {
-    code = createStreamEventAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN == type) {
     code = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
     code = createHashJoinOperatorInfo(ops, size, (SHashJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN == type) {
+    code = createThetaJoinOperatorInfo(ops, size, (SThetaJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
     code = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL == type) {
-    code = createStreamFillOperatorInfo(ops[0], (SStreamFillPhysiNode*)pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC == type) {
     code = createIndefinitOutputOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC == type) {
     code = createTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC == type) {
     code = createForecastOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_ANALYSIS_FUNC == type) {
+    code = createGenericAnalysisOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT == type) {
     code = createEventwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == type) {
     code = createGroupCacheOperatorInfo(ops, size, (SGroupCachePhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL == type) {
     code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_COUNT == type) {
-    code = createStreamCountAggOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERP_FUNC == type) {
-    code = createStreamTimeSliceOperatorInfo(ops[0], pPhyNode, pTaskInfo, pHandle, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC == type) {
+    code = createWindowFuncOperatorInfo(ops[0], (SWindowFuncPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
+    SVirtualScanPhysiNode* pVirtualTableScanNode = (SVirtualScanPhysiNode*)pPhyNode;
+    // NOTE: this is an patch to fix the physical plan
+
+    if (pVirtualTableScanNode->scan.node.pLimit != NULL) {
+      pVirtualTableScanNode->groupSort = true;
+    }
+    code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
+    code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
+    code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
@@ -644,9 +849,16 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     return code;
   }
 
+  if (code != TSDB_CODE_SUCCESS || pOptr == NULL) {
+      qError("%s failed at line %d, code:0x%x, error:%s, task:%s, type:%d(%s), "
+             "op:%p",
+             __func__, __LINE__, code, tstrerror(code), GET_TASKID(pTaskInfo),
+             type, nodesNodeName(type), pOptr);
+  }
+
   taosMemoryFree(ops);
   if (pOptr) {
-    pOptr->resultDataBlockId = pPhyNode->pOutputDataBlockDesc->dataBlockId;
+    pOptr->resultDataBlockId = resultBlockId;
   }
 
   *pOptrInfo = pOptr;
@@ -670,11 +882,29 @@ void destroyOperator(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
-  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info);
+  // Three-phase teardown, because per-result-row function state needs both the expression supp and
+  // the result-row buffer alive at once:
+  //
+  //   1. cleanupFn  -- release per-result-row state (DISTINCT dedup sets and their spill files).
+  //                    Both exprSupp and the result rows are still valid here.
+  //   2. cleanupExprSupp -- destroySqlFunctionCtx() dereferences pCtx->resultInfo, which points into
+  //                    the result-row buffer, so this must precede closeFn.
+  //   3. closeFn    -- frees the result-row buffer itself (cleanupAggSup) and the operator info.
+  //
+  // Doing (1) from closeFn instead would be too late: cleanupExprSupp() memsets the supp, leaving
+  // numOfExprs == 0, so cleanupResultRowFunctionState() would iterate nothing and silently leak
+  // every set still attached to an unemitted row on an early cancel or LIMIT short-circuit.
+  if (pOperator->fpSet.rowStateCleanupFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.rowStateCleanupFn(pOperator->info);
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
+
+  if (pOperator->fpSet.closeFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.closeFn(pOperator->info);
+    pOperator->info = NULL;
+  }
+
   taosMemoryFreeClear(pOperator);
 }
 
@@ -703,10 +933,34 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   }
 
   pExplainInfo->numOfRows = operatorInfo->resultInfo.totalRows;
-  pExplainInfo->startupCost = operatorInfo->cost.openCost;
-  pExplainInfo->totalCost = operatorInfo->cost.totalCost;
   pExplainInfo->verboseLen = 0;
   pExplainInfo->verboseInfo = NULL;
+  pExplainInfo->vgId = operatorInfo->pTaskInfo->id.vgId;
+  pExplainInfo->execCreate = operatorInfo->cost.execCreate;
+
+  /*
+    For the start, first and last row ts, we need to subtract the execCreate time
+    to compute the real elapsed time since the operator is created.
+  */
+  if (operatorInfo->resultInfo.totalRows > 0) {
+    /*
+      When there is no data returned, keep execFirstRow and execLastRow as 0.
+    */
+    int64_t firstRowDiff = operatorInfo->cost.execFirstRow - operatorInfo->cost.execCreate;
+    int64_t lastRowDiff = operatorInfo->cost.execLastRow - operatorInfo->cost.execCreate;
+    pExplainInfo->execFirstRow = firstRowDiff > 0 ? firstRowDiff : 0;
+    pExplainInfo->execLastRow = lastRowDiff > 0 ? lastRowDiff : 0;
+  }
+
+  pExplainInfo->execTimes = operatorInfo->cost.execTimes;
+  if (operatorInfo->cost.execTimes > 0) {
+    int64_t startDiff = operatorInfo->cost.execStart - operatorInfo->cost.execCreate;
+    pExplainInfo->execStart = startDiff > 0 ? startDiff : 0;
+    pExplainInfo->execElapsed = operatorInfo->cost.execElapsed;
+    pExplainInfo->inputWaitElapsed = operatorInfo->cost.inputWaitElapsed;
+    pExplainInfo->outputWaitElapsed = operatorInfo->cost.outputWaitElapsed;
+    pExplainInfo->inputRows = operatorInfo->cost.inputRows;
+  }
 
   if (operatorInfo->fpSet.getExplainFn) {
     int32_t code =
@@ -716,6 +970,21 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
       return code;
     }
   }
+
+  int32_t statNum = taosArrayGetSize(operatorInfo->pTaskInfo->pCorrelationStats);
+  if (statNum > 0) {
+    pExplainInfo->pCorrelationStats = taosMemoryMalloc((size_t)statNum * sizeof(SExplainCorrelationStat));
+    if (NULL == pExplainInfo->pCorrelationStats) {
+      return terrno;
+    }
+    memcpy(pExplainInfo->pCorrelationStats, taosArrayGet(operatorInfo->pTaskInfo->pCorrelationStats, 0),
+           (size_t)statNum * sizeof(SExplainCorrelationStat));
+    pExplainInfo->correlationStatNum = statNum;
+  }
+
+  qDebug("%s explain exec collected, opType=%d(%s) blockId=%" PRId64 " rows=%" PRIu64 " verboseLen=%u phyNode=%p",
+         GET_TASKID(operatorInfo->pTaskInfo), operatorInfo->operatorType, nodesNodeName(operatorInfo->operatorType),
+         operatorInfo->resultDataBlockId, pExplainInfo->numOfRows, pExplainInfo->verboseLen, operatorInfo->pPhyNode);
 
   int32_t code = 0;
   for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
@@ -739,7 +1008,17 @@ int32_t mergeOperatorParams(SOperatorParam* pDst, SOperatorParam* pSrc) {
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangeOperatorParam* pDExc = pDst->value;
       SExchangeOperatorParam* pSExc = pSrc->value;
+      if (pSExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+        qError("%s, invalid exchange operator param type %d for "
+          "source operator", __func__, pSExc->basic.paramType);
+        return TSDB_CODE_INVALID_PARA;
+      }
       if (!pDExc->multiParams) {
+        if (pDExc->basic.paramType != DYN_TYPE_EXCHANGE_PARAM) {
+          qError("%s, invalid exchange operator param type %d for "
+            "destination operator", __func__, pDExc->basic.paramType);
+          return TSDB_CODE_INVALID_PARA;
+        }
         if (pSExc->basic.vgId != pDExc->basic.vgId) {
           SExchangeOperatorBatchParam* pBatch = taosMemoryMalloc(sizeof(SExchangeOperatorBatchParam));
           if (NULL == pBatch) {
@@ -846,20 +1125,29 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   if (childrenNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
+  if ((*ppParam)->opType == QUERY_NODE_PHYSICAL_PLAN_PARTITION &&
+      childrenNum != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < childrenNum; ++i) {
-    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
-    if (pChild == NULL) {
-      return terrno;
+    SOperatorParam* pChild =
+        *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
+    if (pChild == NULL || pChild->downstreamIdx < 0 ||
+        pChild->downstreamIdx >= pOperator->numOfDownstream) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _error;
     }
 
-    if ((*pppDownstramParam)[pChild->downstreamIdx]) {
-      int32_t code = mergeOperatorParams((*pppDownstramParam)[pChild->downstreamIdx], pChild);
+    SOperatorParam** ppSlot = &(*pppDownstramParam)[pChild->downstreamIdx];
+    if (*ppSlot != NULL) {
+      code = mergeOperatorParams(*ppSlot, pChild);
       if (code) {
-        return code;
+        goto _error;
       }
     } else {
-      (*pppDownstramParam)[pChild->downstreamIdx] = pChild;
+      *ppSlot = pChild;
     }
   }
 
@@ -867,30 +1155,129 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   (*ppParam)->pChildren = NULL;
 
   return TSDB_CODE_SUCCESS;
+
+_error:
+  // Route nothing on failure, so the child tree stays solely owned by
+  // (*ppParam)->pChildren and is freed exactly once with its parent.
+  memset(*pppDownstramParam, 0, pOperator->numOfDownstream * POINTER_BYTES);
+  return code;
+}
+
+void detachOperatorRoutingParam(SOperatorInfo* pOperator) {
+  SOperatorParam* pParam = pOperator->pOperatorGetParam;
+  if (pParam == NULL || pParam->value != NULL ||
+      pParam->pChildren != NULL) {
+    return;
+  }
+
+  // A reused routing shell is still owned by the parent pull.
+  bool shouldFreeHere = !pParam->reUse;
+  pParam->reUse = false;
+  pOperator->pOperatorGetParam = NULL;
+  if (shouldFreeHere) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+}
+
+int32_t getNextBlockFromDownstreamChecked(SOperatorInfo* pOperator,
+                                          int32_t idx, bool clearParam,
+                                          SSDataBlock** ppBlock) {
+  QRY_PARAM_CHECK(ppBlock);
+  *ppBlock = NULL;
+
+  recordOpExecBeforeDownstream(pOperator);
+  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, clearParam,
+                                                ppBlock);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(*ppBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
+             __func__, __LINE__, tstrerror(code));
+    }
+  }
+  recordOpExecAfterDownstream(pOperator,
+                              *ppBlock && code == TSDB_CODE_SUCCESS ?
+                                  (*ppBlock)->info.rows : 0);
+  return code;
 }
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
   SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("blockDataCheck failed, code:%s", tstrerror(code));
-    }
-  }
-  return (code == 0) ? p : NULL;
+  int32_t      code = getNextBlockFromDownstreamChecked(pOperator, idx, true,
+                                                        &p);
+  return (code == TSDB_CODE_SUCCESS) ? p : NULL;
 }
 
-SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
-  SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("blockDataCheck failed, code:%s", tstrerror(code));
+/*
+ * Fetch one block from downstream without preserving reused get-param ownership.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ * @param pResBlock Output result block pointer.
+ *
+ * @return TSDB_CODE_SUCCESS on success, otherwise error code.
+ */
+static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SOperatorInfo* pOperator, int32_t idx,
+                                                                       SSDataBlock** pResBlock) {
+  QRY_PARAM_CHECK(pResBlock);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
+    SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
+    pOperator->pDownstreamGetParams[idx] = NULL;
+    // A detached param is one-shot. Federated scan only borrows it for this call;
+    // other downstream operators take ownership when reUse is false.
+    pGetParam->reUse = false;
+    bool freeDetachedParam = pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+
+    qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
+    code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    if (freeDetachedParam) {
+      freeOperatorParam(pGetParam, OP_GET_PARAM);
+      pGetParam = NULL;
     }
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
-  return (code == 0)? p:NULL;
+
+_return:
+  if (code) {
+    qError("failed to get next data block from upstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Fetch and validate one downstream block while detaching one-shot get-param.
+ *
+ * @param pOperator Current operator.
+ * @param idx Downstream index.
+ *
+ * @return Valid block pointer on success, or NULL on failure.
+ */
+SSDataBlock* getNextBlockFromDownstreamRemainDetach(struct SOperatorInfo* pOperator, int32_t idx) {
+  SSDataBlock* p = NULL;
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  recordOpExecBeforeDownstream(pOperator);
+
+  code = getNextBlockFromDownstreamRemainDetachImpl(pOperator, idx, &p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  code = blockDataCheck(p);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+_return:
+  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
+  if (code) {
+    qError("failed to get next data block from downstream at %s, line:%d code:%s", __func__, lino, tstrerror(code));
+    return NULL;
+  }
+  return p;
 }
 
 int32_t optrDefaultGetNextExtFn(struct SOperatorInfo* pOperator, SOperatorParam* pParam, SSDataBlock** pRes) {
@@ -936,9 +1323,254 @@ int32_t optrDefaultNotifyFn(struct SOperatorInfo* pOperator, SOperatorParam* pPa
   return code;
 }
 
-int16_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
+int64_t getOperatorResultBlockId(struct SOperatorInfo* pOperator, int32_t idx) {
   if (pOperator->transparent) {
     return getOperatorResultBlockId(pOperator->pDownstream[idx], 0);
   }
   return pOperator->resultDataBlockId;
+}
+
+void resetOperatorState(SOperatorInfo *pOper) {
+  pOper->status = OP_NOT_OPENED;
+}
+
+void resetBasicOperatorState(SOptrBasicInfo *pBasicInfo) {
+  if (pBasicInfo->pRes) blockDataCleanup(pBasicInfo->pRes);
+  initResultRowInfo(&pBasicInfo->resultRowInfo);
+}
+
+int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pTaskInfo,
+                    SNodeList* pNodeList, SNodeList* pGroupKeys, size_t keyBufSize, const char* pKey, void* pState,
+                    SFunctionStateStore* pStore) {
+  int32_t    code = 0, lino = 0, num = 0;
+  SExprInfo* pExprInfo = NULL;
+  bool       hasWindowOrGroup = pExprSupp->hasWindowOrGroup;
+  cleanupExprSuppWithoutFilter(pExprSupp);
+  pExprSupp->hasWindowOrGroup = hasWindowOrGroup;
+  cleanupAggSup(pSup);
+  code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initAggSup(pExprSupp, pSup, pExprInfo, num, keyBufSize, pKey, pState, pStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+  return code;
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
+int32_t resetExprSupp(SExprSupp* pExprSupp, SExecTaskInfo* pTaskInfo, SNodeList* pNodeList,
+                      SNodeList* pGroupKeys, SFunctionStateStore* pStore) {
+  int32_t code = 0, lino = 0, num = 0;
+  SExprInfo* pExprInfo = NULL;
+  cleanupExprSuppWithoutFilter(pExprSupp);
+  code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
+  QUERY_CHECK_CODE(code, lino, _error);
+  code = initExprSupp(pExprSupp, pExprInfo, num, pStore);
+  QUERY_CHECK_CODE(code, lino, _error);
+  return code;
+_error:
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+    pTaskInfo->code = code;
+  }
+  return code;
+}
+
+int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
+  bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
+  int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
+      SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
+      QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+
+      if (isNull) {
+        colDataSetNNULL(pDstCol, 0, totalRows);
+      } else {
+        SColumnInfoData* pSrcCol = taosArrayGet(pSrc->pDataBlock, ((SColumnNode*)pNode->pExpr)->slotId);
+        QUERY_CHECK_NULL(pSrcCol, code, lino, _return, terrno)
+
+        code = colDataAssign(pDstCol, pSrcCol, pSrc->info.rows, &pDst->info);
+
+        QUERY_CHECK_CODE(code, lino, _return);
+        if (pSrc->info.rows < totalRows) {
+          colDataSetNNULL(pDstCol, pSrc->info.rows, totalRows - pSrc->info.rows);
+        }
+      }
+    }
+  }
+
+  return code;
+_return:
+  qError("failed to copy columns value, line:%d code:%s", lino, tstrerror(code));
+  return code;
+}
+
+/**
+  @brief Record the create time of the operator and do initialization
+  to other metrics. This function will be called at the beginning of
+  creation of operators.
+*/
+void initOperatorCostInfo(SOperatorInfo* pOperator) {
+  pOperator->cost.execCreate = taosGetTimestampUs();
+  resetOperatorCostInfo(pOperator);
+}
+
+/**
+  @brief Record the performance metrics at the beginning of the
+  operator execution:
+  - record the start time of the operator execution
+  - calculate the output wait time (time since last call returned)
+  - record the first time nextFn interface is called
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecBegin(SOperatorInfo* pOperator) {
+  if (pOperator->cost.execDepth++ > 0) {
+    // A nested public next call belongs to the same pull. The outermost call
+    // records the complete execution, so skip duplicate accounting here.
+    return;
+  }
+
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.startTs = taosGetTimestampUs();
+    // calculate output wait time (time since last call returned)
+    if (pOperator->cost.execLastRow > 0) {
+      pOperator->cost.outputWaitElapsed +=
+        pOperator->cost.startTs - pOperator->cost.execLastRow;
+    }
+    // record the first time nextFn is called
+    if (pOperator->cost.execStart == 0) {
+      pOperator->cost.execStart = pOperator->cost.startTs;
+    }
+  }
+}
+
+/**
+  @brief Record the performance metrics before the downstream execution:
+  - record the elapsed time since the operator execution started
+  - update the start time of the operator execution
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecBeforeDownstream(SOperatorInfo* pOperator) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.endTs = taosGetTimestampUs();
+    if (UNLIKELY(pOperator->cost.startTs == 0)) {
+      /**
+        As long as getNextBlockFromDownstream() is called inside getNextFn(),
+        startTs must be initialized before endTs so that this condition should
+        always be false.
+      */
+      pOperator->cost.startTs = pOperator->cost.endTs;
+    }
+    pOperator->cost.execElapsed +=
+      pOperator->cost.endTs - pOperator->cost.startTs;
+  }
+}
+
+/**
+  @brief Record the performance metrics after the downstream execution:
+  - record the elapsed time since the downstream execution started
+  - update the end time of the downstream execution
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.startTs = taosGetTimestampUs();
+    pOperator->cost.inputWaitElapsed +=
+      pOperator->cost.startTs - pOperator->cost.endTs;
+    pOperator->cost.inputRows += inputRows;
+  }
+}
+
+/**
+  @brief Record the performance metrics at the end of the
+  operator execution:
+  - record the number of times the operator's next interface is called
+  - record the elapsed time for executing the operator's nextFn interface
+  - record the time when the first row is returned
+  - record the time when the last row is returned
+  Only record the metrics in explain analyze mode.
+*/
+void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
+  if (pOperator->cost.execDepth == 0) {
+    return;
+  }
+
+  if (--pOperator->cost.execDepth > 0) {
+    return;
+  }
+
+  if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
+    pOperator->cost.endTs = taosGetTimestampUs();
+    pOperator->cost.execTimes++;
+    pOperator->cost.execElapsed +=
+      pOperator->cost.endTs - pOperator->cost.startTs;
+
+    if (rows > 0) {
+      // record the first time data is returned
+      if (pOperator->cost.execFirstRow == 0) {
+        pOperator->cost.execFirstRow = pOperator->cost.endTs;
+      }
+      pOperator->cost.execLastRow = pOperator->cost.endTs;
+    }
+  }
+  
+  /* accumulate output total rows even not in explain mode */
+  pOperator->resultInfo.totalRows += rows;
+}
+
+/**
+  @brief Reset operator's cost info but keep create time unchanged.
+*/
+void resetOperatorCostInfo(SOperatorInfo* pOperator) {
+  /* keep execCreate UNCHANGED!!! */
+  pOperator->cost.execDepth = 0;
+  pOperator->cost.execStart = 0;
+  pOperator->cost.execFirstRow = 0;
+  pOperator->cost.execLastRow = 0;
+  pOperator->cost.execTimes = 0;
+  pOperator->cost.execElapsed = 0;
+  pOperator->cost.inputWaitElapsed = 0;
+  pOperator->cost.outputWaitElapsed = 0;
+  pOperator->cost.inputRows = 0;
+}
+
+int32_t optrResolveStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pProbe == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  pSpec->inputBlockId = pSpec->probeBlockId;
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns); ++i) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    pCol->inputSlot = pCol->probeSlot;
+  }
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t optrInstallStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilter** ppFilter) {
+  if (pProbe == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectInstallStreamJoinFilter(pProbe, ppFilter);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinInstallStreamJoinFilter(pProbe, ppFilter);
+    default:
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 }

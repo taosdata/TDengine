@@ -1,10 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -215,32 +216,7 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   tSkipListUnlock(pSkipList);
 }
 
-uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
-  uint32_t count = 0;
 
-  tSkipListWLock(pSkipList);
-
-  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
-  while (1) {
-    SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
-    if (p == pSkipList->pTail) {
-      break;
-    }
-    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
-      break;
-    }
-
-    tSkipListRemoveNodeImpl(pSkipList, p);
-
-    ++count;
-  }
-
-  tSkipListCorrectLevel(pSkipList);
-
-  tSkipListUnlock(pSkipList);
-
-  return count;
-}
 
 SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey key) {
   SArray *sa = taosArrayInit(1, POINTER_BYTES);

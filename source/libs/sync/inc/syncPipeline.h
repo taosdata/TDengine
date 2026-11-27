@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,7 +41,7 @@ typedef struct SSyncLogReplMgr {
   int64_t       peerStartTime;
   int32_t       retryBackoff;
   int32_t       peerId;
-  int32_t       sendCount;
+  int64_t       sendCount;
   TdThreadMutex mutex;
 } SSyncLogReplMgr;
 
@@ -108,8 +110,10 @@ bool     syncLogBufferIsEmpty(SSyncLogBuffer* pBuf);
 
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
 int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
-int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char *str);
-int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex);
+int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncTerm* pMatchTerm, char* str,
+                             const SRpcMsg* pMsg);
+int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex, const STraceId* trace,
+                            const char* src);
 int32_t syncLogBufferReset(SSyncLogBuffer* pBuf, SSyncNode* pNode);
 
 // private

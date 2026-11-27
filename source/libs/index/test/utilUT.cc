@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <iostream>
@@ -89,7 +106,7 @@ TEST_F(UtilEnv, intersectionSimpleResult) {
     taosArrayPush(f, &val);
   }
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 10);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 10);
 
   clearSourceArray(src);
   clearFinalArray(rslt);
@@ -112,7 +129,7 @@ TEST_F(UtilEnv, intersectMultiEmptyResult) {
   }
   // empty source
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
   clearSourceArray(src);
   clearFinalArray(rslt);
 }
@@ -121,7 +138,7 @@ TEST_F(UtilEnv, intersectSimpleEmpty) {
   clearFinalArray(rslt);
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
 }
 TEST_F(UtilEnv, intersect01) {
   clearSourceArray(src);
@@ -146,7 +163,7 @@ TEST_F(UtilEnv, intersect01) {
   }
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 2);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 2);
 }
 TEST_F(UtilEnv, intersect02) {
   clearSourceArray(src);
@@ -171,7 +188,7 @@ TEST_F(UtilEnv, intersect02) {
   }
 
   iIntersection(src, rslt);
-  assert(taosArrayGetSize(rslt) == 0);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 0);
 }
 TEST_F(UtilEnv, 01union) {
   clearSourceArray(src);
@@ -183,7 +200,7 @@ TEST_F(UtilEnv, 01union) {
     taosArrayPush(f, &arr1[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 3);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 3);
 }
 TEST_F(UtilEnv, 02union) {
   clearSourceArray(src);
@@ -201,7 +218,7 @@ TEST_F(UtilEnv, 02union) {
     taosArrayPush(f, &arr2[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 3);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 3);
 }
 TEST_F(UtilEnv, 03union) {
   clearSourceArray(src);
@@ -224,7 +241,7 @@ TEST_F(UtilEnv, 03union) {
     taosArrayPush(f, &arr3[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 9);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 9);
 }
 TEST_F(UtilEnv, 04union) {
   clearSourceArray(src);
@@ -248,7 +265,7 @@ TEST_F(UtilEnv, 04union) {
     taosArrayPush(f, &arr3[i]);
   }
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 12);
+  TD_ALWAYS_ASSERT(taosArrayGetSize(rslt) == 12);
 }
 TEST_F(UtilEnv, 05unionExcept) {
   clearSourceArray(src);

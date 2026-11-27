@@ -1,46 +1,106 @@
-cmake_minimum_required(VERSION 3.0)
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+cmake_minimum_required(VERSION 3.16)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(
   TDengine
   VERSION 3.0
-  DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
+  DESCRIPTION
+    "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
 )
 
-if(NOT DEFINED TD_SOURCE_DIR)
-  set(TD_SOURCE_DIR ${PROJECT_SOURCE_DIR})
+# ref: https://cmake.org/cmake/help/latest/command/cmake_policy.html
+#     `CMake keeps policy settings on a stack`
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+  cmake_policy(SET CMP0135 NEW)
 endif()
 
-SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR})
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  set(TD_COMMUNITY_STANDALONE TRUE)
+else()
+  set(TD_COMMUNITY_STANDALONE FALSE)
+endif()
 
+set(TD_COMMUNITY_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+set(TD_SOURCE_DIR ${TD_COMMUNITY_DIR})
 set(TD_SUPPORT_DIR "${TD_SOURCE_DIR}/cmake")
 set(TD_CONTRIB_DIR "${TD_SOURCE_DIR}/contrib")
 
-include(${TD_SUPPORT_DIR}/cmake.platform)
-include(${TD_SUPPORT_DIR}/cmake.define)
-include(${TD_SUPPORT_DIR}/cmake.options)
-include(${TD_SUPPORT_DIR}/cmake.version)
+message(STATUS "=== TDengine Community build configuration ===")
+message(STATUS "Standalone:          " ${TD_COMMUNITY_STANDALONE})
+message(STATUS "Community directory: " ${TD_COMMUNITY_DIR})
+message(STATUS "Source directory:    " ${TD_SOURCE_DIR})
+message(STATUS "Support directory:   " ${TD_SUPPORT_DIR})
+message(STATUS "Contrib directory:   " ${TD_CONTRIB_DIR})
 
-# contrib
-add_subdirectory(contrib)
+include(cmake/preinclude.cmake)
+include(cmake/platform.cmake)
+include(cmake/enterprise.cmake)
+include(cmake/options.cmake)
+include(cmake/check_env.cmake)
+include(cmake/define.cmake)
+include(cmake/test-shared-engine.cmake)
+include(cmake/version.cmake)
+
+# Ensure pthread is linked globally (workaround for mold linker issues)
+# On Windows pthread is provided via ext_pthread (pthreadVC3.lib) and linked
+# per-target; the global injection would resolve to a non-existent 'pthread.lib'.
+if(NOT WIN32)
+  link_libraries(pthread)
+endif()
+
+if(USE_CONAN)
+  message(STATUS "Using Conan for dependency management")
+  include(cmake/conan.cmake)
+else()
+  message(STATUS "Using ExternalProject for dependency management")
+  include(cmake/external.cmake)
+endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
+include(cmake/mimalloc.cmake)
 
-# api
+if(BUILD_TEST)
+  include(CTest)
+  enable_testing()
+endif()
+
 add_library(api INTERFACE)
 target_include_directories(api INTERFACE "include/client")
 
-# src
-if(${BUILD_TEST})
-  include(CTest)
-  enable_testing()
-endif(${BUILD_TEST})
-
+add_subdirectory(contrib)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
-add_subdirectory(examples/c)
-add_subdirectory(tests)
-include(${TD_SUPPORT_DIR}/cmake.install)
 
-# docs
-add_subdirectory(docs/doxgen)
+if(TD_ENTERPRISE)
+  add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
+endif()
+
+# Optional shared engine for unit tests; must run after all engine libraries
+# have been defined.  Off unless BUILD_TEST_SHARED_ENGINE=ON.
+td_add_test_shared_engine()
+
+include(cmake/third_party_symbols.cmake)
+foreach(client_library ${TAOS_LIB} ${TAOS_NATIVE_LIB} taos_ext_influx_arrow)
+  if(TARGET ${client_library})
+    taos_hide_third_party_symbols(${client_library})
+  endif()
+endforeach()
+
+include(cmake/install.cmake)
+include(CPack)

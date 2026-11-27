@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,14 +23,17 @@
 #include "tmsg.h"
 
 typedef struct SExplainCtx SExplainCtx;
+typedef struct SExplainPlanCtx SExplainPlanCtx;
 
-int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, SNode *pStmt, SRetrieveTableRsp **pRsp, int8_t biMode, void* charsetCxt);
+int32_t qExecCommand(int64_t *pConnId, bool sysInfoUser, uint8_t showVarPrivMask, SNode *pStmt,
+                     SRetrieveTableRsp **pRsp, int8_t biMode, void *charsetCxt);
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs);
 int32_t qExecExplainEnd(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp);
-int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp);
+int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainPlanCtx *pCurrPlanCtx, SExplainRsp *pRspMsg, int32_t groupId, SRetrieveTableRsp **pRsp);
 void    qExplainFreeCtx(SExplainCtx *pCtx);
 int32_t formatDurationOrKeep(char* buffer, int64_t bufSize, int32_t timeInMinutes);
+SExplainPlanCtx* qExplainGetCurrPlan(SExplainCtx *pCtx, int32_t subJobId);
 
 #endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,22 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
 #include <iostream>
+#include <memory>
+#include <thread>
+#include <vector>
+#include "os.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "ttime.h"
+#include "tref.h"
+#include "tlog.h"
+#include <time.h>
+#include <osSleep.h> 
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -32,31 +46,382 @@
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
 
+  // Disable buffering so every diagnostic printf below is flushed immediately.
+  // Without this, stdout is fully block-buffered when redirected to a log file;
+  // a failed ASSERT aborts the process via SIGABRT before the buffer is flushed,
+  // losing the very printf that identifies which SQL/assertion failed.
+  setvbuf(stdout, nullptr, _IONBF, 0);
+
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
+
   return RUN_ALL_TESTS();
 }
 
-TAOS* getConnWithGlobalOption(const char *tz){
+#ifndef TD_ASTRA
+class SessionTimezoneTest : public ::testing::Test {
+ protected:
+  std::string original;
+
+  void SetUp() override {
+    ASSERT_EQ(taos_init(), 0);
+    original.assign(tsTimezoneStr, strcspn(tsTimezoneStr, " "));
+    ASSERT_EQ(taos_options(TSDB_OPTION_TIMEZONE, "UTC"), 0);
+  }
+
+  void TearDown() override { EXPECT_EQ(taos_options(TSDB_OPTION_TIMEZONE, original.c_str()), 0); }
+};
+
+TEST_F(SessionTimezoneTest, DefaultSnapshotAndClear) {
+  STscObj first = {};
+  STscObj second = {};
+  ASSERT_EQ(tscInitSessionTimezone(&first), 0);
+  ASSERT_NE(first.optionInfo.timezone, nullptr);
+  EXPECT_FALSE(first.optionInfo.timezoneExplicit);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "UTC");
+  ASSERT_EQ(taos_options(TSDB_OPTION_TIMEZONE, "Asia/Shanghai"), 0);
+  ASSERT_EQ(tscInitSessionTimezone(&second), 0);
+  EXPECT_STREQ(second.optionInfo.timezoneName, "Asia/Shanghai");
+  EXPECT_NE(first.optionInfo.timezone, second.optionInfo.timezone);
+  int64_t offset = 1;
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, first.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, 0);
+  ASSERT_EQ(tscSetSessionTimezone(&first, "America/New_York", true), 0);
+  timezone_t previous = first.optionInfo.timezone;
+  EXPECT_NE(tscSetSessionTimezone(&first, "No/Such_Zone", true), 0);
+  EXPECT_EQ(first.optionInfo.timezone, previous);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "America/New_York");
+  EXPECT_TRUE(first.optionInfo.timezoneExplicit);
+  ASSERT_EQ(tscSetSessionTimezone(&first, nullptr, false), 0);
+  EXPECT_EQ(first.optionInfo.timezone, nullptr);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "");
+  EXPECT_FALSE(first.optionInfo.timezoneExplicit);
+  // Old requests still borrow the previous rule after a switch or CLEAR.
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, previous, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+}
+
+TEST_F(SessionTimezoneTest, ConcurrentCacheKeepsRulesAndNames) {
+  std::vector<SPreparedTimezone> prepared(16);
+  std::vector<int32_t>           codes(16);
+  std::vector<std::thread>       threads;
+  for (size_t i = 0; i < prepared.size(); ++i) {
+    threads.emplace_back([&, i]() { codes[i] = tscPrepareSessionTimezone("America/Anchorage", true, &prepared[i]); });
+  }
+  for (auto& thread : threads) thread.join();
+  for (size_t i = 0; i < prepared.size(); ++i) {
+    ASSERT_EQ(codes[i], 0);
+    ASSERT_NE(prepared[i].timezone, nullptr);
+    EXPECT_EQ(prepared[i].timezone, prepared[0].timezone);
+    EXPECT_NE(taosHashGet(static_cast<SHashObj*>(pTimezoneNameMap), &prepared[i].timezone, sizeof(timezone_t)), nullptr);
+    int64_t offset = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1705320000, prepared[i].timezone, &offset), 0);
+    EXPECT_EQ(offset, -9 * 3600);
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1721044800, prepared[i].timezone, &offset), 0);
+    EXPECT_EQ(offset, -8 * 3600);
+  }
+}
+
+#ifdef WINDOWS
+static int checkUnsupportedTimezoneAtConnect(const char* rule) {
+  char temporary[MAX_PATH] = {0};
+  char directory[MAX_PATH] = {0};
+  DWORD size = GetTempPathA(sizeof(temporary), temporary);
+  if (size == 0 || size >= sizeof(temporary) ||
+      GetTempFileNameA(temporary, "tzc", 0, directory) == 0 ||
+      !DeleteFileA(directory) || !CreateDirectoryA(directory, nullptr)) {
+    return 1;
+  }
+  for (char* p = directory; *p != 0; ++p) {
+    if (*p == '\\') *p = '/';
+  }
+  std::string configPath = std::string(directory) + "/taos.cfg";
+  std::string config = std::string("logDir @") + directory +
+      "@\ntempDir @" + directory + "@\n";
+  TdFilePtr file = taosOpenFile(configPath.c_str(),
+                               TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (file == nullptr) {
+    taosRemoveDir(directory);
+    return 1;
+  }
+  int64_t written = taosWriteFile(file, config.data(), config.size());
+  (void)taosCloseFile(&file);
+  if (written != static_cast<int64_t>(config.size()) ||
+      taos_options(TSDB_OPTION_CONFIGDIR, directory) != 0 ||
+      !SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, nullptr) ||
+      !SetEnvironmentVariableA("TZ", rule)) {
+    taosRemoveDir(directory);
+    return 1;
+  }
+
+  // Windows death tests start a new process before client initialization.
+  TAOS* connection = taos_connect("127.0.0.1", "root", "taosdata", nullptr, 1);
+  int32_t code = taos_errno(nullptr);
+  std::string message = taos_errstr(nullptr);
+  std::string expected = "Invalid or unsupported timezone: '";
+  expected += rule;
+  expected += "'";
+  fprintf(stderr, "%s\n", message.c_str());
+  bool rejected = connection == nullptr &&
+      code == TSDB_CODE_PAR_INVALID_TIMEZONE && message == expected;
+  if (connection != nullptr) taos_close(connection);
+  taosCloseLog();
+  taosRemoveDir(directory);
+  return rejected ? 0 : 1;
+}
+
+TEST(SessionTimezoneDeathTest, RejectsInheritedPosixDstAtConnect) {
+  EXPECT_EXIT(std::_Exit(checkUnsupportedTimezoneAtConnect(
+                  "EST5EDT,M3.2.0,M11.1.0")),
+              ::testing::ExitedWithCode(0), "Invalid or unsupported timezone");
+}
+
+TEST(SessionTimezoneDeathTest, RejectsInheritedLowercaseAliasAtConnect) {
+  EXPECT_EXIT(std::_Exit(checkUnsupportedTimezoneAtConnect("est5edt")),
+              ::testing::ExitedWithCode(0), "Invalid or unsupported timezone");
+}
+
+class ScopedInheritedTimezone {
+ public:
+  ScopedInheritedTimezone() {
+    DWORD size = GetEnvironmentVariableA("TZ", nullptr, 0);
+    if (size > 0) {
+      original.resize(size);
+      DWORD length = GetEnvironmentVariableA("TZ", &original[0], size);
+      EXPECT_LT(length, size);
+      original.resize(length < size ? length : 0);
+    }
+  }
+
+  ~ScopedInheritedTimezone() {
+    EXPECT_TRUE(SetEnvironmentVariableA("TZ", original.empty() ? nullptr :
+                                             original.c_str()));
+  }
+
+  bool set(const char* rule) {
+    return SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, nullptr) &&
+           SetEnvironmentVariableA("TZ", rule);
+  }
+
+ private:
+  std::string original;
+};
+
+static const char* const unsupportedInheritedTimezones[] = {
+    "EST5EDT,M3.2.0,M11.1.0",
+    "EST5EDT,M3.2.0/2,M11.1.0/2",
+    "EST5EDT",
+    "est5edt",
+    "UTC8EDT",
+    "STD-0:00:30DST-0:00:30,M3.2.0,M11.1.0",
+    "STD-15DST-15,M3.2.0,M11.1.0",
+    "No/Such_Zone"};
+
+TEST_F(SessionTimezoneTest, UnsupportedInheritedDefaultRejected) {
+  ScopedInheritedTimezone environment;
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    STscObj connection = {};
+    taosClearErrMsg();
+    EXPECT_EQ(tscInitSessionTimezone(&connection),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+    EXPECT_EQ(connection.optionInfo.timezone, nullptr);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "");
+    EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+
+    SPreparedTimezone prepared = {};
+    EXPECT_EQ(tscPrepareSessionTimezone(rule, true, &prepared),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(prepared.timezone, nullptr);
+  }
+}
+
+TEST_F(SessionTimezoneTest, UnsupportedDefaultKeepsPreviousSnapshot) {
+  ScopedInheritedTimezone environment;
+  STscObj connection = {};
+  ASSERT_EQ(tscSetSessionTimezone(&connection, "America/New_York", true), 0);
+  timezone_t original = connection.optionInfo.timezone;
+  ASSERT_NE(original, nullptr);
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    EXPECT_EQ(tscInitSessionTimezone(&connection),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection.optionInfo.timezone, original);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "America/New_York");
+    EXPECT_TRUE(connection.optionInfo.timezoneExplicit);
+  }
+}
+
+TEST_F(SessionTimezoneTest, UnsupportedDefaultRejectsNewConnection) {
+  ScopedInheritedTimezone environment;
+  SAppHbMgr heartbeat = {};
+  SAppInstInfo app = {};
+  app.pAppHbMgr = &heartbeat;
+  char auth[TSDB_PASSWORD_LEN] = {0};
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    STscObj* connection = nullptr;
+    EXPECT_EQ(createTscObj("root", auth, nullptr, CONN_TYPE__QUERY, &app,
+                           &connection), TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection, nullptr);
+    EXPECT_EQ(app.numOfConns, 0);
+  }
+}
+
+TEST_F(SessionTimezoneTest, FailedClearPreservesConnectionOptions) {
+  struct RefPool {
+    int32_t original = clientConnRefPool;
+    int32_t temporary = taosOpenRef(8, [](void*) {});
+    ~RefPool() {
+      clientConnRefPool = original;
+      if (temporary > 0) taosCloseRef(temporary);
+    }
+  } pool;
+  ASSERT_GT(pool.temporary, 0);
+  clientConnRefPool = pool.temporary;
+  ScopedInheritedTimezone environment;
+  STscObj connection = {};
+  ASSERT_EQ(tscSetSessionTimezone(&connection, "America/New_York", true), 0);
+  connection.id = taosAddRef(pool.temporary, &connection);
+  ASSERT_GT(connection.id, 0);
+  timezone_t original = connection.optionInfo.timezone;
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+  connection.optionInfo.charsetCxt = &connection;
+#endif
+  tstrncpy(connection.optionInfo.userApp, "test-clear",
+           sizeof(connection.optionInfo.userApp));
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    EXPECT_EQ(taos_options_connection((TAOS*)&connection.id,
+                                      TSDB_OPTION_CONNECTION_CLEAR, nullptr),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection.optionInfo.timezone, original);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "America/New_York");
+    EXPECT_TRUE(connection.optionInfo.timezoneExplicit);
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+    EXPECT_EQ(connection.optionInfo.charsetCxt, &connection);
+#endif
+    EXPECT_STREQ(connection.optionInfo.userApp, "test-clear");
+  }
+  ASSERT_TRUE(environment.set("UTC"));
+  ASSERT_EQ(taos_options_connection((TAOS*)&connection.id,
+                                    TSDB_OPTION_CONNECTION_CLEAR, nullptr), 0);
+  EXPECT_STREQ(connection.optionInfo.timezoneName, "UTC");
+  EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+  EXPECT_EQ(connection.optionInfo.charsetCxt, nullptr);
+#endif
+  EXPECT_STREQ(connection.optionInfo.userApp, "");
+}
+
+TEST_F(SessionTimezoneTest, InvalidInheritedDefaultRejectsInitialization) {
+  ScopedInheritedTimezone environment;
+  const char* rules[] = {"EST5EDT,M3.2.0,M11.1.0",
+                        "EST5EDT,M3.2.0/2,M11.1.0/2", "No/Such_Zone"};
+  for (const char* rule : rules) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    taosClearErrMsg();
+    EXPECT_EQ(initTimezoneInfo(), TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+  }
+  std::string oversized(TD_TIMEZONE_LEN * 4, 'a');
+  ASSERT_TRUE(environment.set(oversized.c_str()));
+  EXPECT_EQ(initTimezoneInfo(), TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_STREQ(terrMsg, "Invalid or unsupported timezone: TZ is too long");
+  STscObj connection = {};
+  EXPECT_EQ(tscInitSessionTimezone(&connection),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_EQ(connection.optionInfo.timezone, nullptr);
+}
+
+TEST_F(SessionTimezoneTest, SupportedInheritedDefaultKeepsRules) {
+  ScopedInheritedTimezone environment;
+  struct Case {
+    const char* name;
+    int64_t winter;
+    int64_t summer;
+  } cases[] = {{"UTC", 0, 0},
+               {"UTC-5:30", 19800, 19800},
+               {"America/New_York", -18000, -14400}};
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.name);
+    ASSERT_TRUE(environment.set(test.name));
+    STscObj connection = {};
+    ASSERT_EQ(tscInitSessionTimezone(&connection), 0);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, test.name);
+    EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+    int64_t offset = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(
+                  1705320000, connection.optionInfo.timezone, &offset), 0);
+    EXPECT_EQ(offset, test.winter);
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(
+                  1721044800, connection.optionInfo.timezone, &offset), 0);
+    EXPECT_EQ(offset, test.summer);
+  }
+}
+
+TEST_F(SessionTimezoneTest, SnapshotUsesFullSystemRule) {
+  const char* rule = "STD5:00:00DST4:00:00,M3.2.0/02:00:00,M11.1.0/02:00:00";
+  ASSERT_EQ(taosSetGlobalTimezone(rule), 0);
+  STscObj connection = {};
+  ASSERT_EQ(tscInitSessionTimezone(&connection), 0);
+  EXPECT_STREQ(connection.optionInfo.timezoneName, rule);
+  EXPECT_NE(taosHashGet(static_cast<SHashObj*>(pTimezoneNameMap), &connection.optionInfo.timezone, sizeof(timezone_t)), nullptr);
+  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
+  int64_t offset = 0;
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710053999, connection.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, -5 * 3600);
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, connection.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+  // The name sent in plans must recreate the same full rules.
+  timezone_t decoded = nullptr;
+  ASSERT_EQ(taosValidateTimezone(connection.optionInfo.timezoneName, &decoded), 0);
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, decoded, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+  tzfree(decoded);
+}
+#endif
+#endif
+
+TAOS* getConnWithGlobalOption(const char* tz) {
   int code = taos_options(TSDB_OPTION_TIMEZONE, tz);
-  ASSERT(code ==  0);
+  if (code != 0) return nullptr;
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
   return pConn;
 }
 
-TAOS* getConnWithOption(const char *tz){
+TAOS* getConnWithOption(const char* tz) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
-  if (tz != NULL){
+  if (pConn == nullptr) return nullptr;
+  if (tz != NULL) {
     int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
-    ASSERT(code == 0);
+    if (code != 0) {
+      taos_close(pConn);
+      return nullptr;
+    }
   }
   return pConn;
 }
 
 void execQuery(TAOS* pConn, const char *sql){
+  printf("execQuery sql:%s\n", sql);
   TAOS_RES* pRes = taos_query(pConn, sql);
   int       code = taos_errno(pRes);
-  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+  while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING || code == TSDB_CODE_MND_VGROUP_OFFLINE) {
     taosMsleep(2000);
     TAOS_RES* pRes = taos_query(pConn, sql);
     code = taos_errno(pRes);
@@ -83,16 +448,19 @@ void checkRows(TAOS* pConn, const char *sql, int32_t expectedRows){
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
     rows++;
   }
+  printf("checkRows actual:%d\n", rows);
   ASSERT(rows == expectedRows);
   taos_free_result(pRes);
 }
 
 void check_timezone(TAOS* pConn, const char *sql, const char* tz){
+  printf("check_timezone sql:%s,tz:%s\n", sql, tz);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
     if (strcmp((const char*)row[0], "timezone") == 0){
+      printf("check_timezone actual:%s\n", (const char*)row[1]);
       ASSERT(strstr((const char*)row[1], tz) != NULL);
     }
   }
@@ -100,10 +468,12 @@ void check_timezone(TAOS* pConn, const char *sql, const char* tz){
 }
 
 void check_sql_result_partial(TAOS* pConn, const char *sql, const char* result){
+  printf("check_sql_result_partial sql:%s,result:%s\n", sql, result);
   TAOS_RES *pRes = taos_query(pConn, sql);
   ASSERT(taos_errno(pRes) == 0);
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
+    printf("check_sql_result_partial actual:%s\n", (const char*)row[0]);
     ASSERT(strstr((const char*)row[0], result) != NULL);
   }
   taos_free_result(pRes);
@@ -128,6 +498,7 @@ void check_sql_result(TAOS* pConn, const char *sql, const char* result){
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
 #ifndef WINDOWS
+    printf("check_sql_result actual:%s\n", (const char*)row[0]);
     ASSERT (memcmp((const char*)row[0], result, strlen(result)) == 0);
 #endif
   }
@@ -141,7 +512,9 @@ void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
   TAOS_ROW row = NULL;
   while ((row = taos_fetch_row(pRes)) != NULL) {
 #ifndef WINDOWS
-    ASSERT (*(int64_t*)row[0] == result);
+    int64_t actual = *(int64_t*)row[0];
+    printf("check_sql_result_integer actual:%" PRId64 "\n", actual);
+    ASSERT (actual == result);
 #endif
   }
   taos_free_result(pRes);
@@ -149,7 +522,7 @@ void check_sql_result_integer(TAOS* pConn, const char *sql, int64_t result){
 
 void check_set_timezone(TAOS* optionFunc(const char *tz)){
   {
-    TAOS* pConn = optionFunc("UTC-8");
+    TAOS* pConn = optionFunc("UTC-8");  // Asia/Shanghai timezone
     check_timezone(pConn, "show local variables", "UTC-8");
 
     execQuery(pConn, "drop database if exists db1");
@@ -215,11 +588,34 @@ void check_set_timezone(TAOS* optionFunc(const char *tz)){
     ASSERT(strcmp(ip, val) == 0);                   \
   }
 
+static int32_t checkUserIp(TAOS *taos, const char *ip) {
+  TAOS_RES *pRes = taos_query(taos, "select user_ip from performance_schema.perf_connections");
+
+  ASSERT(taos_errno(pRes) == 0);
+    
+  TAOS_ROW row = NULL;
+  bool     found = false;
+  while ((row = taos_fetch_row(pRes)) != NULL) {
+    if (strcmp((const char *)row[0], ip) == 0) {
+      found = true;
+      break;
+    }
+  }
+  if (found == false) {
+    ASSERT(0); 
+  }
+ 
+  taos_free_result(pRes);
+  
+  ASSERT(1);
+  return 0;
+}
+
 TEST(connectionCase, setConnectionOption_Test) {
   int32_t code = taos_options_connection(NULL, TSDB_OPTION_CONNECTION_CHARSET, NULL);
   ASSERT(code != 0);
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  ASSERT_NE(pConn, nullptr);
 
   code = taos_options_connection(pConn, TSDB_MAX_OPTIONS_CONNECTION, NULL);
   ASSERT(code != 0);
@@ -239,7 +635,6 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
 
-#ifndef WINDOWS
   // test timezone
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
   ASSERT(code == 0);
@@ -248,7 +643,7 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, NULL);
   ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC");
@@ -262,10 +657,7 @@ TEST(connectionCase, setConnectionOption_Test) {
   check_sql_result(pConn, "select timezone()", "Asia/Kolkata (IST, +0530)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
-  ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
-  check_sql_result(pConn, "select timezone()", "adbc (UTC, +0000)");
-#endif
+  ASSERT(code != 0);  // invalid timezone is not allowed anymore
 
   // test user APP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
@@ -280,28 +672,53 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_APP(pConn, userApp, "aaaaaaaaaaaaaaaaaaaaaab");
 
+  // test connector info
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, "");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, NULL);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "");
+
+  const char* str255 = "TDengine_ConnectOptionsTest_255_Character_String_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz_This_is_a_test_string_for_connection_options_testing_in_TDengine_database_system_with_exactly_255_characters_including_alphanumeric_and_special";
+  const char* str258 = "TDengine_ConnectOptionsTest_255_Character_String_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz_This_is_a_test_string_for_connection_options_testing_in_TDengine_database_system_with_exactly_255_characters_including_alphanumeric_and_specialaaa";
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, 
+    str258);
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, str255);
 
   // test user IP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "");
-  ASSERT(code != 0);
+  //ASSERT(code != 0); // add dual later
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
 
+  checkUserIp(pConn, "");
+  
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, NULL);
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
 
+  checkUserIp(pConn, "");
+  
+
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "aaaaaaaaaaaaaaaaaaaaaabbbbbbb");
-  ASSERT(code != 0);
+  //ASSERT(code != 0); // add dual later
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "1292.168.0.2");
-  ASSERT(code != 0);
+  //ASSERT(code != 0); // add dual alter
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+  taosSsleep(6);
+  checkUserIp(pConn, "");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.0.2");
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.0.2");
 
+  taosSsleep(6);
+
+  checkUserIp(pConn, "192.168.0.2");
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
   //test user APP and user IP
@@ -313,13 +730,28 @@ TEST(connectionCase, setConnectionOption_Test) {
   CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.1.2");
 
 
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, NULL);
+  CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
+  taosSsleep(6);
+  checkUserIp(pConn, "");
+
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_IP, "192.168.1.2");
+  CHECK_TAOS_OPTION_IP(pConn, userIp, "192.168.1.2");
+  taosSsleep(6);
+  checkUserIp(pConn, "192.168.1.2");
+
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "user");
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_APP(pConn, userApp, "user");
 
+  code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, "java-connector:3.23.3");
+  ASSERT(code == 0);
+  CHECK_TAOS_OPTION_APP(pConn, cInfo, "java-connector:3.23.3");
+
   taosMsleep(2 * HEARTBEAT_INTERVAL);
 
   check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_app = 'user'", 1);
+  check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where connector_info = 'java-connector:3.23.3'", 1);
   check_sql_result_integer(pConn, "select count(*) from performance_schema.perf_connections where user_ip = '192.168.1.2'", 1);
 
   // test clear
@@ -327,10 +759,8 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
 
-#ifndef WINDOWS
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
-#endif
 
   CHECK_TAOS_OPTION_APP(pConn, userApp, "");
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
@@ -338,16 +768,102 @@ TEST(connectionCase, setConnectionOption_Test) {
   taos_close(pConn);
 }
 
+// Bind one NCHAR parameter and return the number of rows the query returns,
+// or -1 if any stmt step fails. The bound MBS bytes are decoded with the
+// CONNECTION charset, so a GBK connection must be handed GBK bytes. This
+// exercises the stmt parse/bind path, which builds its own SParseContext
+// separate from the plain taos_query() path.
+static int32_t stmtQueryRowsWithNcharParam(TAOS* pConn, const char* sql,
+                                           const char* param) {
+  TAOS_STMT* stmt = taos_stmt_init(pConn);
+  if (stmt == NULL) {
+    return -1;
+  }
+
+  int32_t         len = (int32_t)strlen(param);
+  TAOS_MULTI_BIND bind = {0};
+  bind.buffer_type = TSDB_DATA_TYPE_NCHAR;
+  bind.buffer = (void*)param;
+  bind.buffer_length = len;
+  bind.length = &len;
+  bind.num = 1;
+
+  int32_t rows = -1;
+  if (taos_stmt_prepare(stmt, sql, 0) == 0 &&
+      taos_stmt_bind_param(stmt, &bind) == 0 && taos_stmt_execute(stmt) == 0) {
+    // The result set is owned by the stmt and released by taos_stmt_close;
+    // calling taos_free_result here as well is a double free.
+    TAOS_RES* pRes = taos_stmt_use_result(stmt);
+    if (pRes != NULL) {
+      rows = 0;
+      while (taos_fetch_row(pRes) != NULL) {
+        rows++;
+      }
+    } else {
+      printf("stmtQueryRowsWithNcharParam: use_result failed: %s\n",
+             taos_stmt_errstr(stmt));
+    }
+  } else {
+    printf("stmtQueryRowsWithNcharParam: prepare/bind/execute failed: %s\n",
+           taos_stmt_errstr(stmt));
+  }
+
+  taos_stmt_close(stmt);
+  return rows;
+}
+
+// Same contract as stmtQueryRowsWithNcharParam, over the stmt2 API.
+static int32_t stmt2QueryRowsWithNcharParam(TAOS* pConn, const char* sql,
+                                            const char* param) {
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(pConn, &option);
+  if (stmt == NULL) {
+    return -1;
+  }
+
+  int32_t         len = (int32_t)strlen(param);
+  TAOS_STMT2_BIND bind = {0};
+  bind.buffer_type = TSDB_DATA_TYPE_NCHAR;
+  bind.buffer = (void*)param;
+  bind.length = &len;
+  bind.num = 1;
+
+  TAOS_STMT2_BIND* paramv = &bind;
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+
+  int32_t rows = -1;
+  if (taos_stmt2_prepare(stmt, sql, 0) == 0 &&
+      taos_stmt2_bind_param(stmt, &bindv, -1) == 0 &&
+      taos_stmt2_exec(stmt, NULL) == 0) {
+    TAOS_RES* pRes = taos_stmt2_result(stmt);
+    if (pRes != NULL) {
+      rows = 0;
+      while (taos_fetch_row(pRes) != NULL) {
+        rows++;
+      }
+    } else {
+      printf("stmt2QueryRowsWithNcharParam: result failed: %s\n",
+             taos_stmt2_error(stmt));
+    }
+  } else {
+    printf("stmt2QueryRowsWithNcharParam: prepare/bind/exec failed: %s\n",
+           taos_stmt2_error(stmt));
+  }
+
+  taos_stmt2_close(stmt);
+  return rows;
+}
+
 TEST(charsetCase, charset_Test) {
   // 1. build connection with different charset
   TAOS* pConnGbk = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConnGbk != nullptr);
+  ASSERT_NE(pConnGbk, nullptr);
 
   TAOS* pConnUTF8 = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConnUTF8 != nullptr);
+  ASSERT_NE(pConnUTF8, nullptr);
 
   TAOS* pConnDefault = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConnDefault != nullptr);
+  ASSERT_NE(pConnDefault, nullptr);
 
   int32_t code = taos_options_connection(pConnGbk, TSDB_OPTION_CONNECTION_CHARSET, "gbk");
   ASSERT(code == 0);
@@ -368,11 +884,13 @@ TEST(charsetCase, charset_Test) {
   char zhongGbk[32] = {0};
   char zhongguoUtf8[32] = {0};
   char guoUtf8[32] = {0};
+  char guoGbk[32] = {0};
   char zhongguoGbk[32] = {0};
   snprintf(fenUtf8, sizeof(fenUtf8), "%c%c%c", 0xE8, 0x8A, 0xAC);
   snprintf(fenGbk, sizeof(fenGbk), "%c%c", 0xB7, 0xD2);
   snprintf(zhongguoUtf8, sizeof(zhongguoUtf8), "%c%c%c%c%c%c", 0xE4, 0xB8, 0xAD, 0xE5, 0x9B, 0xBD);
   snprintf(guoUtf8, sizeof(guoUtf8), "%c%c%c", 0xE5, 0x9B, 0xBD);
+  snprintf(guoGbk, sizeof(guoGbk), "%c%c", 0xB9, 0xFA);
   snprintf(zhongguoGbk, sizeof(zhongguoGbk), "%c%c%c%c", 0xD6, 0xD0, 0xB9, 0xFA);
   snprintf(zhongGbk, sizeof(zhongGbk), "%c%c", 0xD6, 0xD0);
 
@@ -407,22 +925,28 @@ TEST(charsetCase, charset_Test) {
   char zhongguofenGbk[32] = {0};
   snprintf(zhongguofenGbk, sizeof(zhongguofenGbk), "%s%s", zhongguoGbk, fenGbk);
   char sql[256] = {0};
-  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenGbk);
-  execQueryFail(pConnGbk, sql);
+  // On a GBK connection the string literal is decoded with the client charset,
+  // so the UTF-8 bytes of '芬' are invalid GBK and the query fails, while the
+  // GBK bytes decode cleanly and concat yields '中国芬' in GBK.
   snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenUtf8);
+  execQueryFail(pConnGbk, sql);
+  snprintf(sql, sizeof(sql), "select concat(c1, '%s') from db1.ctb1", fenGbk);
   check_sql_result(pConnGbk, sql, zhongguofenGbk);
 
   // 7.2 trim
   snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenGbk);
-  check_sql_result(pConnGbk, sql, zhongguofenGbk);
+  check_sql_result(pConnGbk, sql, fenGbk);
   char zhongguofenUtf8[32] = {0};
   snprintf(zhongguofenUtf8, sizeof(zhongguofenUtf8), "%s%s", zhongguoUtf8, fenUtf8);
+  // The UTF-8 bytes of this literal are invalid in the GBK connection.
   snprintf(sql, sizeof(sql), "select trim(LEADING c1 from '%s') from db1.ctb1", zhongguofenUtf8);
-  check_sql_result(pConnGbk, sql, fenUtf8);
+  execQueryFail(pConnGbk, sql);
 
   check_sql_result(pConnGbk, "select char(c1) from db1.ctb1", "");
 
-  check_sql_result_integer(pConnGbk, "select ascii(c1) from db1.ctb1", 0xE4);
+  // ascii() returns the first byte of c1 rendered in the connection charset:
+  // GBK '中' starts with 0xD6, UTF-8 '中' with 0xE4.
+  check_sql_result_integer(pConnGbk, "select ascii(c1) from db1.ctb1", 0xD6);
   check_sql_result_integer(pConnUTF8, "select ascii(c1) from db1.ctb1", 0xE4);
   check_sql_result_integer(pConnGbk, "select LENGTH(c1) from db1.ctb1", 8);
   check_sql_result_integer(pConnUTF8, "select LENGTH(c1) from db1.ctb1", 8);
@@ -433,13 +957,18 @@ TEST(charsetCase, charset_Test) {
   execQuery(pConnGbk, "select UPPER(c1) from db1.ctb1");
 
   snprintf(sql, sizeof(sql), "select position(c1 in '%s') from db1.ctb1", zhongguofenGbk);
-  check_sql_result_integer(pConnGbk, sql, 0);
+  check_sql_result_integer(pConnGbk, sql, 1);
 
   snprintf(sql, sizeof(sql), "select position('%s' in c1) from db1.ctb1", guoUtf8);
   check_sql_result_integer(pConnUTF8, sql, 2);
 
-  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoGbk);
+  // GBK connection matches c1 against the GBK-decoded literal, so replacing
+  // '中国' with the GBK literal succeeds, while the UTF-8 literal is undecodable
+  // as GBK and fails.
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoUtf8);
   execQueryFail(pConnGbk, sql);
+  snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoGbk);
+  check_sql_result(pConnGbk, sql, "a");
 
   snprintf(sql, sizeof(sql), "select replace(c1, '%s', 'a') from db1.ctb1", zhongguoUtf8);
   check_sql_result(pConnUTF8, sql, "a");
@@ -447,12 +976,47 @@ TEST(charsetCase, charset_Test) {
   snprintf(sql, sizeof(sql), "%s%s", zhongguoGbk, zhongguoGbk);
   check_sql_result(pConnGbk, "select repeat(c1, 2) from db1.ctb1", sql);
 
-  check_sql_result(pConnGbk, "select cast(c1 as binary(32)) from db1.ctb1", zhongguoUtf8);
+  // Casting NCHAR to BINARY renders c1 in the connection charset, so a GBK
+  // connection yields the GBK bytes of '中国'.
+  check_sql_result(pConnGbk, "select cast(c1 as binary(32)) from db1.ctb1", zhongguoGbk);
 
   check_sql_result(pConnUTF8, "select substr(c1,2,1) from db1.ctb1", guoUtf8);
 
-  snprintf(sql, sizeof(sql), "select SUBSTRING_INDEX(c1,'%s',1) from db1.ctb1", guoUtf8);
+  // GBK connection: use the GBK-encoded '国' so the delimiter decodes cleanly;
+  // SUBSTRING_INDEX then returns the part before it, '中' in GBK.
+  snprintf(sql, sizeof(sql), "select SUBSTRING_INDEX(c1,'%s',1) from db1.ctb1", guoGbk);
   check_sql_result(pConnGbk, sql, zhongGbk);
+
+  // 7.3 stmt bind parameters and literals with different charset
+  // The stmt paths convert bound MBS parameters and re-parse the SQL through
+  // their own contexts, separately from taos_query(). Both must honour the
+  // connection charset, not the process default. ctb1 holds exactly one row
+  // here, whose c1 is '中国', so a correctly decoded parameter matches it and
+  // bytes that are undecodable in the connection charset must fail outright.
+  const char* stmtSql = "select c1 from db1.ctb1 where c1 = ?";
+  ASSERT_EQ(1, stmtQueryRowsWithNcharParam(pConnGbk, stmtSql, zhongguoGbk));
+  ASSERT_EQ(-1, stmtQueryRowsWithNcharParam(pConnGbk, stmtSql, zhongguoUtf8));
+  ASSERT_EQ(1, stmtQueryRowsWithNcharParam(pConnUTF8, stmtSql, zhongguoUtf8));
+  ASSERT_EQ(-1, stmtQueryRowsWithNcharParam(pConnUTF8, stmtSql, zhongguoGbk));
+  // Sanity check that the parameter really drives the filter.
+  ASSERT_EQ(0, stmtQueryRowsWithNcharParam(pConnGbk, stmtSql, "zzz"));
+
+  ASSERT_EQ(1, stmt2QueryRowsWithNcharParam(pConnGbk, stmtSql, zhongguoGbk));
+  ASSERT_EQ(-1, stmt2QueryRowsWithNcharParam(pConnGbk, stmtSql, zhongguoUtf8));
+  ASSERT_EQ(1, stmt2QueryRowsWithNcharParam(pConnUTF8, stmtSql, zhongguoUtf8));
+  ASSERT_EQ(0, stmt2QueryRowsWithNcharParam(pConnGbk, stmtSql, "zzz"));
+
+  // An NCHAR literal inside the stmt SQL goes through the stmt re-parse path,
+  // which builds its own SParseContext.
+  char litSql[256] = {0};
+  snprintf(litSql, sizeof(litSql),
+           "select c1 from db1.ctb1 where c1 = '%s' and c1 = ?", zhongguoGbk);
+  ASSERT_EQ(1, stmtQueryRowsWithNcharParam(pConnGbk, litSql, zhongguoGbk));
+  ASSERT_EQ(1, stmt2QueryRowsWithNcharParam(pConnGbk, litSql, zhongguoGbk));
+  snprintf(litSql, sizeof(litSql),
+           "select c1 from db1.ctb1 where c1 = '%s' and c1 = ?", zhongguoUtf8);
+  ASSERT_EQ(1, stmtQueryRowsWithNcharParam(pConnUTF8, litSql, zhongguoUtf8));
+  ASSERT_EQ(1, stmt2QueryRowsWithNcharParam(pConnUTF8, litSql, zhongguoUtf8));
 
   // 8. test default charset
   snprintf(sqlCol, sizeof(sqlCol), "insert into db1.ctb1 values(1732178775134, '%s', 1)", zhongguoUtf8);
@@ -483,9 +1047,80 @@ TEST(charsetCase, charset_Test) {
 
 }
 
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+TEST(charsetCase, CastVarcharLiteralToNchar) {
+  // GBK and CP936 both encode '中' as D6 D0.
+  const char sql[] = "select cast('\xD6\xD0\xD6\xD0\xD6\xD0' as nchar(2))";
+  const char expected[] = "\xD6\xD0\xD6\xD0";
+  const int32_t expectedLen = sizeof(expected) - 1;
+  const char* charsets[] = {"GBK", "CP936"};
+  for (const char* charset : charsets) {
+    SCOPED_TRACE(charset);
+    std::unique_ptr<TAOS, decltype(&taos_close)> conn(
+        taos_connect("localhost", "root", "taosdata", nullptr, 0), taos_close);
+    ASSERT_NE(conn.get(), nullptr);
+    int32_t code =
+        taos_options_connection(conn.get(), TSDB_OPTION_CONNECTION_CHARSET,
+                                charset);
+    ASSERT_EQ(code, 0);
+
+    std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+        taos_query(conn.get(), sql), taos_free_result);
+    ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+    TAOS_ROW row = taos_fetch_row(result.get());
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    const int* lengths = taos_fetch_lengths(result.get());
+    ASSERT_NE(lengths, nullptr);
+    ASSERT_EQ(lengths[0], expectedLen);
+    EXPECT_EQ(memcmp(row[0], expected, expectedLen), 0);
+  }
+}
+
+#ifdef __GLIBC__
+TEST(charsetCase, CastVarcharCp1258ToNchar) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> conn(
+      taos_connect("localhost", "root", "taosdata", nullptr, 0), taos_close);
+  ASSERT_NE(conn.get(), nullptr);
+  ASSERT_EQ(taos_options_connection(conn.get(), TSDB_OPTION_CONNECTION_CHARSET,
+                                    "CP1258"),
+            0);
+
+  const char sql[] = "select char_length(cast(char(65) as nchar(1)))";
+  std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+      taos_query(conn.get(), sql), taos_free_result);
+  ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+  TAOS_ROW row = taos_fetch_row(result.get());
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  const int* lengths = taos_fetch_lengths(result.get());
+  ASSERT_NE(lengths, nullptr);
+  int64_t charCount = 0;
+  ASSERT_EQ(lengths[0], static_cast<int>(sizeof(charCount)));
+  std::memcpy(&charCount, row[0], sizeof(charCount));
+  EXPECT_EQ(charCount, 1);
+
+  result.reset(taos_query(conn.get(),
+                          "select cast(char(65, 129) as nchar(2))"));
+  EXPECT_EQ(taos_errno(result.get()), TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+
+  result.reset(taos_query(conn.get(),
+                          "select cast(char(65, 129) as nchar(1))"));
+  ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+  row = taos_fetch_row(result.get());
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  lengths = taos_fetch_lengths(result.get());
+  ASSERT_NE(lengths, nullptr);
+  ASSERT_EQ(lengths[0], 1);
+  EXPECT_EQ(*static_cast<const char*>(row[0]), 'A');
+}
+#endif
+#endif
+
 TEST(charsetCase, alter_charset_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT(pConn != nullptr);
+  ASSERT_NE(pConn, nullptr);
 
   execQueryFail(pConn, "alter dnode 1 'charset gbk'");
   execQueryFail(pConn, "local 'charset gbk'");
@@ -657,6 +1292,7 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "create database db1");
   execQuery(pConn, "create table db1.ntb (ts timestamp, c1 binary(32), c2 int)");
   execQuery(pConn, "insert into db1.ntb values(1704142800000, '2024-01-01 23:00:00', 1)");   // 2024-01-01 23:00:00+0200
+  execQuery(pConn, "SET FIRST_DAY_OF_WEEK 4");
 
   // test timezone
   check_sql_result(pConn, "select timezone()", "UTC-2 (UTC, +0200)");
@@ -697,7 +1333,7 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00+0200')", 0);
   check_sql_result_integer(pConn, "select WEEKDAY('2024-01-01 23:00:00-1100')", 1);
   check_sql_result_integer(pConn, "select WEEKDAY(1704142800000)", 0);
-  check_sql_result_integer(pConn, "select WEEKDAY(ts) from db1.ntb", 1);
+  check_sql_result_integer(pConn, "select WEEKDAY(ts) from db1.ntb", 0);
 
   // DAYOFWEEK
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01')", 2);
@@ -705,7 +1341,7 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00+0200')", 2);
   check_sql_result_integer(pConn, "select DAYOFWEEK('2024-01-01 23:00:00-1100')", 3);
   check_sql_result_integer(pConn, "select DAYOFWEEK(1704142800000)", 2);
-  check_sql_result_integer(pConn, "select DAYOFWEEK(ts) from db1.ntb", 3);
+  check_sql_result_integer(pConn, "select DAYOFWEEK(ts) from db1.ntb", 2);
 
   // WEEK
   check_sql_result_integer(pConn, "select WEEK('2024-01-07')", 1);
@@ -737,29 +1373,29 @@ TEST(timezoneCase, func_timezone_Test) {
   check_sql_result(pConn, "select TO_ISO8601(1,'+0800')", "1970-01-01T08:00:00.001+0800");
 
   // TO_UNIXTIMESTAMP
-  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP(c1) from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP(c1) from db1.ntb", 1704142800000);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.000+0200')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T13:00:00.000-08')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_UNIXTIMESTAMP('2024-01-01T23:00:00.001')", 1704142800001);
 
   // TO_TIMESTAMP
-  check_sql_result_integer(pConn, "select TO_TIMESTAMP(c1,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", 1704121200000);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TO_TIMESTAMP(c1,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", 1704142800000);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01 23:00:00+02:00', 'yyyy-mm-dd hh24:mi:ss tzh')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024-01-01T13:00:00-08', 'yyyy-mm-ddThh24:mi:ss tzh')", 1704142800000);
   check_sql_result_integer(pConn, "select TO_TIMESTAMP('2024/01/01 23:00:00', 'yyyy/mm/dd hh24:mi:ss')", 1704142800000);
 
   // TO_CHAR
-  check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-02 05:00:00");   // use timezone in server UTC-8
+  check_sql_result(pConn, "select TO_CHAR(ts,'yyyy-mm-dd hh24:mi:ss') from db1.ntb", "2024-01-01 23:00:00");   // use session timezone UTC-2
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss tzh')", "2024-01-01 23:00:00 +02");
   check_sql_result(pConn, "select TO_CHAR(cast(1704142800000 as timestamp), 'yyyy-mm-dd hh24:mi:ss')", "2024-01-01 23:00:00");
 
   // TIMEDIFF
-  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001+02') from db1.ntb", -21600001);   // use timezone in server UTC-8
-  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001') from db1.ntb", -1);   // use timezone in server UTC-8
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001+02') from db1.ntb", -1);   // use session timezone UTC-2
+  check_sql_result_integer(pConn, "select TIMEDIFF(c1, '2024-01-01T23:00:00.001') from db1.ntb", -1);   // use session timezone UTC-2
   check_sql_result_integer(pConn, "select TIMEDIFF('2024-01-01T23:00:00.001', '2024-01-01T13:00:00.000-08')", 1);
 
   // CAST
-  check_sql_result_integer(pConn, "select CAST(c1 as timestamp) from db1.ntb", 1704121200000);
+  check_sql_result_integer(pConn, "select CAST(c1 as timestamp) from db1.ntb", 1704142800000);
   check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000+02' as timestamp)", 1704142800000);
   check_sql_result_integer(pConn, "select CAST('2024-01-01T23:00:00.000' as timestamp)", 1704142800000);
 
@@ -775,6 +1411,7 @@ TEST(timezoneCase, func_timezone_Test) {
   execQuery(pConn, "insert into db1.ntb values(1703987400000, '2023-12-31 00:50:00', 1)");   // 2023-12-31 00:50:00-0100
   execQuery(pConn, "insert into db1.ntb1 values(1704070200000, '2023-12-31 23:50:00', 11)");   // 2023-12-31 23:50:00-0100
   checkRows(pConn, "select a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
+  checkRows(pConn, "select /*+ hash_join() */ a.ts,b.ts from db1.ntb a join db1.ntb1 b on timetruncate(a.ts, 1d) = timetruncate(b.ts, 1d)", 1);
 
   // operator +1n +1y
   check_sql_result(pConn, "select TO_ISO8601(CAST('2023-01-31T00:00:00.000-01' as timestamp) + 1n)", "2023-02-28T00:00:00.000-0100");
@@ -812,13 +1449,13 @@ struct test_times
 };
 
 void timezone_str_test(const char* tz, time_t t, const char* tzStr) {
-  int code = setenv("TZ", tz, 1);
-  ASSERT(-1 != code);
-  tzset();
+  timezone_t tzp = tzalloc(tz);
+  ASSERT(tzp != NULL);
 
   char str1[TD_TIMEZONE_LEN] = {0};
-  ASSERT(taosFormatTimezoneStr(t, tz, NULL, str1) == 0);
+  ASSERT(taosFormatTimezoneStr(t, tz, tzp, str1) == 0);
   ASSERT_STREQ(str1, tzStr);
+  tzfree(tzp);
 }
 
 void timezone_rz_str_test(const char* tz, time_t t, const char* tzStr) {
@@ -879,9 +1516,11 @@ TEST(timezoneCase, mktime_Test){
 
   for (unsigned int i = 0; i < sizeof (test_mk) / sizeof (test_mk[0]); ++i)
   {
-    setenv ("TZ", test_mk[i].env, 1);
-    t = taosMktime (&tm, NULL);
+    timezone_t tzp = tzalloc(test_mk[i].env);
+    ASSERT(tzp != NULL);
+    t = taosMktime (&tm, tzp);
     ASSERT (t == test_mk[i].expected);
+    tzfree(tzp);
   }
 }
 

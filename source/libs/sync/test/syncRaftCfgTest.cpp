@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "syncTest.h"
 
 void logTest() {
@@ -53,7 +70,7 @@ void test2() {
 
   SSyncCfg* pCfg2 = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
   int32_t   ret = syncCfgFromStr(s, pCfg2);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   taosMemoryFree(pCfg);
   taosMemoryFree(s);
@@ -81,15 +98,15 @@ void test3() {
 
 void test4() {
   // SRaftCfg* pCfg = raftCfgOpen("./test3_raft_cfg.json");
-  // assert(pCfg != NULL);
+  // TD_ALWAYS_ASSERT(pCfg != NULL);
 
   // int32_t ret = raftCfgClose(pCfg);
-  // assert(ret == 0);
+  // TD_ALWAYS_ASSERT(ret == 0);
 }
 
 void test5() {
   // SRaftCfg* pCfg = raftCfgOpen("./test3_raft_cfg.json");
-  // assert(pCfg != NULL);
+  // TD_ALWAYS_ASSERT(pCfg != NULL);
 
   // pCfg->cfg.myIndex = taosGetTimestampSec();
   // pCfg->isStandBy += 2;
@@ -110,7 +127,7 @@ void test5() {
   // printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);
 
   // int32_t ret = raftCfgClose(pCfg);
-  // assert(ret == 0);
+  // TD_ALWAYS_ASSERT(ret == 0);
 }
 
 int main() {

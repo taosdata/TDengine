@@ -1,0 +1,56 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+SET(PREPARE_ENV_CMD "prepare_env_cmd")
+SET(PREPARE_ENV_TARGET "prepare_env_target")
+ADD_CUSTOM_COMMAND(OUTPUT ${PREPARE_ENV_CMD}
+    COMMAND echo "make test directory"
+    DEPENDS taosd
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/cfg/
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/log/
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${TD_TESTS_OUTPUT_DIR}/data/
+    COMMAND ${CMAKE_COMMAND} -E echo firstEp localhost:6030 > ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo fqdn localhost >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo serverPort 6030 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo debugFlag 135 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo asyncLog 0 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo supportVnodes 1024 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo numOfLogLines 300000000 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo logKeepDays -1 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo checkpointInterval 60 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo snodeAddress 127.0.0.1:873 >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo dataDir ${TD_TESTS_OUTPUT_DIR}/data >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo logDir ${TD_TESTS_OUTPUT_DIR}/log  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo charset UTF-8  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMAND ${CMAKE_COMMAND} -E echo monitor 0  >> ${TD_TESTS_OUTPUT_DIR}/cfg/taos.cfg
+    COMMENT "prepare taosd environment")
+ADD_CUSTOM_TARGET(${PREPARE_ENV_TARGET} ALL WORKING_DIRECTORY ${TD_EXECUTABLE_OUTPUT_PATH} DEPENDS ${PREPARE_ENV_CMD})
+
+IF (TD_LINUX)
+  SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.sh")
+  INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
+  INSTALL(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} bash ${TD_MAKE_INSTALL_SH} ${TD_SOURCE_DIR} ${CMAKE_BINARY_DIR} Linux ${BUILD_VER_NUMBER})")
+ELSEIF (TD_WINDOWS)
+  SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.bat")
+  # cmake -E env runs the batch file directly (no cmd.exe wrapper), so the
+  # script path must use native separators.
+  FILE(TO_NATIVE_PATH "${TD_MAKE_INSTALL_SH}" TD_MAKE_INSTALL_SH_NATIVE)
+  INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
+  INSTALL(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} TD_BUILD_WITH_ODBC=${BUILD_WITH_ODBC} TD_MIMALLOC_NAME=${TD_MIMALLOC_NAME} \"TD_MIMALLOC_BIN_DIR=$<TARGET_FILE_DIR:taosd>\" \"${TD_MAKE_INSTALL_SH_NATIVE}\" :needAdmin \"${TD_SOURCE_DIR}\" \"${CMAKE_BINARY_DIR}\" Windows ${BUILD_VER_NUMBER} RESULT_VARIABLE _td_install_result)\nif(NOT _td_install_result EQUAL 0)\n  message(FATAL_ERROR \"Windows installation failed: \${_td_install_result}\")\nendif()")
+ELSEIF (TD_DARWIN)
+  SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.sh")
+  INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
+  INSTALL(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} bash ${TD_MAKE_INSTALL_SH} ${TD_SOURCE_DIR} ${CMAKE_BINARY_DIR} Darwin ${BUILD_VER_NUMBER})")
+ENDIF ()

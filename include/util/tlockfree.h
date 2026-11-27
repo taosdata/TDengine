@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -70,11 +72,16 @@ typedef volatile int32_t SRWLatch;
 
 void    taosInitRWLatch(SRWLatch *pLatch);
 void    taosWLockLatch(SRWLatch *pLatch);
+void    taosWWaitLockLatch(SRWLatch *pLatch);
 void    taosWUnLockLatch(SRWLatch *pLatch);
 void    taosRLockLatch(SRWLatch *pLatch);
 int32_t taosRTryLockLatch(SRWLatch *pLatch);
 void    taosRUnLockLatch(SRWLatch *pLatch);
+int32_t taosRUnLockLatch_r(SRWLatch *pLatch);
 int32_t taosWTryLockLatch(SRWLatch *pLatch);
+bool    taosIsOnlyWLocked(SRWLatch *pLatch);
+bool    taosHasRWWFlag(SRWLatch *pLatch);
+int32_t taosWTryForceLockLatch(SRWLatch *pLatch);
 
 // copy on read
 #define taosCorBeginRead(x)                     \

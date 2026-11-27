@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,6 +26,7 @@ extern "C" {
 #include "os.h"
 #include "planner.h"
 #include "scheduler.h"
+#include "schPhase.h"
 #include "tarray.h"
 #include "thash.h"
 #include "trpc.h"
@@ -59,7 +62,6 @@ typedef enum {
 
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 30000000
 #define SCH_MAX_TASK_TIMEOUT_USEC     300000000
-#define SCH_DEFAULT_MAX_RETRY_NUM     6
 #define SCH_MIN_AYSNC_EXEC_NUM        3
 #define SCH_DEFAULT_RETRY_TOTAL_ROUND 3
 #define SCH_DEFAULT_TASK_CAPACITY_NUM 1000
@@ -115,6 +117,7 @@ typedef struct SSchResInfo {
   schedulerExecFp  execFp;
   schedulerFetchFp fetchFp;
   void            *cbParam;
+  void            *pRequest;  // Add pointer to request object for phase tracking
 } SSchResInfo;
 
 typedef struct SSchOpEvent {
@@ -144,7 +147,7 @@ typedef struct SSchedulerCfg {
 typedef struct SSchedulerMgmt {
   uint64_t      clientId;  // unique clientId
   uint64_t      taskId;    // sequential taksId
-  uint64_t      seriousId; // sequential seriousId
+  uint64_t      seriesId; // sequential seriesId
   SSchedulerCfg cfg;
   bool          exit;
   int32_t       jobRef;
@@ -163,10 +166,11 @@ typedef struct SSchCallbackParamHeader {
 typedef struct SSchTaskCallbackParam {
   SSchCallbackParamHeader head;
   uint64_t                queryId;
-  uint64_t                seriousId;
+  uint64_t                seriesId;
   int64_t                 refId;
   uint64_t                clientId;
   uint64_t                taskId;
+  int32_t                 subJobId;
   int32_t                 execId;
   void                   *pTrans;
 } SSchTaskCallbackParam;
@@ -182,12 +186,21 @@ typedef struct SSchFlowControl {
   bool     sorted;
   int64_t  tableNumSum;
   uint32_t execTaskNum;
-  SArray  *taskList;  // Element is SSchTask*
+  SArray  *taskList;  // Element is SSchFlowTask.
 } SSchFlowControl;
+
+typedef struct SSchFlowTask {
+  int32_t subJobId;  // -1 denotes the main job.
+  struct SSchTask* pTask;
+  uint64_t seriesId;
+  int32_t execId;
+  uint64_t launchSequence;
+} SSchFlowTask;
 
 typedef struct SSchNodeInfo {
   SQueryNodeAddr addr;
   void          *handle;
+  bool           dropSent;
 } SSchNodeInfo;
 
 typedef struct SSchLevel {
@@ -210,11 +223,8 @@ typedef struct SSchTaskProfile {
 } SSchTaskProfile;
 
 typedef struct SSchRedirectCtx {
-  int32_t periodMs;
+  int32_t redirectDelayMs;
   bool    inRedirect;
-  int32_t totalTimes;
-  int32_t roundTotal;
-  int32_t roundTimes;  // retry times in current round
   int64_t startTs;
 } SSchRedirectCtx;
 
@@ -223,13 +233,14 @@ typedef struct SSchTimerParam {
   int64_t  rId;
   uint64_t queryId;
   uint64_t taskId;
+  int32_t  subJobId;
 } SSchTimerParam;
 
 typedef struct SSchTask {
   uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
-  uint64_t        seriousId;
-  uint64_t        failedSeriousId;
+  uint64_t        seriesId;
+  uint64_t        failedSeriesId;
   SRWLatch        lock;            // task reentrant lock
   int32_t         maxExecTimes;    // task max exec times
   int32_t         maxRetryTimes;   // task max retry times
@@ -238,6 +249,14 @@ typedef struct SSchTask {
   tmr_h           delayTimer;      // task delay execution timer
   SSchRedirectCtx redirectCtx;     // task redirect context
   bool            waitRetry;       // wait for retry
+  int8_t          outputPublished;  // This attempt's output is visible to a parent task or to FETCH.
+  bool            waitingSubquery;  // Protected by the parent subJobLock.
+  int32_t         nextSubqueryDep;   // Next input to check when the current producer finishes.
+  int8_t          flowQueued;
+  int8_t          flowQuotaHeld;
+  SEp             flowEp;
+  int32_t         flowTableNum;
+  uint64_t        launchSequence;
   int32_t         execId;          // task current execute index
   int32_t         failedExecId;    // last failed task execute index
   SSchLevel      *level;           // level
@@ -261,13 +280,19 @@ typedef struct SSchTask {
   SSchTimerParam  delayLaunchPar; 
 } SSchTask;
 
+typedef enum {
+  JOB_TYPE_INSERT = 0x01,
+  JOB_TYPE_QUERY  = 0x02,
+  JOB_TYPE_HQUERY = 0x04,  // high-priority query is also a query.
+} EJobType;
+
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
-  bool         queryJob;
-  bool         insertJob;
+  EJobType     type;  // job type 
   bool         needFetch;
   bool         needFlowCtrl;
   bool         localExec;
+  bool         inlineTaskLaunch;
 } SSchJobAttr;
 
 typedef struct {
@@ -276,14 +301,40 @@ typedef struct {
   bool     syncReq;
 } SSchOpStatus;
 
+typedef struct SSchMainResult {
+  SSchTask* task;
+  uint64_t  seriesId;
+  int32_t   execId;
+} SSchMainResult;
+
 typedef struct SSchJob {
   int64_t          refId;
   uint64_t         queryId;
-  uint64_t         seriousId;
+  uint64_t         seriesId;
   SSchJobAttr      attr;
+  int8_t          execDispatched;
+  void*            parent;
+  int32_t          subJobId;
+  int32_t          subJobExecIdx;
+  int32_t          subJobDoneNum;
+  bool             concurrentSubJobs;
+  bool             earlyMainTasks;
+  SSchMainResult   pendingMainResult;
+  uint64_t         invalidatedMainSeries;  // Protected by subJobLock.
+  SArray*          waitingMainTasks;  // SSchFlowTask snapshots awaiting this producer.
+  SRWLatch         subJobLock;
+  int32_t          pendingDependencies;
+  SArray*          dependentJobs;  // Owned int32_t child job indices.
+  bool             subJobStarted;
+  bool             resultReady;
+  bool             subJobRestarting;
+  uint64_t         launchedSeriesId;
+  int8_t           stopScheduled;
+  SRWLatch         flowLock;
   int32_t          levelNum;
   int32_t          taskNum;
   SRequestConnInfo conn;
+  SArray          *subJobs;
   SArray          *nodeList;  // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SQueryPlan      *pDag;
@@ -294,6 +345,7 @@ typedef struct SSchJob {
   SEpSet    dataSrcEps;
   SHashObj *taskList;
   SHashObj *execTasks;  // executing and executed tasks, key:taskid, value:SQueryTask*
+  struct SSchTaskCtx *inlineFlowTasks;  // Protected by flowLock.
   SHashObj *flowCtrl;   // key is ep, element is SSchFlowControl
 
   SExplainCtx         *explainCtx;
@@ -313,22 +365,87 @@ typedef struct SSchJob {
   bool                 fetched;
   bool                 noMoreRetry;
   int64_t              resNumOfRows;  // from int32_t to int64_t
+  // Objects touched by a bulk DDL, accumulated across per-vgroup responses. Surfaced via
+  // SExecResult::numTouchedObjects for the client's per-object txn DDL accounting.
+  int32_t              resNumTouchedObjects;
   SSchResInfo          userRes;
+  void (*cbParamFreeFp)(void*);
   char                *sql;
   SQueryProfileSummary summary;
   int8_t               source;
+  int8_t               secureDelete;
   void                *pWorkerCb;
+  // Query phase pair and its seqlock guard. These four fields describe one
+  // logical snapshot: (execPhase, phaseStartTime) is published under
+  // phaseWriteLock, while phaseSeq is odd when a writer updates the pair and
+  // even when it is stable. Readers use schReadJobPhase() so show queries
+  // never pair a new phase with the previous stage's start time.
+  //
+  // Do NOT write execPhase/phaseStartTime directly. Every update must go
+  // through schPublishJobPhase(), schPublishJobPhaseIfChanged() or
+  // schCasJobPhase() in schJob.c, otherwise the seqlock snapshot is broken.
+  // Plain int32_t is intentional (same as the other atomic lock words in this
+  // codebase, e.g. gConvLock): the atomic API takes int32_t volatile *, and
+  // qualifier addition on the way in is a valid conversion, so no cast or
+  // volatile field is needed.
+  int32_t              execPhase;      // Add phase tracking for query execution
+  int64_t              phaseStartTime; // When current phase started (ms)
+  int32_t              phaseWriteLock;
+  int32_t              phaseSeq;       // odd while a phase writer updates the pair
+  int64_t              txnId;          // batch meta txn ID for same-txn visibility
+  int8_t               firstDayOfWeek; /* 0-6, resolved by client before dispatch */
+  SCorrelationExecution correlation;
+  SArray              *pCorrelationParamDefs;
+  SArray              *pCorrelationParamValues;
+  char                *pCorrelationTemplates;
+  uint32_t             correlationTemplatesLen;
+  char                *pCorrelationTimeInit;
+  uint32_t             correlationTimeInitLen;
+  SArray              *pExternalSubquerySources;  // Owned SDownstreamSourceNode* entries on the parent job.
 } SSchJob;
 
 typedef struct SSchTaskCtx {
   int64_t   jobRid;
+  int32_t   subJobId;
   SSchTask *pTask;
-  bool      asyncLaunch;
+  bool      lockTask;
+  struct SSchTaskCtx *nextInline;
+  SSchJob*  pParent;  // Owns a job reference until launch returns.
+  uint64_t  seriesId;
+  int32_t   execId;
+  uint64_t  launchSequence;
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;
 
 #define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
+
+// Job phase tracking. All writers publish the (phase, startTime) pair through
+// these helpers, which serialize on phaseWriteLock and use a seqlock sequence
+// so readers never observe a torn pair. A phase transition is a few atomics,
+// so the bounded read retry is normally not consumed.
+#define SCH_PHASE_READ_RETRY_TIMES 16
+// Writer-lock waits beyond this many attempts are reported and back off from
+// 1ms to 10ms sleeps: the critical section only performs atomics, so a longer
+// wait means the holder was preempted rather than blocked.
+#define SCH_PHASE_LOCK_SPIN_TIMES 1000
+// Resampled CAS attempts when promoting a parent out of its subjob execution
+// phase. The sample and the CAS are not atomic, so a concurrent move inside
+// the execute main phase is retried instead of leaving the parent stuck on an
+// intermediate execute sub-phase.
+#define SCH_PHASE_PROMOTE_RETRY_TIMES 4
+
+void schPublishJobPhase(SSchJob *pJob, int32_t phase);
+void schPublishJobPhaseIfChanged(SSchJob *pJob, int32_t newPhase, bool keepTime);
+bool schCasJobPhase(SSchJob *pJob, int32_t expected, int32_t newPhase, bool keepTime);
+void schReadJobPhase(SSchJob *pJob, int32_t *pPhase, int64_t *pStartTime);
+
+#define SCH_SET_JOB_PHASE(_job, _phase) schPublishJobPhase((_job), (_phase))
+#define SCH_UPDATE_JOB_PHASE_IF_CHANGED(_job, _newPhase) \
+  schPublishJobPhaseIfChanged((_job), (_newPhase), false)
+
+#define SCH_GET_JOB_PHASE(_job) atomic_load_32(&(_job)->execPhase)
+#define SCH_GET_JOB_PHASE_START_TIME(_job) atomic_load_64(&(_job)->phaseStartTime)
 
 #define SCH_TASK_TIMEOUT(_task) \
   ((taosGetTimestampUs() - *(int64_t *)taosArrayGet((_task)->profile.execTime, (_task)->execId)) > (_task)->timeoutUsec)
@@ -351,6 +468,12 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_LOCAL_EXEC_TASK(_job, _task)                                          \
   ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && \
    (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
+#define SCH_IS_ROOT_TASK(_task) (0 == (_task)->level->level)   
+
+#define SCH_IS_PARENT_JOB(job) (NULL == (job)->parent) 
+#define SCH_IS_SUBQ_JOB(job) ((job)->subJobId >= 0) 
+#define SCH_JOB_GOT_SUB_JOBS(job) (NULL != (job)->subJobs && taosArrayGetSize((job)->subJobs) > 0)
+#define SCH_SUB_JOBS_EXEC_FINISHED(job, dn) ((dn) == (job)->subJobs->size)
 
 #define SCH_UPDATE_REDIRECT_CODE(job, _code) (void)atomic_val_compare_exchange_32(&((job)->redirectCode), 0, _code)
 #define SCH_GET_REDIRECT_CODE(job, _code) \
@@ -370,6 +493,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_GET_JOB_STATUS(job)     atomic_load_8(&(job)->status)
 #define SCH_GET_JOB_STATUS_STR(job) jobTaskStatusStr(SCH_GET_JOB_STATUS(job))
 
+#define SCH_JOB_EXPLAIN_CTX(job) ((job)->parent ? ((SSchJob*)(job)->parent)->explainCtx : (job)->explainCtx)
+#define SCH_PARENT_JOB(job) (SCH_IS_PARENT_JOB(job) ? (job) : (SSchJob*)job->parent)
+
 #define SCH_JOB_IN_SYNC_OP(job) ((job)->opStatus.op && (job)->opStatus.syncReq)
 #define SCH_JOB_IN_ASYNC_EXEC_OP(job)                                                                \
   ((SCH_OP_EXEC == atomic_val_compare_exchange_32(&(job)->opStatus.op, SCH_OP_EXEC, SCH_OP_NULL)) && \
@@ -386,16 +512,10 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_TASK_NEED_FETCH(_task)     ((_task)->plan->subplanType != SUBPLAN_TYPE_MODIFY)
 #define SCH_MULTI_LEVEL_LAUNCHED(_job) ((_job)->levelIdx != ((_job)->levelNum - 1))
 
-#define SCH_SET_JOB_TYPE(_job, type)     \
-  do {                                   \
-    if ((type) != SUBPLAN_TYPE_MODIFY) { \
-      (_job)->attr.queryJob = true;      \
-    } else {                             \
-      (_job)->attr.insertJob = true;     \
-    }                                    \
-  } while (0)
-#define SCH_IS_QUERY_JOB(_job)   ((_job)->attr.queryJob)
-#define SCH_IS_INSERT_JOB(_job)  ((_job)->attr.insertJob)
+void schSetJobType(SSchJob* pJob, ESubplanType type);
+
+#define SCH_IS_QUERY_JOB(_job)   (((_job)->attr.type & JOB_TYPE_QUERY) != 0 || (((_job)->attr.type & JOB_TYPE_HQUERY) != 0))
+#define SCH_IS_INSERT_JOB(_job)  (((_job)->attr.type & JOB_TYPE_INSERT) != 0)
 #define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
 #define SCH_JOB_NEED_WAIT(_job)  (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job)  (SCH_IS_QUERY_JOB(_job))
@@ -423,9 +543,13 @@ extern SSchedulerMgmt schMgmt;
   (SCH_REDIRECT_MSGTYPE(_msgType) &&                                                               \
    (NEED_SCHEDULER_REDIRECT_ERROR(_code) || SCH_LOW_LEVEL_NETWORK_ERR((_job), (_task), (_code)) || \
     SCH_TASK_RETRY_NETWORK_ERR((_task), (_code))))
-#define SCH_TASK_NEED_RETRY(_msgType, _code) \
-  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_NETWORK_ERR(_code)) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
 
+#define SCH_TASK_NEED_RETRY(_msgType, _code) \
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+
+#define SCH_DATA_BIND_TASK_NEED_RETRY(_job, _task, _msgType, _code) \
+  ((SCH_REDIRECT_MSGTYPE(_msgType) && SCH_IS_DATA_BIND_TASK(_task) && (SCH_NETWORK_ERR(_code) || NEED_SCHEDULER_REDIRECT_ERROR(_code))) || (_code) == TSDB_CODE_SCH_TIMEOUT_ERROR)
+   
 #define SCH_IS_LEVEL_UNFINISHED(_level) ((_level)->taskLaunchedNum < (_level)->taskNum)
 #define SCH_GET_CUR_EP(_addr)           (&(_addr)->epSet.eps[(_addr)->epSet.inUse])
 #define SCH_SWITCH_EPSET(_addr)         ((_addr)->epSet.inUse = ((_addr)->epSet.inUse + 1) % (_addr)->epSet.numOfEps)
@@ -462,24 +586,28 @@ extern SSchedulerMgmt schMgmt;
     (_task)->profile.endTs = us;                                                 \
   } while (0)
 
-#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ",SID:%" PRId64 " " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
-#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 " " param, pJob->queryId, pJob->seriousId, __VA_ARGS__)
+#define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
+#define SCH_JOB_TLOG(param, ...) qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", " param, pJob->queryId, pJob->subJobId, pJob->seriesId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...)                                                                                    \
-  qError("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qError("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...)                                                                                    \
-  qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qDebug("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_TLOG(param, ...)                                                                                    \
-  qTrace("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qTrace("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_DLOGL(param, ...)                                                                                    \
-  qDebugL("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qDebugL("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
           SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...)                                                                                   \
-  qWarn("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, pJob->queryId, pJob->seriousId, SCH_CLIENT_ID(pTask), \
+  qWarn("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
         SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
+#define SCH_TASK_ILOG(param, ...)                                                                                   \
+  qInfo("QID:0x%" PRIx64 ", SUBID:%d, SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d, " param, pJob->queryId, pJob->subJobId, pJob->seriesId, SCH_CLIENT_ID(pTask), \
+          SCH_TASK_ID(pTask), SCH_TASK_EID(pTask), __VA_ARGS__)
 
 #define SCH_SET_ERRNO(_err)                     \
   do {                                          \
@@ -579,10 +707,10 @@ extern SSchedulerMgmt schMgmt;
     }                                                                                                 \
   } while (0)
 
-#define SCH_RESET_JOB_LEVEL_IDX(_job)                         \
-  do {                                                        \
-    (_job)->levelIdx = (_job)->levelNum - 1;                  \
-    SCH_JOB_DLOG("set job levelIdx to %d", (_job)->levelIdx); \
+#define SCH_RESET_JOB_LEVEL_IDX(_job)                                                       \
+  do {                                                                                      \
+    (_job)->levelIdx = (_job)->levelNum - 1;                                                \
+    qTrace("QID:0x%" PRIx64 ", job levelIdx set to %d", (_job)->queryId, (_job)->levelIdx); \
   } while (0)
 
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
@@ -590,15 +718,26 @@ void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
+int32_t  schBuildSubJobEndpoints(SSchTask *task, SArray** ppRes, SSchJob* target);
 int32_t  schAcquireJob(int64_t refId, SSchJob **ppJob);
 int32_t  schReleaseJob(int64_t refId);
 int32_t  schReleaseJobEx(int64_t refId, int32_t *released);
 void     schFreeFlowCtrl(SSchJob *pJob);
 int32_t  schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
+int32_t  schInitJobFlowCtrl(SSchJob *pJob);
+int32_t  schInitJobDependencies(SSchJob *pJob);
+int32_t  schLaunchReadySubJobs(SSchJob *pJob);
+void     schStopQueryTasks(SSchJob *pJob);
+void     schDropJobAllTasks(SSchJob *pJob);
 int32_t  schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
 int32_t  schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t  schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t  schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
+void     schPromoteParentForSubJobs(SSchJob *pParent);
+void     schEnterFetchPhase(SSchJob *pJob);
+void     schDrainInlineFlowTasks(SSchJob *pJob);
+int32_t  schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask);
+int32_t  schAsyncLaunchFlowTask(SSchJob *pJob, const SSchFlowTask *pEntry);
 int32_t  schLaunchFetchTask(SSchJob *pJob);
 int32_t  schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t  schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction);
@@ -619,7 +758,7 @@ void     schProcessOnDataFetched(SSchJob *job);
 int32_t  schGetTaskInJob(SSchJob *pJob, uint64_t taskId, SSchTask **pTask);
 void     schFreeRpcCtxVal(const void *arg);
 int32_t  schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *brokenVal, bool isHb);
-int32_t  schAppendTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t execId);
+int32_t  schAllocTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr);
 int32_t  schExecStaticExplainJob(SSchedulerReq *pReq, int64_t *job, bool sync);
 int32_t  schUpdateJobStatus(SSchJob *pJob, int8_t newStatus);
 int32_t  schCancelJob(SSchJob *pJob);
@@ -629,7 +768,7 @@ void     schCloseJobRef(void);
 int32_t  schAsyncExecJob(SSchedulerReq *pReq, int64_t *pJob);
 int32_t  schJobFetchRows(SSchJob *pJob);
 int32_t  schJobFetchRowsA(SSchJob *pJob);
-int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriousId, int32_t execId);
+int32_t  schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, void *handle, uint64_t seriesId, int32_t execId);
 int32_t  schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList);
 int32_t  schDumpEpSet(SEpSet *pEpSet, char **ppRes);
 char    *schGetOpStr(SCH_OP_TYPE type);
@@ -642,7 +781,7 @@ int32_t  schHandleTaskSetRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, 
 void     schProcessOnOpEnd(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq, int32_t errCode);
 int32_t  schProcessOnOpBegin(SSchJob *pJob, SCH_OP_TYPE type, SSchedulerReq *pReq);
 void     schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
-int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, uint64_t tId);
+int32_t  schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_t rId, int32_t sjId, uint64_t tId);
 void     schDropTaskOnExecNode(SSchJob *pJob, SSchTask *pTask);
 bool     schJobDone(SSchJob *pJob);
 int32_t  schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask);
@@ -673,8 +812,15 @@ int32_t  schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
 int32_t  schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode);
 int32_t  schChkResetJobRetry(SSchJob *pJob, int32_t rspCode);
 void     schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask);
-int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, SEpSet *pEpSet, int32_t rspCode);
+int32_t  schChkUpdateRedirectCtx(SSchJob *pJob, SSchTask *pTask, bool resetRetry);
 int32_t  schNotifyJobAllTasks(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
+int32_t  schFailedTaskNeedRetry(SSchTask *pTask, SSchJob *pJob, int32_t rspCode);
+int32_t  schGetTaskCurrentNodeAddr(SSchTask *pTask, SSchJob *pJob, SQueryNodeAddr **ppAddr);
+// Returns true only for a pure VNode scan that may run on a follower replica.
+bool     schTaskAllowFollowerRead(const SSchJob *pJob, const SSchTask *pTask);
+int32_t  schLaunchJobImpl(SSchJob *pJob);
+int32_t  schLaunchJob(SSchJob *pJob);
+int32_t  schProcessOnSubJobSuccess(SSchJob *pJob);
 
 extern SSchDebug gSCHDebug;
 

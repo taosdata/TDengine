@@ -1,0 +1,4 @@
+# Keep the runtime builder context minimal; update this allowlist when the Dockerfile COPY set changes.
+*
+!Dockerfile.python-runtime
+!build_python_runtime_linux.sh

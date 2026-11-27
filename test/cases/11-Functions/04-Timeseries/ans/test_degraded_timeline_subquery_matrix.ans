@@ -1,0 +1,204 @@
+
+taos> USE test_pk_matrix;
+Database changed.
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(val) d FROM (SELECT b.ts event_time, b.val val FROM t_join_l a JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     1 |                     3 |
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(val) d FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val FROM t_join_l a LEFT JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     3 |                     3 |
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(val) d FROM (SELECT a.ts event_time, IFNULL(b.val, a.val) val FROM t_join_l a RIGHT JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     3 |                     5 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val FROM t_join_l a LEFT JOIN t_join_r b ON a.ts = b.ts) INTERVAL(2s));
+         rows          |         total         |
+================================================
+                     2 |                     2 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT a.ts event_time, IFNULL(b.val, a.val) val FROM t_join_l a RIGHT JOIN t_join_r b ON a.ts = b.ts) INTERVAL(2s));
+         rows          |         total         |
+================================================
+                     2 |                     2 |
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(val) d FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     5 |                     5 |
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(c1) d FROM (SELECT b.ts, b.val c1 FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     5 |                     5 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT csum(val) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     6 |                    71 |
+
+taos> SELECT count(*) AS rows, sum(m) AS total FROM (SELECT mavg(val, 2) m FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |           total           |
+====================================================
+                     5 |                      20.5 |
+
+taos> SELECT count(*) AS rows, sum(sc) AS total FROM (SELECT statecount(val, 'GE', 5) sc FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     6 |                     3 |
+
+taos> SELECT count(l) AS rows, sum(l) AS total FROM (SELECT lag(val, 1) l FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     5 |                    18 |
+
+taos> SELECT count(l) AS rows, sum(l) AS total FROM (SELECT lead(val, 1) l FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     5 |                    23 |
+
+taos> SELECT count(*) AS rows, sum(f) AS total FROM (SELECT fill_forward(val) f FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     6 |                    25 |
+
+taos> SELECT first(val) AS first_v, last(val) AS last_v, last_row(val) AS last_row_v, elapsed(event_time, 1s) AS elapsed_v, irate(val) AS irate_v FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts);
+
+DB error: Function 'elapsed' requires valid time series input [0x8000264F] 
+taos> SELECT count(*) AS rows, sum(t) AS total FROM (SELECT tail(val, 2) t FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |         total         |
+================================================
+                     2 |                    12 |
+
+taos> SELECT count(*) AS rows FROM (SELECT unique(val) FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts));
+         rows          |
+========================
+                     4 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts);
+
+DB error: Function 'derivative' requires valid time series input [0x8000264F] 
+taos> SELECT stateduration(val, 'GE', 5, 1s) FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts);
+
+DB error: Function 'stateduration' requires valid time series input [0x8000264F] 
+taos> SELECT twa(val) FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts);
+
+DB error: Function 'twa' requires valid time series input [0x8000264F] 
+taos> SELECT interp(val) FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) RANGE('2024-07-01 00:00:00', '2024-07-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+DB error: Function 'interp' requires valid time series input [0x8000264F] 
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) INTERVAL(2s));
+         rows          |         total         |
+================================================
+                     3 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) SESSION(event_time, 1s));
+         rows          |         total         |
+================================================
+                     3 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) STATE_WINDOW(st));
+         rows          |         total         |
+================================================
+                     2 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) EVENT_WINDOW START WITH val >= 5 END WITH val >= 7);
+         rows          |         total         |
+================================================
+                     1 |                     2 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT b.ts event_time, IFNULL(b.val, a.val) val, CASE WHEN IFNULL(b.val, a.val) >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l a FULL JOIN t_join_r b ON a.ts = b.ts) COUNT_WINDOW(2));
+         rows          |         total         |
+================================================
+                     2 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(d) AS total FROM (SELECT diff(val) d FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     5 |                     5 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT csum(val) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     6 |                    71 |
+
+taos> SELECT count(*) AS rows, sum(m) AS total FROM (SELECT mavg(val, 2) m FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |           total           |
+====================================================
+                     5 |                      20.5 |
+
+taos> SELECT count(*) AS rows, sum(sc) AS total FROM (SELECT statecount(val, 'GE', 5) sc FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     6 |                     3 |
+
+taos> SELECT count(l) AS rows, sum(l) AS total FROM (SELECT lag(val, 1) l FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     5 |                    18 |
+
+taos> SELECT count(l) AS rows, sum(l) AS total FROM (SELECT lead(val, 1) l FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     5 |                    23 |
+
+taos> SELECT count(*) AS rows, sum(f) AS total FROM (SELECT fill_forward(val) f FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     6 |                    25 |
+
+taos> SELECT first(val) AS first_v, last(val) AS last_v, last_row(val) AS last_row_v, elapsed(event_time, 1s) AS elapsed_v, irate(val) AS irate_v FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord);
+
+DB error: Function 'elapsed' requires valid time series input [0x8000264F] 
+taos> SELECT count(*) AS rows, sum(t) AS total FROM (SELECT tail(val, 2) t FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |         total         |
+================================================
+                     2 |                    12 |
+
+taos> SELECT count(*) AS rows FROM (SELECT unique(val) FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord));
+         rows          |
+========================
+                     4 |
+
+taos> SELECT derivative(val, 1s, 0) FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord);
+
+DB error: Function 'derivative' requires valid time series input [0x8000264F] 
+taos> SELECT stateduration(val, 'GE', 5, 1s) FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord);
+
+DB error: Function 'stateduration' requires valid time series input [0x8000264F] 
+taos> SELECT twa(val) FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord);
+
+DB error: Function 'twa' requires valid time series input [0x8000264F] 
+taos> SELECT interp(val) FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) RANGE('2024-07-01 00:00:00', '2024-07-01 00:00:05') EVERY(1s) FILL(LINEAR);
+
+DB error: Function 'interp' requires valid time series input [0x8000264F] 
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) INTERVAL(2s));
+         rows          |         total         |
+================================================
+                     3 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) SESSION(event_time, 1s));
+         rows          |         total         |
+================================================
+                     3 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) STATE_WINDOW(st));
+         rows          |         total         |
+================================================
+                     2 |                     4 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) EVENT_WINDOW START WITH val >= 5 END WITH val >= 7);
+         rows          |         total         |
+================================================
+                     1 |                     2 |
+
+taos> SELECT count(*) AS rows, sum(c) AS total FROM (SELECT count(*) c FROM (SELECT event_time, val, st FROM (SELECT 1 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:00' UNION ALL SELECT 2 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:01' UNION ALL SELECT 3 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:02' UNION ALL SELECT 4 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:03' UNION ALL SELECT 5 ord, NULL event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_l WHERE ts = '2024-07-01 00:00:04' UNION ALL SELECT 6 ord, ts event_time, val, CASE WHEN val >= 5 THEN 'b' ELSE 'a' END st FROM t_join_r WHERE ts = '2024-07-01 00:00:05') ORDER BY ord) COUNT_WINDOW(2));
+         rows          |         total         |
+================================================
+                     2 |                     4 |
+

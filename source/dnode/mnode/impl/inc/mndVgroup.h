@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,12 +26,25 @@ extern "C" {
 
 int32_t  mndInitVgroup(SMnode *pMnode);
 void     mndCleanupVgroup(SMnode *pMnode);
+
+// Format a byte count into a human-readable string (B/KB/MB/GB/TB, 1 decimal place).
+// bytes: input byte count; buf/bufLen: output buffer.
+// The return value follows snprintf semantics: on success it returns the number of characters
+// written (excluding '\0'); when the buffer is too small and truncation occurs it returns the
+// full length that would have been written; on invalid args (buf is NULL or bufLen<=0) it returns 0.
+int32_t  mndBytesToHuman(int64_t bytes, char *buf, int32_t bufLen);
 SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
+// Same as mndAcquireVgroup, but also returns vgroups in any non-READY status: CREATING inside an
+// unfinished create-db transaction, DROPPING, or already DROPPED.
+SVgObj  *mndAcquireVgroupNotReady(SMnode *pMnode, int32_t vgId);
 void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 SEpSet   mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId);
+// lookupCode must be non-NULL and receives only the vgroup lookup status;
+// an existing vgroup may have no endpoints. Preserves replica endpoint order.
+SEpSet   mndGetVgroupEpsetByIdWithStatus(SMnode *pMnode, int32_t vgId, int32_t *lookupCode);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 void     mndSortVnodeGid(SVgObj *pVgroup);
 int64_t  mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId);
@@ -47,7 +62,13 @@ int32_t mndSetMoveVgroupsInfoToTrans(SMnode *, STrans *pTrans, int32_t dropDnode
 int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
                                   SArray *pArray, SVgObj* pNewVgroup);
 int32_t mndBuildCompactVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t compactTs,
-                                    STimeWindow tw);
+                                    STimeWindow tw, bool metaOnly, bool force, ETsdbOpType type,
+                                    ETriggerType triggerType);
+int32_t mndBuildTrimVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, int64_t startTs,
+                                 STimeWindow tw, ETsdbOpType type, ETriggerType triggerType);
+int32_t mndBuildSsMigrateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
+                                      SSsMigrateObj *pMigrateObj);
+
 int32_t mndBuildRaftAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb, SVgObj *pVgroup,
                                   SArray *pArray);
 

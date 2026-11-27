@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,6 +28,9 @@ extern "C" {
 typedef struct SRpcMsg        SRpcMsg;
 typedef struct SMgmtWrapper   SMgmtWrapper;
 typedef struct SRpcHandleInfo SRpcHandleInfo;
+typedef struct SCorrelationRuntime     SCorrelationRuntime;
+typedef struct SCorrelationRuntimeOps  SCorrelationRuntimeOps;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
 
 typedef enum {
   QUERY_QUEUE,
@@ -36,10 +41,15 @@ typedef enum {
   APPLY_QUEUE,
   SYNC_QUEUE,
   SYNC_RD_QUEUE,
-  STREAM_QUEUE,
   ARB_QUEUE,
-  STREAM_CTRL_QUEUE,
   STREAM_LONG_EXEC_QUEUE,
+  STREAM_CHKPT_QUEUE,
+  MND_STREAM_MGMT_QUEUE,
+  STREAM_RUNNER_QUEUE,
+  STREAM_READER_QUEUE,
+  STREAM_TRIGGER_QUEUE,
+  AUDIT_QUEUE,
+  BACKUP_QUEUE,
   QUEUE_MAX,
 } EQueueType;
 
@@ -60,6 +70,9 @@ typedef struct {
   void*                   serverRpc;
   void*                   statusRpc;
   void*                   syncRpc;
+  // Borrowed from SDnode. Both fields are NULL or valid together; SMsgCb never releases them.
+  SCorrelationRuntime*          pCorrelationRuntime;
+  const SCorrelationRuntimeOps* pCorrelationOps;
   PutToQueueFp            putToQueueFp;
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;

@@ -1,0 +1,4 @@
+USE file_src_db;
+SELECT grp, SUM(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;
+SELECT grp, MIN(val), MAX(val), SUM(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;
+SELECT grp, COUNT(val) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_groups.csv', 'ts TIMESTAMP, grp VARCHAR(4), val INT') f GROUP BY grp ORDER BY grp;

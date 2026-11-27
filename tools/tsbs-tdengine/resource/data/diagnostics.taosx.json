@@ -1,0 +1,29 @@
+{
+  "global": {
+    "written_concurrent": 1
+  },
+  "parse": {
+    "ts": { "as": "TIMESTAMP(ms)" },
+    "latitude": { "as": "DOUBLE" },
+    "longitude": { "as": "DOUBLE" },
+    "elevation": { "as": "DOUBLE" },
+    "velocity": { "as": "DOUBLE" },
+    "heading": { "as": "DOUBLE" },
+    "grade": { "as": "DOUBLE" },
+    "fuel_consumption": { "as": "DOUBLE" },
+    "name": { "as": "VARCHAR(30)" },
+    "fleet": { "as": "VARCHAR(30)" },
+    "driver": { "as": "VARCHAR(30)" },
+    "model": { "as": "VARCHAR(30)" },
+    "device_version": { "as": "VARCHAR(30)" },
+    "load_capacity": { "as": "DOUBLE" },
+    "fuel_capacity": { "as": "DOUBLE" },
+    "nominal_fuel_consumption": { "as": "DOUBLE" }
+  },
+  "model": {
+    "name": "${name}",
+    "using": "diagnostics",
+    "tags": ["name","fleet","driver","model","device_version","load_capacity","fuel_capacity","nominal_fuel_consumption" ],
+    "columns": ["ts","fuel_state","current_load","status"]
+  }
+}

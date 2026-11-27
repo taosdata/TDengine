@@ -1,5 +1,23 @@
+/*
+ * Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package com.taosdata;
 
+import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.tmq.TMQConstants;
 
 import java.sql.Connection;
@@ -30,6 +48,8 @@ public class ConsumerDemo {
         prop.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
         prop.setProperty(TMQConstants.GROUP_ID, "gId");
         prop.setProperty(TMQConstants.VALUE_DESERIALIZER, "com.taosdata.BeanDeserializer");
+        prop.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
+
         for (int i = 0; i < config.getConsumerNum() - 1; i++) {
             new Thread(new Worker(prop, config)).start();
         }
@@ -39,7 +59,7 @@ public class ConsumerDemo {
     public static void mockData() throws SQLException {
         String dbName = "test_consumer";
         String tableName = "st";
-        String url = "jdbc:TAOS-RS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata&batchfetch=true";
+        String url = "jdbc:TAOS-WS://" + TAOS_HOST + ":" + TAOS_PORT + "/?user=root&password=taosdata&varcharAsString=true";
         Connection connection = DriverManager.getConnection(url);
         Statement statement = connection.createStatement();
         statement.executeUpdate("create database if not exists " + dbName + " WAL_RETENTION_PERIOD 3650");

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,6 +20,7 @@
 
 #include "dmUtil.h"
 #include "mnode.h"
+#include "sdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,21 +33,28 @@ typedef struct SMnodeMgmt {
   const char    *path;
   const char    *name;
   SSingleWorker  queryWorker;
+  SSingleWorker  mqueryWorker;
   SSingleWorker  fetchWorker;
   SSingleWorker  readWorker;
   SSingleWorker  statusWorker;
   SSingleWorker  writeWorker;
+  SSingleWorker  xnodeCreateWorker;
   SSingleWorker  arbWorker;
   SSingleWorker  syncWorker;
   SSingleWorker  syncRdWorker;
+  SSingleWorker       auditWorker;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
+  SWWorkerPool        streamReaderPool;  
+  STaosQueue         *pStreamReaderQ;
+  SDispatchWorkerPool streamMgmtWorkerPool;
 } SMnodeMgmt;
 
 // mmFile.c
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
 int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
+int32_t mndSetEncryptedFlag(SSdb *pSdb);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
@@ -55,6 +65,7 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToXnodeCreateQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToArbQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToSyncRdQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
@@ -63,6 +74,11 @@ int32_t mmPutMsgToStatusQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
+int32_t mmPutMsgToStreamMgmtQueue(SMnodeMgmt* pMgmt, SRpcMsg* pMsg);
+int32_t mmPutMsgToStreamReaderQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutMsgToAuditQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+
+int32_t mndProcessStreamHb(SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

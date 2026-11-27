@@ -1,8 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install tdengine rpm package on centos systems. The operating system
-# is required to use systemd to manage services at boot
-# set -x
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 iplist=""
 serverFqdn=""
@@ -104,6 +115,8 @@ fi
 
 function log_print(){
   now=$(date +"%D %T")
+  # Keep logs writable by non-root client tools until package installation
+  # uses a dedicated service user and group.
   ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
   ${csudo} touch ${install_log_path}
   echo "$now  $1" >> ${install_log_path}
@@ -205,20 +218,50 @@ function install_lib() {
     log_print "start install lib from ${lib_dir} to ${lib_link_dir}"
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative* || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative* || :
 
-    [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
-    [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
     ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext} 2>>${install_log_path} || return 1
+    if [ "$osType" = "Darwin" ]; then
+      # The pkg payload may already include the alias from make install.
+      # Never feed both that alias and its versioned target to ln.
+      for native_lib in "${lib_dir}"/libtaosnative.[0-9]*.dylib; do
+        [ -f "$native_lib" ] || continue
+        ${csudo}ln -sf "$(basename "$native_lib")" "${lib_dir}/libtaosnative.dylib" || return 1
+      done
+      ${csudo}ln -s "${lib_dir}/libtaosnative.dylib" ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+    else
+      ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+    fi
+    ${csudo}ln -s ${lib_link_dir}/libtaosnative.${lib_file_ext_1} ${lib_link_dir}/libtaosnative.${lib_file_ext} 2>>${install_log_path} || return 1
 
-    [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
+    if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
+      ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
+    fi
 
-    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
+    if ls ${lib_dir}/libtaospyudf.* > /dev/null 2>&1; then
+      ${csudo}rm -f ${lib_link_dir}/libtaospyudf.${lib_file_ext} || :
+      ${csudo}ln -sf ${lib_dir}/libtaospyudf.* ${lib_link_dir}/libtaospyudf.${lib_file_ext} ||:
+    fi
+
+    if [[ "$osType" != "Darwin" && -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1} 2>>${install_log_path} || return 1
       ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}  2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} 2>>${install_log_path} || return 1
+      ${csudo}ln -s ${lib64_link_dir}/libtaosnative.${lib_file_ext_1} ${lib64_link_dir}/libtaosnative.${lib_file_ext}  2>>${install_log_path} || return 1
 
-      [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
+      if ls ${lib_dir}/libtaosws.* > /dev/null 2>&1; then 
+        ${csudo}ln -sf ${lib_dir}/libtaosws.* ${lib64_link_dir}/libtaosws.${lib_file_ext} 2>>${install_log_path}
+      fi
+
+      if ls ${lib_dir}/libtaospyudf.* > /dev/null 2>&1; then
+        ${csudo}rm -f ${lib64_link_dir}/libtaospyudf.${lib_file_ext} || :
+        ${csudo}ln -sf ${lib_dir}/libtaospyudf.* ${lib64_link_dir}/libtaospyudf.${lib_file_ext} 2>>${install_log_path}
+      fi
     fi
 
     if [ "$osType" != "Darwin" ]; then
@@ -233,7 +276,9 @@ function install_bin() {
     log_print "start install bin from ${bin_dir} to ${bin_link_dir}"
     ${csudo}rm -f ${bin_link_dir}/taos     || :
     ${csudo}rm -f ${bin_link_dir}/taosd    || :
-    ${csudo}rm -f ${bin_link_dir}/udfd     || :
+    ${csudo}rm -f ${bin_link_dir}/taosk    || :
+    ${csudo}rm -f ${bin_link_dir}/taosudf  || :
+    ${csudo}rm -f ${bin_link_dir}/taosmqtt || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter     || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper || :
@@ -245,6 +290,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/*explorer || :
     ${csudo}rm -f ${bin_link_dir}/start-all.sh || :
     ${csudo}rm -f ${bin_link_dir}/stop-all.sh || :
+    [ -L "${bin_link_dir}/taosgen" ] && ${csudo}unlink ${bin_link_dir}/taosgen || :
 
     ${csudo}chmod 0555 ${bin_dir}/*
 
@@ -255,8 +301,14 @@ function install_bin() {
     if [ -x ${bin_dir}/taosd ]; then
       ${csudo}ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd                   2>>${install_log_path} || return 1
     fi
-    if [ -x ${bin_dir}/udfd ]; then
-      ${csudo}ln -s ${bin_dir}/udfd ${bin_link_dir}/udfd                     2>>${install_log_path} || return 1
+    if [ -x ${bin_dir}/taosk ]; then
+      ${csudo}ln -s ${bin_dir}/taosk ${bin_link_dir}/taosk                   2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosudf ]; then
+      ${csudo}ln -s ${bin_dir}/taosudf ${bin_link_dir}/taosudf                     2>>${install_log_path} || return 1
+    fi
+    if [ -x ${bin_dir}/taosmqtt ]; then
+      ${csudo}ln -s ${bin_dir}/taosmqtt ${bin_link_dir}/taosmqtt             2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/taosadapter ]; then
       ${csudo}ln -s ${bin_dir}/taosadapter ${bin_link_dir}/taosadapter       2>>${install_log_path} || return 1
@@ -264,6 +316,9 @@ function install_bin() {
     if [ -x ${bin_dir}/taosBenchmark ]; then
       ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosdemo       2>>${install_log_path}
       ${csudo}ln -sf ${bin_dir}/taosBenchmark ${bin_link_dir}/taosBenchmark  2>>${install_log_path}
+    fi
+    if [ -x ${bin_dir}/taosgen ]; then
+      ${csudo}ln -sf ${bin_dir}/taosgen ${bin_link_dir}/taosgen               2>>${install_log_path} || return 1
     fi
     if [ -x ${bin_dir}/TDinsight.sh ]; then
       ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh    2>>${install_log_path} || return 1
@@ -387,7 +442,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
     while true; do
       if [ ! -z "$localFqdn" ]; then
@@ -561,7 +616,14 @@ function install_config() {
             #if [[ "$emailAddr" =~ $EMAIL_PATTERN ]]; then
                 # Write the email address to temp file
                 email_file="${install_main_dir}/email"
-                ${csudo}bash -c "echo $emailAddr > ${email_file}"
+                printf '%s\n' "$emailAddr" | ${csudo}tee "$email_file" >/dev/null || {
+                    echo "Failed to write email address to ${email_file}" >&2
+                    return 1
+                }
+                ${csudo}chmod 0600 "$email_file" || {
+                    echo "Failed to set permissions for ${email_file}" >&2
+                    return 1
+                }
                 break
             #else
             #    read -p "Please enter the correct email address: " emailAddr
@@ -742,7 +804,7 @@ function checkDirectory() {
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
-    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
+    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 0755 ${data_dir}
 
     ${csudo}rm -rf ${log_link_dir}   || :
     ${csudo}rm -rf ${data_link_dir}  || :

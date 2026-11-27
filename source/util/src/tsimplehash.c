@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -51,6 +53,7 @@ static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
   int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
+//  while ((i * SHASH_DEFAULT_LOAD_FACTOR) < len) i = (i << 1u);
   while (i < len) i = (i << 1u);
   return i;
 }
@@ -309,7 +312,7 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
   SHNode *pNode = pHashObj->hashList[slot];
   SHNode *pPrev = NULL;
   while (pNode) {
-    if ((*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
+    if ((keyLen == pNode->keyLen) && (*(pHashObj->equalFp))(GET_SHASH_NODE_KEY(pNode, pNode->dataLen), key, keyLen) == 0) {
       if (!pPrev) {
         pHashObj->hashList[slot] = pNode->next;
       } else {

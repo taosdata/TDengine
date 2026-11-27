@@ -1,0 +1,17 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Scenario fixture: taosd needs two seconds to flush on SIGTERM, which lets the
+# test tell "gracefully stopped" apart from "killed by the kernel".
+
+if [ "$1" = "-C" ]; then
+    echo "                  dataDir /var/lib/taos"
+    echo "                     fqdn $(hostname)"
+    echo "                  firstEp localhost:6030"
+    exit 0
+fi
+echo "$$" > /tmp/taosd.pid
+trap 'echo "[$(date +%T)] taosd got SIGTERM" >> /logs/taosd.log; sleep 2; echo "[$(date +%T)] taosd flush done" >> /logs/taosd.log; exit 0' TERM
+while :; do sleep 0.2; done

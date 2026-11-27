@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -49,18 +51,18 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   SyncIndex myLastIndex = syncNodeGetLastIndex(ths);
 
   if (myLastTerm == SYNC_TERM_INVALID) {
-    sNTrace(ths,
-            "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNWarn(ths,
+           "logok:0, my last term invalid, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return false;
   }
 
   if (pMsg->lastLogTerm > myLastTerm) {
-    sNTrace(ths,
-            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNInfo(ths,
+           "logok:1, larger log term, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
 
     if (pMsg->lastLogIndex < ths->commitIndex) {
       sNWarn(ths,
@@ -72,51 +74,111 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
   }
 
   if (pMsg->lastLogTerm == myLastTerm && pMsg->lastLogIndex >= myLastIndex) {
-    sNTrace(ths,
-            "logok:1, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-            ", recv-term:%" PRIu64 "}",
-            myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+    sNInfo(ths,
+           "logok:1, larger log index , {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64
+           ", recv-lindex:%" PRId64 ", recv-term:%" PRIu64 "}",
+           myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
     return true;
   }
 
-  sNTrace(ths,
-          "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
-          ", recv-term:%" PRIu64 "}",
-          myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
+  sNWarn(ths,
+         "logok:0, {my-lterm:%" PRIu64 ", my-lindex:%" PRId64 ", recv-lterm:%" PRIu64 ", recv-lindex:%" PRId64
+         ", recv-term:%" PRIu64 "}",
+         myLastTerm, myLastIndex, pMsg->lastLogTerm, pMsg->lastLogIndex, pMsg->term);
   return false;
 }
 
 int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): the RPC dispatch path only guarantees
+  // contLen >= sizeof(SMsgHead) (8 bytes), far less than the fixed SyncRequestVote
+  // header. Reject a truncated frame before syncLogRecvRequestVote() and the
+  // srcId / term / log-position reads below, which are out-of-bounds otherwise.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncRequestVote)) {
+    sError("vgId:%d, request vote frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncRequestVote));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
   bool             resetElect = false;
 
-  syncLogRecvRequestVote(ths, pMsg, -1, "", "recv");
+  syncLogRecvRequestVote(ths, pMsg, -1, "", "recv", &pRpcMsg->info.traceId);
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &pMsg->srcId)) {
-    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config", "process");
+    syncLogRecvRequestVote(ths, pMsg, -1, "not in my config", "process", &pRpcMsg->info.traceId);
 
-    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
+  }
+
+  if (ths->state == TAOS_SYNC_STATE_LEARNER) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "I'm learner", "process", &pRpcMsg->info.traceId);
+
+    TAOS_RETURN(TSDB_CODE_SYN_LEARNER_NO_VOTE);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Security hardening for finding item 185 (sync-forged-request-vote-leader-deposition, CWE-290):
+  // The SYNC transport performs no peer authentication, so any host that can
+  // reach the 6030 listener may forge a TDMT_SYNC_REQUEST_VOTE frame whose
+  // srcId names a raft-group member. Two such frames are impossible in
+  // legitimate Raft and therefore must be dropped before any term / vote /
+  // role / election-timer state change:
+  //   1) A node never sends a RequestVote to itself. The self-vote is handled
+  //      locally via a RequestVoteReply in syncNodeVoteForSelf(), and
+  //      syncNodeRequestVotePeers() skips the local id (peersId excludes self,
+  //      see syncMain.c peersNum = totalReplicaNum - 1). A frame with
+  //      srcId == our own id, term == currentTerm and lastLogTerm/LastIndex ==
+  //      INT64_MAX passes the vote-grant check (the leader's voteFor IS its own
+  //      id), so grant becomes true and the subsequent syncNodeStepDown(ths,
+  //      currentTerm, srcId) demotes the leader at the SAME term with NO term
+  //      increase -> write unavailability for the vgroup / mnode.
+  //   2) The leader only issues AppendEntries/heartbeats, never RequestVote, so
+  //      a same-term RequestVote claiming to come from the node we currently
+  //      treat as leader is also forged.
+  // Rejecting these frames is safe: it cannot occur for a legitimate peer (see
+  // the election-path analysis above), so no election or vote can be broken.
+  // NOTE: the complete fix (per-connection peer authentication / a message MAC
+  // bound to the cluster secret) is tracked separately (finding item 185,
+  // recommended fix #1); this is the targeted ingress guard that closes the
+  // demonstrated same-term leader-deposition / election-suppression exploit.
+  // ---------------------------------------------------------------------------
+  if (syncUtilSameId(&pMsg->srcId, &ths->myRaftId)) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "srcId equals myself, drop forged requestVote", "process",
+                           &pRpcMsg->info.traceId);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
+  }
+
+  SyncTerm currentTermChk = raftStoreGetTerm(ths);
+  if (ths->leaderCache.addr != 0 && pMsg->term == currentTermChk &&
+      syncUtilSameId(&pMsg->srcId, &ths->leaderCache)) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "srcId equals current leader at same term, drop forged requestVote",
+                           "process", &pRpcMsg->info.traceId);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
   }
 
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {
-    syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "requestVote-1");
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   if (!(pMsg->term <= currentTerm)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
-  bool grant = (pMsg->term == currentTerm) && logOK &&
-               ((!raftStoreHasVoted(ths)) || (syncUtilSameId(&ths->raftStore.voteFor, &pMsg->srcId)));
+  bool hasVoted = raftStoreHasVoted(ths);
+  bool grant =
+      (pMsg->term == currentTerm) && logOK && ((!hasVoted) || syncUtilSameIdStrict(&ths->raftStore.voteFor, &pMsg->srcId));
+  sInfo("vgId:%d, grant:%d, hasVoted:%d, voteFor:0x%" PRIx64 ", srcId:0x%" PRIx64 ", logOK:%d, msg term:%" PRId64
+        ", current term:%" PRId64,
+        ths->vgId, grant, hasVoted, ths->raftStore.voteFor.addr, pMsg->srcId.addr, logOK, pMsg->term, currentTerm);
   if (grant) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
     raftStoreVote(ths, &(pMsg->srcId));
 
     // candidate ?
-    syncNodeStepDown(ths, currentTerm, pMsg->srcId);
+    syncNodeStepDown(ths, currentTerm, pMsg->srcId, "requestVote-2");
 
     // forbid elect for this round
     resetElect = true;
@@ -135,8 +197,11 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   if (!(!grant || pMsg->term == pReply->term)) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // trace log
-  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed");
-  syncLogSendRequestVoteReply(ths, pReply, "");
+  syncLogRecvRequestVote(ths, pMsg, pReply->voteGranted, "", "proceed", &pRpcMsg->info.traceId);
+
+  rpcMsg.info.traceId = pRpcMsg->info.traceId;
+  TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+  syncLogSendRequestVoteReply(ths, pReply, "", &rpcMsg.info.traceId);
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg));
 
   if (resetElect) syncNodeResetElectTimer(ths);

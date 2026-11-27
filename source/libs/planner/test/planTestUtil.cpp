@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -46,6 +48,7 @@ enum DumpModule {
   DUMP_MODULE_LOGIC,
   DUMP_MODULE_OPTIMIZED,
   DUMP_MODULE_SPLIT,
+  DUMP_MODULE_POST_SPLIT,
   DUMP_MODULE_SCALED,
   DUMP_MODULE_PHYSICAL,
   DUMP_MODULE_SUBPLAN,
@@ -58,6 +61,15 @@ int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
 int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
 bool       g_useNodeAllocator = false;
+
+class PlanJoinPropsGuard {
+ public:
+  explicit PlanJoinPropsGuard(SPlanContext* pCxt) : pCxt_(pCxt) {}
+  ~PlanJoinPropsGuard() { planDestroyJoinPropsStore(pCxt_); }
+
+ private:
+  SPlanContext* pCxt_;
+};
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
@@ -72,6 +84,8 @@ void setDumpModule(const char* pModule) {
     g_dumpModule = DUMP_MODULE_OPTIMIZED;
   } else if (0 == strncasecmp(pModule, "split", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_SPLIT;
+  } else if (0 == strncasecmp(pModule, "postsplit", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_POST_SPLIT;
   } else if (0 == strncasecmp(pModule, "scaled", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_SCALED;
   } else if (0 == strncasecmp(pModule, "physical", strlen(pModule))) {
@@ -91,9 +105,24 @@ void setUseNodeAllocator(const char* pArg) { g_useNodeAllocator = stoi(pArg); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
+// A standalone decoded subplan owns its child copies. A decoded SQueryPlan
+// instead registers all children in pSubplans and uses the normal destructor.
+static void destroyDecodedPlan(SNode* node) {
+  if (node == nullptr) return;
+  if (nodeType(node) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    auto*  subplan = reinterpret_cast<SSubplan*>(node);
+    SNode* child = nullptr;
+    FOREACH(child, subplan->pChildren) { destroyDecodedPlan(child); }
+    nodesClearList(subplan->pChildren);
+    subplan->pChildren = nullptr;
+  }
+  nodesDestroyNode(node);
+}
+
 class PlannerTestBaseImpl {
  public:
-  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { assert(qInitKeywordsTable() == 0); }
+  PlannerTestBaseImpl() : sqlNo_(0), sqlNum_(0) { TD_ALWAYS_ASSERT(qInitKeywordsTable() == 0); }
+  ~PlannerTestBaseImpl() { qCleanupKeywordsTable(); }
 
   void useDb(const string& user, const string& db) {
     caseEnv_.acctId_ = 0;
@@ -104,6 +133,72 @@ class PlannerTestBaseImpl {
   }
 
   void run(const string& sql) {
+    run(sql, false, nullptr, nullptr);
+  }
+
+  void runFullPlan(const string& sql, const function<void(const SQueryPlan*)>& inspect) {
+    int64_t allocatorId = 0;
+    if (g_useNodeAllocator) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesAcquireAllocator(allocatorId));
+    }
+
+    reset();
+    tsQueryPolicy = QUERY_POLICY_VNODE;
+    try {
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      doParseSql(sql, query.get());
+
+      SPlanContext cxt = {0};
+      setPlanContext(*query.get(), &cxt);
+      unique_ptr<SArray, void (*)(SArray*)> execNodeList(
+          (SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)), (void (*)(SArray*))taosArrayDestroy);
+      SQueryPlan* pPlan = nullptr;
+      DO_WITH_THROW(qCreateQueryPlan, &cxt, &pPlan, execNodeList.get());
+      unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
+      inspect(plan.get());
+    } catch (...) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
+      nodesDestroyAllocator(allocatorId);
+      throw;
+    }
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesReleaseAllocator(allocatorId));
+    nodesDestroyAllocator(allocatorId);
+  }
+
+  void runStreamCalc(const string& sql) {
+    run(sql, true, nullptr, nullptr);
+  }
+
+  void runWithPostSplitHooks(const string& sql,
+                             FLogicPlanHook before,
+                             FLogicPlanHook after) {
+    run(sql, false, before, after);
+  }
+
+  void runCreateStream(const string& sql, const std::function<void(const SQueryPlan&, const SArray*)>& check) {
+    reset();
+    unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+    doParseSql(sql, query.get());
+    ASSERT_NE(nullptr, (*query)->pCmdMsg);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    DO_WITH_THROW(tDeserializeSCMCreateStreamReq, (*query)->pCmdMsg->pMsg, (*query)->pCmdMsg->msgLen, &req);
+    ASSERT_NE(nullptr, req.calcPlan);
+    SNode* pPlan = nullptr;
+    DO_WITH_THROW(nodesStringToNode, (const char*)req.calcPlan, &pPlan);
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(pPlan, nodesDestroyNode);
+    res_.physiPlan_ = toString(pPlan);
+    checkPlanMsg(pPlan);
+    if (check) {
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pPlan));
+      check(*reinterpret_cast<const SQueryPlan*>(pPlan), req.calcScanPlanList);
+    }
+  }
+
+  void run(const string& sql, bool streamCalc, FLogicPlanHook before,
+           FLogicPlanHook after) {
     ++sqlNo_;
     if (caseEnv_.numOfSkipSql_ > 0) {
       --(caseEnv_.numOfSkipSql_);
@@ -118,17 +213,202 @@ class PlannerTestBaseImpl {
       case QUERY_POLICY_VNODE:
       case QUERY_POLICY_HYBRID:
       case QUERY_POLICY_QNODE:
-        runImpl(sql, g_queryPolicy);
+        runImpl(sql, g_queryPolicy, streamCalc, before, after);
         break;
       default:
-        runImpl(sql, QUERY_POLICY_VNODE);
-        runImpl(sql, QUERY_POLICY_HYBRID);
-        runImpl(sql, QUERY_POLICY_QNODE);
+        runImpl(sql, QUERY_POLICY_VNODE, streamCalc, before, after);
+        runImpl(sql, QUERY_POLICY_HYBRID, streamCalc, before, after);
+        runImpl(sql, QUERY_POLICY_QNODE, streamCalc, before, after);
         break;
     }
   }
 
-  void runImpl(const string& sql, int32_t queryPolicy) {
+  bool findPlanNode(const string& nodeName) const { return countPlanNode(nodeName) > 0; }
+
+  void setLogicPlanCheck(
+      const std::function<void(const SLogicNode*, bool)>& check) {
+    logicPlanCheck_ = check;
+  }
+
+  void setJoinPropsCheck(
+      const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+          check) {
+    joinPropsCheck_ = check;
+  }
+
+  void setPhysiPlanCheck(
+      const std::function<void(const SQueryPlan*)>& check) {
+    physiPlanCheck_ = check;
+  }
+
+  bool planContains(const string& text) const {
+    if (res_.physiPlan_.find(text) != string::npos) {
+      return true;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (subplan.find(text) != string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  int32_t countRawLogicPlanNode(const string& nodeName) const {
+    return countPlanNodeIn(res_.rawLogicPlan_, nodeName);
+  }
+
+  bool rawLogicPlanContains(const string& text) const {
+    return res_.rawLogicPlan_.find(text) != string::npos;
+  }
+
+  bool rawLogicPlanHasPartTableAgg() const {
+    return res_.rawLogicPlanHasPartTableAgg_;
+  }
+
+  bool rawLogicPlanHasPartTagAgg() const {
+    return res_.rawLogicPlanHasPartTagAgg_;
+  }
+
+  static int32_t countTextOccurrences(const string& haystack,
+                                      const string& text) {
+    if (text.empty()) {
+      return 0;
+    }
+    int32_t count = 0;
+    size_t  pos = haystack.find(text);
+    while (pos != string::npos) {
+      ++count;
+      pos = haystack.find(text, pos + text.length());
+    }
+    return count;
+  }
+
+  int32_t countOptimizedPlanText(const string& text) const {
+    return countTextOccurrences(res_.optimizedLogicPlan_, text);
+  }
+
+  int32_t countSplitPlanText(const string& text) const {
+    return countTextOccurrences(res_.splitLogicPlan_, text);
+  }
+
+  int32_t countPostSplitPlanText(const string& text) const {
+    return countTextOccurrences(res_.postSplitLogicPlan_, text);
+  }
+
+  int32_t countPhysiPlanText(const string& text) const {
+    return countTextOccurrences(res_.physiPlan_, text);
+  }
+
+  bool planNodeAppearsAbove(const string& upperNodeName, const string& lowerNodeName) const {
+    if (planNodeAppearsAboveIn(res_.physiPlan_, upperNodeName, lowerNodeName)) {
+      return true;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (planNodeAppearsAboveIn(subplan, upperNodeName, lowerNodeName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool exchangeSubplansContain(const string& nodeName) const {
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (!subplanContainsExchange(res_.physiPlan_, subplan) && !anySubplanReferencesSubplan(subplan)) {
+        continue;
+      }
+      if (countPlanNodeIn(subplan, nodeName) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool aggOutputsMatchFuncs() const {
+    auto checkPlan = [](const string& plan) {
+      size_t pos = 0;
+      while ((pos = plan.find("\"Name\":\"PhysiAgg\"", pos)) != string::npos) {
+        size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        size_t objectEnd = findObjectEnd(plan, objectStart);
+        string agg = plan.substr(objectStart, objectEnd - objectStart + 1);
+
+        size_t  childrenPos = agg.find("\"Children\"");
+        string  outputSection = childrenPos == string::npos ? agg : agg.substr(0, childrenPos);
+        int32_t slotCount = countPlanNodeIn(outputSection, "SlotDesc");
+
+        size_t funcsPos = agg.find("\"AggFuncs\"");
+        if (funcsPos == string::npos) {
+          if (slotCount != 0) {
+            return false;
+          }
+        } else {
+          int32_t funcCount = countPlanNodeIn(agg.substr(funcsPos), "Target");
+          if (slotCount != funcCount) {
+            return false;
+          }
+        }
+        pos = objectEnd + 1;
+      }
+      return true;
+    };
+
+    if (!checkPlan(res_.physiPlan_)) {
+      return false;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (!checkPlan(subplan)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  int32_t countPlanNode(const string& nodeName) const {
+    if (!res_.physiSubplans_.empty()) {
+      int32_t count = 0;
+      for (const auto& subplan : res_.physiSubplans_) {
+        count += countPlanNodeIn(subplan, nodeName);
+      }
+      return count;
+    }
+    int32_t count = countPlanNodeIn(res_.physiPlan_, nodeName);
+    for (const auto& subplan : res_.physiSubplans_) {
+      count += countPlanNodeIn(subplan, nodeName);
+    }
+    return count;
+  }
+
+  void checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const {
+    SNode* root = nullptr;
+    ASSERT_EQ(0, nodesStringToNode(res_.physiPlan_.c_str(), &root));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> owned(root, nodesDestroyNode);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(root));
+    std::function<void(const SPhysiNode*)> visitNode = [&](const SPhysiNode* node) {
+      if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) {
+        check(*reinterpret_cast<const SHashJoinPhysiNode*>(node));
+      }
+      SNode* child = nullptr;
+      FOREACH(child, node->pChildren) { visitNode(reinterpret_cast<const SPhysiNode*>(child)); }
+    };
+    std::function<void(const SQueryPlan*)> visitPlan = [&](const SQueryPlan* plan) {
+      SNode* level = nullptr;
+      FOREACH(level, plan->pSubplans) {
+        SNode* subplan = nullptr;
+        FOREACH(subplan, reinterpret_cast<SNodeListNode*>(level)->pNodeList) {
+          visitNode(reinterpret_cast<SSubplan*>(subplan)->pNode);
+        }
+      }
+      SNode* child = nullptr;
+      FOREACH(child, plan->pChildren) { visitPlan(reinterpret_cast<const SQueryPlan*>(child)); }
+    };
+    visitPlan(reinterpret_cast<const SQueryPlan*>(root));
+  }
+
+  void runImpl(const string& sql, int32_t queryPolicy, bool streamCalc,
+               FLogicPlanHook beforePostSplit,
+               FLogicPlanHook afterPostSplit) {
     int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
       ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId));
@@ -142,8 +422,17 @@ class PlannerTestBaseImpl {
       doParseSql(sql, query.get());
       SQuery* pQuery = *(query.get());
 
+      unique_ptr<SArray, void (*)(SArray*)> calcScanPlans(NULL, (void (*)(SArray*))taosArrayDestroy);
       SPlanContext cxt = {0};
       setPlanContext(pQuery, &cxt);
+      if (streamCalc) {
+        calcScanPlans.reset((SArray*)taosArrayInit(1, sizeof(SStreamCalcScan)));
+        ASSERT_NE(nullptr, calcScanPlans.get());
+        cxt.streamCxt.isCalc = true;
+        cxt.streamCxt.triggerWinType = QUERY_NODE_INTERVAL_WINDOW;
+        cxt.streamCxt.calcScanPlanArray = calcScanPlans.get();
+      }
+      PlanJoinPropsGuard joinPropsGuard(&cxt);
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
@@ -153,6 +442,13 @@ class PlannerTestBaseImpl {
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
       doSplitLogicPlan(&cxt, pLogicSubplan);
+      if (nullptr != beforePostSplit) {
+        beforePostSplit(pLogicSubplan);
+      }
+      doPostSplitOptimize(&cxt, pLogicSubplan);
+      if (nullptr != afterPostSplit) {
+        afterPostSplit(pLogicSubplan);
+      }
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -213,6 +509,7 @@ class PlannerTestBaseImpl {
 
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
+      PlanJoinPropsGuard joinPropsGuard(&cxt);
 
       SLogicSubplan* pLogicSubplan = nullptr;
       doCreateLogicPlan(&cxt, &pLogicSubplan);
@@ -222,6 +519,7 @@ class PlannerTestBaseImpl {
       doOptimizeLogicPlan(&cxt, pLogicSubplan);
 
       doSplitLogicPlan(&cxt, pLogicSubplan);
+      doPostSplitOptimize(&cxt, pLogicSubplan);
 
       SQueryLogicPlan* pLogicPlan = nullptr;
       doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
@@ -266,8 +564,11 @@ class PlannerTestBaseImpl {
     string         prepareAst_;
     string         boundAst_;
     string         rawLogicPlan_;
+    bool           rawLogicPlanHasPartTableAgg_;
+    bool           rawLogicPlanHasPartTagAgg_;
     string         optimizedLogicPlan_;
     string         splitLogicPlan_;
+    string         postSplitLogicPlan_;
     string         scaledLogicPlan_;
     string         physiPlan_;
     vector<string> physiSubplans_;
@@ -289,8 +590,11 @@ class PlannerTestBaseImpl {
     res_.ast_.clear();
     res_.boundAst_.clear();
     res_.rawLogicPlan_.clear();
+    res_.rawLogicPlanHasPartTableAgg_ = false;
+    res_.rawLogicPlanHasPartTagAgg_ = false;
     res_.optimizedLogicPlan_.clear();
     res_.splitLogicPlan_.clear();
+    res_.postSplitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
     res_.physiSubplans_.clear();
@@ -332,6 +636,11 @@ class PlannerTestBaseImpl {
       cout << res_.splitLogicPlan_ << endl;
     }
 
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_POST_SPLIT == module) {
+      cout << "+++++++++++++++++++++post-split logic plan : " << endl;
+      cout << res_.postSplitLogicPlan_ << endl;
+    }
+
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SCALED == module) {
       cout << "+++++++++++++++++++++scaled logic plan : " << endl;
       cout << res_.scaledLogicPlan_ << endl;
@@ -363,12 +672,26 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.svrVer = "3.0.0.0";
     cxt.enableSysInfo = true;
+    cxt.isSuperUser = true;
     if (prepare) {
       SStmtCallback stmtCb = {0};
       cxt.pStmtCb = &stmtCb;
     }
 
-    DO_WITH_THROW(qParseSql, &cxt, pQuery);
+    if (tsFederatedQueryEnable && !prepare) {
+      cxt.async = true;
+      unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> request(
+          new SCatalogReq(), MockCatalogService::destoryCatalogReq);
+      unique_ptr<SMetaData, void (*)(SMetaData*)> metadata(
+          new SMetaData(), MockCatalogService::destoryMetaData);
+      DO_WITH_THROW(qParseSqlSyntax, &cxt, pQuery, request.get());
+      DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, request.get(),
+                    metadata.get());
+      DO_WITH_THROW(qAnalyseSqlSemantic, &cxt, request.get(), metadata.get(),
+                    *pQuery);
+    } else {
+      DO_WITH_THROW(qParseSql, &cxt, pQuery);
+    }
     if (prepare) {
       res_.prepareAst_ = toString((*pQuery)->pPrepareRoot);
     } else {
@@ -393,23 +716,38 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.pUser = caseEnv_.user_.c_str();
 
-    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
+    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery, NULL);
     res_.ast_ = toString(pQuery->pRoot);
   }
 
   void doCreateLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {
     DO_WITH_THROW(createLogicPlan, pCxt, pLogicSubplan);
     res_.rawLogicPlan_ = toString((SNode*)(*pLogicSubplan));
+    collectRawLogicPlanAggFlags((*pLogicSubplan)->pNode);
+    if (joinPropsCheck_) {
+      joinPropsCheck_(pCxt, (*pLogicSubplan)->pNode, false);
+    }
+    if (logicPlanCheck_) logicPlanCheck_((*pLogicSubplan)->pNode, false);
   }
 
   void doOptimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
     DO_WITH_THROW(optimizeLogicPlan, pCxt, pLogicSubplan);
     res_.optimizedLogicPlan_ = toString((SNode*)pLogicSubplan);
+    if (joinPropsCheck_) {
+      joinPropsCheck_(pCxt, pLogicSubplan->pNode, true);
+    }
+    if (logicPlanCheck_) logicPlanCheck_(pLogicSubplan->pNode, true);
   }
 
   void doSplitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
     DO_WITH_THROW(splitLogicPlan, pCxt, pLogicSubplan);
     res_.splitLogicPlan_ = toString((SNode*)(pLogicSubplan));
+  }
+
+  void doPostSplitOptimize(SPlanContext* pCxt,
+                           SLogicSubplan* pLogicSubplan) {
+    DO_WITH_THROW(postSplitOptimize, pCxt, pLogicSubplan);
+    res_.postSplitLogicPlan_ = toString((SNode*)pLogicSubplan);
   }
 
   void doScaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan) {
@@ -421,6 +759,9 @@ class PlannerTestBaseImpl {
     unique_ptr<SArray, void (*)(SArray*)> execNodeList((SArray*)taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)),
                                                        (void (*)(SArray*))taosArrayDestroy);
     DO_WITH_THROW(createPhysiPlan, pCxt, pLogicPlan, pPlan, execNodeList.get());
+    if (physiPlanCheck_) {
+      physiPlanCheck_(*pPlan);
+    }
     res_.physiPlan_ = toString((SNode*)(*pPlan));
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {
@@ -431,6 +772,7 @@ class PlannerTestBaseImpl {
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
     pCxt->queryId = 1;
+    pCxt->subqueryIndex = -1;
     pCxt->pUser = caseEnv_.user_.c_str();
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       SCreateTopicStmt* pStmt = (SCreateTopicStmt*)pQuery->pRoot;
@@ -439,33 +781,10 @@ class PlannerTestBaseImpl {
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
       pCxt->topicQuery = true;
-    } else if (QUERY_NODE_CREATE_INDEX_STMT == nodeType(pQuery->pRoot)) {
-      SMCreateSmaReq req = {0};
-      SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-      SCmdMsgInfo* pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
-      if (NULL == pCmdMsg) FAIL();
-      pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
-      pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
-      pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
-      if (!pCmdMsg->pMsg) FAIL();
-      ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
-      ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
-
-      ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-      g_mockCatalogService->createSmaIndex(&req);
-      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(req.ast, &pCxt->pAstRoot));
-      pCxt->deleteMark = req.deleteMark;
-      tFreeSMCreateSmaReq(&req);
-      nodesDestroyNode(pQuery->pRoot);
-      pQuery->pRoot = pCxt->pAstRoot;
-      pCxt->streamQuery = true;
     } else if (QUERY_NODE_CREATE_STREAM_STMT == nodeType(pQuery->pRoot)) {
       SCreateStreamStmt* pStmt = (SCreateStreamStmt*)pQuery->pRoot;
       pCxt->pAstRoot = pStmt->pQuery;
       pStmt->pQuery = nullptr;
-      pCxt->streamQuery = true;
-      pCxt->triggerType = pStmt->pOptions->triggerType;
-      pCxt->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
       nodesDestroyNode(pQuery->pRoot);
       pQuery->pRoot = pCxt->pAstRoot;
     } else {
@@ -480,11 +799,179 @@ class PlannerTestBaseImpl {
     // check toObject
     SNode* pCopy = NULL;
     DO_WITH_THROW(nodesStringToNode, pStr, &pCopy)
-    nodesDestroyNode(pCopy);
+    destroyDecodedPlan(pCopy);
     string str(pStr);
     taosMemoryFreeClear(pStr);
 
     return str;
+  }
+
+  static int32_t countPlanNodeIn(const string& plan, const string& nodeName) {
+    const string nameKey = "\"Name\":\"";
+    int32_t      count = 0;
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      const size_t nameBegin = pos + nameKey.length();
+      const size_t nameEnd = plan.find("\"", nameBegin);
+      if (nameEnd == string::npos) {
+        break;
+      }
+      const string actual = plan.substr(nameBegin, nameEnd - nameBegin);
+      if (actual == nodeName || actual == "Logic" + nodeName || actual == "Physi" + nodeName) {
+        ++count;
+      }
+      pos = plan.find(nameKey, nameEnd);
+    }
+    return count;
+  }
+
+  void collectRawLogicPlanAggFlags(SLogicNode* pNode) {
+    if (NULL == pNode) {
+      return;
+    }
+    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      res_.rawLogicPlanHasPartTableAgg_ |= isPartTableAgg(pAgg);
+      res_.rawLogicPlanHasPartTagAgg_ |= isPartTagAgg(pAgg);
+    }
+    SNode* pChild = NULL;
+    FOREACH(pChild, pNode->pChildren) {
+      collectRawLogicPlanAggFlags((SLogicNode*)pChild);
+    }
+  }
+
+  bool anySubplanReferencesSubplan(const string& subplan) const {
+    for (const auto& parent : res_.physiSubplans_) {
+      if (subplanContainsExchange(parent, subplan)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool subplanContainsExchange(const string& plan, const string& subplan) {
+    int64_t groupId = getSubplanGroupId(subplan);
+    if (groupId < 0) {
+      return false;
+    }
+
+    const string nameKey = "\"Name\":\"";
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      if (nodeNameMatches(plan, pos, "Exchange")) {
+        const size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        const size_t objectEnd = findObjectEnd(plan, objectStart);
+        if (objectEnd == string::npos) {
+          return false;
+        }
+        string exchange = plan.substr(objectStart, objectEnd - objectStart + 1);
+        if (exchangeReferencesGroup(exchange, groupId)) {
+          return true;
+        }
+      }
+      pos = plan.find(nameKey, pos + nameKey.length());
+    }
+    return false;
+  }
+
+  static int64_t getSubplanGroupId(const string& plan) {
+    const string key = "\"GroupId\":\"";
+    size_t       pos = plan.find(key);
+    if (pos == string::npos) {
+      return -1;
+    }
+    pos += key.length();
+    const size_t end = plan.find("\"", pos);
+    if (end == string::npos) {
+      return -1;
+    }
+    return stoll(plan.substr(pos, end - pos));
+  }
+
+  static bool exchangeReferencesGroup(const string& exchange, int64_t groupId) {
+    const int64_t startGroupId = getJsonInt64(exchange, "\"SrcStartGroupId\":\"");
+    const int64_t endGroupId = getJsonInt64(exchange, "\"SrcEndGroupId\":\"");
+    return startGroupId <= groupId && groupId <= endGroupId;
+  }
+
+  static int64_t getJsonInt64(const string& object, const string& key) {
+    size_t pos = object.find(key);
+    if (pos == string::npos) {
+      return -1;
+    }
+    pos += key.length();
+    const size_t end = object.find("\"", pos);
+    if (end == string::npos) {
+      return -1;
+    }
+    return stoll(object.substr(pos, end - pos));
+  }
+
+  static size_t findObjectEnd(const string& plan, size_t objectStart) {
+    int32_t depth = 0;
+    bool    inString = false;
+    bool    escaped = false;
+    for (size_t pos = objectStart; pos < plan.length(); ++pos) {
+      char ch = plan[pos];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch == '\\') {
+          escaped = true;
+        } else if (ch == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch == '"') {
+        inString = true;
+      } else if (ch == '{') {
+        ++depth;
+      } else if (ch == '}') {
+        --depth;
+        if (depth == 0) {
+          return pos;
+        }
+      }
+    }
+    return string::npos;
+  }
+
+  static bool nodeNameMatches(const string& plan, size_t namePos, const string& nodeName) {
+    const string nameKey = "\"Name\":\"";
+    const size_t nameBegin = namePos + nameKey.length();
+    const size_t nameEnd = plan.find("\"", nameBegin);
+    if (nameEnd == string::npos) {
+      return false;
+    }
+    const string actual = plan.substr(nameBegin, nameEnd - nameBegin);
+    return actual == nodeName || actual == "Logic" + nodeName || actual == "Physi" + nodeName;
+  }
+
+  static bool planNodeAppearsAboveIn(const string& plan, const string& upperNodeName, const string& lowerNodeName) {
+    const string nameKey = "\"Name\":\"";
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      if (nodeNameMatches(plan, pos, upperNodeName)) {
+        const size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        const size_t objectEnd = findObjectEnd(plan, objectStart);
+        if (objectEnd == string::npos) {
+          return false;
+        }
+        string upperObject = plan.substr(objectStart, objectEnd - objectStart + 1);
+        if (countPlanNodeIn(upperObject, lowerNodeName) > 0) {
+          return true;
+        }
+      }
+      pos = plan.find(nameKey, pos + nameKey.length());
+    }
+    return false;
   }
 
   void checkPlanMsg(const SNode* pRoot) {
@@ -507,13 +994,17 @@ class PlannerTestBaseImpl {
       DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
       cout << "new node: " << pNewStr << endl;
     }
-    nodesDestroyNode(pNode);
+    destroyDecodedPlan(pNode);
     taosMemoryFreeClear(pNewStr);
 
     taosMemoryFreeClear(pStr);
   }
 
   caseEnv caseEnv_;
+  std::function<void(const SLogicNode*, bool)> logicPlanCheck_;
+  std::function<void(const SPlanContext*, const SLogicNode*, bool)>
+      joinPropsCheck_;
+  std::function<void(const SQueryPlan*)> physiPlanCheck_;
   stmtEnv stmtEnv_;
   stmtRes res_;
   int32_t sqlNo_;
@@ -527,6 +1018,99 @@ PlannerTestBase::~PlannerTestBase() {}
 void PlannerTestBase::useDb(const std::string& user, const std::string& db) { impl_->useDb(user, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
+
+void PlannerTestBase::runWithPostSplitHooks(const std::string& sql,
+                                            FLogicPlanHook before,
+                                            FLogicPlanHook after) {
+  impl_->runWithPostSplitHooks(sql, before, after);
+}
+
+void PlannerTestBase::runFullPlan(const std::string& sql,
+                                  const std::function<void(const SQueryPlan*)>& inspect) {
+  impl_->runFullPlan(sql, inspect);
+}
+
+void PlannerTestBase::runStreamCalc(const std::string& sql) { impl_->runStreamCalc(sql); }
+
+void PlannerTestBase::runCreateStream(const std::string&                                           sql,
+                                      const std::function<void(const SQueryPlan&, const SArray*)>& check) {
+  return impl_->runCreateStream(sql, check);
+}
+
+bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
+
+void PlannerTestBase::setLogicPlanCheck(
+    const std::function<void(const SLogicNode*, bool)>& check) {
+  impl_->setLogicPlanCheck(check);
+}
+
+void PlannerTestBase::setJoinPropsCheck(
+    const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+        check) {
+  impl_->setJoinPropsCheck(check);
+}
+
+void PlannerTestBase::setPhysiPlanCheck(
+    const std::function<void(const SQueryPlan*)>& check) {
+  impl_->setPhysiPlanCheck(check);
+}
+
+int32_t PlannerTestBase::countPlanNode(const std::string& nodeName) const { return impl_->countPlanNode(nodeName); }
+
+bool PlannerTestBase::planContains(const std::string& text) const {
+  return impl_->planContains(text);
+}
+
+int32_t PlannerTestBase::countOptimizedPlanText(
+    const std::string& text) const {
+  return impl_->countOptimizedPlanText(text);
+}
+
+int32_t PlannerTestBase::countRawLogicPlanNode(
+    const std::string& nodeName) const {
+  return impl_->countRawLogicPlanNode(nodeName);
+}
+
+bool PlannerTestBase::rawLogicPlanContains(const std::string& text) const {
+  return impl_->rawLogicPlanContains(text);
+}
+
+bool PlannerTestBase::rawLogicPlanHasPartTableAgg() const {
+  return impl_->rawLogicPlanHasPartTableAgg();
+}
+
+bool PlannerTestBase::rawLogicPlanHasPartTagAgg() const {
+  return impl_->rawLogicPlanHasPartTagAgg();
+}
+
+int32_t PlannerTestBase::countSplitPlanText(
+    const std::string& text) const {
+  return impl_->countSplitPlanText(text);
+}
+
+int32_t PlannerTestBase::countPostSplitPlanText(
+    const std::string& text) const {
+  return impl_->countPostSplitPlanText(text);
+}
+
+int32_t PlannerTestBase::countPhysiPlanText(
+    const std::string& text) const {
+  return impl_->countPhysiPlanText(text);
+}
+
+bool PlannerTestBase::planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const {
+  return impl_->planNodeAppearsAbove(upperNodeName, lowerNodeName);
+}
+
+bool PlannerTestBase::exchangeSubplansContain(const std::string& nodeName) const {
+  return impl_->exchangeSubplansContain(nodeName);
+}
+
+bool PlannerTestBase::aggOutputsMatchFuncs() const { return impl_->aggOutputsMatchFuncs(); }
+
+void PlannerTestBase::checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const {
+  impl_->checkHashJoins(check);
+}
 
 void PlannerTestBase::prepare(const std::string& sql) { return impl_->prepare(sql); }
 

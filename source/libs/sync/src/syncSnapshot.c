@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,79 @@
 #include "tglobal.h"
 
 static SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths);
+
+// global snapshot rate limiter
+static SSnapshotRateLimiter *gSnapshotRateLimiter = NULL;
+
+int32_t snapshotRateLimiterCreate(SSnapshotRateLimiter **ppLimiter) {
+  SSnapshotRateLimiter *pLimiter = taosMemoryCalloc(1, sizeof(SSnapshotRateLimiter));
+  if (pLimiter == NULL) {
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pLimiter->mutex, NULL);
+  if (code != 0) {
+    taosMemoryFree(pLimiter);
+    return TAOS_SYSTEM_ERROR(code);
+  }
+  pLimiter->tokens = 0;
+  pLimiter->lastFillMs = 0;
+  *ppLimiter = pLimiter;
+  gSnapshotRateLimiter = pLimiter;
+  return 0;
+}
+
+void snapshotRateLimiterDestroy(SSnapshotRateLimiter **ppLimiter) {
+  if (ppLimiter == NULL || *ppLimiter == NULL) return;
+  SSnapshotRateLimiter *pLimiter = *ppLimiter;
+  (void)taosThreadMutexDestroy(&pLimiter->mutex);
+  taosMemoryFree(pLimiter);
+  *ppLimiter = NULL;
+  gSnapshotRateLimiter = NULL;
+}
+
+void snapshotRateLimiterCleanUp(void) { snapshotRateLimiterDestroy(&gSnapshotRateLimiter); }
+
+bool snapshotRateLimiterTryConsume(void) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return true;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return true;
+
+  bool allowed = false;
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+
+  int64_t nowMs = taosGetTimestampMs();
+  if (pLimiter->lastFillMs == 0) {
+    pLimiter->lastFillMs = nowMs;
+    pLimiter->tokens = (int64_t)rateLimit * 1024 * 1024;
+  }
+
+  int64_t elapsedMs = nowMs - pLimiter->lastFillMs;
+  if (elapsedMs > 0) {
+    int64_t refill = elapsedMs * (int64_t)rateLimit * 1024 * 1024 / 1000;
+    int64_t cap = (int64_t)rateLimit * 1024 * 1024;  // 1 second cap
+    pLimiter->tokens = TMIN(pLimiter->tokens + refill, cap);
+    pLimiter->lastFillMs = nowMs;
+  }
+
+  allowed = (pLimiter->tokens > 0);
+
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+  return allowed;
+}
+
+void snapshotRateLimiterDeduct(int32_t bytes) {
+  int32_t rateLimit = tsSnapshotRateLimit;
+  if (rateLimit <= 0) return;
+
+  SSnapshotRateLimiter *pLimiter = gSnapshotRateLimiter;
+  if (pLimiter == NULL) return;
+
+  (void)taosThreadMutexLock(&pLimiter->mutex);
+  pLimiter->tokens -= bytes;
+  (void)taosThreadMutexUnlock(&pLimiter->mutex);
+}
 
 static void syncSnapBufferReset(SSyncSnapBuffer *pBuf) {
   for (int64_t i = pBuf->start; i < pBuf->end; ++i) {
@@ -85,7 +160,7 @@ int32_t snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex, SSyncSn
   pSender->pSyncNode = pSyncNode;
   pSender->replicaIndex = replicaIndex;
   pSender->term = raftStoreGetTerm(pSyncNode);
-  pSender->startTime = -1;
+  pSender->senderStartTime = -1;
   pSender->finish = false;
 
   code = pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &pSender->snapshot);
@@ -172,7 +247,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
   (void)memset(&pSender->lastConfig, 0, sizeof(pSender->lastConfig));
   pSender->sendingMS = 0;
   pSender->term = raftStoreGetTerm(pSender->pSyncNode);
-  pSender->startTime = taosGetMonoTimestampMs();
+  pSender->senderStartTime = taosGetMonoTimestampMs();
   pSender->lastSendTime = taosGetTimestampMs();
   pSender->finish = false;
 
@@ -197,6 +272,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) {
     dataLen = sizeof(SSyncTLV) + datHead->len;
   }
 
+  sInfo("vgId:%d, send msg:%s", pSyncNode->vgId, TMSG_INFO(type));
   if ((code = syncSnapSendMsg(pSender, pSender->seq, pData, dataLen, type)) != 0) {
     goto _out;
   }
@@ -255,7 +331,7 @@ int32_t syncSnapSendMsg(SSyncSnapshotSender *pSender, int32_t seq, void *pBlock,
   pMsg->lastTerm = pSender->snapshot.lastApplyTerm;
   pMsg->lastConfigIndex = pSender->snapshot.lastConfigIndex;
   pMsg->lastConfig = pSender->lastConfig;
-  pMsg->startTime = pSender->startTime;
+  pMsg->snapStartTime = pSender->senderStartTime;
   pMsg->seq = seq;
 
   if (pBlock != NULL && blockLen > 0) {
@@ -275,9 +351,10 @@ _OUT:
 
 // when sender receive ack, call this function to send msg from seq
 // seq = ack + 1, already updated
-static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
+static int32_t snapshotSend(SSyncSnapshotSender *pSender, int32_t *pSentBytes) {
   int32_t        code = 0;
   SyncSnapBlock *pBlk = NULL;
+  if (pSentBytes) *pSentBytes = 0;
 
   if (pSender->seq < SYNC_SNAPSHOT_SEQ_END) {
     pSender->seq++;
@@ -335,6 +412,7 @@ static int32_t snapshotSend(SSyncSnapshotSender *pSender) {
     pBlk = NULL;
     pSender->pSndBuf->end = TMAX(pSender->seq + 1, pSender->pSndBuf->end);
   }
+  if (pSentBytes) *pSentBytes = blockLen;
   pSender->lastSendTime = nowMs;
 
 _OUT:;
@@ -372,7 +450,7 @@ int32_t snapshotReSend(SSyncSnapshotSender *pSender) {
   }
 
   if (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }
@@ -387,7 +465,7 @@ _out:;
   TAOS_RETURN(code);
 }
 
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId, char *reason) {
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
   if (pSender == NULL) {
     sNError(pSyncNode, "snapshot sender start error since get failed");
@@ -400,6 +478,9 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   }
 
   taosMsleep(1);
+
+  sInfo("vgId:%d, snapshot replication progress:1/8:leader:1/4 to dnode:%d, reason:%s", pSyncNode->vgId, DID(pDestId),
+        reason);
 
   int32_t code = snapshotSenderStart(pSender);
   if (code != 0) {
@@ -426,7 +507,7 @@ int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapsh
   }
 
   pReceiver->start = false;
-  pReceiver->startTime = 0;
+  pReceiver->receiverStartTime = 0;
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_BEGIN;
   pReceiver->pWriter = NULL;
   code = taosThreadMutexInit(&pReceiver->writerMutex, NULL);
@@ -509,16 +590,38 @@ bool snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver) {
 }
 
 static int32_t snapshotReceiverSignatureCmp(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg) {
-  if (pReceiver->term < pMsg->term) return -1;
-  if (pReceiver->term > pMsg->term) return 1;
-  if (pReceiver->startTime < pMsg->startTime) return -1;
-  if (pReceiver->startTime > pMsg->startTime) return 1;
-  return 0;
+  int32_t code = 0;
+  if (pReceiver->term < pMsg->term) {
+    code = -1;
+    goto _OVER;
+  }
+  if (pReceiver->term > pMsg->term) {
+    code = 1;
+    goto _OVER;
+  }
+  if (pReceiver->receiverStartTime < pMsg->snapStartTime) {
+    code = -2;
+    goto _OVER;
+  }
+  if (pReceiver->receiverStartTime > pMsg->snapStartTime) {
+    code = 2;
+    goto _OVER;
+  }
+_OVER:
+  if (code > 0) {
+    sRError(pReceiver, "receiver signature failed, stale snapshot, result:%d, msg signature:(%" PRId64 ", %" PRId64 ")",
+            code, pMsg->term, pMsg->snapStartTime);
+  } else if (code < 0) {
+    sRWarn(pReceiver,
+           "receiver signature failed, result:%d, a newer snapshot, msg signature:(%" PRId64 ", %" PRId64 ")", code,
+           pMsg->term, pMsg->snapStartTime);
+  }
+  return code;
 }
 
 static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg) {
   if (pReceiver->pWriter != NULL) {
-    sRError(pReceiver, "vgId:%d, snapshot receiver writer is not null", pReceiver->pSyncNode->vgId);
+    sRError(pReceiver, "snapshot receiver writer already started before");
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
 
@@ -536,12 +639,12 @@ static int32_t snapshotReceiverStartWriter(SSyncSnapshotReceiver *pReceiver, Syn
   int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotStartWrite(pReceiver->pSyncNode->pFsm, &pReceiver->snapshotParam,
                                                                   &pReceiver->pWriter);
   if (code != 0) {
-    sRError(pReceiver, "snapshot receiver start write failed since %s", tstrerror(code));
+    sRError(pReceiver, "snapshot receiver start writer failed since %s", tstrerror(code));
     TAOS_RETURN(code);
   }
 
   // event log
-  sRInfo(pReceiver, "snapshot receiver start write");
+  sRInfo(pReceiver, "snapshot receiver writer started");
   return 0;
 }
 
@@ -557,7 +660,7 @@ void snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *p
   pReceiver->ack = SYNC_SNAPSHOT_SEQ_PREP;
   pReceiver->term = pPreMsg->term;
   pReceiver->fromId = pPreMsg->srcId;
-  pReceiver->startTime = pPreMsg->startTime;
+  pReceiver->receiverStartTime = pPreMsg->snapStartTime;
 
   pReceiver->snapshotParam.start = syncNodeGetSnapBeginIndex(pReceiver->pSyncNode);
   pReceiver->snapshotParam.end = -1;
@@ -601,8 +704,10 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
     // write data
     sRInfo(pReceiver, "snapshot receiver write about to finish, blockLen:%d seq:%d", pMsg->dataLen, pMsg->seq);
     if (pMsg->dataLen > 0) {
+      (void)taosThreadMutexLock(&pReceiver->writerMutex);
       code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter, pMsg->data,
                                                            pMsg->dataLen);
+      (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
       if (code != 0) {
         sRError(pReceiver, "failed to finish snapshot receiver write since %s", tstrerror(code));
         TAOS_RETURN(code);
@@ -668,7 +773,10 @@ static int32_t snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSna
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
 
+  (void)taosThreadMutexLock(&pReceiver->writerMutex);
+
   if (pReceiver->pWriter == NULL) {
+    (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
     sRError(pReceiver, "snapshot receiver failed to write data since writer is null");
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
@@ -680,10 +788,13 @@ static int32_t snapshotReceiverGotData(SSyncSnapshotReceiver *pReceiver, SyncSna
     int32_t code = pReceiver->pSyncNode->pFsm->FpSnapshotDoWrite(pReceiver->pSyncNode->pFsm, pReceiver->pWriter,
                                                                  pMsg->data, pMsg->dataLen);
     if (code != 0) {
+      (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
       sRError(pReceiver, "snapshot receiver continue write failed since %s", tstrerror(code));
       TAOS_RETURN(code);
     }
   }
+
+  (void)taosThreadMutexUnlock(&pReceiver->writerMutex);
 
   // update progress
   pReceiver->ack = pMsg->seq;
@@ -712,10 +823,27 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
   return snapStart;
 }
 
+// The fsm parser walks the leader's TLV by its self-declared lengths; validate the outer header against the actual
+// payload size before handing the data over.
+int32_t syncSnapCheckPrepData(const void *data, uint32_t dataLen) {
+  if (data == NULL || dataLen < (uint32_t)sizeof(SSyncTLV)) return TSDB_CODE_INVALID_DATA_FMT;
+
+  SSyncTLV head = {0};
+  (void)memcpy(&head, data, sizeof(head));  // the payload is not guaranteed to be aligned
+  if (head.len < 0 || (uint64_t)head.len > (uint64_t)dataLen - sizeof(SSyncTLV)) return TSDB_CODE_INVALID_DATA_FMT;
+  return 0;
+}
+
 static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotReceiver *pReceiver,
                                              SyncSnapshotSend *pMsg, SSnapshot *pInfo) {
   if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT) return TSDB_CODE_SYN_INTERNAL_ERROR;
   int32_t code = 0, lino = 0;
+
+  code = syncSnapCheckPrepData(pMsg->data, pMsg->dataLen);
+  if (code != 0) {
+    sRError(pReceiver, "invalid prep snapshot data, dataLen:%u since %s", pMsg->dataLen, tstrerror(code));
+    return code;
+  }
 
   // copy snap info from leader
   void *data = taosMemoryCalloc(1, pMsg->dataLen);
@@ -734,6 +862,17 @@ static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshot
   SSyncTLV *datHead = pInfo->data;
   if (datHead->typ != TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
     sRError(pReceiver, "unexpected data typ in data of snapshot info. typ: %d", datHead->typ);
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): datHead->len is int32_t from the
+  // (possibly malicious) leader's prep data. A negative or over-bounded len would be sign/overflow
+  // converted into a huge size_t when passed to taosMemoryRealloc/memcpy below, causing heap OOB
+  // read. Bound it with unsigned arithmetic against the actual prep payload size (pMsg->dataLen).
+  if (datHead->len < 0 || pMsg->dataLen < (uint32_t)sizeof(SSyncTLV) ||
+      (uint64_t)datHead->len > (uint64_t)pMsg->dataLen - (uint64_t)sizeof(SSyncTLV)) {
+    sRError(pReceiver, "reject prep snapshot with invalid/over-bounded TLV len:%d, dataLen:%u (TD-SEC-2026-042)",
+            datHead->len, pMsg->dataLen);
     code = TSDB_CODE_INVALID_DATA_FMT;
     goto _exit;
   }
@@ -764,24 +903,15 @@ static int32_t syncNodeOnSnapshotPrep(SSyncNode *pSyncNode, SyncSnapshotSend *pM
   if (snapshotReceiverIsStart(pReceiver)) {
     // already start
     int32_t order = 0;
-    if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {
-      sRInfo(pReceiver,
-             "received a new snapshot preparation. restart receiver."
-             " msg signature:(%" PRId64 ", %" PRId64 ")",
-             pMsg->term, pMsg->startTime);
+    if ((order = snapshotReceiverSignatureCmp(pReceiver, pMsg)) < 0) {  // order < 0
+      sWarn("failed to prepare snapshot, received a new snapshot preparation. restart receiver.");
       goto _START_RECEIVER;
-    } else if (order == 0) {
-      sRInfo(pReceiver,
-             "received a duplicate snapshot preparation. send reply."
-             " msg signature:(%" PRId64 ", %" PRId64 ")",
-             pMsg->term, pMsg->startTime);
+    } else if (order == 0) {  // order == 0
+      sInfo("prepare snapshot, received a duplicate snapshot preparation. send reply.");
       goto _SEND_REPLY;
-    } else {
+    } else {  // order > 0
       // ignore
-      sRError(pReceiver,
-              "received a stale snapshot preparation. ignore."
-              " msg signature:(%" PRId64 ", %" PRId64 ")",
-              pMsg->term, pMsg->startTime);
+      sError("failed to prepare snapshot, received a stale snapshot preparation. ignore.");
       code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
       goto _SEND_REPLY;
     }
@@ -837,7 +967,7 @@ static int32_t syncNodeOnSnapshotBegin(SSyncNode *pSyncNode, SyncSnapshotSend *p
 
   if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    sRError(pReceiver, "failed to begin snapshot receiver since %s", tstrerror(code));
+    sError("failed to begin snapshot, since %s", tstrerror(code));
     goto _SEND_REPLY;
   }
 
@@ -880,7 +1010,7 @@ int32_t syncSnapSendRsp(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pMsg
   pRspMsg->term = pMsg->term;
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
-  pRspMsg->startTime = pMsg->startTime;
+  pRspMsg->startTime = pMsg->snapStartTime;
   pRspMsg->ack = pMsg->seq;
   pRspMsg->code = rspCode;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
@@ -963,7 +1093,7 @@ static int32_t syncNodeOnSnapshotReceive(SSyncNode *pSyncNode, SyncSnapshotSend 
 
   if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
-    sRError(pReceiver, "failed to receive snapshot data since %s.", tstrerror(code));
+    sError("failed to receive snapshot data, since %s", tstrerror(code));
     return syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code);
   }
 
@@ -978,9 +1108,8 @@ static int32_t syncNodeOnSnapshotEnd(SSyncNode *pSyncNode, SyncSnapshotSend *pMs
   int32_t                code = 0;
 
   if (snapshotReceiverSignatureCmp(pReceiver, pMsg) != 0) {
-    sRError(pReceiver, "snapshot end failed since startTime:%" PRId64 " not equal to msg startTime:%" PRId64,
-            pReceiver->startTime, pMsg->startTime);
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    sError("failed to end snapshot, since %s", tstrerror(code));
     goto _SEND_REPLY;
   }
 
@@ -1004,13 +1133,13 @@ _SEND_REPLY:;
   pRspMsg->term = raftStoreGetTerm(pSyncNode);
   pRspMsg->lastIndex = pMsg->lastIndex;
   pRspMsg->lastTerm = pMsg->lastTerm;
-  pRspMsg->startTime = pMsg->startTime;
+  pRspMsg->startTime = pMsg->snapStartTime;
   pRspMsg->ack = pReceiver->ack;  // receiver maybe already closed
   pRspMsg->code = code;
   pRspMsg->snapBeginIndex = pReceiver->snapshotParam.start;
 
   // send msg
-  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver end");
+  syncLogSendSyncSnapshotRsp(pSyncNode, pRspMsg, "snapshot receiver end", &rpcMsg.info.traceId);
   if ((code = syncNodeSendMsgById(&pRspMsg->destId, pSyncNode, &rpcMsg)) != 0) {
     sRError(pReceiver, "snapshot receiver send rsp failed since %s", tstrerror(code));
     TAOS_RETURN(code);
@@ -1019,30 +1148,71 @@ _SEND_REPLY:;
   TAOS_RETURN(code);
 }
 
+int64_t lastRecvPrintLog = 0;
+
 int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SyncSnapshotSend     **ppMsg = (SyncSnapshotSend **)&pRpcMsg->pCont;
   SyncSnapshotSend      *pMsg = ppMsg[0];
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int32_t                code = 0;
 
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125 / CWE-130): the WHOLE fixed header of
+  // SyncSnapshotSend (everything up to the flexible data[]) MUST be present in the received RPC body
+  // before ANY field is dereferenced. The transport only guarantees pRpcMsg->contLen >=
+  // sizeof(SMsgHead) (8 bytes) up-stream (vmPutMsgToQueue), so a truncated frame would otherwise make
+  // the pMsg->srcId / pMsg->term / pMsg->dataLen reads below out-of-bounds heap reads on the calloc'd
+  // frame buffer. This is the FIRST guard and must precede the dataLen-vs-available check that follows.
+  // (Matches the pattern already used for AppendEntries in syncAppendEntries.c.)
+  // NOTE: the bound is offsetof(SyncSnapshotSend, data) (== the fixed-header size, 196B), NOT
+  // sizeof(SyncSnapshotSend) (200B). sizeof includes trailing struct-alignment padding that is NOT
+  // transmitted on the wire; using sizeof would wrongly reject valid frames that carry the full fixed
+  // header plus only a few data bytes (e.g. the TD-SEC-2026-042 case3a prep-reply with a 4-byte
+  // payload), short-circuiting before the proper error path. The fixed header is exactly the bytes
+  // before data[], so offsetof is the correct and sufficient bound.
+  if ((int64_t)pRpcMsg->contLen < (int64_t)offsetof(SyncSnapshotSend, data)) {
+    sRError(pReceiver,
+            "reject snapshot msg with truncated fixed header, contLen:%u, require at least:%zu (TD-SEC-2026-042)",
+            pRpcMsg->contLen, (size_t)offsetof(SyncSnapshotSend, data));
+    TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
+  }
+
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): the snapshot block length
+  // (pMsg->dataLen) is fully attacker-controlled and is carried inside the RPC body. The only
+  // trustworthy bound is the RPC layer's contLen, NOT pMsg->bytes (also taken from the wire).
+  // Reject any message whose declared dataLen exceeds the actual bytes received, otherwise the
+  // downstream FpSnapshotDoWrite / memcpy would read past the heap buffer. This entry check bounds
+  // the outer payload (pMsg->dataLen) used by syncSnapReceiverExchgSnapInfo's first alloc/copy. The
+  // inner embedded SSyncTLV.len (also attacker-controlled) is validated separately inside
+  // syncSnapReceiverExchgSnapInfo / syncSnapSenderExchgSnapInfo, NOT by this check alone.
+  // NOTE: because the header guard above guarantees contLen >= offsetof(SyncSnapshotSend, data), snapDataAvail
+  // is guaranteed to be >= 0 here, so the comparison below can never be reached with an OOB dataLen read.
+  int64_t snapDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotSend, data);
+  if ((int64_t)pMsg->dataLen > snapDataAvail) {
+    sRError(pReceiver,
+            "reject snapshot msg with out-of-bounds dataLen:%u, available:%" PRId64 ", seq:%d (TD-SEC-2026-042)",
+            pMsg->dataLen, snapDataAvail, pMsg->seq);
+    code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+    TAOS_RETURN(code);
+  }
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
-    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config");
-    code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    syncLogRecvSyncSnapshotSend(pSyncNode, pMsg, "not in my config", &pRpcMsg->info.traceId);
+    code = TSDB_CODE_SYN_NOT_IN_RAFT_GROUP;
     TAOS_RETURN(code);
   }
 
   if (pMsg->term < raftStoreGetTerm(pSyncNode)) {
     sRError(pReceiver, "reject snap replication with smaller term. msg term:%" PRId64 ", seq:%d", pMsg->term,
             pMsg->seq);
-    code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    code = TSDB_CODE_SYN_TERM_NOT_MATCH;
     if (syncSnapSendRsp(pReceiver, pMsg, NULL, 0, 0, code) != 0) sError("failed to send snap rsp");
     TAOS_RETURN(code);
   }
 
   if (pSyncNode->raftCfg.cfg.nodeInfo[pSyncNode->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER) {
     if (pMsg->term > raftStoreGetTerm(pSyncNode)) {
-      syncNodeStepDown(pSyncNode, pMsg->term, pMsg->srcId);
+      syncNodeStepDown(pSyncNode, pMsg->term, pMsg->srcId, "snapshot");
     }
   } else {
     syncNodeUpdateTermWithoutStepDown(pSyncNode, pMsg->term);
@@ -1062,30 +1232,58 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // prepare
   if (pMsg->seq == SYNC_SNAPSHOT_SEQ_PREP) {
-    sInfo("vgId:%d, prepare snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
-          pMsg->startTime);
+    sInfo(
+        "vgId:%d, snapshot replication progress:2/8:follower:1/4, start to prepare, recv msg:%s, snap seq:%d, msg "
+        "signature:(%" PRId64 ", %" PRId64 ")",
+        pSyncNode->vgId, TMSG_INFO(pRpcMsg->msgType), pMsg->seq, pMsg->term, pMsg->snapStartTime);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotPrep(pSyncNode, pMsg);
+    sDebug(
+        "vgId:%d, snapshot replication progress:2/8:follower:1/4, finish to prepare, recv msg:%s, snap seq:%d, msg "
+        "signature:(%" PRId64 ", %" PRId64 ")",
+        pSyncNode->vgId, TMSG_INFO(pRpcMsg->msgType), pMsg->seq, pMsg->term, pMsg->snapStartTime);
     goto _out;
   }
 
   // begin
   if (pMsg->seq == SYNC_SNAPSHOT_SEQ_BEGIN) {
-    sInfo("vgId:%d, begin snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
-          pMsg->startTime);
+    sInfo("vgId:%d, snapshot replication progress:4/8:follower:2/4, start to begin,replication. msg signature:(%" PRId64
+          ", %" PRId64 "), snapshot msg seq:%d",
+          pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotBegin(pSyncNode, pMsg);
+    sDebug("vgId:%d, snapshot replication progress:4/8:follower:2/4, finish to begin. msg signature:(%" PRId64
+           ", %" PRId64 ")",
+           pSyncNode->vgId, pMsg->term, pMsg->snapStartTime);
     goto _out;
   }
 
   // data
   if (pMsg->seq > SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->seq < SYNC_SNAPSHOT_SEQ_END) {
+    int64_t currentTimestamp = taosGetTimestampMs()/1000;
+    if (currentTimestamp > lastRecvPrintLog) {
+      sInfo("vgId:%d, snapshot replication progress:6/8:follower:3/4, start to receive. msg signature:(%" PRId64
+            ", %" PRId64 "), snapshot msg seq:%d",
+            pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+
+    } else {
+      sDebug("vgId:%d, snapshot replication progress:6/8:follower:3/4, start to receive. msg signature:(%" PRId64
+             ", %" PRId64 "), snapshot msg seq:%d",
+             pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+    }
+    pSyncNode->snapSeq = pMsg->seq;
+    lastRecvPrintLog = currentTimestamp;
     code = syncNodeOnSnapshotReceive(pSyncNode, ppMsg);
+    sDebug("vgId:%d, snapshot replication progress:6/8:follower:3/4, finish to receive.", pSyncNode->vgId);
     goto _out;
   }
 
   // end
   if (pMsg->seq == SYNC_SNAPSHOT_SEQ_END) {
-    sInfo("vgId:%d, end snap replication. msg signature:(%" PRId64 ", %" PRId64 ")", pSyncNode->vgId, pMsg->term,
-          pMsg->startTime);
+    sInfo("vgId:%d, snapshot replication progress:7/8:follower:4/4, start to end. msg signature:(%" PRId64 ", %" PRId64
+          "), snapshot msg seq:%d",
+          pSyncNode->vgId, pMsg->term, pMsg->snapStartTime, pMsg->seq);
+    pSyncNode->snapSeq = pMsg->seq;
     code = syncNodeOnSnapshotEnd(pSyncNode, pMsg);
     if (code != 0) {
       sRError(pReceiver, "failed to end snapshot.");
@@ -1096,6 +1294,9 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
     if (code != 0) {
       sRError(pReceiver, "failed to reinit log buffer since %s", tstrerror(code));
     }
+    sDebug("vgId:%d, snapshot replication progress:7/7:follower:4/4, finish to end. msg signature:(%" PRId64
+           ", %" PRId64 ")",
+           pSyncNode->vgId, pMsg->term, pMsg->snapStartTime);
     goto _out;
   }
 
@@ -1110,6 +1311,13 @@ static int32_t syncSnapSenderExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotSe
   SSyncTLV *datHead = (void *)pMsg->data;
   if (datHead->typ != pMsg->payloadType) {
     sSError(pSender, "unexpected data type in data of SyncSnapshotRsp. typ: %d", datHead->typ);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): datHead->len is int32_t and may be
+  // attacker-controlled. Reject a negative or overflowing len up front so it can never be turned into
+  // a giant size_t and passed to taosMemoryRealloc/memcpy below.
+  if (datHead->len < 0 || (uint64_t)datHead->len > (uint64_t)SIZE_MAX - (uint64_t)sizeof(SSyncTLV)) {
+    sSError(pSender, "unexpected snapshot TLV len:%d in SyncSnapshotRsp (TD-SEC-2026-042)", datHead->len);
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
   }
   int32_t dataLen = sizeof(SSyncTLV) + datHead->len;
@@ -1132,9 +1340,10 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   int32_t   code = 0;
   SSnapshot snapshot = {0};
 
-  if (pMsg->snapBeginIndex > pSyncNode->commitIndex) {
+  if (pMsg->snapBeginIndex > pSyncNode->commitIndex + 1) {
     sSError(pSender,
-            "snapshot begin index is greater than commit index. snapBeginIndex:%" PRId64 ", commitIndex:%" PRId64,
+            "snapshot begin index is greater than commit index. msg snapBeginIndex:%" PRId64
+            ", node commitIndex:%" PRId64,
             pMsg->snapBeginIndex, pSyncNode->commitIndex);
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
@@ -1157,6 +1366,12 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
     TAOS_CHECK_GOTO(syncSnapSenderExchgSnapInfo(pSyncNode, pSender, pMsg), NULL, _out);
   }
 
+  // Convert the target replica index into the target follower's dnodeId and pass it down with the snapshot parameters,
+  // so the tsdb layer can bucketize transfer progress per target (the DID macro takes the low 32 bits of SRaftId.addr as the dnodeId).
+  pSender->snapshotParam.destDnodeId = DID(&pSyncNode->replicasId[pSender->replicaIndex]);
+  sSInfo(pSender, "snapshot start read, replicaIndex:%d destDnodeId:%d", pSender->replicaIndex,
+         pSender->snapshotParam.destDnodeId);
+
   code = pSyncNode->pFsm->FpSnapshotStartRead(pSyncNode->pFsm, &pSender->snapshotParam, &pSender->pReader);
   if (code != 0) {
     sSError(pSender, "prepare snapshot failed since %s", tstrerror(code));
@@ -1166,7 +1381,7 @@ static int32_t syncNodeOnSnapshotPrepRsp(SSyncNode *pSyncNode, SSyncSnapshotSend
   // update next index
   syncIndexMgrSetIndex(pSyncNode->pNextIndex, &pMsg->srcId, snapshot.lastApplyIndex + 1);
 
-  code = snapshotSend(pSender);
+  code = snapshotSend(pSender, NULL);
 
 _out:
   (void)taosThreadMutexUnlock(&pSender->pSndBuf->mutex);
@@ -1174,10 +1389,14 @@ _out:
 }
 
 static int32_t snapshotSenderSignatureCmp(SSyncSnapshotSender *pSender, SyncSnapshotRsp *pMsg) {
+  int32_t code = 0;
   if (pSender->term < pMsg->term) return -1;
   if (pSender->term > pMsg->term) return 1;
-  if (pSender->startTime < pMsg->startTime) return -1;
-  if (pSender->startTime > pMsg->startTime) return 1;
+  if (pSender->senderStartTime < pMsg->startTime) return -2;
+  if (pSender->senderStartTime > pMsg->startTime) return 2;
+  if (code != 0)
+    sSError(pSender, "sender signature failed, result:%d, msg signature:(%" PRId64 ", %" PRId64 ")", code, pMsg->term,
+            pMsg->startTime);
   return 0;
 }
 
@@ -1189,6 +1408,7 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   (void)taosThreadMutexLock(&pSndBuf->mutex);
   if (snapshotSenderSignatureCmp(pSender, pMsg) != 0) {
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    sError("failed to send snapshot data, since %s", tstrerror(code));
     goto _out;
   }
 
@@ -1232,13 +1452,42 @@ static int32_t syncSnapBufferSend(SSyncSnapshotSender *pSender, SyncSnapshotRsp 
   }
 
   while (pSender->seq != SYNC_SNAPSHOT_SEQ_END && pSender->seq - pSndBuf->start < tsSnapReplMaxWaitN) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if (!snapshotRateLimiterTryConsume()) {
+      // Insufficient tokens, trigger rate limiting. Note: pSndBuf->mutex is already held on entry to this function;
+      // calling taosMsleep while holding the lock would block other paths that need this sender's lock (e.g. handling subsequent ACKs, stopping the sender).
+      // So we release the lock before sleeping to let the token bucket refill at its rate, then re-acquire the lock after waking up.
+      // A small sleep granularity (10ms) is chosen to reduce burst jitter during rate limiting and make the send rate smoother.
+      sSDebug(pSender, "snapshot rate limited, current rate: %d MB/s, unlock and wait for tokens", tsSnapshotRateLimit);
+      (void)taosThreadMutexUnlock(&pSndBuf->mutex);
+      taosMsleep(10);
+      (void)taosThreadMutexLock(&pSndBuf->mutex);
+
+      // While sleeping the lock was released, so the sender's state may have changed (e.g. term change, leader switch, sender stopped,
+      // reader freed, etc.). After re-acquiring the lock, we must re-validate the signature and running state, and exit safely if it is no longer valid,
+      // to avoid continuing to send snapshot data on an already-invalid/stopped sender.
+      if (snapshotSenderSignatureCmp(pSender, pMsg) != 0) {
+        code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+        sError("failed to send snapshot data after rate-limit wait, since %s", tstrerror(code));
+        goto _out;
+      }
+      if (pSender->pReader == NULL || pSender->finish || !snapshotSenderIsStart(pSender)) {
+        code = TSDB_CODE_SYN_INTERNAL_ERROR;
+        sSError(pSender, "snapshot sender became invalid during rate-limit wait, pReader:%p, finish:%d",
+                pSender->pReader, pSender->finish);
+        goto _out;
+      }
+      continue;
+    }
+    int32_t sentBytes = 0;
+    if ((code = snapshotSend(pSender, &sentBytes)) != 0) {
       goto _out;
     }
+    sSDebug(pSender, "snapshot replication progress:5/8:leader:3/4, snapshot send, seq:%d, sentBytes:%d", pSender->seq, sentBytes);
+    snapshotRateLimiterDeduct(sentBytes);
   }
 
   if (pSender->seq == SYNC_SNAPSHOT_SEQ_END && pSndBuf->end <= pSndBuf->start) {
-    if ((code = snapshotSend(pSender)) != 0) {
+    if ((code = snapshotSend(pSender, NULL)) != 0) {
       goto _out;
     }
   }
@@ -1247,37 +1496,93 @@ _out:
   TAOS_RETURN(code);
 }
 
+int64_t lastSendPrintLog = 0;
+
 int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SyncSnapshotRsp **ppMsg = (SyncSnapshotRsp **)&pRpcMsg->pCont;
   SyncSnapshotRsp  *pMsg = ppMsg[0];
   int32_t           code = 0;
 
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125 / CWE-130): the WHOLE fixed header of
+  // SyncSnapshotRsp (everything up to the flexible data[]) MUST be present in the received RPC body
+  // before ANY field is dereferenced. The transport only guarantees pRpcMsg->contLen >=
+  // sizeof(SMsgHead) (8 bytes) up-stream, so a truncated frame would otherwise make the pMsg->srcId /
+  // pMsg->term / pMsg->ack / pMsg->code reads below (and the data[] TLV check further down) out-of-
+  // bounds heap reads on the calloc'd frame buffer. This is the FIRST guard and must precede the
+  // payload TLV check at the prep-reply branch. (Analogous to the SyncSnapshotSend guard in
+  // syncNodeOnSnapshot, and to the AppendEntries guard in syncAppendEntries.c.)
+  // NOTE: the bound is offsetof(SyncSnapshotRsp, data) (== the fixed-header size, 98B), NOT
+  // sizeof(SyncSnapshotRsp) (104B). sizeof includes trailing struct-alignment padding that is NOT
+  // transmitted on the wire; using sizeof would wrongly reject valid frames that carry the full fixed
+  // header plus only a few data bytes (e.g. the TD-SEC-2026-042 case3a prep-reply with a 4-byte
+  // payload: cont = 98 + 4 = 102 < 104), short-circuiting before the proper _ERROR path that stops
+  // the sender and calls syncNodeReplicateReset. The fixed header is exactly the bytes before data[],
+  // so offsetof is the correct and sufficient bound.
+  if ((int64_t)pRpcMsg->contLen < (int64_t)offsetof(SyncSnapshotRsp, data)) {
+    sError("vgId:%d, reject snapshot rsp with truncated fixed header, contLen:%u, require at least:%zu "
+           "(TD-SEC-2026-042)",
+           pSyncNode->vgId, pRpcMsg->contLen, (size_t)offsetof(SyncSnapshotRsp, data));
+    TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
+  }
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "maybe replica already dropped");
-    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "maybe replica already dropped", &pRpcMsg->info.traceId);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
   }
 
   // get sender
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, &pMsg->srcId);
   if (pSender == NULL) {
-    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender is null");
+    syncLogRecvSyncSnapshotRsp(pSyncNode, pMsg, "sender is null", &pRpcMsg->info.traceId);
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
   }
 
   if (!snapshotSenderIsStart(pSender)) {
     sSError(pSender, "snapshot sender stopped. sender startTime:%" PRId64 ", msg startTime:%" PRId64,
-            pSender->startTime, pMsg->startTime);
+            pSender->senderStartTime, pMsg->startTime);
     TAOS_RETURN(TSDB_CODE_SYN_INTERNAL_ERROR);
+  }
+
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): a malicious follower's prep-reply
+  // embeds an SSyncTLV whose len is attacker-controlled (int32_t, signed). syncSnapSenderExchgSnapInfo
+  // reads/copies sizeof(SSyncTLV)+len bytes from pMsg->data, so validate it BEFORE that happens:
+  //   1) reject a negative len, otherwise it sign-extends into a huge size_t for taosMemoryRealloc/memcpy;
+  //   2) bound the TLV using unsigned (uint64) arithmetic against the actual received RPC body.
+  // The only trusted bound is the RPC layer's contLen, NOT pMsg->bytes (also a wire value).
+  if (pMsg->payloadType == TDMT_SYNC_PREP_SNAPSHOT_REPLY) {
+    int64_t rspDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotRsp, data);
+    if (rspDataAvail < (int64_t)sizeof(SSyncTLV)) {
+      sSError(pSender, "reject prep snapshot rsp with truncated TLV header, available:%" PRId64 " (TD-SEC-2026-042)",
+              rspDataAvail);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
+    SSyncTLV *datHead = (SSyncTLV *)pMsg->data;
+    // Guard the signed len explicitly: a negative value would bypass the size check below via
+    // underflow and later become a giant size_t in realloc/memcpy.
+    if (datHead->len < 0) {
+      sSError(pSender, "reject prep snapshot rsp with negative TLV len:%d (TD-SEC-2026-042)", datHead->len);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
+    uint64_t tlvNeed = (uint64_t)sizeof(SSyncTLV) + (uint64_t)datHead->len;
+    if (tlvNeed > (uint64_t)rspDataAvail) {
+      sSError(pSender,
+              "reject prep snapshot rsp with out-of-bounds TLV len:%d, available:%" PRId64 " (TD-SEC-2026-042)",
+              datHead->len, rspDataAvail);
+      code = TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG;
+      goto _ERROR;
+    }
   }
 
   // check signature
   int32_t order = 0;
   if ((order = snapshotSenderSignatureCmp(pSender, pMsg)) > 0) {
-    sSWarn(pSender, "ignore a stale snap rsp, msg signature:(%" PRId64 ", %" PRId64 ").", pMsg->term, pMsg->startTime);
+    sError("failed to check snapshot rsp signature, ignore a stale snap rsp.");
     TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
   } else if (order < 0) {
-    sSError(pSender, "snapshot sender is stale. stop");
+    sError("failed to check snapshot rsp signature, snapshot sender is stale. stop");
     code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
     goto _ERROR;
   }
@@ -1292,7 +1597,7 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   if (pMsg->term != currentTerm) {
     sSError(pSender, "snapshot sender term mismatch, msg term:%" PRId64 " currentTerm:%" PRId64, pMsg->term,
             currentTerm);
-    code = TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
+    code = TSDB_CODE_SYN_TERM_NOT_MATCH;
     goto _ERROR;
   }
 
@@ -1304,7 +1609,9 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // send begin
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_PREP) {
-    sSInfo(pSender, "process prepare rsp");
+    sSInfo(pSender, "snapshot replication progress:3/8:leader:2/4, process prepare rsp, msg:%s, snap ack:%d, ",
+           TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
+    pSyncNode->snapSeq = pMsg->ack;
     if ((code = syncNodeOnSnapshotPrepRsp(pSyncNode, pSender, pMsg)) != 0) {
       goto _ERROR;
     }
@@ -1312,6 +1619,16 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // send msg of data or end
   if (pMsg->ack >= SYNC_SNAPSHOT_SEQ_BEGIN && pMsg->ack < SYNC_SNAPSHOT_SEQ_END) {
+    int64_t currentTimestamp = taosGetTimestampMs()/1000;
+    if (currentTimestamp > lastSendPrintLog) {
+      sSInfo(pSender, "snapshot replication progress:5/8:leader:3/4, receive rsp(going to send a batch), msg:%s, snap ack:%d",
+             TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
+    } else {
+      sSDebug(pSender, "snapshot replication progress:5/8:leader:3/4, receive rsp(going to send a batch), msg:%s, snap ack:%d",
+              TMSG_INFO(pRpcMsg->msgType), pMsg->ack);
+    }
+    lastSendPrintLog = currentTimestamp;
+    pSyncNode->snapSeq = pMsg->ack;
     if ((code = syncSnapBufferSend(pSender, ppMsg)) != 0) {
       sSError(pSender, "failed to replicate snap since %s. seq:%d, pReader:%p, finish:%d", tstrerror(code),
               pSender->seq, pSender->pReader, pSender->finish);
@@ -1321,7 +1638,8 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
 
   // end
   if (pMsg->ack == SYNC_SNAPSHOT_SEQ_END) {
-    sSInfo(pSender, "process end rsp");
+    sSInfo(pSender, "snapshot replication progress:8/8:leader:4/4, process end rsp");
+    pSyncNode->snapSeq = pMsg->ack;
     snapshotSenderStop(pSender, true);
     TAOS_CHECK_GOTO(syncNodeReplicateReset(pSyncNode, &pMsg->srcId), NULL, _ERROR);
   }

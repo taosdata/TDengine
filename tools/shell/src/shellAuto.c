@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -83,14 +85,20 @@ SWords shellCommands[] = {
     {"alter local \"asynclog\" \"0\";", 0, 0, NULL},
     {"alter local \"asynclog\" \"1\";", 0, 0, NULL},
     {"alter topic", 0, 0, NULL},
-    {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
     {"balance vgroup ;", 0, 0, NULL},
     {"balance vgroup leader on <vgroup_id>", 0, 0, NULL},
+    // Forced variant: appends the FORCE keyword to trigger deterministic (biased) leader balancing.
+    {"balance vgroup leader on <vgroup_id> force", 0, 0, NULL},
+    {"alter token <token_name> <token_opt> <anyword> ;", 0, 0, NULL},
+    {"alter user <user_name> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword>", 0, 0, NULL},
+#else
+   {"alter user <user_name> <user_actions> <anyword> ;", 0, 0, NULL},
 #endif
 
     // 20
     {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
+    {"create vtable <anyword> using <stb_name> tags(", 0, 0, NULL},
     {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> "
      "<anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> "
      "<db_options> <anyword> <db_options> <anyword> ;", 0, 0, NULL},
@@ -98,20 +106,53 @@ SWords shellCommands[] = {
     {"create index <anyword> on <stb_name> ()", 0, 0, NULL},
     {"create mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"create qnode on dnode <dnode_id>;", 0, 0, NULL},
-    {"create stream <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
+#ifdef TD_ENTERPRISE
+    {"create bnode on dnode <dnode_id>;", 0, 0, NULL},
+#endif
+    {"create anode <anyword>", 0, 0, NULL},
+    {"create snode on dnode <dnode_id>;", 0, 0, NULL},
+    // create stream <stream_name> <trigger window> [from <tb_name>] into <out_table> as select ...
+    {"create stream <anyword> interval(", 0, 0, NULL},
+    {"create stream <anyword> <anyword> sliding(", 0, 0, NULL},
+    {"create stream <anyword> period(", 0, 0, NULL},
+    {"create stream <anyword> session(", 0, 0, NULL},
+    {"create stream <anyword> state_window(", 0, 0, NULL},
+    {"create stream <anyword> event_window(", 0, 0, NULL},
+    {"create stream <anyword> count_window(", 0, 0, NULL},
+    // the additional <anyword> stands for the trigger window, the single token form
+    // has to be listed before the two token form of interval() sliding()
+    {"create stream <anyword> <anyword> into <anyword> as select", 0, 0, NULL},  // 26 append sub sql
+    {"create stream <anyword> <anyword> from <all_table>", 0, 0, NULL},
+    {"create stream <anyword> <anyword> <anyword> from <all_table>", 0, 0, NULL},
+    {"create stream <anyword> <anyword> <anyword> into <anyword> as select", 0, 0, NULL},
     {"create topic <anyword> as select", 0, 0, NULL},                  // 27 append sub sql
+#ifdef TD_ENTERPRISE
+    {"create rsma <anyword> on <all_table> function interval <anyword>", 0, 0, NULL},
+#endif
     {"create tsma <anyword> on <all_table> function", 0, 0, NULL},
     {"create recursive tsma <anyword> on <tsma_name> interval(", 0, 0, NULL},
     {"create function <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
     {"create or replace <anyword> as <anyword> outputtype <data_types> language <udf_language>;", 0, 0, NULL},
     {"create aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
     {"create or replace aggregate function  <anyword> as <anyword> outputtype <data_types> bufsize <anyword> language <udf_language>;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
-    {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE    
     {"create view <anyword> as select", 0, 0, NULL},
     {"compact database <db_name>", 0, 0, NULL},
+    {"compact vgroups in( <anyword>", 0, 0, NULL},
+    {"create mount <mount_name> on dnode <dnode_id> from <path>;", 0, 0, NULL},
+    {"create full backup on dnode <dnode_id> to <anyword> with password <anyword> parallel <anyword>", 0, 0, NULL},
+    // {"create incremental backup on dnode <dnode_id> to ", 0, 0, NULL}, // not implemented yet
+    {"create token <anyword> from user <user_name> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> <token_opt> <anyword> ;", 0, 0, NULL},
+    {"create totp_secret for user <user_name>;", 0, 0, NULL},
+    {"create user <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword> <create_uopt> <anyword>", 0, 0, NULL},
+#else
+    {"create user <anyword> pass <anyword> createdb 1;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> createdb 0;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
+    {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
 #endif
+    {"scan database <db_name>", 0, 0, NULL},
+    {"desc <all_table>;", 0, 0, NULL},
     {"describe <all_table>;", 0, 0, NULL},
     {"delete from <all_table> where ", 0, 0, NULL},
     {"drop database <db_name>;", 0, 0, NULL},
@@ -120,6 +161,10 @@ SWords shellCommands[] = {
     {"drop dnode <dnode_id>;", 0, 0, NULL},
     {"drop mnode on dnode <dnode_id>;", 0, 0, NULL},
     {"drop qnode on dnode <dnode_id>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"drop bnode on dnode <dnode_id>;", 0, 0, NULL},
+#endif
+    {"drop anode <anode_id>;", 0, 0, NULL},
     {"drop user <user_name>;", 0, 0, NULL},
     // 40
     {"drop function <udf_name>;", 0, 0, NULL},
@@ -127,17 +172,27 @@ SWords shellCommands[] = {
     {"drop topic <topic_name>;", 0, 0, NULL},
     {"drop stream <stream_name>;", 0, 0, NULL},
     {"drop tsma <tsma_name>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"drop rsma <rsma_name>;", 0, 0, NULL},
+#endif
     {"explain select ", 0, 0, NULL},  // 44 append sub sql
     {"flush database <db_name>;", 0, 0, NULL},
     {"help;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"grant all on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant read on <anyword> to <user_name>;", 0, 0, NULL},
     {"grant write on <anyword> to <user_name>;", 0, 0, NULL},
+#endif
     {"kill connection <anyword>;", 0, 0, NULL},
+    {"kill retention ", 0, 0, NULL},
     {"kill query ", 0, 0, NULL},
     {"kill transaction ", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
+    {"kill backup <anyword>;", 0, 0, NULL},
     {"merge vgroup <vgroup_id> <vgroup_id>;", 0, 0, NULL},
+    {"drop token <token_name>;", 0, 0, NULL},
+    {"drop totp_secret from user <user_name>;", 0, 0, NULL},
+    {"drop mount <mount_name>;", 0, 0, NULL},
 #endif
     {"pause stream <stream_name>;", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -145,6 +200,7 @@ SWords shellCommands[] = {
 #endif
     {"resume stream <stream_name>;", 0, 0, NULL},
     {"reset query cache;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"restore dnode <dnode_id>;", 0, 0, NULL},
     {"restore vnode on dnode <dnode_id>;", 0, 0, NULL},
     {"restore mnode on dnode <dnode_id>;", 0, 0, NULL},
@@ -152,6 +208,9 @@ SWords shellCommands[] = {
     {"revoke all on <anyword> from <user_name>;", 0, 0, NULL},
     {"revoke read on <anyword> from <user_name>;", 0, 0, NULL},
     {"revoke write on <anyword> from <user_name>;", 0, 0, NULL},
+    {"rollup database <db_name>;", 0, 0, NULL},
+    {"rollup database <db_name> vgroups in( <anyword>", 0, 0, NULL},
+#endif
     {"select * from <all_table>", 0, 0, NULL},
     {"select client_version();", 0, 0, NULL},
     // 60
@@ -162,9 +221,14 @@ SWords shellCommands[] = {
     {"select now();", 0, 0, NULL},
     {"select today();", 0, 0, NULL},
     {"select timezone();", 0, 0, NULL},
+    {"set first_day_of_week ", 0, 0, NULL},
     {"set max_binary_display_width ", 0, 0, NULL},
+    {"set timezone ", 0, 0, NULL},
+    {"subscribe ", 0, 0, NULL},
     {"show apps;", 0, 0, NULL},
     {"show alive;", 0, 0, NULL},
+    {"show anodes;", 0, 0, NULL},
+    {"show anodes full;", 0, 0, NULL},
     {"show create database <db_name> \\G;", 0, 0, NULL},
     {"show create stable <stb_name> \\G;", 0, 0, NULL},
     {"show create table <tb_name> \\G;", 0, 0, NULL},
@@ -172,7 +236,7 @@ SWords shellCommands[] = {
     {"show create view <all_table> \\G;", 0, 0, NULL},
     {"show compact", 0, 0, NULL},
     {"show compacts;", 0, 0, NULL},
-
+    {"show backups;", 0, 0, NULL},
 #endif
     {"show connections;", 0, 0, NULL},
     {"show cluster;", 0, 0, NULL},
@@ -181,6 +245,7 @@ SWords shellCommands[] = {
     {"show databases;", 0, 0, NULL},
     {"show dnodes;", 0, 0, NULL},
     {"show dnode <dnode_id> variables;", 0, 0, NULL},
+    {"show disk_info;", 0, 0, NULL},
     {"show functions;", 0, 0, NULL},
     {"show licences;", 0, 0, NULL},
     {"show mnodes;", 0, 0, NULL},
@@ -188,12 +253,22 @@ SWords shellCommands[] = {
     // 80
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"show bnodes;", 0, 0, NULL},
+#endif
+    {"show retentions;", 0, 0, NULL},
+    {"show retention <retention_id>;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"show security_policies;", 0, 0, NULL},
+#endif
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
     {"show scores;", 0, 0, NULL},
     {"show snodes;", 0, 0, NULL},
     {"show subscriptions;", 0, 0, NULL},
+    {"show scans;", 0, 0, NULL},
+    {"show scan <scan_id>;", 0, 0, NULL},
     {"show tables;", 0, 0, NULL},
     {"show tables like", 0, 0, NULL},
     {"show table distributed <all_table>;", 0, 0, NULL},
@@ -201,22 +276,40 @@ SWords shellCommands[] = {
     {"show table tags from <all_table>;", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
+    {"show transaction logs;", 0, 0, NULL},
+    {"show transaction orphans;", 0, 0, NULL},
+    {"show indexes from <stb_name>;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"show rsmas;", 0, 0, NULL},
+    {"show roles;", 0, 0, NULL},
+    {"show role privileges;", 0, 0, NULL},
+    {"show role column privileges;", 0, 0, NULL},
+#endif
     {"show users;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    {"show users full;", 0, 0, NULL},
+    {"show user privileges;", 0, 0, NULL},
+    {"show user column privileges;", 0, 0, NULL},
+#endif
     {"show variables;", 0, 0, NULL},
     {"show local variables;", 0, 0, NULL},
     {"show vnodes;", 0, 0, NULL},
     {"show vnodes on dnode <dnode_id>;", 0, 0, NULL},
     {"show vgroups;", 0, 0, NULL},
+    {"show vtables;", 0, 0, NULL},
     {"show consumers;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
     {"show grants;", 0, 0, NULL},
     {"show grants full;", 0, 0, NULL},
     {"show grants logs;", 0, 0, NULL},
-#ifdef TD_ENTERPRISE
     {"show views;", 0, 0, NULL},
     {"show arbgroups;", 0, 0, NULL},
     {"split vgroup <vgroup_id>;", 0, 0, NULL},
-    {"s3migrate database <db_name>;", 0, 0, NULL},
+    {"ssmigrate database <db_name>;", 0, 0, NULL},
+    {"show mounts;", 0, 0, NULL},
+    {"show ssmigrates;", 0, 0, NULL},
+    {"show tokens;", 0, 0, NULL},
 #endif
     {"insert into <tb_name> values(", 0, 0, NULL},
     {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
@@ -224,6 +317,98 @@ SWords shellCommands[] = {
     {"insert into <tb_name> file ", 0, 0, NULL},
     {"trim database <db_name>;", 0, 0, NULL},
     {"use <db_name>;", 0, 0, NULL},
+    {"update all anodes;", 0, 0, NULL},
+    {"update anode <anyword>;", 0, 0, NULL},
+    {"flush mnode;", 0, 0, NULL},
+    // transaction
+    {"begin;", 0, 0, NULL},
+    {"start transaction;", 0, 0, NULL},
+    {"commit;", 0, 0, NULL},
+    {"rollback;", 0, 0, NULL},
+    // create table / stable / vtable, the fields are completed by matchCreateTable
+    {"create stable <anyword> (", 0, 0, NULL},
+    {"create vtable <anyword> (", 0, 0, NULL},
+    // alter table / stable / vtable
+    {"alter stable <stb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
+    {"alter vtable <tb_name> <tb_actions> <anyword> ;", 0, 0, NULL},
+    {"alter dnodes reload tls;", 0, 0, NULL},
+    {"alter vgroup <vgroup_id> set keep <anyword>;", 0, 0, NULL},
+    // drop table / stable / vtable
+    {"drop stable <stb_name>;", 0, 0, NULL},
+    {"drop vtable <all_table>;", 0, 0, NULL},
+    {"drop snode on dnode <dnode_id>;", 0, 0, NULL},
+    // stream and topic management
+    {"start stream <stream_name>;", 0, 0, NULL},
+    {"stop stream <stream_name>;", 0, 0, NULL},
+    {"recalculate stream <stream_name> from <anyword>;", 0, 0, NULL},
+    {"recalculate stream <stream_name> from <anyword> to <anyword>;", 0, 0, NULL},
+    {"reload topic <topic_name> as select", 0, 0, NULL},
+    // vnode maintenance
+    {"close vnode <anyword> on dnode <dnode_id>;", 0, 0, NULL},
+    {"open vnode <anyword> on dnode <dnode_id>;", 0, 0, NULL},
+    {"assign leader force;", 0, 0, NULL},
+    {"kill scan <anyword>;", 0, 0, NULL},
+    // show
+    {"show cluster variables like ", 0, 0, NULL},
+    {"show create stream <stream_name> \\G;", 0, 0, NULL},
+    {"show create vtable <tb_name> \\G;", 0, 0, NULL},
+    {"show instances;", 0, 0, NULL},
+    {"show instances like ", 0, 0, NULL},
+    {"show cpu_allocation;", 0, 0, NULL},
+    {"show vtable validate for <tb_name>;", 0, 0, NULL},
+    {"show vtable inherits;", 0, 0, NULL},
+#ifdef TD_ENTERPRISE
+    // view
+    {"drop view <all_table>;", 0, 0, NULL},
+    // rsma
+    {"alter rsma <rsma_name> function(", 0, 0, NULL},
+    {"show create rsma <rsma_name> \\G;", 0, 0, NULL},
+    // kill
+    {"kill compact <anyword>;", 0, 0, NULL},
+    {"kill ssmigrate <anyword>;", 0, 0, NULL},
+    // role and privilege
+    {"create role <anyword>;", 0, 0, NULL},
+    {"drop role <anyword>;", 0, 0, NULL},
+    {"lock role <anyword>;", 0, 0, NULL},
+    {"unlock role <anyword>;", 0, 0, NULL},
+    {"grant role <anyword> to <user_name>;", 0, 0, NULL},
+    {"revoke role <anyword> from <user_name>;", 0, 0, NULL},
+    // transparent encryption
+    {"create encrypt_key <anyword>;", 0, 0, NULL},
+    {"create encrypt_algr <anyword> algr_name <anyword> desc <anyword> algr_type <anyword> ossl_algr_name <anyword>;", 0, 0, NULL},
+    {"drop encrypt_algr <anyword>;", 0, 0, NULL},
+    {"alter system set svr_key <anyword>;", 0, 0, NULL},
+    {"alter system set db_key <anyword>;", 0, 0, NULL},
+    {"alter system set key_expiration <anyword> days strategy <anyword>;", 0, 0, NULL},
+    {"show encryptions;", 0, 0, NULL},
+    {"show encrypt_algorithms;", 0, 0, NULL},
+    {"show encrypt_status;", 0, 0, NULL},
+    // external source (federated query)
+    {"create external source <db_name>", 0, 0, NULL},
+    {"alter external source <db_name> set ", 0, 0, NULL},
+    {"drop external source <db_name>;", 0, 0, NULL},
+    {"describe external source <db_name>;", 0, 0, NULL},
+    {"refresh external source <db_name>;", 0, 0, NULL},
+    {"show external sources;", 0, 0, NULL},
+    // xnode
+    {"create xnode <anyword>;", 0, 0, NULL},
+    {"create xnode agent <anyword>;", 0, 0, NULL},
+    {"create xnode task <anyword> from <anyword> to <anyword>;", 0, 0, NULL},
+    {"create xnode job on <anyword>;", 0, 0, NULL},
+    {"alter xnode set token <anyword>;", 0, 0, NULL},
+    {"alter xnode set user <user_name> pass <anyword>;", 0, 0, NULL},
+    {"alter xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"restart xnode;", 0, 0, NULL},
+    {"drop xnode <anyword>;", 0, 0, NULL},
+    {"drop xnode force <anyword>;", 0, 0, NULL},
+    {"drop xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"drain xnode <anyword>;", 0, 0, NULL},
+    {"start xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"stop xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"rebalance xnode <anyword> <anyword>;", 0, 0, NULL},
+    {"show xnodes;", 0, 0, NULL},
+    {"show xnode <anyword>;", 0, 0, NULL},
+#endif
     {"quit", 0, 0, NULL}};
 
 // where keyword
@@ -232,7 +417,8 @@ char* keywords[] = {
     "interval(",    "order by ", "order by ", "offset ",  "or ",           "group by ", "now()",
     "session(",     "sliding ",  "slimit ",   "soffset ", "state_window(", "today() ",  "union all select ",
     "partition by ", "match",    "nmatch ",    "between ",  "like ",           "is null ",   "is not null ",
-    "event_window ",  "count_window("
+    "event_window ", "count_window(", "anomaly_window(",
+    "window_time("
 };
 
 char* functions[] = {
@@ -265,6 +451,8 @@ char* functions[] = {
     "sqrt(",          "timediff(",
     "timezone(",      "timetruncate(",
     "twa(",           "to_unixtimestamp(",
+    "to_iso8601(",    "to_char(",
+    "to_json(",
     "unique(",        "upper(",
     "pi(",            "round(",
     "truncate(",      "exp(",
@@ -279,7 +467,19 @@ char* functions[] = {
     "substring_index(","timediff(",
     "week(",           "weekday(",
     "weekofyear(",     "dayofweek(",
-    "stddev_pop(",     "var_pop("
+    "stddev_pop(",     "var_pop(",
+    "forecast(",       "imputation(",
+    "std(",            "variance(",
+    "stddev_samp(",    "var_samp(",
+    "group_concat(",   "if(",
+    "ifnull(",         "nvl(",
+    "nvl2(",           "isnull(",
+    "isnotnull(",      "coalesce(",
+    "date(",           "corr(",
+    "first_day_of_week()",
+    "cols(",           "find_in_set(",
+    "like_in_set(",    "regexp_in_set(",
+    "case ",           "when "
 };
 
 char* tb_actions[] = {
@@ -287,9 +487,9 @@ char* tb_actions[] = {
     "modify tag ", "drop tag ",      "rename tag ",  "set tag ",
 };
 
-char* user_actions[] = {"pass ", "enable ", "sysinfo "};
+char* user_actions[] = {"pass ", "enable ", "sysinfo ", "createdb "};
 
-char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma("};
+char* tb_options[] = {"comment ", "watermark ", "max_delay ", "ttl ", "rollup(", "sma(", "virtual 1"};
 
 char* db_options[] = {"keep ",
                       "replica ",
@@ -300,6 +500,7 @@ char* db_options[] = {"keep ",
                       "cachesize ",
                       "comp ",
                       "duration ",
+                      "dnodes ",
                       "wal_fsync_period ",
                       "maxrows ",
                       "minrows ",
@@ -309,14 +510,17 @@ char* db_options[] = {"keep ",
                       "wal_level ",
                       "vgroups ",
                       "single_stable ",
-                      "s3_chunksize ",
-                      "s3_keeplocal ",
-                      "s3_compact ",
+                      "ss_chunksize ",
+                      "ss_keeplocal ",
+                      "ss_compact ",
                       "wal_retention_period ",
                       "wal_roll_period ",
                       "wal_retention_size ",
 #ifdef TD_ENTERPRISE                      
-                      "encrypt_algorithm "
+                      "encrypt_algorithm ",
+                      "compact_interval ",
+                      "compact_time_range ",
+                      "compact_time_offset ",
 #endif
                       "keep_time_offset ",
                       "wal_segment_size "
@@ -324,7 +528,7 @@ char* db_options[] = {"keep ",
 
 char* alter_db_options[] = {"cachemodel ", "replica ", "keep ", "stt_trigger ",
                             "wal_retention_period ", "wal_retention_size ", "cachesize ", 
-			                      "s3_keeplocal ", "s3_compact ",
+			                      "ss_keeplocal ", "ss_compact ",
                             "wal_fsync_period ", "buffer ", "pages " ,"wal_level "};
 
 char* data_types[] = {"timestamp",    "int",
@@ -335,6 +539,7 @@ char* data_types[] = {"timestamp",    "int",
                       "smallint",     "smallint unsigned",
                       "tinyint",      "tinyint unsigned",
                       "geometry(64)", "varbinary(16)",
+                      "decimal(10,2)", "blob",
                       "bool",         "json"};
 
 char* key_tags[] = {"tags("};
@@ -345,18 +550,84 @@ char* key_systable[] = {
     "ins_dnodes",        "ins_mnodes",     "ins_modules",      "ins_qnodes",  "ins_snodes",          "ins_cluster",
     "ins_databases",     "ins_functions",  "ins_indexes",      "ins_stables", "ins_tables",          "ins_tags",
     "ins_users",         "ins_grants",     "ins_vgroups",      "ins_configs", "ins_dnode_variables", "ins_topics",
-    "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "perf_connections",
-    "perf_queries",      "perf_consumers", "perf_trans",       "perf_apps"};
+    "ins_subscriptions", "ins_streams",    "ins_stream_tasks", "ins_vnodes",  "ins_user_privileges", "ins_filesets",
+    "ins_bnodes",        "ins_disk_usage", "ins_retentions",   "ins_tokens",
+    "perf_connections", "perf_queries",    "perf_consumers", "perf_trans",       "perf_apps"};
 
 char* udf_language[] = {"\'Python\'", "\'C\'"};
 
 char* field_options[] = {
     "encode ", "compress ", "level ", 
     "\'lz4\' ", "\'zlib\' ", "\'zstd\' ", "\'xz\' ", "\'tsz\' ", "\'disabled\' ", // compress
-    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ",
+    "\'simple8b\' ", "\'delta-i\' ", "\'delta-d\' ", "\'bit-packing\' ", "\'bss\' ",
     "\'high\' ", "\'medium\' ", "\'low\' ",
     "comment ",
     "primary key "
+};
+
+// create user options
+char * create_uopt[] = {
+    "pass ",
+    "account ",
+    "sysinfo ",
+    "createdb ",
+    "changepass ",
+    "session_per_user ",
+    "connect_idle_time ",
+    "connect_time ",
+    "call_per_session ",
+    "vnode_per_call ",
+    "failed_login_attempts ",
+    "password_life_time ",
+    "password_reuse_time ",
+    "password_reuse_max ",
+    "password_lock_time ",
+    "password_grace_time ",
+    "inactive_account_time ",
+    "allow_token_num ",
+    "host ",
+    "not_allow_host ",
+    "allow_datetime ",
+    "not_allow_datetime "
+};
+
+// alter user options
+char * alter_uopt[] = {
+    "pass ",
+    "account ",
+    "sysinfo ",
+    "createdb ",
+    "changepass ",
+    "session_per_user ",
+    "connect_idle_time ",
+    "connect_time ",
+    "call_per_session ",
+    "vnode_per_call ",
+    "failed_login_attempts ",
+    "password_life_time ",
+    "password_reuse_time ",
+    "password_reuse_max ",
+    "password_lock_time ",
+    "password_grace_time ",
+    "inactive_account_time ",
+    "allow_token_num ",
+    "enable ",
+    "add host ",
+    "add not_allow_host ",
+    "drop host ",
+    "drop not_allow_host ",
+    "add allow_datetime ",
+    "add not_allow_datetime ",
+    "drop allow_datetime ",
+    "drop not_allow_datetime "
+};
+
+// alter user options
+char * token_opt[] = {
+    "enable ",
+    "provider ",
+    "ttl ",
+    "extra_info "
 };
 
 // global keys can tips on anywhere
@@ -364,6 +635,10 @@ char* global_keys[] = {
     "tbname",         
     "now",
     "vgroups",
+    "if exists",
+    "if not exists",
+    "distinct",
+    "like",
     "_wstart",      
     "_wend",
     "_wduration",
@@ -396,28 +671,33 @@ bool    waitAutoFill = false;
 #define WT_VAR_UDFNAME        7
 #define WT_VAR_VGROUPID       8
 #define WT_VAR_TSMA           9
+#define WT_VAR_RSMA           10
+#define WT_VAR_ANODE          11
+#define WT_VAR_TOKEN          12
 
-#define WT_FROM_DB_MAX        9  // max get content from db
+#define WT_FROM_DB_MAX        12  // max get content from db
 #define WT_FROM_DB_CNT (WT_FROM_DB_MAX + 1)
 
-#define WT_VAR_ALLTABLE       10
-#define WT_VAR_FUNC           11
-#define WT_VAR_KEYWORD        12
-#define WT_VAR_TBACTION       13
-#define WT_VAR_DBOPTION       14
-#define WT_VAR_ALTER_DBOPTION 15
-#define WT_VAR_DATATYPE       16
-#define WT_VAR_KEYTAGS        17
-#define WT_VAR_ANYWORD        18
-#define WT_VAR_TBOPTION       19
-#define WT_VAR_USERACTION     20
-#define WT_VAR_KEYSELECT      21
-#define WT_VAR_SYSTABLE       22
-#define WT_VAR_LANGUAGE       23
-#define WT_VAR_GLOBALKEYS     24
-#define WT_VAR_FIELD_OPTIONS  25
-
-#define WT_VAR_CNT 26
+#define WT_VAR_ALLTABLE       WT_FROM_DB_MAX + 1
+#define WT_VAR_FUNC           WT_FROM_DB_MAX + 2
+#define WT_VAR_KEYWORD        WT_FROM_DB_MAX + 3
+#define WT_VAR_TBACTION       WT_FROM_DB_MAX + 4
+#define WT_VAR_DBOPTION       WT_FROM_DB_MAX + 5
+#define WT_VAR_ALTER_DBOPTION WT_FROM_DB_MAX + 6
+#define WT_VAR_DATATYPE       WT_FROM_DB_MAX + 7
+#define WT_VAR_KEYTAGS        WT_FROM_DB_MAX + 8
+#define WT_VAR_ANYWORD        WT_FROM_DB_MAX + 9
+#define WT_VAR_TBOPTION       WT_FROM_DB_MAX + 10
+#define WT_VAR_USERACTION     WT_FROM_DB_MAX + 11
+#define WT_VAR_KEYSELECT      WT_FROM_DB_MAX + 12
+#define WT_VAR_SYSTABLE       WT_FROM_DB_MAX + 13
+#define WT_VAR_LANGUAGE       WT_FROM_DB_MAX + 14
+#define WT_VAR_GLOBALKEYS     WT_FROM_DB_MAX + 15
+#define WT_VAR_FIELD_OPTIONS  WT_FROM_DB_MAX + 16
+#define WT_VAR_CREATE_USER_OPT WT_FROM_DB_MAX + 17
+#define WT_VAR_ALTER_USER_OPT  WT_FROM_DB_MAX + 18
+#define WT_VAR_TOKEN_OPT       WT_FROM_DB_MAX + 19
+#define WT_VAR_CNT             WT_FROM_DB_MAX + 20
 
 
 #define WT_TEXT 0xFF
@@ -432,15 +712,16 @@ TdThread* threads[WT_FROM_DB_CNT];
 char varTypes[WT_VAR_CNT][64] = {
     // get from db
     "<db_name>",    "<stb_name>",  "<tb_name>",  "<dnode_id>",  "<user_name>",    "<topic_name>", "<stream_name>",
-    "<udf_name>",   "<vgroup_id>", "<tsma_name>",
+    "<udf_name>",   "<vgroup_id>", "<tsma_name>", "<rsma_name>", "<anode_id>", "<token_name>",
     // get from code
     "<all_table>",  "<function>",  "<keyword>",  "<tb_actions>",   "<db_options>", "<alter_db_options>",
     "<data_types>", "<key_tags>",  "<anyword>",  "<tb_options>", "<user_actions>", "<key_select>", "<sys_table>", 
-    "<udf_language>", "<global_keys>", "<field_options>"};
+    "<udf_language>", "<global_keys>", "<field_options>", "<create_uopt>", "<alter_uopt>", "<token_opt>"};
 
 char varSqls[WT_FROM_DB_CNT][64] = {"show databases;", "show stables;", "show tables;", "show dnodes;",
                                     "show users;",     "show topics;",  "show streams;", "show functions;", 
-                                    "show vgroups;",   "show tsmas;"};
+                                    "show vgroups;",   "show tsmas;",   "show rsmas;",  "show anodes;",
+                                    "show tokens;"};
 
 // var words current cursor, if user press any one key except tab, cursorVar can be reset to -1
 int  cursorVar = -1;
@@ -508,69 +789,91 @@ void showHelp() {
     alter all dnodes \"debugFlag\" \n\
     alter all dnodes \"asynclog\" \"0\";\n\
     alter all dnodes \"asynclog\" \"1\";\n\
+    alter dnodes reload tls;\n\
+    alter stable <stb_name> <tb_actions> ...;\n\
     alter table <tb_name> <tb_actions> ;\n\
+    alter vtable <tb_name> <tb_actions> ...;\n\
     alter local \"resetlog\";\n\
     alter local \"DebugFlag\" \"143\";\n\
     alter local \"asynclog\" \"0\";\n\
     alter local \"asynclog\" \"1\";\n\
     alter topic\n\
     alter user <user_name> <user_actions> ...\n\
+    alter vgroup <vgroup_id> set keep <version>;\n\
+    assign leader force;\n\
+  ----- B ----- \n\
+    begin;\n\
   ----- C ----- \n\
+    close vnode <vnode_id> on dnode <dnode_id>;\n\
+    commit;\n\
+    create stable <stb_name> (columns) tags (tags) ...;\n\
     create table <tb_name> using <stb_name> tags ...\n\
+    create vtable <tb_name> using <stb_name> tags ...\n\
     create database <db_name> <db_options>  ...\n\
     create dnode \"fqdn:port\" ...\n\
     create index <index_name> on <stb_name> (tag_column_name);\n\
     create mnode on dnode <dnode_id> ;\n\
     create qnode on dnode <dnode_id> ;\n\
-    create stream <stream_name> into <stb_name> as select ...\n\
+    create anode \"node_url\" ;\n\
+    create snode on dnode <dnode_id> ;\n\
+    create stream <stream_name> <trigger window> [from <tb_name> [partition by tbname]] into <db_name>.<out_table> as select ...;\n\
     create topic <topic_name> as select ...\n\
+    create tsma <tsma_name> on <stb_name> function ... interval ... ;\n\
+    create recursive tsma <tsma_name> on <tsma_name> interval ... ;\n\
     create function <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
     create aggregate function  <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
+    create or replace <udf_name> as <file_name> outputtype <data_types> language \'C\' | \'Python\' ;\n\
+    create or replace aggregate function <udf_name> as <file_name> outputtype <data_types> bufsize <bufsize_bytes> language \'C\' | \'Python\';\n\
     create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
     describe <all_table>\n\
     delete from <all_table> where ...\n\
     drop database <db_name>;\n\
+    drop stable <stb_name>;\n\
     drop table <all_table>;\n\
+    drop vtable <table_name>;\n\
     drop dnode <dnode_id>;\n\
     drop mnode on dnode <dnode_id> ;\n\
     drop qnode on dnode <dnode_id> ;\n\
+    drop anode <anode_id> ;\n\
+    drop snode on dnode <dnode_id> ;\n\
     drop user <user_name> ;\n\
     drop function <udf_name>;\n\
     drop consumer group ... \n\
     drop topic <topic_name> ;\n\
     drop stream <stream_name> ;\n\
     drop index <index_name>;\n\
+    drop tsma <tsma_name> ;\n\
   ----- E ----- \n\
     explain select clause ...\n\
   ----- F ----- \n\
     flush database <db_name>;\n\
+    flush mnode;\n\
   ----- H ----- \n\
     help;\n\
   ----- I ----- \n\
     insert into <tb_name> values(...) ;\n\
     insert into <tb_name> using <stb_name> tags(...) values(...) ;\n\
-  ----- G ----- \n\
-    grant all   on <priv_level> to <user_name> ;\n\
-    grant read  on <priv_level> to <user_name> ;\n\
-    grant write on <priv_level> to <user_name> ;\n\
   ----- K ----- \n\
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
+    kill retention <retention_id>; \n\
+    kill scan <scan_id>;\n\
     kill transaction <transaction_id>;\n\
+  ----- O ----- \n\
+    open vnode <vnode_id> on dnode <dnode_id>;\n\
   ----- P ----- \n\
     pause stream <stream_name>;\n\
+  ----- Q ----- \n\
+    quit;\n\
   ----- R ----- \n\
+    recalculate stream <stream_name> from <time_point> [to <time_point>];\n\
+    reload topic <topic_name> as select ...;\n\
     resume stream <stream_name>;\n\
     reset query cache;\n\
-    restore dnode <dnode_id> ;\n\
-    restore vnode on dnode <dnode_id> ;\n\
-    restore mnode on dnode <dnode_id> ;\n\
-    restore qnode on dnode <dnode_id> ;\n\
-    revoke all   on <priv_level> from <user_name> ;\n\
-    revoke read  on <priv_level> from <user_name> ;\n\
-    revoke write on <priv_level> from <user_name> ;\n\
+    rollback;\n\
   ----- S ----- \n\
+    scan database <db_name>;\n\
     select * from <all_table> where ... \n\
     select client_version();\n\
     select current_user();\n\
@@ -580,25 +883,46 @@ void showHelp() {
     select now();\n\
     select today();\n\
     select timezone();\n\
+    select first_day_of_week();\n\
+    set first_day_of_week ...\n\
     set max_binary_display_width ...\n\
+    set timezone ...\n\
+    start stream <stream_name>;\n\
+    start transaction;\n\
+    stop stream <stream_name>;\n\
+    subscribe <topic_name> -g <group_id> [-c <client_id>] [-o latest|earliest] [-n <count>] [-t <timeout_ms>]\n\
     show apps;\n\
     show alive;\n\
+    show anodes;\n\
+    show anodes full;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
+    show create stream <stream_name>;\n\
     show create table <tb_name>;\n\
+    show create vtable <tb_name>;\n\
     show connections;\n\
     show cluster;\n\
     show cluster alive;\n\
     show cluster machines;\n\
+    show cluster variables ...;\n\
+    show cpu_allocation;\n\
     show databases;\n\
     show dnodes;\n\
     show dnode <dnode_id> variables;\n\
+    show disk_info;\n\
     show functions;\n\
+    show instances;\n\
     show licences;\n\
     show mnodes;\n\
     show queries;\n\
     show query <query_id> ;\n\
     show qnodes;\n\
+    show bnodes;\n\
+    show backups;\n\
+    show retentions;\n\
+    show retention <retention_id>;\n\
+    show scans;\n\
+    show scan <scan_id>;\n\
     show snodes;\n\
     show stables;\n\
     show stables like \n\
@@ -613,37 +937,129 @@ void showHelp() {
     show table tags from <all_table>\n\
     show topics;\n\
     show transactions;\n\
+    show transaction logs;\n\
+    show transaction orphans;\n\
+    show tsmas;\n\
     show users;\n\
     show variables;\n\
     show local variables;\n\
+    show indexes from <stb_name>;\n\
     show vnodes;\n\
     show vnodes on dnode <dnode_id>;\n\
     show vgroups;\n\
+    show vtable inherits;\n\
+    show vtable validate for <tb_name>;\n\
+    show vtables;\n\
     show consumers;\n\
-    show grants;\n\
-    show grants full;\n\
-    show grants logs;\n\
   ----- T ----- \n\
     trim database <db_name>;\n\
   ----- U ----- \n\
+    update all anodes;\n\
+    update anode <anode_id>;\n\
     use <db_name>;");
 
 #ifdef TD_ENTERPRISE
   printf(
       "\n\n\
   ----- special commands on enterpise version ----- \n\
+    alter external source <db_name> set ...;\n\
+    alter rsma <rsma_name> function ... ;\n\
+    alter system set db_key <key>;\n\
+    alter system set key_expiration <n> days strategy <strategy>;\n\
+    alter system set svr_key <key>;\n\
+    alter token <token_name> [token options];\n\
+    alter xnode set token ...;\n\
+    alter xnode set user ...;\n\
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
+    balance vgroup leader on <vgroup_id> force \n\
     compact database <db_name>; \n\
+    compact vgroups in (vgroupId,vgroupId, ...); \n\
+    create bnode on dnode <dnode_id> ;\n\
+    create encrypt_algr <algr_name> ...;\n\
+    create encrypt_key <key>;\n\
+    create external source <db_name> type=... host=... port=... user=... ...;\n\
+    create mount <mount_name> on dnode <dnode_id> from <path>;\n\
+    create full backup on dnode <dnode_id> to <path> [with password '<password>'] [parallel <n>];\n\
+    create role <role_name>;\n\
+    create rsma <rsma_name> on <table_name> function ... ;\n\
+    create token <token_name> from user <user_name> [token options];\n\
+    create totp_secret for user <user_name>;\n\
     create view <view_name> as select ...\n\
+    create xnode <endpoint> [user <user_name> pass <password> | token <token>];\n\
+    create xnode agent <agent_dsn> ;\n\
+    create xnode job on <agent_id>;\n\
+    create xnode task <task_name> from <source> to <sink>;\n\
+    describe external source <db_name>;\n\
+    drain xnode <xnode_id>;\n\
+    drop bnode on dnode <dnode_id> ;\n\
+    drop encrypt_algr <algr_name>;\n\
+    drop external source <db_name>;\n\
+    drop mount <mount_name>;\n\
+    drop role <role_name>;\n\
+    drop rsma <rsma_name> ;\n\
+    drop token <token_name>;\n\
+    drop totp_secret from user <user_name>;\n\
+    kill backup <backup_id>;\n\
+    drop view <view_name>;\n\
+    drop xnode [agent|task|job] <name>;\n\
+    drop xnode force <endpoint>;\n\
+    grant all   on <priv_level> to <user_name> ;\n\
+    grant read  on <priv_level> to <user_name> ;\n\
+    grant role <role_name> to <user_name> ;\n\
+    grant write on <priv_level> to <user_name> ;\n\
+    kill compact <compact_id>;\n\
+    kill ssmigrate <ssmigrate_id>;\n\
+    lock role <role_name>;\n\
+    merge vgroup <vgroup_id> <vgroup_id>;\n\
+    rebalance xnode ...;\n\
     redistribute vgroup <vgroup_id> dnode <dnode_id> ;\n\
-    split vgroup <vgroup_id>;\n\
-    s3migrate database <db_name>;\n\
-    show compacts;\n\
-    show compact \n\
+    refresh external source <db_name>;\n\
+    restore dnode <dnode_id> ;\n\
+    restore mnode on dnode <dnode_id> ;\n\
+    restore qnode on dnode <dnode_id> ;\n\
+    restore vnode on dnode <dnode_id> ;\n\
+    revoke all   on <priv_level> from <user_name> ;\n\
+    revoke read  on <priv_level> from <user_name> ;\n\
+    revoke role <role_name> from <user_name> ;\n\
+    revoke write on <priv_level> from <user_name> ;\n\
+    rollup database <db_name>;\n\
+    rollup database <db_name> vgroups in (...);\n\
     show arbgroups;\n\
+    show backups;\n\
+    show compacts;\n\
+    show bnodes;\n\
+    show compact \n\
+    show compacts;\n\
+    show create rsma <rsma_name>;\n\
+    show create view <all_table>;\n\
+    show encrypt_algorithms;\n\
+    show encrypt_status;\n\
+    show encryptions;\n\
+    show external sources;\n\
+    show grants;\n\
+    show grants full;\n\
+    show grants logs;\n\
+    show mounts;\n\
+    show role column privileges;\n\
+    show role privileges;\n\
+    show roles;\n\
+    show rsmas;\n\
+    show security_policies;\n\
+    show ssmigrates;\n\
+    show tokens;\n\
+    show user column privileges;\n\
+    show user privileges;\n\
+    show users full;\n\
     show views;\n\
-    show create view <all_table>;");
+    show xnode <resource_type>;\n\
+    show xnodes;\n\
+    split vgroup <vgroup_id>;\n\
+    ssmigrate database <db_name>;\n\
+    start xnode ...;\n\
+    stop xnode ...;\n\
+    unlock role <role_name>;");
+    
 #endif
 
   printf("\n\n");
@@ -786,7 +1202,7 @@ void GenerateVarType(int type, char** p, int count) {
 //
 
 // init shell auto function , shell start call once
-bool shellAutoInit() {
+void shellAutoInit() {
   // command
   int32_t count = SHELL_COMMAND_COUNT();
   for (int32_t i = 0; i < count; i++) {
@@ -815,8 +1231,9 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_LANGUAGE, udf_language, sizeof(udf_language) / sizeof(char*));
   GenerateVarType(WT_VAR_GLOBALKEYS, global_keys, sizeof(global_keys) / sizeof(char*));
   GenerateVarType(WT_VAR_FIELD_OPTIONS, field_options, sizeof(field_options) / sizeof(char*));
-
-  return true;
+  GenerateVarType(WT_VAR_CREATE_USER_OPT, create_uopt, sizeof(create_uopt) / sizeof(char*));
+  GenerateVarType(WT_VAR_ALTER_USER_OPT, alter_uopt, sizeof(alter_uopt) / sizeof(char*));
+  GenerateVarType(WT_VAR_TOKEN_OPT, token_opt, sizeof(token_opt) / sizeof(char*));
 }
 
 // set conn
@@ -944,16 +1361,35 @@ int writeVarNames(int type, TAOS_RES* tres) {
   int  numOfRows = 0;
   do {
     int32_t* lengths = taos_fetch_lengths(tres);
-    int32_t  bytes = lengths[0];
-    if (fields[0].type == TSDB_DATA_TYPE_INT) {
-      sprintf(name, "%d", *(int16_t*)row[0]);
-    } else {
-      memcpy(name, row[0], bytes);
+    int32_t  bytes = (lengths != NULL) ? lengths[0] : 0;
+    bool     valid = false;
+
+    // the name is read out of the server result block: a NULL cell must not be
+    // dereferenced, the cell length is not bounded by the declared column width
+    // (it is a 16 bit field of the data block) so the copy is clamped to the
+    // local buffer, and a column of an unexpected type is skipped
+    if (row[0] != NULL) {
+      if (fields[0].type == TSDB_DATA_TYPE_INT) {
+        (void)snprintf(name, sizeof(name), "%d", *(int16_t*)row[0]);
+        valid = true;
+      } else if (IS_VAR_DATA_TYPE(fields[0].type)) {
+        int32_t copyLen = TRANGE(bytes, 0, (int32_t)sizeof(name) - 1);
+        if (copyLen > 0) {
+          memcpy(name, row[0], copyLen);
+        }
+
+        name[copyLen] = 0;  // set string end
+        valid = true;
+      }
     }
 
-    name[bytes] = 0;  // set string end
-    // insert to tire
-    insertWord(tire, name);
+    if (valid) {
+      // the words of a list tire are echoed on the screen when the user presses
+      // TAB, so control characters must not enter the tire
+      shellStripControlChars(name);
+      // insert to tire
+      insertWord(tire, name);
+    }
 
     if (++numOfRows > MAX_CACHED_CNT) {
       break;
@@ -1004,8 +1440,14 @@ void* varObtainThread(void* param) {
 
   // check need call auto tab
   if (cnt > 0 && waitAutoFill) {
+#ifdef WINDOWS
+    // on Windows the console owns the input line, which can only be modified by
+    // the shell thread: wake it up so that it performs the completion
+    shellWinReTriggerTab();
+#else
     // press tab key by program
     firstMatchCommand(varCon, varCmd);
+#endif
   }
 
   setThreadNull(type);
@@ -1158,7 +1600,17 @@ bool matchVarWord(SWord* word1, SWord* word2) {
   pre[word2->len] = 0;
 
   char* str = NULL;
-  if (word1->type == WT_VAR_ALLTABLE) {
+  if (word1->type == WT_VAR_ANYWORD) {
+    // ANYWORD: accept the word typed by the user as it is, there is no var list to
+    // complete it from. Only accept a match that changes the line, else an empty or
+    // partially typed word would shadow a later pattern.
+    if (word2->len == 0) {
+      if (word1->end) return false;
+    } else if (!word1->end) {
+      return false;
+    }
+    str = taosStrdup(pre);
+  } else if (word1->type == WT_VAR_ALLTABLE) {
     // ALL_TABLE
     str = tireSearchWord(WT_VAR_STABLE, pre);
     if (str == NULL) {
@@ -1330,7 +1782,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
     lastWordBytes = word->len;
   }
 
-  if (word->end && str[strLen - 1] != ';') {
+  if (word->end && (strLen == 0 || str[strLen - 1] != ';')) {
     // append end ';'
     char* p = taosMemoryCalloc(strLen + 8, 1);
     if (p) {
@@ -1371,10 +1823,6 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
   freeCommand(input);
   taosMemoryFree(input);
   return true;
@@ -1382,28 +1830,68 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
 // create input source
 void createInputFromFirst(SWords* input, SWords* firstMatch) {
-  //
-  // if next pressTabKey , input context come from firstMatch, set matched length with source_len
-  //
-  input->source = (char*)taosMemoryMalloc(1024);
-  memset((void*)input->source, 0, 1024);
+  if (input == NULL || firstMatch == NULL) return;
+
+  input->source = NULL;
+  input->source_len = 0;
 
   SWord* word = firstMatch->head;
+  int32_t i = 0;
 
-  // source_len = full match word->len + half match with firstMatch->matchLen
-  for (int i = 0; i < firstMatch->matchIndex && word; i++) {
-    // combine source from each word
-    strncpy(input->source + input->source_len, word->word, word->len);
-    strcat(input->source, " ");          // append blank space
-    input->source_len += word->len + 1;  // 1 is blank length
-    // move next
+  /* 1) calculate required buffer size */
+  size_t needed = 0;
+  while (word && i < firstMatch->matchIndex) {
+    needed += (size_t)word->len; /* length of the word itself */
+    needed += 1;                 /* following space */
     word = word->next;
+    i++;
   }
-  // appand half matched word for last
+
+  /* add matchLen for the last (partially matched) word (but not exceeding the word's len) */
   if (word) {
-    strncpy(input->source + input->source_len, word->word, firstMatch->matchLen);
-    input->source_len += firstMatch->matchLen;
+    int32_t copylen = firstMatch->matchLen;
+    if (copylen > word->len) copylen = word->len;
+    needed += (size_t)copylen;
   }
+
+  /* include null terminator */
+  needed += 1;
+
+  /* 2) allocate buffer of exact size */
+  char* buf = (char*)taosMemoryMalloc((int)needed);
+  if (buf == NULL) {
+    /* on failure keep input->source NULL and return */
+    return;
+  }
+
+  /* 3) construct string using memcpy to avoid repeated traversal and strcat boundary issues */
+  char* p = buf;
+  word = firstMatch->head;
+  i = 0;
+  while (word && i < firstMatch->matchIndex) {
+    if (word->len > 0) {
+      memcpy(p, word->word, word->len);
+      p += word->len;
+    }
+    /* add a space (only when not appending the final partial word) */
+    *p++ = ' ';
+    word = word->next;
+    i++;
+  }
+
+  if (word) {
+    int32_t copylen = firstMatch->matchLen;
+    if (copylen > word->len) copylen = word->len;
+    if (copylen > 0) {
+      memcpy(p, word->word, copylen);
+      p += copylen;
+    }
+  }
+
+  /* null-terminate and set length */
+  *p = '\0';
+  input->source = buf;
+  input->source_len = (int32_t)(p - buf);
 }
 
 // user press Tabkey again is named next , matched return true else false
@@ -1437,10 +1925,6 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 
   // print to screen
   printScreen(con, cmd, match);
-#ifdef WINDOWS
-  printf("\r");
-  shellShowOnScreen(cmd);
-#endif
 
   // free
   freeCommand(input);
@@ -1806,13 +2290,21 @@ bool matchCreateTable(TAOS* con, SShellCmd* cmd) {
     return false;
   }
 
-  // select and from
-  if (strncasecmp(p, "create table ", 13) != 0) {
-    // not select query clause
+  // create table / stable / vtable, fields, tags and table options are
+  // completed in the same way
+  int32_t prefixLen = 0;
+  if (strncasecmp(p, "create table ", 13) == 0) {
+    prefixLen = 13;
+  } else if (strncasecmp(p, "create stable ", 14) == 0) {
+    prefixLen = 14;
+  } else if (strncasecmp(p, "create vtable ", 14) == 0) {
+    prefixLen = 14;
+  } else {
+    // not a create table / stable / vtable clause
     return false;
   }
-  p += 13;
-  len -= 13;
+  p += prefixLen;
+  len -= prefixLen;
 
   char* ps = taosStrndup(p, len);
   bool  ret = false;
@@ -1979,9 +2471,6 @@ _return:
 
 // main key press tab
 void pressTabKey(SShellCmd* cmd) {
-#ifdef WINDOWS
-  return ;
-#endif
   // check empty tab key
   if (cmd->commandSize == 0) {
     // have multi line tab key
@@ -2025,10 +2514,6 @@ void pressTabKey(SShellCmd* cmd) {
 
 // press othr key
 void pressOtherKey(char c) {
-#ifdef WINDOWS
-  return ;
-#endif
-
   // reset global variant
   firstMatchIndex = -1;
   lastMatchIndex = -1;

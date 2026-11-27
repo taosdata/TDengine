@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,11 +45,13 @@ extern char            tsFMASupported;
 extern char 	       tsAVX512Supported;
 extern char            tsAVX512Enable;
 extern char            tsTagFilterCache;
+extern char            tsStableTagFilterCache;
 
 extern char configDir[];
 extern char tsDataDir[];
 extern char tsLogDir[];
 extern char tsTempDir[];
+extern char tsEncryptExtDir[];
 
 extern SDiskSpace tsDataSpace;
 extern SDiskSpace tsLogSpace;

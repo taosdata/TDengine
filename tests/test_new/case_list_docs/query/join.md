@@ -1,1 +1,0 @@
-::: query.join.test_join

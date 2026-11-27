@@ -1,0 +1,77 @@
+case_id	stmt_family	rule_name	branch_sig	sql	expect	key_assert
+STMT_001	CreateUserStmt	create_user_statement	basic	create user if not exists u1 pass 'p1';	ok	
+STMT_002	AlterUserStmt	alter_user_statement	pass	alter user u1 pass 'p2';	ok	
+STMT_003	DropUserStmt	drop_user_statement	if_exists	drop user if exists u1;	ok	
+STMT_004	CreateTokenStmt	create_token_statement	provider	create token if not exists tk1 from user u1 provider 'a';	ok	
+STMT_005	AlterTokenStmt	alter_token_statement	enable	alter token tk1 enable 1;	ok	
+STMT_006	DropTokenStmt	drop_token_statement	if_exists	drop token if exists tk1;	ok	
+STMT_007	CreateRoleStmt	create_role_statement	if_not_exists	create role if not exists r1;	ok	
+STMT_008	AlterRoleStmt	alter_role_statement	lock	lock role r1;	ok	
+STMT_009	GrantRoleStmt	grant_role_statement	role	grant role r1 to u1;	ok	
+STMT_010	GrantStmt	grant_privilege_statement	grant_show_create	grant show create to u1;	ok	
+STMT_011	GrantStmt	revoke_privilege_statement	revoke_on_table	revoke drop on table db1.t1 from u1;	ok	
+STMT_012	CreateDatabaseStmt	create_database_statement	if_not_exists	create database if not exists db1;	ok	dbname=db1;ignoreexists=true
+STMT_013	AlterDatabaseStmt	alter_database_statement	buffer	alter database db1 buffer 8;	ok	name=db1;buffer=8
+STMT_014	DropDatabaseStmt	drop_database_statement	if_exists	drop database if exists db1;	ok	
+STMT_015	UseDatabaseStmt	use_database_statement	basic	use db1;	ok	
+STMT_016	ShowStmt	show_statement	streams	show db1. streams;	ok	kind=streams;dbname=db1
+STMT_017	ShowStmt	show_statement	dnode_vars	show dnode 6 variables;	ok	kind=dnode_variables;hasid=true;id=6
+STMT_018	CreateTableStmt	create_table_statement	normal	create table db1.t1(ts timestamp, v int);	ok	table=t1;is_stable=false;tags_len=0;options_non_nil=true
+STMT_019	CreateTableStmt	create_table_statement	stable	create stable db1.st1(ts timestamp, v int) tags(tag1 int);	ok	table=st1;is_stable=true;tags_len=1;options_non_nil=true
+STMT_020	CreateSubTableFromFileStmt	create_table_statement	from_file	create table if not exists using db1.st1 () file 'f1';	ok	
+STMT_021	CreateVSubTableStmt	create_table_statement	vsub	create vtable if not exists db1.vt2 using db1.st1 tags (1, 'x');	ok	
+STMT_022	MultiCreateTableStmt	create_table_statement	multi	create table if not exists db1.ta using db1.st1 tags(1) if not exists db1.tb using db1.st1 tags(2);	ok	
+STMT_023	AlterTableStmt	alter_table_statement	add_col	alter table db1.t1 add column c2 int;	ok	
+STMT_024	DropTableStmt	drop_table_statement	if_exists	drop table if exists db1.t1;	ok	
+STMT_025	DeleteStmt	delete_statement	no_where	delete from db1.t1;	ok	
+STMT_026	SelectStmt	select_statement	simple	select v from t1 where v > 1 order by v limit 1;	ok	
+STMT_027	InsertQueryStmt	insert_query_statement	query	insert into t2 select v from t1;	ok	
+STMT_028	ResetQueryCacheStmt	reset_query_cache_statement	basic	reset query cache;	ok	
+STMT_029	ExplainStmt	explain_statement	select	explain select v from t1;	ok	
+STMT_030	CreateViewStmt	create_view_statement	as_select	create view db1.v1 as select v from t1;	ok	
+STMT_031	DropViewStmt	drop_view_statement	if_exists	drop view if exists db1.v1;	ok	
+STMT_032	CreateAnodeStmt	create_anode_statement	basic	create anode 'n1';	ok	
+STMT_033	UpdateAnodeStmt	update_anode_statement	single	update anode 1;	ok	
+STMT_034	CreateDnodeStmt	create_dnode_statement	port	create dnode 'n1' port 6030;	ok	
+STMT_035	AlterDnodeStmt	alter_dnode_statement	basic	alter dnode 1 'cfg';	ok	
+STMT_036	RestoreDnodeStmt	restore_dnode_statement	basic	restore dnode 1;	ok	
+STMT_037	CreateBnodeStmt	create_bnode_statement	on_dnode	create bnode on dnode 1;	ok	
+STMT_038	DropBnodeStmt	drop_bnode_statement	on_dnode	drop bnode on dnode 1;	ok	
+STMT_039	CreateComponentNodeStmt	create_qnode_statement	qnode	create qnode on dnode 1;	ok	
+STMT_040	DropComponentNodeStmt	drop_qnode_statement	qnode	drop qnode on dnode 1;	ok	
+STMT_041	RestoreComponentNodeStmt	restore_qnode_statement	qnode	restore qnode on dnode 1;	ok	
+STMT_042	CreateMountStmt	create_mount_statement	if_not_exists	create mount if not exists m1 on dnode 1 from '/tmp/x';	ok	
+STMT_043	DropMountStmt	drop_mount_statement	if_exists	drop mount if exists m1;	ok	
+STMT_044	DropFunctionStmt	drop_function_statement	if_exists	drop function if exists f1;	ok	
+STMT_045	StreamStmt	recalculate_stream_statement	recalc	recalculate stream db1.s1 from 1 to '2020-01-01';	ok	
+STMT_046	RollupStmt	rollup_statement	db	rollup database db1;	ok	
+STMT_047	ScanStmt	scan_statement	db	scan database db1;	ok	
+STMT_048	CompactStmt	compact_statement	db	compact database db1;	ok	
+STMT_049	TopicStmt	create_topic_statement	as_select	create topic if not exists tp1 as select v from t1;	ok	
+STMT_050	KillStmt	kill_statement	query	kill query 'q1';	ok	
+STMT_051	XnodeStmt	create_xnode_statement	basic	create xnode 'xn1';	ok	
+STMT_052	BalanceVgroupStmt	balance_vgroup_statement	basic	balance vgroup;	ok	
+STMT_053	BalanceVgroupLeaderStmt	balance_vgroup_leader_statement	db	balance vgroup leader database db1;	ok	
+STMT_054	AssignLeaderStmt	assign_leader_statement	force	assign leader force;	ok	
+STMT_055	AlterVgroupKeepStmt	alter_vgroup_keep_statement	set_keep	alter vgroup 7 set keep 3;	ok	
+STMT_056	MergeVgroupStmt	merge_vgroup_statement	basic	merge vgroup 3 9;	ok	
+STMT_057	SplitVgroupStmt	split_vgroup_statement	force	split vgroup 8 force;	ok	
+STMT_058	RedistributeVgroupStmt	redistribute_vgroup_statement	basic	redistribute vgroup 9 dnode 1 dnode 2;	ok	
+STMT_059	TrimDatabaseStmt	trim_database_statement	bwlimit	trim database db1 bwlimit 10;	ok	
+STMT_060	TrimDatabaseWalStmt	trim_database_wal_statement	wal	trim database db1 wal;	ok	
+STMT_061	SsMigrateDatabaseStmt	ssmigrate_database_statement	basic	ssmigrate database db1;	ok	
+STMT_062	AlterClusterStmt	alter_cluster_statement	pair	alter cluster 'k' 'v';	ok	
+STMT_063	AlterLocalStmt	alter_local_statement	pair	alter local 'k' 'v';	ok	
+STMT_064	AlterDnodesReloadStmt	alter_dnodes_reload_statement	tls	alter dnodes reload tls;	ok	
+STMT_065	AlterNamedStmt	alter_rsma_statement	func	alter rsma if exists db1.r1 function(avg(v),sum(v));	ok	
+STMT_066	DropNamedStmt	drop_tsma_statement	if_exists	drop tsma if exists db1.ts1;	ok	
+STMT_067	DescribeStmt	describe_statement	basic	describe db1.t1;	ok	
+STMT_068	RevokeRoleStmt	revoke_role_statement	basic	revoke role r1 from u1;	ok	
+STMT_069	DropEncryptAlgrStmt	drop_algr_statement	basic	drop encrypt_algr 'a';	ok	
+STMT_070	CreateEncryptAlgrStmt	create_algr_statement	basic	create encrypt_algr 'a' algr_name 'n' desc 'd' algr_type 't' ossl_algr_name 'o';	ok	
+STMT_071	AlterEncryptKeyStmt	alter_encrypt_key_statement	db_key	alter system set db_key 'k';	ok	
+STMT_072	InsertStatement	insert_statement	values	insert into t values(1);	ok	
+STMT_073	DropAnodeStmt	drop_anode_statement	basic	drop anode 1;	ok	
+STMT_074	DropDnodeStmt	drop_dnode_statement	by_name	drop dnode node1;	ok	
+STMT_075	DropRoleStmt	drop_role_statement	if_exists	drop role if exists r1;	ok	
+STMT_076	FlushDatabaseStmt	flush_database_statement	basic	flush database db1;	ok	

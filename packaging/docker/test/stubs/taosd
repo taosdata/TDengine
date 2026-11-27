@@ -1,0 +1,18 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Test stub for taosd: `taosd -C` prints the config the entrypoint greps for,
+# otherwise it behaves like a long-running daemon. The PID is written out so the
+# test runner can kill it from outside the container.
+
+if [ "$1" = "-C" ]; then
+    echo "                  dataDir /var/lib/taos"
+    echo "                     fqdn $(hostname)"
+    echo "                  firstEp localhost:6030"
+    exit 0
+fi
+
+echo "$$" > /tmp/taosd.pid
+exec sleep 3600

@@ -1,0 +1,16 @@
+USE join_condition_relaxation_3dn;
+
+SELECT a.id, b.id FROM l_dist a JOIN r_dist b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_dist a LEFT JOIN r_dist b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_dist a RIGHT JOIN r_dist b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_dist a FULL JOIN r_dist b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id FROM l_dist a LEFT SEMI JOIN r_dist b ON a.v < b.v ORDER BY 1;
+SELECT a.id FROM l_dist a LEFT ANTI JOIN r_dist b ON a.v < b.v ORDER BY 1;
+SELECT b.id FROM l_dist a RIGHT SEMI JOIN r_dist b ON a.v < b.v ORDER BY 1;
+SELECT b.id FROM l_dist a RIGHT ANTI JOIN r_dist b ON a.v < b.v ORDER BY 1;
+SELECT a.id, b.id, a.v + b.v FROM l_dist a JOIN r_dist b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id, b.id FROM (SELECT id, v FROM l_dist WHERE id <= 2) a JOIN (SELECT id, v FROM r_dist WHERE id >= 12) b ON a.v < b.v ORDER BY 1, 2;
+SELECT a.id, COUNT(*), MIN(b.id), MAX(b.id) FROM l_dist a JOIN r_dist b ON a.v < b.v GROUP BY a.id ORDER BY 1;
+SELECT a.id, b.id FROM l_dist a JOIN r_dist b ON a.v < b.v WHERE a.id >= 2 AND b.id <= 12 ORDER BY 1, 2;
+SELECT a.id, b.id FROM l_dist a JOIN r_dist b ON a.v < b.v ORDER BY b.id DESC, a.id DESC LIMIT 4 OFFSET 1;
+

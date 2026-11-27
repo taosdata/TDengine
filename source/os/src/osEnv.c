@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,7 @@ char            configDir[PATH_MAX] = {0};
 char            tsDataDir[PATH_MAX] = {0};
 char            tsLogDir[PATH_MAX] = {0};
 char            tsTempDir[PATH_MAX] = {0};
+char            tsEncryptExtDir[PATH_MAX] = {0};
 SDiskSpace      tsDataSpace = {0};
 SDiskSpace      tsLogSpace = {0};
 SDiskSpace      tsTempSpace = {0};

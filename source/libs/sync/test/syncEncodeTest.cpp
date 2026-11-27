@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -30,7 +47,7 @@ SSyncNode *syncNodeInit() {
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
 
   int code = walInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
   walCfg.vgId = syncInfo.vgId;
@@ -41,7 +58,7 @@ SSyncNode *syncNodeInit() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   pWal = walOpen("./wal_test", &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   syncInfo.pWal = pWal;
 
@@ -56,7 +73,7 @@ SSyncNode *syncNodeInit() {
   }
 
   pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
@@ -133,10 +150,10 @@ int main(int argc, char **argv) {
   }
 
   int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   taosRemoveDir("./wal_test");
 
@@ -162,7 +179,7 @@ int main(int argc, char **argv) {
 
   // log, relog
   SSyncNode *pSyncNode = syncNodeInit();
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
   SSyncRaftEntry *pEntry = pMsg4;
   pSyncNode->pLogStore->syncLogAppendEntry(pSyncNode->pLogStore, pEntry);
  

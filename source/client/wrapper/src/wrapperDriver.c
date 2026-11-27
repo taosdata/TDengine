@@ -1,0 +1,549 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#if !defined(WINDOWS) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
+#include "wrapper.h"
+#include "wrapperHint.h"
+#include "taosNativeApi.h"
+#include <string.h>
+#ifndef WINDOWS
+#include <dlfcn.h>
+#endif
+
+/* Must come last: it re-points the memory and strdup macros at the local
+ * libc-backed implementations, which is what removes the tmempool globals
+ * (gMemPoolHandle / threadPoolSession / threadPoolEnabled) from this TU. */
+#include "wrapperLiteMem.h"
+
+/* Driver file names: per platform, and shared with the test that asserts driver
+ * isolation, so they are defined in wrapperLite.h. */
+#define DRIVER_NATIVE_NAME    TD_LITE_DRIVER_NATIVE_FILE
+#define DRIVER_WSBSOCKET_NAME TD_LITE_DRIVER_WS_FILE
+
+/* The native driver hides its public entry points: they would compete with this
+ * dispatcher in symbol lookup for every consumer that links both libraries, and
+ * whoever comes first wins (which used to let taosdump bypass the dispatcher).
+ * Its symbols are therefore taken from the table it exports; the WebSocket driver
+ * exports the plain names and is still resolved with dlsym. */
+static const TdNativeApiEntry *tsNativeApi = NULL;
+
+static void *taosNativeApiLookup(const char *funcName) {
+  if (tsNativeApi == NULL) {
+    tsNativeApi = (const TdNativeApiEntry *)taosLoadDllFunc(tsDriver, "tdNativeApiTable");
+    if (tsNativeApi == NULL) {
+      return NULL;
+    }
+  }
+
+  for (const TdNativeApiEntry *entry = tsNativeApi; entry->name != NULL; ++entry) {
+    if (strcmp(entry->name, funcName) == 0) {
+      return entry->fn;
+    }
+  }
+
+  return NULL;
+}
+
+static void *taosDriverFunc(const char *funcName) {
+  if (tsDriverType == DRIVER_NATIVE) {
+    return taosNativeApiLookup(funcName);
+  }
+
+  return taosLoadDllFunc(tsDriver, funcName);
+}
+
+#define LOAD_FUNC(fptr, fname)                \
+  funcName = fname;                           \
+  fptr = taosDriverFunc(funcName);            \
+  if (fptr == NULL) goto _OVER;
+
+/* An optional entry point keeps its fallback when the driver does not provide it.
+ * The table in wrapperVariable.c detects "not provided" by comparing a slot with
+ * that fallback, and wrapperFunc.c does not check for NULL on the call path any
+ * more, so letting a failed lookup write the slot would both hide the entry point
+ * from taosDriverReportMissing() and make every call jump to NULL.  The WebSocket
+ * driver lacks the txn, tz and instance entry points, so that is the normal case
+ * there.  (The mandatory macro above may assign the NULL it just tested, because a
+ * missing entry point aborts the whole init instead of being tolerated.) */
+#define LOAD_FUNC_OPTIONAL(fptr, fname)             \
+  funcName = fname;                                 \
+  {                                                 \
+    void *fpLoaded = taosDriverFunc(funcName);      \
+    if (fpLoaded != NULL) {                         \
+      fptr = fpLoaded;                              \
+    }                                               \
+  }
+
+#ifdef WEBSOCKET
+EDriverType tsDriverType = DRIVER_NATIVE;  // todo simon
+#else
+EDriverType tsDriverType = DRIVER_NATIVE;
+#endif
+
+void *tsDriver = NULL;
+
+static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
+  char    appPath[PATH_MAX] = {0};
+  int32_t ret = taosAppPath(appPath, PATH_MAX);
+  if (ret == 0) {
+    snprintf(driverPath, PATH_MAX, "%s%s..%slib%s%s", appPath, TD_DIRSEP, TD_DIRSEP, TD_DIRSEP, driverName);
+    ret = taosRealPath(driverPath, NULL, PATH_MAX);
+  }
+
+  return ret;
+}
+
+/* dlopen() records the name it was handed and sanitizers print that name
+ * verbatim.  Handing it a bare file name makes the loader build the record from
+ * whichever search-path entry matched, so the record can still carry
+ * "source/taos-community/test/../../../" segments.  The CI ASAN check matches
+ * leak frames by path, which would then count every frame of the driver -- including
+ * frames of statically linked third-party code (libuv, cJSON) -- as TDengine code.
+ * Resolve the candidate to an absolute canonical path first so the recorded name
+ * no longer depends on how the caller happened to find us. */
+static int32_t taosResolveDriverPath(char *driverPath, int32_t pathLen, const char *driverName) {
+  char resolved[PATH_MAX] = {0};
+
+  /* the name may already be resolvable from the current directory */
+  if (taosRealPath((char *)driverName, resolved, sizeof(resolved)) == 0) {
+    tstrncpy(driverPath, resolved, pathLen);
+    return 0;
+  }
+
+#ifndef WINDOWS
+  const char *pathVars[] = {"LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"};
+
+  for (size_t i = 0; i < sizeof(pathVars) / sizeof(pathVars[0]); ++i) {
+    const char *pathList = getenv(pathVars[i]);
+    if (pathList == NULL || pathList[0] == '\0') {
+      continue;
+    }
+
+    char *copy = tdLiteStrdup(pathList);
+    if (copy == NULL) {
+      return -1;
+    }
+
+    char *save = NULL;
+    for (char *dir = strtok_r(copy, ":", &save); dir != NULL; dir = strtok_r(NULL, ":", &save)) {
+      if (snprintf(resolved, sizeof(resolved), "%s%s%s", dir[0] == '\0' ? "." : dir, TD_DIRSEP, driverName) < 0) {
+        continue;
+      }
+      if (taosRealPath(resolved, NULL, sizeof(resolved)) == 0) {
+        tstrncpy(driverPath, resolved, pathLen);
+        taosMemoryFree(copy);
+        return 0;
+      }
+    }
+
+    taosMemoryFree(copy);
+  }
+#endif
+
+  return -1;
+}
+
+static int32_t taosGetCoLocatedPath(char *driverPath, const char *driverName) {
+#ifdef WINDOWS
+  HMODULE module = NULL;
+  char    modulePath[TD_PATH_MAX] = {0};
+  DWORD   flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  if (!GetModuleHandleExA(flags, (LPCSTR)&taosDriverInit, &module)) {
+    return -1;
+  }
+
+  DWORD pathLen = GetModuleFileNameA(module, modulePath, sizeof(modulePath));
+  if (pathLen == 0 || pathLen >= sizeof(modulePath)) {
+    return -1;
+  }
+
+  const char *full = modulePath;
+#else
+  Dl_info info = {0};
+  if (dladdr((void*)taosDriverInit, &info) == 0 || info.dli_fname == NULL) {
+    return -1;
+  }
+
+  const char *full = info.dli_fname;
+#endif
+  const char *sep = strrchr(full, TD_DIRSEP[0]);
+  if (sep == NULL) {
+    return -1;
+  }
+
+  size_t dirLen = (size_t)(sep - full);
+  if (dirLen == 0 || dirLen >= TD_PATH_MAX) {
+    return -1;
+  }
+
+  int32_t n = snprintf(driverPath, TD_PATH_MAX, "%.*s%s%s", (int)dirLen, full, TD_DIRSEP, driverName);
+  if (n <= 0 || n >= TD_PATH_MAX) {
+    return -1;
+  }
+
+  /* Windows _fullpath() only normalizes the string and succeeds even when the
+   * file does not exist, unlike POSIX realpath(); check existence explicitly
+   * so a missing co-located driver is skipped here instead of after a doomed
+   * load attempt that leaves terrno set. */
+  if (!taosCheckExistFile(driverPath)) {
+    return -1;
+  }
+
+  return taosRealPath(driverPath, NULL, TD_PATH_MAX);
+}
+
+#ifdef WINDOWS
+/* Resolve imports beside the co-located driver. DLL_LOAD_DIR cannot be used
+ * with LOAD_WITH_ALTERED_SEARCH_PATH. */
+static void *taosLoadCoLocatedDll(const char *driverPath) {
+  DWORD flags = LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR |
+                LOAD_LIBRARY_SEARCH_DEFAULT_DIRS;
+  void *handle = LoadLibraryExA(driverPath, NULL, flags);
+  if (handle == NULL) {
+    /* The Windows loader reports failures only via GetLastError() and never
+     * sets errno, so reading errno here could only pick up a stale value left
+     * behind by an unrelated CRT call. */
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+
+  return handle;
+}
+#endif
+
+void taosDriverEnvInit() {
+  const char *driver = getenv("TDENGINE_DRIVER");
+  if (driver) {
+    if (strcasecmp(driver, STR_NATIVE) == 0) {
+      tsDriverType = DRIVER_NATIVE;
+    } else if (strcasecmp(driver, STR_WEBSOCKET) == 0) {
+      tsDriverType = DRIVER_WEBSOCKET;
+    }
+  }
+}
+
+int32_t taosDriverInit(EDriverType driverType) {
+  int32_t     code = -1;
+  char        driverPath[PATH_MAX + 32] = {0};
+  const char *driverName = NULL;
+  const char *funcName = NULL;
+
+  if (driverType == DRIVER_NATIVE) {
+    driverName = DRIVER_NATIVE_NAME;
+  } else {
+    driverName = DRIVER_WSBSOCKET_NAME;
+  }
+
+  /* Prefer the driver beside this wrapper. Only this step changes dependency
+   * search; the later fallback steps keep taosLoadDll's existing behavior. */
+  if (tsDriver == NULL && taosGetCoLocatedPath(driverPath, driverName) == 0) {
+#ifdef WINDOWS
+    tsDriver = taosLoadCoLocatedDll(driverPath);
+#else
+    tsDriver = taosLoadDll(driverPath);
+#endif
+  }
+
+  // load from develop build path
+  if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
+  }  
+
+  // load from system path; resolve it to an absolute canonical path first so the
+  // name recorded by the loader is stable (see taosResolveDriverPath())
+  if (tsDriver == NULL) {
+    if (taosResolveDriverPath(driverPath, sizeof(driverPath), driverName) == 0) {
+      tsDriver = taosLoadDll(driverPath);
+    }
+    if (tsDriver == NULL) {
+      tsDriver = taosLoadDll(driverName);
+    }
+  }
+
+// load from install path on mac
+#if defined(DARWIN)
+  if (tsDriver == NULL) {
+    snprintf(driverPath, PATH_MAX, "/usr/local/lib/%s", driverName);
+    tsDriver = taosLoadDll(driverPath);
+  }
+#endif
+
+  if (tsDriver == NULL) {
+    tdLiteLogMsg(1, "WRP ERROR ", "failed to load %s since %s [0x%X]", driverName, terrstr(), terrno);
+    showWrapperHint(terrno);
+    return code;
+  }
+
+  /* Hand the directory over before anything can start the engine with its default:
+   * configDir may have been set by the JNI layer or by taos_options() before the
+   * driver existed, and the driver only knows its own copy of the option.
+   *
+   * tdLiteConfigDirGiven() is the caller's own string, not the canonical one: the
+   * engine normalizes the value itself (taos_options_imp quotes a path with spaces),
+   * while the WebSocket driver takes it as a plain path -- handing that one the
+   * quoted form would make the quote characters part of the directory name.  Nothing
+   * is pushed when no caller ever set a directory: then the driver's own default is
+   * the right answer, exactly as before the dispatcher existed. */
+  LOAD_FUNC(fp_taos_set_config, "taos_set_config");
+
+  LOAD_FUNC(fp_taos_init, "taos_init");
+  LOAD_FUNC(fp_taos_cleanup, "taos_cleanup");
+  LOAD_FUNC(fp_taos_options, "taos_options");
+  const char *cfgDirGiven = tdLiteConfigDirGiven();
+  if (cfgDirGiven != NULL && cfgDirGiven[0] != 0) {
+    (void)(*fp_taos_options)(TSDB_OPTION_CONFIGDIR, cfgDirGiven);
+  }
+  LOAD_FUNC(fp_taos_set_option, "taos_set_option");
+  LOAD_FUNC(fp_taos_options_connection, "taos_options_connection");
+  LOAD_FUNC(fp_taos_connect, "taos_connect");
+  LOAD_FUNC(fp_taos_connect_totp, "taos_connect_totp");
+  LOAD_FUNC(fp_taos_connect_token, "taos_connect_token");
+  LOAD_FUNC(fp_taos_connect_test, "taos_connect_test");
+  LOAD_FUNC(fp_taos_connect_auth, "taos_connect_auth");
+  LOAD_FUNC(fp_taos_connect_with, "taos_connect_with");
+  LOAD_FUNC(fp_taos_connect_with_dsn, "taos_connect_with_dsn");
+  LOAD_FUNC(fp_taos_close, "taos_close");
+  // txn functions are currently only implemented in the native driver, not in the WebSocket driver.
+  // Use LOAD_FUNC_OPTIONAL (optional) instead of LOAD_FUNC (mandatory) so that loading the WebSocket
+  // driver does not fail due to missing symbols. Switch to LOAD_FUNC once the WebSocket driver
+  // implements txn support.
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_begin, "taos_txn_begin");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_commit, "taos_txn_commit");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_rollback, "taos_txn_rollback");
+
+  LOAD_FUNC(fp_taos_data_type, "taos_data_type");
+
+  LOAD_FUNC(fp_taos_stmt_init, "taos_stmt_init");
+  LOAD_FUNC(fp_taos_stmt_init_with_reqid, "taos_stmt_init_with_reqid");
+  LOAD_FUNC(fp_taos_stmt_init_with_options, "taos_stmt_init_with_options");
+  LOAD_FUNC(fp_taos_stmt_prepare, "taos_stmt_prepare");
+  LOAD_FUNC(fp_taos_stmt_set_tbname_tags, "taos_stmt_set_tbname_tags");
+  LOAD_FUNC(fp_taos_stmt_set_tbname, "taos_stmt_set_tbname");
+  LOAD_FUNC(fp_taos_stmt_set_tags, "taos_stmt_set_tags");
+  LOAD_FUNC(fp_taos_stmt_set_sub_tbname, "taos_stmt_set_sub_tbname");
+  LOAD_FUNC(fp_taos_stmt_get_tag_fields, "taos_stmt_get_tag_fields");
+  LOAD_FUNC(fp_taos_stmt_get_col_fields, "taos_stmt_get_col_fields");
+  LOAD_FUNC(fp_taos_stmt_reclaim_fields, "taos_stmt_reclaim_fields");
+
+  LOAD_FUNC(fp_taos_stmt_is_insert, "taos_stmt_is_insert");
+  LOAD_FUNC(fp_taos_stmt_num_params, "taos_stmt_num_params");
+  LOAD_FUNC(fp_taos_stmt_get_param, "taos_stmt_get_param");
+  LOAD_FUNC(fp_taos_stmt_bind_param, "taos_stmt_bind_param");
+  LOAD_FUNC(fp_taos_stmt_bind_param_batch, "taos_stmt_bind_param_batch");
+  LOAD_FUNC(fp_taos_stmt_bind_single_param_batch, "taos_stmt_bind_single_param_batch");
+  LOAD_FUNC(fp_taos_stmt_add_batch, "taos_stmt_add_batch");
+  LOAD_FUNC(fp_taos_stmt_execute, "taos_stmt_execute");
+  LOAD_FUNC(fp_taos_stmt_use_result, "taos_stmt_use_result");
+  LOAD_FUNC(fp_taos_stmt_close, "taos_stmt_close");
+  LOAD_FUNC(fp_taos_stmt_errstr, "taos_stmt_errstr");
+  LOAD_FUNC(fp_taos_stmt_affected_rows, "taos_stmt_affected_rows");
+  LOAD_FUNC(fp_taos_stmt_affected_rows_once, "taos_stmt_affected_rows_once");
+
+  LOAD_FUNC(fp_taos_stmt2_init, "taos_stmt2_init");
+  LOAD_FUNC(fp_taos_stmt2_prepare, "taos_stmt2_prepare");
+  LOAD_FUNC(fp_taos_stmt2_bind_param, "taos_stmt2_bind_param");
+  LOAD_FUNC(fp_taos_stmt2_bind_param_a, "taos_stmt2_bind_param_a");
+  if (driverType == DRIVER_NATIVE) {
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column, "taos_stmt2_bind_param_column");
+    LOAD_FUNC(fp_taos_stmt2_bind_param_column_a, "taos_stmt2_bind_param_column_a");
+  }
+  LOAD_FUNC(fp_taos_stmt2_exec, "taos_stmt2_exec");
+  LOAD_FUNC(fp_taos_stmt2_close, "taos_stmt2_close");
+  LOAD_FUNC(fp_taos_stmt2_is_insert, "taos_stmt2_is_insert");
+  LOAD_FUNC(fp_taos_stmt2_get_fields, "taos_stmt2_get_fields");
+  LOAD_FUNC(fp_taos_stmt2_free_fields, "taos_stmt2_free_fields");
+  LOAD_FUNC(fp_taos_stmt2_result, "taos_stmt2_result");
+  LOAD_FUNC(fp_taos_stmt2_error, "taos_stmt2_error");
+
+  LOAD_FUNC(fp_taos_query, "taos_query");
+  LOAD_FUNC(fp_taos_query_with_reqid, "taos_query_with_reqid");
+
+  LOAD_FUNC(fp_taos_fetch_row, "taos_fetch_row");
+  LOAD_FUNC(fp_taos_result_precision, "taos_result_precision");
+  LOAD_FUNC(fp_taos_free_result, "taos_free_result");
+  LOAD_FUNC(fp_taos_kill_query, "taos_kill_query");
+  LOAD_FUNC(fp_taos_field_count, "taos_field_count");
+  LOAD_FUNC(fp_taos_num_fields, "taos_num_fields");
+  LOAD_FUNC(fp_taos_affected_rows, "taos_affected_rows");
+  LOAD_FUNC(fp_taos_affected_rows64, "taos_affected_rows64");
+
+  LOAD_FUNC(fp_taos_fetch_fields, "taos_fetch_fields");
+  LOAD_FUNC(fp_taos_fetch_fields_e, "taos_fetch_fields_e");
+  LOAD_FUNC(fp_taos_select_db, "taos_select_db");
+  LOAD_FUNC(fp_taos_print_row, "taos_print_row");
+  LOAD_FUNC(fp_taos_print_row_with_size, "taos_print_row_with_size");
+  LOAD_FUNC(fp_taos_stop_query, "taos_stop_query");
+  LOAD_FUNC(fp_taos_is_null, "taos_is_null");
+  LOAD_FUNC(fp_taos_is_null_by_column, "taos_is_null_by_column");
+  LOAD_FUNC(fp_taos_is_update_query, "taos_is_update_query");
+  LOAD_FUNC(fp_taos_fetch_block, "taos_fetch_block");
+  LOAD_FUNC(fp_taos_fetch_block_s, "taos_fetch_block_s");
+  LOAD_FUNC(fp_taos_fetch_raw_block, "taos_fetch_raw_block");
+  LOAD_FUNC(fp_taos_get_column_data_offset, "taos_get_column_data_offset");
+  LOAD_FUNC(fp_taos_validate_sql, "taos_validate_sql");
+  LOAD_FUNC(fp_taos_reset_current_db, "taos_reset_current_db");
+
+  LOAD_FUNC(fp_taos_fetch_lengths, "taos_fetch_lengths");
+  LOAD_FUNC(fp_taos_result_block, "taos_result_block");
+
+  LOAD_FUNC(fp_taos_get_server_info, "taos_get_server_info");
+  LOAD_FUNC(fp_taos_get_client_info, "taos_get_client_info");
+  LOAD_FUNC(fp_taos_get_current_db, "taos_get_current_db");
+  LOAD_FUNC(fp_taos_get_connection_info, "taos_get_connection_info");
+  LOAD_FUNC_OPTIONAL(fp_taos_get_result_tz, "taos_get_result_tz");
+
+  LOAD_FUNC(fp_taos_errstr, "taos_errstr");
+  LOAD_FUNC(fp_taos_errno, "taos_errno");
+
+  LOAD_FUNC(fp_taos_query_a, "taos_query_a");
+  LOAD_FUNC(fp_taos_query_a_with_reqid, "taos_query_a_with_reqid");
+  LOAD_FUNC(fp_taos_fetch_rows_a, "taos_fetch_rows_a");
+  LOAD_FUNC(fp_taos_fetch_raw_block_a, "taos_fetch_raw_block_a");
+  LOAD_FUNC(fp_taos_get_raw_block, "taos_get_raw_block");
+
+  LOAD_FUNC(fp_taos_get_db_route_info, "taos_get_db_route_info");
+  LOAD_FUNC(fp_taos_get_table_vgId, "taos_get_table_vgId");
+  LOAD_FUNC(fp_taos_get_tables_vgId, "taos_get_tables_vgId");
+
+  LOAD_FUNC(fp_taos_load_table_info, "taos_load_table_info");
+
+  LOAD_FUNC(fp_taos_set_hb_quit, "taos_set_hb_quit");
+
+  LOAD_FUNC(fp_taos_set_notify_cb, "taos_set_notify_cb");
+
+  LOAD_FUNC(fp_taos_fetch_whitelist_a, "taos_fetch_whitelist_a");
+
+  LOAD_FUNC(fp_taos_fetch_whitelist_dual_stack_a, "taos_fetch_whitelist_dual_stack_a");
+  LOAD_FUNC(fp_taos_fetch_ip_whitelist_a, "taos_fetch_ip_whitelist_a");
+  LOAD_FUNC(fp_taos_fetch_datetime_whitelist_a, "taos_fetch_datetime_whitelist_a");
+
+  LOAD_FUNC(fp_taos_set_conn_mode, "taos_set_conn_mode");
+
+  LOAD_FUNC(fp_taos_schemaless_insert, "taos_schemaless_insert");
+  LOAD_FUNC(fp_taos_schemaless_insert_with_reqid, "taos_schemaless_insert_with_reqid");
+  LOAD_FUNC(fp_taos_schemaless_insert_raw, "taos_schemaless_insert_raw");
+  LOAD_FUNC(fp_taos_schemaless_insert_raw_with_reqid, "taos_schemaless_insert_raw_with_reqid");
+  LOAD_FUNC(fp_taos_schemaless_insert_ttl, "taos_schemaless_insert_ttl");
+  LOAD_FUNC(fp_taos_schemaless_insert_ttl_with_reqid, "taos_schemaless_insert_ttl_with_reqid");
+  LOAD_FUNC(fp_taos_schemaless_insert_raw_ttl, "taos_schemaless_insert_raw_ttl");
+  LOAD_FUNC(fp_taos_schemaless_insert_raw_ttl_with_reqid, "taos_schemaless_insert_raw_ttl_with_reqid");
+  LOAD_FUNC(fp_taos_schemaless_insert_raw_ttl_with_reqid_tbname_key,
+            "taos_schemaless_insert_raw_ttl_with_reqid_tbname_key");
+  LOAD_FUNC(fp_taos_schemaless_insert_ttl_with_reqid_tbname_key, "taos_schemaless_insert_ttl_with_reqid_tbname_key");
+
+  LOAD_FUNC(fp_tmq_conf_new, "tmq_conf_new");
+  LOAD_FUNC(fp_tmq_conf_set, "tmq_conf_set");
+  LOAD_FUNC(fp_tmq_conf_destroy, "tmq_conf_destroy");
+  LOAD_FUNC(fp_tmq_conf_set_auto_commit_cb, "tmq_conf_set_auto_commit_cb");
+
+  LOAD_FUNC(fp_tmq_list_new, "tmq_list_new");
+  LOAD_FUNC(fp_tmq_list_append, "tmq_list_append");
+  LOAD_FUNC(fp_tmq_list_destroy, "tmq_list_destroy");
+  LOAD_FUNC(fp_tmq_list_get_size, "tmq_list_get_size");
+  LOAD_FUNC(fp_tmq_list_to_c_array, "tmq_list_to_c_array");
+
+  LOAD_FUNC(fp_tmq_consumer_new, "tmq_consumer_new");
+  LOAD_FUNC(fp_tmq_subscribe, "tmq_subscribe");
+  LOAD_FUNC(fp_tmq_unsubscribe, "tmq_unsubscribe");
+  LOAD_FUNC(fp_tmq_subscription, "tmq_subscription");
+  LOAD_FUNC(fp_tmq_consumer_poll, "tmq_consumer_poll");
+  LOAD_FUNC(fp_tmq_consumer_close, "tmq_consumer_close");
+  LOAD_FUNC(fp_tmq_commit_sync, "tmq_commit_sync");
+  LOAD_FUNC(fp_tmq_commit_async, "tmq_commit_async");
+  LOAD_FUNC(fp_tmq_commit_offset_sync, "tmq_commit_offset_sync");
+  LOAD_FUNC(fp_tmq_commit_offset_async, "tmq_commit_offset_async");
+  LOAD_FUNC(fp_tmq_get_topic_assignment, "tmq_get_topic_assignment");
+  LOAD_FUNC(fp_tmq_free_assignment, "tmq_free_assignment");
+  LOAD_FUNC(fp_tmq_offset_seek, "tmq_offset_seek");
+  LOAD_FUNC(fp_tmq_position, "tmq_position");
+  LOAD_FUNC(fp_tmq_committed, "tmq_committed");
+
+  LOAD_FUNC(fp_tmq_get_connect, "tmq_get_connect");
+  LOAD_FUNC(fp_tmq_get_table_name, "tmq_get_table_name");
+  LOAD_FUNC(fp_tmq_get_res_type, "tmq_get_res_type");
+  LOAD_FUNC(fp_tmq_get_topic_name, "tmq_get_topic_name");
+  LOAD_FUNC(fp_tmq_get_db_name, "tmq_get_db_name");
+  LOAD_FUNC(fp_tmq_get_vgroup_id, "tmq_get_vgroup_id");
+  LOAD_FUNC(fp_tmq_get_vgroup_offset, "tmq_get_vgroup_offset");
+  LOAD_FUNC(fp_tmq_err2str, "tmq_err2str");
+
+  LOAD_FUNC(fp_tmq_get_raw, "tmq_get_raw");
+  LOAD_FUNC(fp_tmq_write_raw, "tmq_write_raw");
+  LOAD_FUNC(fp_taos_write_raw_block, "taos_write_raw_block");
+  LOAD_FUNC(fp_taos_write_raw_block_with_reqid, "taos_write_raw_block_with_reqid");
+  LOAD_FUNC(fp_taos_write_raw_block_with_fields, "taos_write_raw_block_with_fields");
+  LOAD_FUNC(fp_taos_write_raw_block_with_fields_with_reqid, "taos_write_raw_block_with_fields_with_reqid");
+  LOAD_FUNC(fp_tmq_free_raw, "tmq_free_raw");
+
+  LOAD_FUNC(fp_tmq_get_json_meta, "tmq_get_json_meta");
+  LOAD_FUNC(fp_tmq_free_json_meta, "tmq_free_json_meta");
+
+  LOAD_FUNC(fp_taos_check_server_status, "taos_check_server_status");
+  LOAD_FUNC(fp_taos_write_crashinfo, "taos_write_crashinfo");
+  LOAD_FUNC(fp_getBuildInfo, "getBuildInfo");
+
+  LOAD_FUNC(fp_taos_connect_is_alive, "taos_connect_is_alive");
+
+  /* Appended after the original list so existing entries keep their order.
+   * The WebSocket driver does not implement the instance management APIs, so
+   * they must be optional: a mandatory lookup here would fail the whole
+   * taosDriverInit() for every WebSocket connection (taosBenchmark -Z 1, the
+   * adapter's ws path, ...) even though none of them uses these functions.
+   * The wrappers in wrapperFunc.c report TSDB_CODE_DLL_FUNC_NOT_LOAD when the
+   * pointer stays NULL. */
+  LOAD_FUNC_OPTIONAL(fp_taos_register_instance, "taos_register_instance");
+  LOAD_FUNC_OPTIONAL(fp_taos_list_instances, "taos_list_instances");
+  LOAD_FUNC_OPTIONAL(fp_taos_free_instances, "taos_free_instances");
+
+  /* The optional entry points the driver does not have keep the fallback here,
+   * which answers TSDB_CODE_DLL_FUNC_NOT_LOAD, so the wrappers no longer have to
+   * check for that on every call.  They are named once from taos_init(), after
+   * the driver's own init has brought the log up, so that the note lands in the
+   * log instead of on the caller's terminal. */
+
+  code = 0;
+
+_OVER:
+  if (code != 0) {
+    tdLiteLogMsg(1, "WRP ERROR ", "failed to load function %s from %s since %s [0x%X]", funcName, driverPath,
+                terrstr(), terrno);
+    showWrapperHint(terrno);
+    taosDriverCleanup();
+  }
+
+  return code;
+}
+
+void taosDriverCleanup() {
+  /* The slots must not stay pointing into the image that is about to go: the
+   * wrappers no longer check for NULL on the way in, so a later call would jump
+   * into unloaded code.  Put the fallbacks back first -- they report the failure
+   * instead. */
+  taosDriverResetSlots();
+
+  /* The table lives inside the driver being unloaded, so the cache has to go with
+   * it: a later taosDriverInit() may load a different driver, and a stale pointer
+   * would make taosNativeApiLookup() walk freed memory. */
+  tsNativeApi = NULL;
+  if (tsDriver != NULL) {
+    taosCloseDll(tsDriver);
+    tsDriver = NULL;
+  }
+}

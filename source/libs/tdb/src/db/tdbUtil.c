@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,11 +19,11 @@
 
 void *tdbRealloc(void *ptr, size_t size) {
   void *nPtr;
-  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
-    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
+  if ((ptr) == NULL || ((size_t *)(ptr))[-1] < (size)) {
+    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(size_t) : NULL, (size) + sizeof(size_t));
     if (nPtr) {
-      ((int *)nPtr)[0] = (size);
-      nPtr = (char *)nPtr + sizeof(int);
+      ((size_t *)nPtr)[0] = (size);
+      nPtr = (char *)nPtr + sizeof(size_t);
     }
   } else {
     nPtr = (ptr);
@@ -31,7 +33,7 @@ void *tdbRealloc(void *ptr, size_t size) {
 
 void tdbFree(void *p) {
   if (p) {
-    tdbOsFree((char *)(p) - sizeof(int));
+    tdbOsFree((char *)(p) - sizeof(size_t));
   }
 }
 
@@ -60,7 +62,7 @@ int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size) {
 
   ret = tdbOsFileSize(fd, &szBytes);
   if (ret < 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   *size = szBytes / szPage;

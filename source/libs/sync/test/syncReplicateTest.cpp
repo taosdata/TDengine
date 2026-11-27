@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -17,10 +34,10 @@ SyncIndex   gSnapshotLastApplyIndex;
 
 void init() {
   int code = walInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 
   code = syncInit();
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 }
 
 void cleanup() { walCleanUp(); }
@@ -91,7 +108,7 @@ SWal* createWal(char* path, int32_t vgId) {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal* pWal = walOpen(path, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
   return pWal;
 }
 
@@ -116,10 +133,10 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   }
 
   int64_t rid = syncOpen(&syncInfo);
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   // gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
@@ -162,25 +179,25 @@ int main(int argc, char** argv) {
   int32_t writeRecordNum = atoi(argv[4]);
   gSnapshotLastApplyIndex = lastApplyIndex;
 
-  assert(replicaNum >= 1 && replicaNum <= 5);
-  assert(myIndex >= 0 && myIndex < replicaNum);
-  assert(lastApplyIndex >= -1);
-  assert(writeRecordNum >= 0);
+  TD_ALWAYS_ASSERT(replicaNum >= 1 && replicaNum <= 5);
+  TD_ALWAYS_ASSERT(myIndex >= 0 && myIndex < replicaNum);
+  TD_ALWAYS_ASSERT(lastApplyIndex >= -1);
+  TD_ALWAYS_ASSERT(writeRecordNum >= 0);
 
   init();
   int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   char walPath[128];
   snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
   SWal* pWal = createWal(walPath, gVgId);
 
   int64_t rid = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
   syncStart(rid);
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   //---------------------------
   int32_t alreadySend = 0;
@@ -193,7 +210,7 @@ int main(int argc, char** argv) {
       if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
         sTrace("%s value%d write not leader", s, alreadySend);
       } else {
-        assert(ret == 0);
+        TD_ALWAYS_ASSERT(ret == 0);
         sTrace("%s value%d write ok", s, alreadySend);
       }
       alreadySend++;

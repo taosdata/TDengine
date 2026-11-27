@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,7 @@
 extern "C" {
 #endif
 
+#define TSDB_SYS_NAME_T   0
 #define TSDB_DB_NAME_T    1
 #define TSDB_TABLE_NAME_T 2
 
@@ -53,6 +56,8 @@ int32_t     tNameGetDbName(const SName* name, char* dst);
 const char* tNameGetDbNameP(const SName* name);
 
 int32_t tNameGetFullDbName(const SName* name, char* dst);
+
+int32_t tNameGetFullTableName(const SName* name, char* dst);
 
 bool tNameIsEmpty(const SName* name);
 

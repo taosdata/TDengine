@@ -1,0 +1,13 @@
+{
+  "filetype": "insert",
+  "version": "taosQueryTest-dataset-v1",
+  "note": "The tool owns the concrete db_frag fixture; this immutable copy records the TD fixture contract.",
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "db_frag",
+        "precision": "ms"
+      }
+    }
+  ]
+}

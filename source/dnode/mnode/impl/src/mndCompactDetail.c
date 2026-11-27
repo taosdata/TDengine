@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,12 +14,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "mndCompactDetail.h"
 #include "mndDb.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define MND_COMPACT_VER_NUMBER 1
+#define MND_COMPACT_DETAIL_VER_NUMBER 1
 
 int32_t mndInitCompactDetail(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT_DETAIL, mndRetrieveCompactDetail);
@@ -44,6 +47,8 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
   SCompactDetailObj *pCompactDetail = NULL;
   char              *sep = NULL;
   SDbObj            *pDb = NULL;
+
+  mInfo("retrieve compact detail");
 
   if (strlen(pShow->db) > 0) {
     sep = strchr(pShow->db, '.');
@@ -109,7 +114,7 @@ int32_t mndRetrieveCompactDetail(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
 void tFreeCompactDetailObj(SCompactDetailObj *pCompact) {}
 
-static int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj) {
+int32_t tSerializeSCompactDetailObj(void *buf, int32_t bufLen, const SCompactDetailObj *pObj) {
   SEncoder encoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -142,7 +147,7 @@ _exit:
   return tlen;
 }
 
-static int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj) {
+int32_t tDeserializeSCompactDetailObj(void *buf, int32_t bufLen, SCompactDetailObj *pObj) {
   int32_t  code = 0;
   int32_t  lino;
   SDecoder decoder = {0};
@@ -189,7 +194,7 @@ SSdbRaw *mndCompactDetailActionEncode(SCompactDetailObj *pCompact) {
   }
 
   int32_t size = sizeof(int32_t) + tlen;
-  pRaw = sdbAllocRaw(SDB_COMPACT_DETAIL, MND_COMPACT_VER_NUMBER, size);
+  pRaw = sdbAllocRaw(SDB_COMPACT_DETAIL, MND_COMPACT_DETAIL_VER_NUMBER, size);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto OVER;
@@ -237,9 +242,9 @@ SSdbRow *mndCompactDetailActionDecode(SSdbRaw *pRaw) {
     goto OVER;
   }
 
-  if (sver != MND_COMPACT_VER_NUMBER) {
+  if (sver != MND_COMPACT_DETAIL_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    mError("compact detail read invalid ver, data ver: %d, curr ver: %d", sver, MND_COMPACT_VER_NUMBER);
+    mError("compact detail read invalid ver, data ver: %d, curr ver: %d", sver, MND_COMPACT_DETAIL_VER_NUMBER);
     goto OVER;
   }
 

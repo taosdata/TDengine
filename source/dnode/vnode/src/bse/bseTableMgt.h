@@ -1,0 +1,129 @@
+
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TD_BSE_TABLE_MANAGER_H_
+#define _TD_BSE_TABLE_MANAGER_H_
+
+#include "bse.h"
+#include "bseCache.h"
+#include "bseTable.h"
+#include "bseUtil.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct SSubTableMgt SSubTableMgt;
+
+typedef struct {
+  STableBuilder *p;
+
+  TdThreadRwlock mutex;
+  SSubTableMgt *pMgt;
+
+  int64_t timestamp;
+  SBse *pBse;
+} STableBuilderMgt;
+
+typedef struct {
+  // Legacy table-cache container; it does not own pCachedReader.
+  STableCache   *pTableCache;
+  SBlockCache   *pBlockCache;
+  TdThreadRwlock mutex;
+  SBse          *pBse;
+  // Manager-owned; access/close only under mutex's write lock, or on destruction.
+  STableReader  *pCachedReader;
+  // SBse.readerEpoch observed at open; a mismatch requires reopening the reader.
+  int64_t        readerEpoch;
+
+  SSubTableMgt *pMgt;
+  int64_t       timestamp;
+} STableReaderMgt;
+
+typedef struct {
+  char      path[TSDB_FILENAME_LEN];
+  SBse     *pBse;
+
+  SBTableMeta *pTableMeta;
+  int64_t      timestamp;
+
+  SSubTableMgt *pMgt;
+} STableMetaMgt;
+
+typedef struct STableMgt STableMgt;
+
+struct SSubTableMgt {
+  STableMgt       *pTableMgt;
+  STableBuilderMgt pBuilderMgt[1];
+  STableReaderMgt  pReaderMgt[1];
+  STableMetaMgt    pTableMetaMgt[1];
+};
+
+typedef struct {
+  SBlockCache   *pBlockCache;
+  STableCache   *pTableCache;
+  TdThreadRwlock mutex;
+} SCacheMgt;
+
+struct STableMgt {
+  void         *pBse;
+  SSubTableMgt *pCurrTableMgt;
+  int64_t       timestamp;
+  SHashObj     *pHashObj;
+  SCacheMgt    *pCacheMgt;
+};
+
+int32_t bseTableMgtCreate(SBse *pBse, void **pMgt);
+int32_t bseTableMgtSetLastTableId(STableMgt *pMgt, int64_t retention);
+
+int32_t bseTableMgtGet(STableMgt *p, int64_t seq, uint8_t **pValue, int32_t *len);
+
+void bseTableMgtCleanup(void *p);
+
+int32_t bseTableMgtCommit(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
+
+int32_t bseTableMgtUpdateLiveFileSet(STableMgt *pMgt, SArray *pLiveFileList);
+
+int32_t bseTableMgtAppend(STableMgt *pMgt, SBseBatch *pBatch);
+
+int32_t bseTableMgtGetLiveFileSet(STableMgt *pMgt, SArray **pList);
+
+int32_t bseTableMgtClear(STableMgt *pMgt);
+
+int32_t bseTableMgtSetBlockCacheSize(STableMgt *pMgt, int32_t cap);
+
+int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap);
+
+// pBlock->offset is the payload byte count; packed (seq, length) entries start
+// at pBlock->data + pBlock->offset. The wrapper borrows pBlock; cleanup frees
+// only the parsed index and wrapper. The block-cache callback frees the payload.
+int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
+
+void blockWithMetaCleanup(SBlockWithMeta *p);
+
+int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len);
+
+int32_t bseTableMgtRecoverTable(STableMgt *pMgt, SBseLiveFileInfo *pInfo);
+
+int32_t createSubTableMgt(int64_t timestamp, int32_t readOnly, STableMgt *pMgt, SSubTableMgt **pSubMgt);
+void    destroySubTableMgt(SSubTableMgt *p);
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,10 +17,16 @@
 
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
+#include "mndMnode.h"
 #include "mndStream.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
+#include "mndXnode.h"
+#include "mndToken.h"
+#include "tlogKeyOp.h"
 
 static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   if (pMsg == NULL || pMsg->pCont == NULL) {
@@ -68,10 +76,10 @@ static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 
 static int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   int32_t code = tmsgSendSyncReq(pEpSet, pMsg);
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
+  // if (code != 0) {
+  //   rpcFreeCont(pMsg->pCont);
+  //   pMsg->pCont = NULL;
+  // }
   return code;
 }
 
@@ -163,12 +171,72 @@ _OUT:
   TAOS_RETURN(code);
 }
 
+// [Security fix for finding item 268] Validate the SSdbRaw header of a committed raft
+// entry against the frame that carries it. mndProcessWriteMsg is the mnode FSM apply
+// callback, i.e. the last gate before untrusted bytes reach the sdb decoders: an entry can
+// be appended by any peer that reaches the mnode listener (TDMT_SYNC_CLIENT_REQUEST) or
+// delivered by a node presenting a configured replica's SRaftId (AppendEntries), and every
+// replica applies it. The header was therefore never produced by this node and must be
+// checked before use:
+// 1. the 8-byte header must be fully present in the frame, otherwise reading type/dataLen
+//    is itself an over-read of the RPC buffer;
+// 2. the raw must describe a transaction. mndSyncPropose() is the only producer of mnode
+//    raft entries and it always proposes mndTransEncode() output (type SDB_TRANS), so any
+//    other type is either forged or a producer bug. Rejecting it here is what stops a raw
+//    of type SDB_VGROUP/SDB_DNODE/... from being handed to sdbWriteWithoutFree, which
+//    would dispatch on that type and insert/update/delete rows in the INT32-keyed metadata
+//    tables directly, bypassing the transaction machinery;
+// 3. dataLen must not claim more bytes than the frame actually carries. Every sdbGetRaw*
+//    getter bounds its reads by pRaw->dataLen alone, so an oversized dataLen makes
+//    mndTransDecode (and mndTransUpdateActions downstream) read past the RPC buffer.
+// The bound is "<=" rather than "==" so that a future producer appending padding cannot
+// wedge the apply loop on every replica; trailing bytes are harmless because all reads are
+// bounded by dataLen.
+static int32_t mndValidateApplyRaw(const SRpcMsg *pMsg) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    mError("vgId:1, invalid sync apply msg since the content is empty, apply msg:%p", pMsg);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (pMsg->contLen < (int32_t)sizeof(SSdbRaw)) {
+    mError("vgId:1, invalid sync apply msg since contLen:%d is shorter than a raw header:%d", pMsg->contLen,
+           (int32_t)sizeof(SSdbRaw));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const SSdbRaw *pRaw = (const SSdbRaw *)pMsg->pCont;
+  if (pRaw->type != SDB_TRANS) {
+    mError("vgId:1, invalid sync apply msg since raw type:%s(%d) is not %s(%d)", sdbTableName(pRaw->type), pRaw->type,
+           sdbTableName(SDB_TRANS), SDB_TRANS);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t maxDataLen = pMsg->contLen - (int32_t)sizeof(SSdbRaw);
+  if (pRaw->dataLen < 0 || pRaw->dataLen > maxDataLen) {
+    mError("vgId:1, invalid sync apply msg since raw dataLen:%d is out of range [0, %d]", pRaw->dataLen, maxDataLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return 0;
+}
+
 int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
   int32_t    code = -1;
-  int32_t    transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
+  int32_t    transId = 0;
+
+  // [Security fix for finding item 268] Validate the untrusted raw header before it is
+  // dereferenced by sdbGetIdFromRaw or decoded by mndTransValidate. A raw failing any
+  // check is rejected: nothing is written to sdb and pMeta->code reports the failure.
+  code = mndValidateApplyRaw(pMsg);
+  if (code != 0) {
+    pMeta->code = code;
+    goto _OUT;
+  }
+
+  transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
 
   if (transId <= 0) {
     mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
@@ -177,9 +245,9 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   }
 
   mInfo("trans:%d, process sync proposal, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
-        " role:%s raw:%p sec:%d seq:%" PRId64,
+        " role:%s raw:%p contLen:%d dataLen:%d sec:%d seq:%" PRId64,
         transId, pMgmt->transId, pMeta->code, pMeta->index, pMeta->term, pMeta->lastConfigIndex, syncStr(pMeta->state),
-        pRaw, pMgmt->transSec, pMgmt->transSeq);
+        pRaw, pMsg->contLen, pRaw->dataLen, pMgmt->transSec, pMgmt->transSeq);
 
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {
@@ -216,7 +284,9 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
     }
   }
 
+  mInfo("trans:%d, refresh transaction in process write msg", transId);
   mndTransRefresh(pMnode, pTrans);
+  mInfo("trans:%d, refresh transaction in process write msg finished", transId);
 
   sdbSetApplyInfo(pMnode->pSdb, pMeta->index, pMeta->term, pMeta->lastConfigIndex);
   code = sdbWriteFile(pMnode->pSdb, tsMndSdbWriteDelta);
@@ -312,9 +382,28 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   } else {
     mInfo("vgId:1, sync restore finished");
   }
-  int32_t code = mndRefreshUserIpWhiteList(pMnode);
+
+  int32_t code = mndTxnSeqPrepare(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to prepare txn seq since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserIpWhiteList(pMnode);
   if (code != 0) {
     mError("vgId:1, failed to refresh user ip white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndRefreshUserDateTimeWhiteList(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to refresh user date time white list since %s", tstrerror(code));
+    mndSetRestored(pMnode, false);
+  }
+
+  code = mndTokenCacheRebuild(pMnode);
+  if (code != 0) {
+    mError("vgId:1, failed to rebuild token cache since %s", tstrerror(code));
     mndSetRestored(pMnode, false);
   }
 
@@ -326,6 +415,30 @@ void mndRestoreFinish(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   }
 }
 
+static int32_t mndTriggerEnsureDefault(SMnode *pMnode) {
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_ENSURE_DEFAULT, .info.ahandle = 0, .info.notFreeAhandle = 1};
+  SEpSet  epSet = {0};
+  mndGetMnodeEpSet(pMnode, &epSet);
+  int32_t code = tmsgSendReq(&epSet, &rpcMsg);
+  if (code != 0) {
+    mError("vgId:1, failed to trigger ensure-default since %s", tstrerror(code));
+  } else {
+    mInfo("vgId:1, ensure-default request posted to write queue");
+  }
+  TAOS_RETURN(code);
+}
+
+int32_t mndProcessEnsureDefaultReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = sdbEnsureDefaultData(pMnode->pSdb);
+  if (code != 0) {
+    mError("failed to ensure default data since %s", tstrerror(code));
+  } else {
+    mInfo("ensure default data finished");
+  }
+  TAOS_RETURN(code);
+}
+
 void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
   SMnode *pMnode = pFsm->data;
 
@@ -334,6 +447,25 @@ void mndAfterRestored(const SSyncFSM *pFsm, const SyncIndex commitIdx) {
       mError("failed to prepare sdb while start mnode");
     }
     mInfo("vgId:1, sync restore finished and restore sdb success");
+
+    // Ensure default data only for an interrupted first deploy: a lone single-dnode
+    // cluster. Two guards, both required:
+    //   1. raft replicaNum == 1: a single-member group, which never takes the
+    //      "reset sdb -> receive snapshot" join path.
+    //   2. sdbGetSize(SDB_DNODE) <= 1: only one dnode in sdb, so it is a real
+    //      first deploy, not a multi-node cluster scaled down to a single mnode.
+    // Exception path guard 1 blocks: a joining replica resets its sdb and only
+    // gets the snapshot AFTER mndAfterRestored runs, so SDB_DNODE reads 0 here and
+    // (2) alone would falsely fire. Such a replica always joins a >=2 member group
+    // (replicaNum >= 2), so (1) rules it out; within replicaNum == 1 no reset
+    // happens and SDB_DNODE is trustworthy. The ensure pass creates transactions,
+    // so post it to the write worker.
+    if (pMnode->selfDnodeId <= 1 && sdbGetSize(pMnode->pSdb, SDB_DNODE) <= 1) {
+      SSyncCfg cfg = {0};
+      if (syncNodeGetConfig(pMnode->syncMgmt.sync, &cfg) == 0 && cfg.replicaNum == 1) {
+        (void)mndTriggerEnsureDefault(pMnode);
+      }
+    }
   }
 }
 
@@ -376,7 +508,7 @@ int32_t mndSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int3
 static void mndBecomeFollower(const SSyncFSM *pFsm) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  mInfo("vgId:1, become follower");
+  mInfo("vgId:1, becomefollower callback");
 
   (void)taosThreadMutexLock(&pMgmt->lock);
   if (pMgmt->transId != 0) {
@@ -391,7 +523,8 @@ static void mndBecomeFollower(const SSyncFSM *pFsm) {
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
-  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_FOLLOWER);
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLearner(const SSyncFSM *pFsm) {
@@ -411,14 +544,20 @@ static void mndBecomeLearner(const SSyncFSM *pFsm) {
     }
   }
   (void)taosThreadMutexUnlock(&pMgmt->lock);
+
+  msmHandleBecomeNotLeader(pMnode);
+  mndXnodeHandleBecomeNotLeader();
 }
 
 static void mndBecomeLeader(const SSyncFSM *pFsm) {
-  mInfo("vgId:1, become leader");
+  mInfo(KEYOP("mnode-leader-elect", "START") "vgId:1, becomeleader callback");
   SMnode *pMnode = pFsm->data;
 
-  mndUpdateStreamExecInfoRole(pMnode, NODE_ROLE_LEADER);
-  mndStreamResetInitTaskListLoadFlag();
+  mndTxnHandleBecomeLeader(pMnode);
+  msmHandleBecomeLeader(pMnode);
+  mndXnodeHandleBecomeLeader(pMnode);
+
+  mInfo(KEYOP("mnode-leader-elect", "END") "vgId:1, this node is now leader");
 }
 
 static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
@@ -480,6 +619,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   pMgmt->transSeq = 0;
   (void)taosThreadMutexUnlock(&pMgmt->lock);
 
+  mndSetMsgHandle(pMnode, TDMT_MND_ENSURE_DEFAULT, mndProcessEnsureDefaultReq);
+
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,
       .batchSize = 1,
@@ -490,15 +631,16 @@ int32_t mndInitSync(SMnode *pMnode) {
       .syncEqMsg = mndSyncEqMsg,
       .syncEqCtrlMsg = mndSyncEqCtrlMsg,
       .pingMs = 5000,
-      .electMs = 3000,
-      .heartbeatMs = 500,
+      .electMs = tsMnodeElectIntervalMs,
+      .heartbeatMs = tsMnodeHeartbeatIntervalMs,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
 
-  mInfo("vgId:1, start to open mnode sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
+  mInfo("vgId:1, start to open mnode sync, in syncMgmt, numOfTotalReplicas:%d selfIndex:%d, electMs:%d, heartbeatMs:%d",
+        pMgmt->numOfTotalReplicas, pMgmt->selfIndex, syncInfo.electMs, syncInfo.heartbeatMs);
   pCfg->totalReplicaNum = pMgmt->numOfTotalReplicas;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;
@@ -585,7 +727,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
 
   if (pMgmt->transId != 0) {
-    mError("trans:%d, can't be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
+    mError("trans:%d, cannot be proposed since trans:%d already waiting for confirm", transId, pMgmt->transId);
     (void)taosThreadMutexUnlock(&pMgmt->lock);
     rpcFreeCont(req.pCont);
     TAOS_RETURN(TSDB_CODE_MND_LAST_TRANS_NOT_FINISHED);

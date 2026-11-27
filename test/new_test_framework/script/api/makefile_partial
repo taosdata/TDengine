@@ -1,0 +1,18 @@
+# Copyright (c) 2017 by TAOS Technologies, Inc.
+# todo: library dependency, header file dependency
+
+ROOT=./
+TARGET=exe
+LFLAGS = '-Wl,-rpath,/usr/local/taos/driver/' -ltaos -lpthread -lm -lrt
+CFLAGS = -O0 -g -Wno-deprecated -fPIC -Wno-unused-result -Wconversion \
+	-Wno-char-subscripts -D_REENTRANT -Wno-format -D_REENTRANT -DLINUX \
+	-Wno-unused-function -D_M_X64 -I/usr/local/taos/include -std=gnu99 -Wno-sign-conversion
+#CFLAGS +=  -fsanitize=address -fsanitize=undefined -fsanitize-recover=all -fsanitize=float-divide-by-zero -fsanitize=float-cast-overflow -fno-sanitize=shift-base -fno-sanitize=alignment
+
+all: $(TARGET)
+
+exe:
+	gcc $(CFLAGS) ./passwdTest.c  -o $(ROOT)passwdTest $(LFLAGS)
+
+clean:
+	rm $(ROOT)passwdTest

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -136,7 +138,7 @@ SScript *simBuildScriptObj(char *fileName) {
     }
 
     if (i == label.top) {
-      sprintf(parseErr, "label:%s not defined", dest.label[(uint8_t)dest.top]);
+      snprintf(parseErr, MAX_ERROR_LEN, "label:%s not defined", dest.label[(uint8_t)dest.top]);
       return NULL;
     }
 
@@ -148,7 +150,7 @@ SScript *simBuildScriptObj(char *fileName) {
   }
 
   if (block.top != 0) {
-    sprintf(parseErr, "mismatched block");
+    snprintf(parseErr, MAX_ERROR_LEN, "mismatched block");
     return NULL;
   }
 
@@ -157,17 +159,33 @@ SScript *simBuildScriptObj(char *fileName) {
   }
 
   SScript *script = taosMemoryMalloc(sizeof(SScript));
+  if (script == NULL) {
+    return NULL;
+  }
   memset(script, 0, sizeof(SScript));
 
   script->type = SIM_SCRIPT_TYPE_MAIN;
   script->numOfLines = numOfLines;
   tstrncpy(script->fileName, fileName, sizeof(script->fileName));
 
-  script->optionBuffer = taosMemoryMalloc(optionOffset);
-  memcpy(script->optionBuffer, optionBuffer, optionOffset);
+  if (optionOffset > 0) {
+    script->optionBuffer = taosMemoryMalloc(optionOffset);
+    if (script->optionBuffer == NULL) {
+      taosMemoryFree(script);
+      return NULL;
+    }
+    memcpy(script->optionBuffer, optionBuffer, optionOffset);
+  }
 
-  script->lines = taosMemoryMalloc(sizeof(SCmdLine) * numOfLines);
-  memcpy(script->lines, cmdLine, sizeof(SCmdLine) * numOfLines);
+  if (numOfLines > 0) {
+    script->lines = taosMemoryMalloc(sizeof(SCmdLine) * numOfLines);
+    if (script->lines == NULL) {
+      taosMemoryFree(script->optionBuffer);
+      taosMemoryFree(script);
+      return NULL;
+    }
+    memcpy(script->lines, cmdLine, sizeof(SCmdLine) * numOfLines);
+  }
 
   return script;
 }
@@ -182,7 +200,9 @@ SScript *simParseScript(char *fileName) {
   SCommand *pCmd = NULL;
   SScript  *script = NULL;
 
-  if ((fileName[0] == '.') || (fileName[0] == '/')) {
+  if (fileName[0] == 0) {
+    return NULL;
+  } else if ((fileName[0] == '.') || (fileName[0] == '/')) {
     tstrncpy(name, fileName, PATH_MAX);
   } else {
     snprintf(name, PATH_MAX, "%s" TD_DIRSEP "%s", simScriptDir, fileName);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,6 +32,9 @@ int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
 
   for (int32_t spos = 0, tpos = 0; spos < len && vpos < 4; ++spos) {
     if (vstr[spos] != '.') {
+      if (spos - tpos >= (int32_t)sizeof(tmp) - 1) {
+        return terrno = TSDB_CODE_INVALID_VERSION_STRING;
+      }
       tmp[spos - tpos] = vstr[spos];
     } else {
       code = taosStr2int32(tmp, &vnum[vpos]);
@@ -97,6 +102,25 @@ int32_t taosCheckVersionCompatible(int32_t clientVer, int32_t serverVer, int32_t
   }
 }
 
+int32_t taosCheckEditionCompatible(const char *pClientVersion, const char *pServerVersion) {
+  const char *pClientEdition = strrchr(pClientVersion, '.');
+  const char *pServerEdition = strrchr(pServerVersion, '.');
+
+  // according to current version number design, the last segment is edition info.
+  // the following checks are based on this assumption, if the design changes, the
+  // checks should be updated accordingly
+
+  if ((pServerEdition == NULL) || (pClientEdition == NULL)) {
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
+  }
+  
+  if (strcmp(pServerEdition, pClientEdition) != 0) {
+    return TSDB_CODE_EDITION_NOT_COMPATIBLE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char *pServerVersion,
                                           int32_t comparedSegments) {
   int32_t clientVersion = 0;
@@ -107,6 +131,9 @@ int32_t taosCheckVersionCompatibleFromStr(const char *pClientVersion, const char
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = taosCheckVersionCompatible(clientVersion, serverVersion, comparedSegments);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = taosCheckEditionCompatible(pClientVersion, pServerVersion);
   }
   return code;
 }

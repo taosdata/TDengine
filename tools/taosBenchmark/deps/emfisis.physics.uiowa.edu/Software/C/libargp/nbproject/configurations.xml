@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="45">
+  <logicalFolder name="root" displayName="root" projectFiles="true">
+    <logicalFolder name="argp" displayName="argp" projectFiles="true">
+      <itemPath>argp/argp-ba.c</itemPath>
+      <itemPath>argp/argp-eexst.c</itemPath>
+      <itemPath>argp/argp-fmtstream.c</itemPath>
+      <itemPath>argp/argp-fmtstream.h</itemPath>
+      <itemPath>argp/argp-fs-xinl.c</itemPath>
+      <itemPath>argp/argp-help.c</itemPath>
+      <itemPath>argp/argp-parse.c</itemPath>
+      <itemPath>argp/argp-pin.c</itemPath>
+      <itemPath>argp/argp-pv.c</itemPath>
+      <itemPath>argp/argp-pvh.c</itemPath>
+      <itemPath>argp/argp.h</itemPath>
+      <itemPath>argp/getopt.c</itemPath>
+      <itemPath>argp/getopt.h</itemPath>
+      <itemPath>argp/getopt1.c</itemPath>
+      <itemPath>argp/getopt_init.c</itemPath>
+      <itemPath>argp/getopt_int.h</itemPath>
+    </logicalFolder>
+    <logicalFolder name="ExternalFiles"
+                   displayName="Important Files"
+                   projectFiles="false">
+      <itemPath>libargp-Makefile.mk</itemPath>
+      <itemPath>Makefile</itemPath>
+      <itemPath>MINGW32_NT-5.1.mak</itemPath>
+      <itemPath>Windows.mak</itemPath>
+      <itemPath>Windows32.mak</itemPath>
+    </logicalFolder>
+  </logicalFolder>
+  <sourceEncoding>UTF-8</sourceEncoding>
+  <projectmakefile>libargp-Makefile.mk</projectmakefile>
+  <confs>
+    <conf name="Windows" type="0">
+      <toolsSet>
+        <compilerSet>MinGW|MinGW</compilerSet>
+        <platform>3</platform>
+      </toolsSet>
+      <makefileType>
+        <makeTool>
+          <buildCommandWorkingDir>.</buildCommandWorkingDir>
+          <buildCommand>make -f Makefile</buildCommand>
+          <cleanCommand>make -f Makefile distclean</cleanCommand>
+          <executablePath>build.MINGW32_NT-5.1/libargp.a</executablePath>
+        </makeTool>
+        <requiredProjects>
+        </requiredProjects>
+      </makefileType>
+      <item path="argp/argp-ba.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-eexst.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-fmtstream.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-fmtstream.h">
+        <itemTool>3</itemTool>
+      </item>
+      <item path="argp/argp-fs-xinl.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-help.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-parse.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-pin.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-pv.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp-pvh.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/argp.h">
+        <itemTool>3</itemTool>
+      </item>
+      <item path="argp/getopt.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/getopt.h">
+        <itemTool>3</itemTool>
+      </item>
+      <item path="argp/getopt1.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/getopt_init.c">
+        <itemTool>0</itemTool>
+      </item>
+      <item path="argp/getopt_int.h">
+        <itemTool>3</itemTool>
+      </item>
+    </conf>
+  </confs>
+</configurationDescriptor>

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define ALLOW_FORBID_FUNC
 #define _DEFAULT_SOURCE
 #include "os.h"
@@ -19,21 +22,15 @@
 #include "wincrypt.h"
 #include "windows.h"
 #else
+#ifndef TD_ASTRA
 #include <sys/file.h>
+#endif // !TD_ASTRA
 #include <unistd.h>
 #endif
 
 void taosSeedRand(uint32_t seed) { return srand(seed); }
 
-uint32_t taosRand(void) {
-#ifdef WINDOWS
-  unsigned int pSeed;
-  rand_s(&pSeed);
-  return pSeed;
-#else
-  return rand();
-#endif
-}
+uint32_t taosRand(void) { return rand(); }
 
 uint32_t taosRandR(uint32_t* pSeed) {
 #ifdef WINDOWS
@@ -57,6 +54,8 @@ uint32_t taosSafeRand(void) {
   }
   if (hCryptProv != NULL) CryptReleaseContext(hCryptProv, 0);
   return seed;
+#elif defined(TD_ASTRA)
+  return (uint32_t)taosGetTimestampSec();
 #else
   TdFilePtr pFile;
   int       seed;
@@ -76,6 +75,32 @@ uint32_t taosSafeRand(void) {
 #endif
 }
 
+bool taosSecureRandBytes(uint8_t* pBuf, int32_t size) {
+  if (!pBuf || size <= 0) return false;
+#ifdef WINDOWS
+  HCRYPTPROV provider;
+  if (!CryptAcquireContext(&provider, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) return false;
+  bool ok = CryptGenRandom(provider, size, pBuf) != 0;
+  CryptReleaseContext(provider, 0);
+  return ok;
+#else
+  TdFilePtr file = taosOpenFile("/dev/urandom", TD_FILE_READ);
+  if (!file) return false;
+  bool ok = taosReadFile(file, pBuf, size) == size;
+  TAOS_SKIP_ERROR(taosCloseFile(&file));
+  return ok;
+#endif
+}
+
+void taosSafeRandBytes(uint8_t* pBuf, int32_t size) {
+#ifndef TD_ASTRA
+  if (taosSecureRandBytes(pBuf, size)) return;
+#endif
+  for (int32_t i = 0; i < size; ++i) {
+    pBuf[i] = (uint8_t)(taosRand() % 256);
+  }
+}
+
 void taosRandStr(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789-_.";
   int32_t     len = 39;
@@ -87,7 +112,7 @@ void taosRandStr(char* str, int32_t size) {
 
 void taosRandStr2(char* str, int32_t size) {
   const char* set = "abcdefghijklmnopqrstuvwxyz0123456789@";
-  int32_t     len = strlen(set);
+  int32_t     len = 37;
 
   for (int32_t i = 0; i < size; ++i) {
     str[i] = set[taosRand() % len];

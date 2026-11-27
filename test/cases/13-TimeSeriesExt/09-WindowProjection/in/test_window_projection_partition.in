@@ -1,0 +1,4 @@
+use test_wp_partition;
+select _wstart, tbname, ts, current from meters_part partition by tbname interval(10s) order by tbname, _wstart, ts;
+select _wstart, groupid, tbname, ts from meters_part partition by groupid interval(10s) order by groupid, tbname, _wstart, ts;
+select _wstart, tbname, ts, voltage from meters_part partition by tbname state_window(voltage) order by tbname, _wstart, ts;

@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 %define homepath         /usr/local/taos
 %define userlocalpath    /usr/local
 %define cfg_install_dir  /etc/taos
@@ -5,8 +20,10 @@
 %global __python /usr/bin/python3
 %global _build_id_links none
 
-Name:		tdengine
+Name:		%{product_name}
 Version:	%{_version}
+Provides:   tdengine = %{_version}
+Obsoletes:  tdengine < 3.3.7.0
 Release:	3%{?dist}
 Summary:	tdengine from taosdata
 Group:	  Application/Database
@@ -43,8 +60,14 @@ echo topdir: %{_topdir}
 echo version: %{_version}
 echo buildroot: %{buildroot}
 
-libfile="libtaos.so.%{_version}"
+libfile="libtaos.so"
+pkg_libfile="libtaos.so.%{_version}"
+nativelibfile="libtaosnative.so"
+pkg_nativelibfile="libtaosnative.so.%{_version}"
 wslibfile="libtaosws.so"
+pkg_wslibfile="libtaosws.so.%{_version}"
+pyudflibfile="libtaospyudf.so"
+pkg_pyudflibfile="libtaospyudf.so.%{_version}"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -56,11 +79,11 @@ mkdir -p %{buildroot}%{homepath}/include
 #mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
-if [ -f %{_compiledir}/../packaging/cfg/taosd.service ]; then
-    cp %{_compiledir}/../packaging/cfg/taosd.service %{buildroot}%{homepath}/cfg
+if [ -f %{_communitypackagingdir}/cfg/taosd.service ]; then
+    cp %{_communitypackagingdir}/cfg/taosd.service %{buildroot}%{homepath}/cfg
 fi
 
-cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
+cp %{_communitypackagingdir}/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 if [ -f %{_compiledir}/test/cfg/taosadapter.toml ]; then
     cp %{_compiledir}/test/cfg/taosadapter.toml         %{buildroot}%{homepath}/cfg
 fi
@@ -84,24 +107,34 @@ if [ -f %{_taosxdir}/explorer/server/examples/explorer.toml ]; then
     cp %{_taosxdir}/explorer/server/examples/explorer.toml %{buildroot}%{homepath}/cfg ||:
 fi
 
-#cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
-cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
-cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
-cp %{_compiledir}/../packaging/tools/startPre.sh    %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
+#cp %{_communitypackagingdir}/rpm/taosd            %{buildroot}%{homepath}/init.d
+cp %{_communitypackagingdir}/tools/post.sh        %{buildroot}%{homepath}/script
+cp %{_communitypackagingdir}/tools/preun.sh       %{buildroot}%{homepath}/script
+cp %{_communitypackagingdir}/tools/startPre.sh    %{buildroot}%{homepath}/bin
+cp %{_communitypackagingdir}/tools/set_core.sh    %{buildroot}%{homepath}/bin
+cp %{_communitypackagingdir}/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosudf                 %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../../enterprise/packaging/start-all.sh  %{buildroot}%{homepath}/bin
-cp %{_compiledir}/../../enterprise/packaging/stop-all.sh  %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosmqtt                %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosgen                 %{buildroot}%{homepath}/bin
+
+cp %{_internalpackagingdir}/start-all.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/reconcile-tsdb-nodes.sh  %{buildroot}%{homepath}/bin
+cp %{_internalpackagingdir}/stop-all.sh  %{buildroot}%{homepath}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" %{buildroot}%{homepath}/bin/stop-all.sh
 
-if [ -f %{_taosxdir}/target/release/taos-explorer ]; then
+# taos-explorer: prefer package_inputs (stripped), then taosx cargo, then cmake output
+pkg_inputs_explorer=$(find "%{_compiledir}/taos-xservice/package_inputs" -path "*/taosx/bin/taos-explorer" 2>/dev/null | head -1)
+if [ -n "${pkg_inputs_explorer}" ] && [ -f "${pkg_inputs_explorer}" ]; then
+    cp ${pkg_inputs_explorer} %{buildroot}%{homepath}/bin
+elif [ -f %{_taosxdir}/target/release/taos-explorer ]; then
     cp %{_taosxdir}/target/release/taos-explorer %{buildroot}%{homepath}/bin
+elif [ -f %{_compiledir}/build/bin/taos-explorer ]; then
+    cp %{_compiledir}/build/bin/taos-explorer %{buildroot}%{homepath}/bin
 fi
 
 if [ -f %{_compiledir}/build/bin//taoskeeper ]; then
@@ -111,19 +144,42 @@ fi
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin
 fi
-cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
-[ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
-cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/util/tdef.h       %{buildroot}%{homepath}/include
-cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
+cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver/${pkg_libfile}
+cp %{_compiledir}/build/lib/${nativelibfile}        %{buildroot}%{homepath}/driver/${pkg_nativelibfile}
+cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver/${pkg_wslibfile} ||:
+if [ -f "%{_compiledir}/build/lib/${pyudflibfile}" ]; then
+    cp %{_compiledir}/build/lib/${pyudflibfile}     %{buildroot}%{homepath}/driver/${pkg_pyudflibfile} ||:
+fi
+cp %{_communitysourcedir}/include/client/taos.h          %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/common/taosdef.h       %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/util/taoserror.h       %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/util/tdef.h            %{buildroot}%{homepath}/include
+cp %{_communitysourcedir}/include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
 [ -f %{_compiledir}/build/include/taosws.h ] && cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 #cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_compiledir}/../examples/*                  %{buildroot}%{homepath}/examples
+# Example code was consolidated into docs/examples, but the layout inside the
+# package is frozen: the shipped subset and the historical directory names
+# (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
+_examples_dir="%{_communitysourcedir}/docs/examples"
+_examples_manifest="%{_communitysourcedir}/packaging/examples-manifest.txt"
+while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    if [ "${ex_group}" != all ] && [ "${ex_group}" != debrpm ]; then
+        continue
+    fi
+    if [ ! -f "${_examples_dir}/${ex_src}" ]; then
+        echo "ERROR: example source missing: ${ex_src} (see ${_examples_manifest})" >&2
+        exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p %{buildroot}%{homepath}/examples/${ex_dst}/$(dirname "${ex_rel}")
+    cp "${_examples_dir}/${ex_src}" %{buildroot}%{homepath}/examples/${ex_dst}/${ex_rel}
+done < "${_examples_manifest}"
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{homepath}/jemalloc/ ||:
@@ -156,7 +212,7 @@ if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     fi
 fi
 ls -al %{buildroot}%{homepath}/bin
-tree -L 5
+command -v tree >/dev/null 2>&1 && tree -L 5 || :
 echo "==============================copying files done"
 #Scripts executed before installation
 %pre
@@ -165,7 +221,9 @@ if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
   exit 1
 fi
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 
@@ -200,7 +258,9 @@ ${csudo}rm -f %{homepath}/driver/libtaos*   || :
 #Scripts executed after installation
 %post
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 cd %{homepath}/script
@@ -209,7 +269,9 @@ ${csudo}./post.sh
 # Scripts executed before uninstall
 %preun
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 # only remove package to call preun.sh, not but update(2)
@@ -233,11 +295,13 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo}rm -f ${bin_link_dir}/taos       || :
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
-    ${csudo}rm -f ${bin_link_dir}/udfd       || :
+    ${csudo}rm -f ${bin_link_dir}/taosudf    || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${bin_link_dir}/taoskeeper       || :
     ${csudo}rm -f ${bin_link_dir}/taosdump       || :
     ${csudo}rm -f ${bin_link_dir}/taosBenchmark       || :
+    ${csudo}rm -f ${bin_link_dir}/taosmqtt    || :
+    ${csudo}rm -f ${bin_link_dir}/taosgen    || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :
@@ -246,8 +310,12 @@ if [ $1 -eq 0 ];then
     ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :  
     ${csudo}rm -f ${inc_link_dir}/taows.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.so  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative.so  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative.so  || :
     ${csudo}rm -f ${lib_link_dir}/libtaosws.so  || :
     ${csudo}rm -f ${lib64_link_dir}/libtaosws.so  || :
+    ${csudo}rm -f ${lib_link_dir}/libtaospyudf.*  || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaospyudf.*  || :
 
     ${csudo}rm -f ${log_link_dir}            || :
     ${csudo}rm -f ${data_link_dir}           || :
@@ -265,7 +333,9 @@ fi
 # clean build dir
 %clean
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null 2>&1; then
     csudo="sudo "
 fi
 ${csudo}rm -rf %{buildroot}

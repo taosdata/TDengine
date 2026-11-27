@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,20 @@ namespace ParserTest {
 
 class ParserInitialDTest : public ParserDdlTest {};
 
+TEST_F(ParserInitialDTest, setFirstDayOfWeek) {
+  useDb("root", "test");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT);
+    SSetFirstDayOfWeekStmt* pStmt = (SSetFirstDayOfWeekStmt*)pQuery->pRoot;
+    ASSERT_EQ(pStmt->firstDayOfWeek, 0);
+  });
+
+  run("SET FIRST_DAY_OF_WEEK 0", TSDB_CODE_SUCCESS, PARSER_STAGE_PARSE);
+
+  run("SET FIRST_DAY_OF_WEEK -1", TSDB_CODE_PAR_INVALID_FIRST_DAY_OF_WEEK, PARSER_STAGE_PARSE);
+}
+
 // DELETE FROM table_name [WHERE condition]
 TEST_F(ParserInitialDTest, delete) {
   useDb("root", "test");
@@ -34,10 +50,71 @@ TEST_F(ParserInitialDTest, delete) {
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
 }
 
+// ordinary(non-pk, non-tag) column filters in the WHERE clause
+TEST_F(ParserInitialDTest, deleteColumnFilter) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE c1 > 10");
+
+  run("DELETE FROM t1 WHERE ts > now - 2d AND ts < now - 1d AND c1 > 10");
+
+  run("DELETE FROM st1 WHERE tag1 = 10 AND c1 > 10");
+
+  run("DELETE FROM st1 WHERE ts > now - 2d AND tag1 = 10 AND c1 > 10");
+
+  run("DELETE FROM t1 WHERE c1 IS NULL");
+
+  run("DELETE FROM t1 WHERE c1 IN (1, 2, 3)");
+
+  run("DELETE FROM t1 WHERE c1 BETWEEN 1 AND 10");
+
+  // OR between ordinary columns only is allowed
+  run("DELETE FROM t1 WHERE c1 > 10 OR c1 < 0");
+}
+
 TEST_F(ParserInitialDTest, deleteSemanticCheck) {
   useDb("root", "test");
 
-  run("DELETE FROM t1 WHERE c1 > 10", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+  // a ts condition that cannot be reduced to a definite window is still rejected
+  run("DELETE FROM t1 WHERE ts != now", TSDB_CODE_PAR_INVALID_DELETE_WHERE, PARSER_STAGE_TRANSLATE);
+
+  // cross-category OR between the time range and an ordinary column
+  run("DELETE FROM t1 WHERE ts > now - 1d OR c1 > 10", TSDB_CODE_PAR_DELETE_WHERE_OR_NOT_SUPPORT,
+      PARSER_STAGE_TRANSLATE);
+
+  // functions, cross-column comparison and non-constant operands are not supported
+  run("DELETE FROM t1 WHERE abs(c1) > 10", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
+
+  run("DELETE FROM t1 WHERE c1 > c2", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
+
+  run("DELETE FROM t1 WHERE c1 + 1 > 10", TSDB_CODE_PAR_DELETE_FILTER_INVALID_EXPR, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserInitialDTest, deleteRejectsExprSubquery) {
+  useDb("root", "test");
+
+  run("DELETE FROM t1 WHERE ts > (SELECT MAX(ts) FROM st1s1 WHERE c1 = t1.c1)",
+      TSDB_CODE_PAR_INVALID_EXPR_SUBQ, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserInitialDTest, deleteSecureDelete) {
+  useDb("root", "test");
+
+  int8_t expectSecureDelete = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DELETE_STMT);
+    SDeleteStmt* pStmt = (SDeleteStmt*)pQuery->pRoot;
+    ASSERT_EQ(pStmt->secureDelete, expectSecureDelete);
+  });
+
+  expectSecureDelete = 0;
+  run("DELETE FROM t1");
+
+  expectSecureDelete = 1;
+  run("DELETE FROM t1 SECURE_DELETE");
+
+  expectSecureDelete = 1;
+  run("DELETE FROM t1 WHERE ts > now - 2d and ts < now - 1d SECURE_DELETE");
 }
 
 // DESC table_name
@@ -228,42 +305,34 @@ TEST_F(ParserInitialDTest, dropSTable) {
   run("DROP STABLE st1");
 }
 
-TEST_F(ParserInitialDTest, dropStream) {
-  useDb("root", "test");
-
-  SMDropStreamReq expect = {0};
-
-  auto clearDropStreamReq = [&]() { memset(&expect, 0, sizeof(SMDropStreamReq)); };
-
-  auto setDropStreamReq = [&](const char* pStream, int8_t igNotExists = 0) {
-    sprintf(expect.name, "0.%s", pStream);
-    expect.igNotExists = igNotExists;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_STREAM_STMT);
-    SMDropStreamReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(req.igNotExists, expect.igNotExists);
-    tFreeMDropStreamReq(&req);
-  });
-
-  setDropStreamReq("s1");
-  run("DROP STREAM s1");
-  clearDropStreamReq();
-
-  setDropStreamReq("s2", 1);
-  run("DROP STREAM IF EXISTS s2");
-  clearDropStreamReq();
-}
-
 TEST_F(ParserInitialDTest, dropTable) {
   useDb("root", "test");
 
   run("DROP TABLE t1");
   run("DROP TABLE t1, st1s1, st1s2");
+}
+
+TEST_F(ParserInitialDTest, dropVTable) {
+  useDb("root", "test");
+
+  // single-table DROP VTABLE parses today
+  runParseOnly("DROP VTABLE vt1");
+  // batch DROP VTABLE (multiple tables) must parse after the grammar change
+  runParseOnly("DROP VTABLE vt1, vt2");
+  runParseOnly("DROP VTABLE IF EXISTS vt1, vt2, vt3");
+  // database-qualified names, backticks, and case-insensitive keyword
+  runParseOnly("DROP VTABLE test.vt1, `vt2`, db2.`vt3`");
+  runParseOnly("drop vtable if exists vt1, vt2");
+  // single-table IF EXISTS keeps working
+  runParseOnly("DROP VTABLE IF EXISTS vt1");
+  // WITH (uid-based replay) form, single and batch
+  runParseOnly("DROP VTABLE WITH `123`");
+  runParseOnly("DROP VTABLE WITH `123`, `456`");
+  // malformed statements must be rejected at parse level
+  runParseOnly("DROP VTABLE vt1,", TSDB_CODE_PAR_INCOMPLETE_SQL);   // trailing comma
+  runParseOnly("DROP VTABLE", TSDB_CODE_PAR_INCOMPLETE_SQL);        // empty table list
+  runParseOnly("DROP VTABLE vt1 vt2", TSDB_CODE_PAR_SYNTAX_ERROR);  // missing comma
+  runParseOnly("DROP VTABLES vt1, vt2", TSDB_CODE_PAR_SYNTAX_ERROR);
 }
 
 TEST_F(ParserInitialDTest, dropTopic) {

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,8 @@
  */
 
 #include "catalogInt.h"
+#include <ctype.h>
+#include "extDialect.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
@@ -85,7 +89,7 @@ int32_t ctgRefreshDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
   code = ctgGetDBVgInfoFromMnode(pCtg, pConn, &input, &DbOut, NULL);
   if (code) {
     if (CTG_DB_NOT_EXIST(code) && (NULL != dbCache)) {
-      ctgDebug("db no longer exist, dbFName:%s, dbId:0x%" PRIx64, input.db, input.dbId);
+      ctgDebug("db:%s, db no longer exist, dbId:0x%" PRIx64, input.db, input.dbId);
       CTG_ERR_RET(ctgDropDbCacheEnqueue(pCtg, input.db, input.dbId));
     }
 
@@ -114,11 +118,11 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
   }
 
   if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
-    ctgDebug("will refresh tbmeta, supposed in information_schema, tbName:%s", tNameGetTableName(ctx->pName));
+    ctgDebug("tb:%s, will refresh tbmeta, supposed in information_schema", tNameGetTableName(ctx->pName));
 
     CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, (char*)ctx->pName->dbname, (char*)ctx->pName->tname, output, NULL));
   } else if (CTG_FLAG_IS_STB(ctx->flag)) {
-    ctgDebug("will refresh tbmeta, supposed to be stb, tbName:%s", tNameGetTableName(ctx->pName));
+    ctgDebug("tb:%s, will refresh tbmeta, supposed to be stb", tNameGetTableName(ctx->pName));
 
     // if get from mnode failed, will not try vnode
     CTG_ERR_JRET(ctgGetTbMetaFromMnode(pCtg, pConn, ctx->pName, output, NULL));
@@ -127,21 +131,30 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgroupInfo, output, NULL));
     }
   } else {
-    ctgDebug("will refresh tbmeta, not supposed to be stb, tbName:%s, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
+    ctgDebug("tb:%s, will refresh tbmeta, not supposed to be stb, flag:%d", tNameGetTableName(ctx->pName), ctx->flag);
 
     // if get from vnode failed or no table meta, will not try mnode
     CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, ctx->pName, &vgroupInfo, output, NULL));
 
     if (CTG_IS_META_TABLE(output->metaType) && TSDB_SUPER_TABLE == output->tbMeta->tableType) {
-      ctgDebug("will continue to refresh tbmeta since got stb, tbName:%s", tNameGetTableName(ctx->pName));
+      ctgDebug("tb:%s, will continue to refresh tbmeta since got stb", tNameGetTableName(ctx->pName));
 
       taosMemoryFreeClear(output->tbMeta);
 
       CTG_ERR_JRET(ctgGetTbMetaFromMnodeImpl(pCtg, pConn, output->dbFName, output->tbName, output, NULL));
-    } else if (CTG_IS_META_BOTH(output->metaType)) {
+    } else if (CTG_IS_META_BOTH(output->metaType) || CTG_IS_META_VBOTH(output->metaType)) {
       int32_t exist = 0;
       if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
         CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, output->dbFName, output->tbName, &exist));
+        if (exist) {
+          // Batch meta txn: the cached super table is the committed view; if this txn modified it, the
+          // child's schema must come from the txn-aware super table meta fetched from mnode below.
+          SName stbName = *ctx->pName;
+          tstrncpy(stbName.tname, output->tbName, sizeof(stbName.tname));
+          if (ctgIsCachedMetaTouchedByTxn(pConn, &stbName, NULL)) {
+            exist = 0;
+          }
+        }
       }
 
       if (0 == exist) {
@@ -157,27 +170,40 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       } else {
         taosMemoryFreeClear(output->tbMeta);
 
-        SET_META_TYPE_CTABLE(output->metaType);
+        if (CTG_IS_META_BOTH(output->metaType)) {
+          SET_META_TYPE_CTABLE(output->metaType);
+        } else {
+          SET_META_TYPE_VCTABLE(output->metaType);
+        }
       }
     }
   }
 
   if (CTG_IS_META_NULL(output->metaType)) {
-    ctgError("no tbmeta got, tbName:%s", tNameGetTableName(ctx->pName));
-    CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false));
+    ctgError("tb:%s, no tbmeta got", tNameGetTableName(ctx->pName));
+    CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, ctx->pName, false, false));
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
 
   if (CTG_IS_META_TABLE(output->metaType)) {
-    ctgDebug("tbmeta got, dbFName:%s, tbName:%s, tbType:%d", output->dbFName, output->tbName,
-             output->tbMeta->tableType);
+    ctgDebug("tb:%s, tbmeta got, db:%s, tbType:%d", output->tbName, output->dbFName, output->tbMeta->tableType);
   } else {
-    ctgDebug("tbmeta got, dbFName:%s, tbName:%s, tbType:%d, stbMetaGot:%d", output->dbFName, output->ctbName,
+    ctgDebug("tb:%s, tbmeta got, db:%s, tbType:%d, stbMetaGot:%d", output->ctbName, output->dbFName,
              output->ctbMeta.tableType, CTG_IS_META_BOTH(output->metaType));
   }
 
   if (pOutput) {
     CTG_ERR_JRET(ctgCloneMetaOutput(output, pOutput));
+  }
+
+  if (ctgIsMetaTouchedByTxn(pConn, output)) {
+    // Batch meta txn: this table is touched by the txn; a txn-aware response may carry this txn's
+    // uncommitted overlay (e.g. an ALTER STB shadow op). The shared catalog cache is the committed
+    // view seen by every session, so it must never be written with it.
+    ctgDebug("tb:%s, txn:%" PRId64 ", touched by txn, skip updating shared cache", ctx->pName->tname,
+             (int64_t)pConn->txnId);
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
   code = ctgUpdateTbMetaEnqueue(pCtg, output, syncReq);
@@ -188,11 +214,12 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
 
 _return:
 
-  if (output) {
-    taosMemoryFreeClear(output->tbMeta);
-    taosMemoryFreeClear(output);
-  }
-  
+  // Not handed to the cache: free it with everything a (virtual) table meta owns on the heap (binding conditions,
+  // series, external references). A bare free of the blocks would leak those, and the txn path above (a table
+  // touched by the txn is never cached) makes this exit a common one.
+  ctgFreeSTableMetaOutput(output);
+  output = NULL;
+
   CTG_RET(code);
 }
 
@@ -200,7 +227,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
   int32_t           code = 0;
   STableMetaOutput* output = NULL;
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, ctx, pTableMeta));
   if (*pTableMeta || (ctx->flag & CTG_FLAG_ONLY_CACHE)) {
     goto _return;
   }
@@ -220,29 +247,75 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
       goto _return;
     }
 
-    if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
+    if (CTG_IS_META_VBOTH(output->metaType)) {
+      if (output->tbMeta) {
+        // output->tbMeta is caller-owned (cloned by ctgCloneMetaOutput), never a cache
+        // object; the merge reallocs it and inserts the vchild own columns in place.
+        TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
+        code = ctgMergeVctbOwnMeta(&output->tbMeta, output->vctbMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          // Merge failed before taking ownership: both blocks are still wholly ours.
+          // The sizeof(SVCTableMeta) memcpy above makes tbMeta->colRef alias
+          // vctbMeta->colRef, so the shared tagCondJson strings must be freed exactly
+          // once (via tbMeta here) before dropping both blocks.
+          queryFreeTableMeta(output->tbMeta);
+          output->tbMeta = NULL;
+          taosMemoryFreeClear(output->vctbMeta);
+          goto _return;
+        }
+      } else {
+        ctgError("tb:%s, tbmeta got, but tbMeta is NULL", output->tbName);
+        taosMemoryFreeClear(output->vctbMeta);
+        CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+      }
+      taosMemoryFreeClear(output->vctbMeta);
+      *pTableMeta = output->tbMeta;
+      goto _return;
+    }
+
+    if ((!CTG_IS_META_CTABLE(output->metaType) && !CTG_IS_META_VCTABLE(output->metaType)) || output->tbMeta) {
       ctgError("invalid metaType:%d", output->metaType);
+      taosMemoryFreeClear(output->vctbMeta);
       taosMemoryFreeClear(output->tbMeta);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    // HANDLE ONLY CHILD TABLE META
-
-    taosMemoryFreeClear(output->tbMeta);
+    // HANDLE ONLY (VIRTUAL) CHILD TABLE META
 
     SName stbName = *ctx->pName;
-    TAOS_STRCPY(stbName.tname, output->tbName);
+    tstrncpy(stbName.tname, output->tbName, sizeof(stbName.tname));
     SCtgTbMetaCtx stbCtx = {0};
     stbCtx.flag = ctx->flag;
     stbCtx.pName = &stbName;
 
     CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, pTableMeta));
     if (NULL == *pTableMeta) {
-      ctgDebug("stb no longer exist, dbFName:%s, tbName:%s", output->dbFName, ctx->pName->tname);
+      ctgDebug("tb:%s, stb no longer exist, db:%s", ctx->pName->tname, output->dbFName);
       continue;
     }
+    if (CTG_IS_META_CTABLE(output->metaType)) {
+      TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+    } else if (CTG_IS_META_VCTABLE(output->metaType)) {
+      // *pTableMeta is a fresh clone of the cached vstb meta (cloneTableMeta via
+      // ctgReadTbMetaFromCache), so the merge may realloc/extend it in place without
+      // touching the shared vstb cache entry.
+      TAOS_MEMCPY(*pTableMeta, output->vctbMeta, sizeof(SVCTableMeta));
+      code = ctgMergeVctbOwnMeta(pTableMeta, output->vctbMeta);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Merge failed before taking ownership: *pTableMeta (a fresh vstb clone with the
+        // SVCTableMeta header copied in) and output->vctbMeta are still wholly ours.
+        // (*pTableMeta)->colRef aliases vctbMeta->colRef via the memcpy above, so the
+        // shared tagCondJson strings must be freed exactly once (via *pTableMeta here)
+        // before dropping both blocks.
+        queryFreeTableMeta(*pTableMeta);
+        *pTableMeta = NULL;
+        taosMemoryFreeClear(output->vctbMeta);
+        goto _return;
+      }
+    }
 
-    TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+    taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
 
     break;
   }
@@ -252,7 +325,7 @@ _return:
   if (CTG_TABLE_NOT_EXIST(code) && ctx->tbInfo.inCache) {
     char dbFName[TSDB_DB_FNAME_LEN] = {0};
     if (CTG_FLAG_IS_SYS_DB(ctx->flag)) {
-      TAOS_STRCPY(dbFName, ctx->pName->dbname);
+      tstrncpy(dbFName, ctx->pName->dbname, sizeof(dbFName));
     } else {
       (void)tNameGetFullDbName(ctx->pName, dbFName);
     }
@@ -267,7 +340,7 @@ _return:
   taosMemoryFreeClear(output);
 
   if (*pTableMeta) {
-    ctgDebug("tbmeta returned, tbName:%s, tbType:%d", ctx->pName->tname, (*pTableMeta)->tableType);
+    ctgDebug("tb:%s, tbmeta returned, tbType:%d", ctx->pName->tname, (*pTableMeta)->tableType);
     ctgdShowTableMeta(pCtg, ctx->pName->tname, *pTableMeta);
   }
 
@@ -283,18 +356,26 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
 
   int32_t code = 0;
 
-  TAOS_STRCPY(output->dbFName, rspMsg->dbFName);
+  tstrncpy(output->dbFName, rspMsg->dbFName, sizeof(output->dbFName));
 
   output->dbId = rspMsg->dbId;
 
   if (TSDB_CHILD_TABLE == rspMsg->tableType && NULL == rspMsg->pSchemas) {
-    TAOS_STRCPY(output->ctbName, rspMsg->tbName);
+    tstrncpy(output->ctbName, rspMsg->tbName, sizeof(output->ctbName));
 
     SET_META_TYPE_CTABLE(output->metaType);
 
     CTG_ERR_JRET(queryCreateCTableMetaFromMsg(rspMsg, &output->ctbMeta));
+  } else if (TSDB_VIRTUAL_CHILD_TABLE == rspMsg->tableType) {
+    tstrncpy(output->ctbName, rspMsg->tbName, sizeof(output->ctbName));
+
+    SET_META_TYPE_VCTABLE(output->metaType);
+    ctgDebug("ctgUpdateTbMeta VCTABLE path for tb:%s numColRefs=%d numTagRefs=%d pSchemas=%p",
+             rspMsg->tbName, rspMsg->numOfColRefs, rspMsg->numOfTagRefs, rspMsg->pSchemas);
+
+    CTG_ERR_JRET(queryCreateVCTableMetaFromMsg(rspMsg, &output->vctbMeta));
   } else {
-    TAOS_STRCPY(output->tbName, rspMsg->tbName);
+    tstrncpy(output->tbName, rspMsg->tbName, sizeof(output->tbName));
 
     SET_META_TYPE_TABLE(output->metaType);
 
@@ -311,13 +392,14 @@ _return:
 
   if (output) {
     taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output->vctbMeta);
     taosMemoryFreeClear(output);
   }
   
   CTG_RET(code);
 }
 
-int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, bool* exists) {
+int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   bool    inCache = false;
   int32_t code = 0;
   SCtgAuthRsp rsp = {0};
@@ -325,16 +407,22 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, SUserAuthInfo *pReq,
 
   CTG_ERR_RET(ctgChkAuthFromCache(pCtg, pReq, false, &inCache, &rsp));
 
+  if (pRsp) {
+    pRsp->withInsertCond = rsp.withInsertCond;
+  }
+
   if (inCache) {
-    if (exists) {
-      *exists = true;
+    if (pRsp) {
+      pRsp->exists = 1;
     }
-    
+
     return TSDB_CODE_SUCCESS;
-  } else if (exists) {
-    *exists = false;
+  } else if (pRsp) {
+    pRsp->exists = 0;
     return TSDB_CODE_SUCCESS;
   }
+
+  if (!pConn) return TSDB_CODE_SUCCESS;
 
   SCtgAuthReq req = {0};
   req.pRawReq = pReq;
@@ -411,7 +499,15 @@ _return:
 
 int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, STableCfg** pCfg) {
   int32_t tbType = 0;
-  CTG_ERR_RET(ctgGetTbType(pCtg, pConn, pTableName, &tbType));
+  int32_t code = ctgGetTbType(pCtg, pConn, pTableName, &tbType);
+
+  // batch meta txn: if table type lookup fails (PRE_CREATE invisible), assume non-super-table
+  // and go directly to VNode  -  super tables are on MNode, never part of batch meta txn
+  if (pConn->txnId > 0 && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
+    tbType = 0;
+    code = TSDB_CODE_SUCCESS;
+  }
+  CTG_ERR_RET(code);
 
   if (TSDB_SUPER_TABLE == tbType) {
     CTG_ERR_RET(ctgGetTableCfgFromMnode(pCtg, pConn, pTableName, pCfg, NULL));
@@ -508,7 +604,7 @@ int32_t ctgGetTbDistVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTabl
     CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, pVgList, db));
   } else {
     // USE HASH METHOD INSTEAD OF VGID IN TBMETA
-    ctgError("invalid method to get none stb vgInfo, tbType:%d", tbMeta->tableType);
+    ctgError("tb:%s, invalid method to get none stb vgInfo, tbType:%d", pTableName->tname, tbMeta->tableType);
     CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
 
 #if 0  
@@ -557,7 +653,7 @@ _return:
 
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists) {
   if (IS_SYS_DBNAME(pTableName->dbname)) {
-    ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
+    ctgError("db:%s, no valid vgInfo for db", pTableName->dbname);
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -570,7 +666,7 @@ int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName*
   CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, db, &dbCache, &vgInfo, exists));
 
   if (exists && false == *exists) {
-    ctgDebug("db %s vgInfo not in cache", pTableName->dbname);
+    ctgDebug("db:%s, vgInfo not in cache", pTableName->dbname);
     return TSDB_CODE_SUCCESS;
   }
   
@@ -592,7 +688,7 @@ _return:
 
 int32_t ctgGetTbsHashVgId(SCatalog* pCtg, SRequestConnInfo* pConn, int32_t acctId, const char* pDb, const char* pTbs[], int32_t tbNum, int32_t* vgId) {
   if (IS_SYS_DBNAME(pDb)) {
-    ctgError("no valid vgInfo for db, dbname:%s", pDb);
+    ctgError("db:%s, no valid vgInfo for db", pDb);
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -656,7 +752,7 @@ _return:
 }
 
 
-int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName) {
+int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related) {
   int32_t code = 0;
 
   if (NULL == pCtg || NULL == pTableName) {
@@ -667,7 +763,7 @@ int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName) {
     return TSDB_CODE_SUCCESS;
   }
 
-  CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, pTableName, true));
+  CTG_ERR_JRET(ctgRemoveTbMetaFromCache(pCtg, pTableName, true, related));
 
 _return:
 
@@ -694,6 +790,28 @@ _return:
 }
 
 
+static void ctgResetCacheTimerImpl(void) {
+  if (atomic_load_8((int8_t *)&gCtgMgmt.exit)) {
+    qDebug("catalog is exiting, skip reset cache monitor timer");
+    return;
+  }
+
+  if (NULL == gCtgMgmt.timer) {
+    qDebug("catalog timer is null, skip reset cache monitor timer");
+    return;
+  }
+
+  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+    qError("reset catalog cache monitor timer error, timer stopped");
+  }
+}
+
+void ctgResetCacheTimer(void) {
+  CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
+  ctgResetCacheTimerImpl();
+  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+}
+
 void ctgProcessTimerEvent(void *param, void *tmrId) {
   CTG_API_NENTER();
 
@@ -712,9 +830,7 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
       int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
       if (code) {
         qError("clear cache enqueue failed, error:%s", tstrerror(code));
-        if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-          qError("reset catalog cache monitor timer error, timer stoppped");
-        }
+        ctgResetCacheTimerImpl();
       }
 
       goto _return;
@@ -722,9 +838,11 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
   }
 
   qTrace("reset catalog timer");
-  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-    qError("reset catalog cache monitor timer error, timer stoppped");
+  if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+    goto _return;
   }
+
+  ctgResetCacheTimerImpl();
 
 _return:
 
@@ -798,7 +916,7 @@ _return:
 
 
 int32_t catalogInit(SCatalogCfg* cfg) {
-  qDebug("catalogInit start");
+  qInfo("catalog init");
   if (gCtgMgmt.pCluster) {
     qError("catalog already initialized");
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
@@ -890,8 +1008,8 @@ int32_t catalogInit(SCatalogCfg* cfg) {
 
   CTG_ERR_RET(ctgStartUpdateThread());
 
-  qDebug("catalog initialized, maxDb:%u, maxTbl:%u, dbRentSec:%u, stbRentSec:%u", gCtgMgmt.cfg.maxDBCacheNum,
-         gCtgMgmt.cfg.maxTblCacheNum, gCtgMgmt.cfg.dbRentSec, gCtgMgmt.cfg.stbRentSec);
+  qInfo("catalog initialized, maxDb:%u, maxTbl:%u, dbRentSec:%u, stbRentSec:%u", gCtgMgmt.cfg.maxDBCacheNum,
+        gCtgMgmt.cfg.maxTblCacheNum, gCtgMgmt.cfg.dbRentSec, gCtgMgmt.cfg.stbRentSec);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -917,7 +1035,7 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
     if (ctg && (*ctg)) {
       *catalogHandle = *ctg;
       CTG_STAT_HIT_INC(CTG_CI_CLUSTER, 1);
-      qDebug("got catalog handle from cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, *ctg);
+      qTrace("ctg:%p, get catalog handle from cache, clusterId:0x%" PRIx64, *ctg, clusterId);
       CTG_API_LEAVE(TSDB_CODE_SUCCESS);
     }
 
@@ -950,6 +1068,15 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(terrno);
     }
 
+#ifdef TD_ENTERPRISE
+    code = ctgInitExtSourceCache(clusterCtg);
+    if (code) {
+      qError("catalogGetHandle: ctgInitExtSourceCache failed, clusterId:0x%" PRIx64 ", error:%s",
+             clusterId, tstrerror(code));
+      goto _return;
+    }
+#endif
+
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
@@ -957,11 +1084,11 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
         continue;
       }
 
-      qError("taosHashPut CTG to cache failed, clusterId:0x%" PRIx64, clusterId);
+      qError("taosHashPut catalog to cache failed, clusterId:0x%" PRIx64, clusterId);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    qDebug("add CTG to cache, clusterId:0x%" PRIx64 ", CTG:%p", clusterId, clusterCtg);
+    qDebug("ctg:%p, add catalog to cache, clusterId:0x%" PRIx64, clusterCtg, clusterId);
 
     break;
   }
@@ -1001,7 +1128,7 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
 
   ctgReleaseVgInfoToCache(pCtg, dbCache);
 
-  ctgDebug("Got db vgVersion from cache, dbFName:%s, vgVersion:%d", dbFName, *version);
+  ctgDebug("db:%s, get db vgVersion from cache, vgVersion:%d", dbFName, *version);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 
@@ -1069,7 +1196,7 @@ int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
   pInfo->hashMethod = dbInfo->hashMethod;
   pInfo->vgNum = taosHashGetSize(dbInfo->vgHash);
   if (pInfo->vgNum <= 0) {
-    ctgError("invalid vgNum %d in db %s's vgHash", pInfo->vgNum, dbFName);
+    ctgError("db:%s, invalid vgNum %d in db vgHash", dbFName, pInfo->vgNum);
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -1203,8 +1330,15 @@ _return:
 int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName) {
   CTG_API_ENTER();
 
-  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName));
+  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName, false));
 }
+
+int32_t catalogRemoveTableRelatedMeta(SCatalog* pCtg, SName* pTableName) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgRemoveTbMeta(pCtg, pTableName, true));
+}
+
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid) {
   CTG_API_ENTER();
@@ -1270,6 +1404,10 @@ int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName,     
   CTG_API_LEAVE(ctgGetTbMeta(pCtg, NULL, &ctx, pTableMeta));
 }
 
+int32_t catalogGetCachedTableTypeAndSuid(SCatalog* pCtg, const SName* pTableName, int8_t* pTableType, uint64_t* pSuid) {
+  CTG_API_ENTER();
+  CTG_API_LEAVE(ctgReadTbTypeAndSuidFromCache(pCtg, pTableName, pTableType, pSuid));
+}
 
 int32_t catalogUpdateTableMeta(SCatalog* pCtg, STableMetaRsp* pMsg) {
   CTG_API_ENTER();
@@ -1313,6 +1451,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
   SName   name = {0};
   int32_t sver = 0;
   int32_t tver = 0;
+  int32_t rver = 0;
   int32_t tbNum = taosArrayGetSize(pTables);
   for (int32_t i = 0; i < tbNum; ++i) {
     STbSVersion* pTb = (STbSVersion*)taosArrayGet(pTables, i);
@@ -1337,19 +1476,25 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
     int32_t  tbType = 0;
     uint64_t suid = 0;
     char     stbName[TSDB_TABLE_FNAME_LEN];
-    CTG_ERR_JRET(ctgReadTbVerFromCache(pCtg, &name, &sver, &tver, &tbType, &suid, stbName));
-    if ((sver >= 0 && sver < pTb->sver) || (tver >= 0 && tver < pTb->tver)) {
+    CTG_ERR_JRET(ctgReadTbVerFromCache(pCtg, &name, &sver, &tver, &rver, &tbType, &suid, stbName));
+    if ((sver >= 0 && sver < pTb->sver) || (tver >= 0 && tver < pTb->tver) || (rver >= 0 && rver < pTb->rver)) {
       switch (tbType) {
         case TSDB_CHILD_TABLE: {
           SName stb = name;
           tstrncpy(stb.tname, stbName, sizeof(stb.tname));
-          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &stb));
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &stb, false));
+          break;
+        }
+        case TSDB_VIRTUAL_CHILD_TABLE: {
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name, false));
           break;
         }
         case TSDB_SUPER_TABLE:
         case TSDB_NORMAL_TABLE:
-          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name));
+        case TSDB_VIRTUAL_NORMAL_TABLE: {
+          CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, &name, false));
           break;
+        }
         default:
           ctgError("ignore table type %d", tbType);
           break;
@@ -1441,7 +1586,6 @@ int32_t catalogGetCachedTableVgMeta(SCatalog* pCtg, const SName* pTableName,    
   CTG_API_LEAVE(ctgGetCachedTbVgMeta(pCtg, pTableName, pVgroup, pTableMeta));
 }
 
-
 #if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
@@ -1528,14 +1672,14 @@ _return:
 
   if (pJob) {
     int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
-    if (TSDB_CODE_SUCCESS) {
-      qError("release catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+    if (code2 != TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
     }
 
     if (code) {
       code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
-      if (TSDB_CODE_SUCCESS) {
-        qError("remove catalog job refId %" PRId64 "falied, error:%s", pJob->refId, tstrerror(code2));
+      if (code2 != TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
       }
     }
   }
@@ -1556,7 +1700,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pQn
 
 _return:
 
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pDnodeList) {
@@ -1572,7 +1716,7 @@ int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pD
 
 _return:
 
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint32_t* num) {
@@ -1585,22 +1729,39 @@ int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint3
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->stbRent, (void**)stables, num, sizeof(SSTableVersion)));
 }
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion) {
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == views || NULL == num) {
+  if (NULL == pCtg || NULL == views || NULL == num || NULL == dynViewVersion) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  *dynViewVersion = taosMemoryMalloc(sizeof(SDynViewVersion));
-  if (NULL == *dynViewVersion) {
-    CTG_API_LEAVE(terrno);
-  }
+  CTG_API_LEAVE(ctgGetViewsForHbCheck(pCtg, reqId, views, num, dynViewVersion));
+}
 
-  (*dynViewVersion)->svrBootTs = atomic_load_64(&pCtg->dynViewVer.svrBootTs);
-  (*dynViewVersion)->dynViewVer = atomic_load_64(&pCtg->dynViewVer.dynViewVer);
-  
-  CTG_API_LEAVE(ctgMetaRentGet(&pCtg->viewRent, (void**)views, num, sizeof(SViewVersion)));
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgApplyViewHbVersion(pCtg, pVer, rspReqId));
+}
+
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbRspDone(pCtg, rspReqId, sawDynVer));
+}
+
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepTryCommit(pCtg));
+}
+
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbError(pCtg));
 }
 
 
@@ -1672,6 +1833,91 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbF
   CTG_API_LEAVE(ctgGetDBCfg(pCtg, pConn, dbFName, pDbCfg));
 }
 
+int32_t catalogGetVstLeaves(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, int64_t suid,
+                            SVstLeavesRsp* pRsp) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == dbFName || NULL == pRsp) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SVstLeavesReq req = {0};
+  tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
+  req.suid = suid;
+
+  int32_t reqLen = tSerializeSVstLeavesReq(NULL, 0, &req);
+  if (reqLen < 0) {
+    CTG_API_LEAVE(reqLen);
+  }
+  char   *msg = rpcMallocCont(reqLen);
+  if (NULL == msg) {
+    CTG_API_LEAVE(terrno);
+  }
+  if (tSerializeSVstLeavesReq(msg, reqLen, &req) < 0) {
+    rpcFreeCont(msg);
+    CTG_API_LEAVE(TSDB_CODE_INVALID_MSG);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_GET_VST_LEAVES, .pCont = msg, .contLen = reqLen};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rpcRsp.code;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tDeserializeSVstLeavesRsp(rpcRsp.pCont, rpcRsp.contLen, pRsp);
+  }
+  rpcFreeCont(rpcRsp.pCont);
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                               const char* colName) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == tbFName || NULL == colName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SMndCheckColRefReq req = {0};
+  tstrncpy(req.tbFName, tbFName, sizeof(req.tbFName));
+  req.colId = colId;
+  tstrncpy(req.colName, colName, sizeof(req.colName));
+
+  int32_t reqLen = tSerializeSMndCheckColRefReq(NULL, 0, &req);
+  if (reqLen < 0) {
+    CTG_API_LEAVE(reqLen);
+  }
+  char* msg = rpcMallocCont(reqLen);
+  if (NULL == msg) {
+    CTG_API_LEAVE(terrno);
+  }
+  if (tSerializeSMndCheckColRefReq(msg, reqLen, &req) < 0) {
+    rpcFreeCont(msg);
+    CTG_API_LEAVE(TSDB_CODE_INVALID_MSG);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_COL_REF_BY_PRIV, .pCont = msg, .contLen = reqLen};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rpcRsp.code;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SMndCheckColRefRsp rsp = {0};
+    code = tDeserializeSMndCheckColRefRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rsp.code;
+    }
+  }
+  rpcFreeCont(rpcRsp.pCont);
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogGetIndexMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const char* indexName, SIndexInfo* pInfo) {
   CTG_API_ENTER();
 
@@ -1722,7 +1968,7 @@ int32_t catalogRefreshGetTableCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, (SName*)pTableName));
+  CTG_ERR_JRET(ctgRemoveTbMeta(pCtg, (SName*)pTableName, false));
 
   CTG_ERR_JRET(ctgGetTbCfg(pCtg, pConn, (SName*)pTableName, pCfg));
 
@@ -1763,21 +2009,74 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth,        SUserAuthRes* pRes, bool* exists) {
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo *pAuth, SUserAuthRes* pRes, SUserAuthRsp *pRsp) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == pAuth || NULL == pRes || NULL == exists) {
+  if (NULL == pCtg || NULL == pAuth || NULL == pRes) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, exists));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, pAuth, pRes, pRsp));
 
 _return:
 
   CTG_API_LEAVE(code);
 }
 
+static int32_t ctgGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRsp) {
+  bool    inCache = false;
+  int32_t code = 0;
+
+  CTG_ERR_RET(ctgGetUserAuthFromCache(pCtg, user, &inCache, pRsp));
+
+  if (inCache) {
+    return code;
+  }
+
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, pRsp, NULL));
+
+  (void)ctgUpdateUserEnqueue(pCtg, pRsp, false);  // cache update not fatal error
+
+  CTG_RET(code);
+}
+
+/**
+ * @brief shallow copy, only applicable to use non-pointer fields, while pointer fields may become invalid after return,
+ * caller should make deep copy if needed later.
+ */
+int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == user || NULL == pRes) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgGetUserAuth(pCtg, pConn, user, pRes));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogRefreshUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == user) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t         code = 0;
+  SGetUserAuthRsp authInfo = {0};
+  CTG_ERR_JRET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, &authInfo, NULL));
+
+  (void)ctgUpdateUserEnqueue(pCtg, &authInfo, false);  // cache update not fatal error
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();
@@ -1827,8 +2126,8 @@ int32_t catalogUpdateDynViewVer(SCatalog* pCtg, SDynViewVersion* pVer) {
   atomic_store_64(&pCtg->dynViewVer.svrBootTs, pVer->svrBootTs);
   atomic_store_64(&pCtg->dynViewVer.dynViewVer, pVer->dynViewVer);
 
-  ctgDebug("cluster %" PRIx64 " svrBootTs updated to %" PRId64, pCtg->clusterId, pVer->svrBootTs);
-  ctgDebug("cluster %" PRIx64 " dynViewVer updated to %" PRId64, pCtg->clusterId, pVer->dynViewVer);
+  ctgDebug("clusterId:0x%" PRIx64 ", svrBootTs updated to %" PRId64, pCtg->clusterId, pVer->svrBootTs);
+  ctgDebug("clusterId:0x%" PRIx64 ", dynViewVer updated to %" PRId64, pCtg->clusterId, pVer->dynViewVer);
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
@@ -1950,6 +2249,91 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogGetRsma(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaInfoRsp** pRes) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !name) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SRsmaInfoRsp rsp = {0};
+
+  int32_t code = ctgGetRsmaMetaFromMnode(pCtg, pConn, name, &rsp, NULL);
+
+  if (code != 0) goto _return;
+
+  SRsmaInfoRsp* result = taosMemoryMalloc(sizeof(SRsmaInfoRsp));
+  if (!result) {
+    code = terrno;
+    goto _return;
+  }
+  *result = rsp;
+  *pRes = result;
+
+_return:
+  if (code != 0) {
+    tFreeRsmaInfoRsp(&rsp, true);
+  }
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetStreamCreateSQL(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName, char** ppSQL) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !streamFName || !ppSQL) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SGetStreamCreateSqlRsp rsp = {0};
+  int32_t                code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
+  if (code != 0) {
+    tFreeGetStreamCreateSqlRsp(&rsp);
+    CTG_API_LEAVE(code);
+  }
+
+  *ppSQL = rsp.sql;
+  rsp.sql = NULL;  // ownership transferred to caller
+
+  tFreeGetStreamCreateSqlRsp(&rsp);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogGetStreamTriggerTable(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                     SName* pTriggerTable) {
+  CTG_API_ENTER();
+
+  if (!pCtg || !pConn || !streamFName || !pTriggerTable) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SGetStreamCreateSqlRsp rsp = {0};
+  int32_t                code = ctgGetStreamCreateSqlFromMnode(pCtg, pConn, streamFName, &rsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    tFreeGetStreamCreateSqlRsp(&rsp);
+    CTG_API_LEAVE(code);
+  }
+
+  if (rsp.triggerDB && rsp.triggerDB[0] != '\0' && rsp.triggerTblName && rsp.triggerTblName[0] != '\0') {
+    code = tNameFromString(pTriggerTable, rsp.triggerDB, T_NAME_ACCT | T_NAME_DB);
+    if (code == TSDB_CODE_SUCCESS) {
+      pTriggerTable->type = TSDB_TABLE_NAME_T;
+      tstrncpy(pTriggerTable->tname, rsp.triggerTblName, TSDB_TABLE_NAME_LEN);
+    } else if (code == TSDB_CODE_INVALID_PARA) {
+      /* triggerDB has no valid local DB component (e.g. ext-source stream stores
+       * "acctId." with an empty dbName).  There is no local table to check
+       * privileges against, so treat this as "no trigger table" and succeed. */
+      uInfo("catalogGetStreamTriggerTable: triggerDB='%s' has no local db part, skip (ext-source stream)",
+            rsp.triggerDB);
+      memset(pTriggerTable, 0, sizeof(*pTriggerTable));
+      code = TSDB_CODE_SUCCESS;
+    }
+  }
+
+  tFreeGetStreamCreateSqlRsp(&rsp);
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId) {
   CTG_API_ENTER();
   if (!pCtg || !dbFName) {
@@ -1973,9 +2357,529 @@ int32_t catalogClearCache(void) {
 
   int32_t code = ctgClearCacheEnqueue(NULL, false, false, false, true);
 
-  qInfo("clear catalog cache end, code: %s", tstrerror(code));
+  qInfo("clear catalog cache end, code:%s", tstrerror(code));
 
   CTG_API_LEAVE_NOLOCK(code);
+}
+
+// -----------------------------------------------------------------------------
+// Federated query: ext-source catalog public APIs
+// -----------------------------------------------------------------------------
+
+static void ctgNormalizeExtFuncName(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t i = 0;
+  for (; i < outLen - 1 && pIn[i] != '\0'; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[i] = '\0';
+}
+
+static int32_t ctgCloneExtCapabilityFromCache(SCatalog* pCtg, const char* sourceName,
+                                              SExtSourceCapability* pCap, int64_t* pCapFetchedAt,
+                                              bool* pFound) {
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL != pFound) {
+    *pFound = false;
+  }
+  if (NULL != pCapFetchedAt) {
+    *pCapFetchedAt = 0;
+  }
+
+  SHashObj*             pHash = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry = NULL;
+  int32_t               code = ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == pEntry) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_LOCK(CTG_READ, &pEntry->entryLock);
+  code = extCapClone(&pEntry->capability, pCap);
+  if (TSDB_CODE_SUCCESS == code && NULL != pCapFetchedAt) {
+    *pCapFetchedAt = pEntry->capFetchedAt;
+  }
+  CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+  ctgReleaseExtSource(pCtg, pHash, pHandle);
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pFound) {
+    *pFound = true;
+  }
+
+  return code;
+}
+
+static void ctgClearExtCapabilityDemotions(SExtSourceCapability* pCap) {
+  if (NULL == pCap) {
+    return;
+  }
+
+  if (NULL != pCap->disabledFuncs) {
+    taosHashClear(pCap->disabledFuncs);
+  }
+  if (NULL != pCap->disabledOps) {
+    taosHashClear(pCap->disabledOps);
+  }
+  if (NULL != pCap->disabledTypes) {
+    taosHashClear(pCap->disabledTypes);
+  }
+  if (NULL != pCap->disabledClauses) {
+    taosHashClear(pCap->disabledClauses);
+  }
+}
+
+static int32_t ctgClearExtCapabilityDemoteEntry(SExtSourceCapability* pCap, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pCap || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  SHashObj*     pHash = NULL;
+  const void*   pKey = NULL;
+  int32_t       keyLen = 0;
+  char          funcName[TSDB_FUNC_NAME_LEN] = {0};
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      if ('\0' == pSpec->detail.funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pHash = pCap->disabledFuncs;
+      ctgNormalizeExtFuncName(pSpec->detail.funcName, funcName, sizeof(funcName));
+      if ('\0' == funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pKey = funcName;
+      keyLen = (int32_t)strlen(funcName) + 1;
+      break;
+    case EXT_DEMOTE_KIND_OP:
+      pHash = pCap->disabledOps;
+      pKey = &pSpec->detail.opType;
+      keyLen = (int32_t)sizeof(EOperatorType);
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE:
+      pHash = pCap->disabledClauses;
+      pKey = &pSpec->detail.clauseKind;
+      keyLen = (int32_t)sizeof(EExtClauseKind);
+      break;
+    case EXT_DEMOTE_KIND_TYPE:
+      pHash = pCap->disabledTypes;
+      pKey = &pSpec->detail.tsdbTypeCode;
+      keyLen = (int32_t)sizeof(int8_t);
+      break;
+    default:
+      return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL == pHash || NULL == pKey || keyLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == taosHashGet(pHash, pKey, keyLen)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 != taosHashRemove(pHash, pKey, keyLen)) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pIsExtSource) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pIsExtSource = false;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+  SHashObj*              pHash = NULL;
+  void*                  pHandle = NULL;
+  SExtSourceCacheEntry*  pEntry = NULL;
+  int32_t code = ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry);
+  if (TSDB_CODE_SUCCESS == code && NULL != pEntry) {
+    *pIsExtSource = true;
+    ctgReleaseExtSource(pCtg, pHash, pHandle);
+  }
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSourceInfo** ppInfo) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == sourceName || NULL == ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppInfo = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
+
+  SHashObj*             pHash   = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry  = NULL;
+  CTG_ERR_JRET(ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry));
+  if (NULL == pEntry) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
+
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pInfo) {
+    ctgReleaseExtSource(pCtg, pHash, pHandle);
+    CTG_API_LEAVE(terrno);
+  }
+
+  CTG_LOCK(CTG_READ, &pEntry->entryLock);
+  tstrncpy(pInfo->source_name, pEntry->source.source_name, TSDB_EXT_SOURCE_NAME_LEN);
+  pInfo->type = pEntry->source.type;
+  tstrncpy(pInfo->host, pEntry->source.host, sizeof(pInfo->host));
+  pInfo->port = pEntry->source.port;
+  tstrncpy(pInfo->user, pEntry->source.user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(pInfo->password, pEntry->source.password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(pInfo->database, pEntry->source.database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(pInfo->schema_name, pEntry->source.schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
+  pInfo->meta_version = pEntry->source.meta_version;
+  pInfo->create_time  = pEntry->source.create_time;
+  code = extCapClone(&pEntry->capability, &pInfo->capability);
+  CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+
+  ctgReleaseExtSource(pCtg, pHash, pHandle);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
+  *ppInfo = pInfo;
+
+_return:
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                    SExtSourceInfo** ppInfo) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == pConn || NULL == sourceName || NULL == ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppInfo = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
+
+  // Try local cache first.
+  code = catalogGetExtSourceInfo(pCtg, sourceName, ppInfo);
+  if (TSDB_CODE_SUCCESS == code && NULL != *ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+
+  // Cache miss  -  sync fetch from mnode.
+  SGetExtSourceRsp rsp = {0};
+  code = ctgGetExtSourceFromMnode(pCtg, pConn, sourceName, &rsp, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    ctgError("catalogSyncGetExtSourceInfo: sync fetch from mnode failed for source '%s', error:%s",
+             sourceName, tstrerror(code));
+    CTG_API_LEAVE(code);
+  }
+
+  // Populate cache for subsequent lookups.
+  (void)ctgUpdateExtSourceEnqueue(pCtg, sourceName, &rsp, false);
+
+  // Build result.
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pInfo) {
+    CTG_API_LEAVE(terrno);
+  }
+  tstrncpy(pInfo->source_name, rsp.source_name, TSDB_EXT_SOURCE_NAME_LEN);
+  pInfo->type = rsp.type;
+  tstrncpy(pInfo->host, rsp.host, sizeof(pInfo->host));
+  pInfo->port = rsp.port;
+  tstrncpy(pInfo->user, rsp.user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(pInfo->password, rsp.password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(pInfo->database, rsp.database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(pInfo->schema_name, rsp.schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(pInfo->options, rsp.options, sizeof(pInfo->options));
+  pInfo->meta_version = rsp.meta_version;
+  pInfo->create_time  = rsp.create_time;
+  code = extLoadSourceDialectDefaults(pInfo->type, pInfo->options, &pInfo->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
+
+  *ppInfo = pInfo;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  // Bump the local invalidation generation before dropping the entry.  A heartbeat
+  // response that was requested before this point must not repopulate the cache
+  // with a snapshot that may predate the caller's DDL.
+  atomic_add_fetch_64(&pCtg->extSrcDdlGen, 1);
+  CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
+}
+
+int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, const char* dbName,
+                                        const char* tableName, SExtTableMeta** ppMeta) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == sourceName || NULL == tableName || NULL == ppMeta) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppMeta = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+
+  SHashObj*             pSrcHash   = NULL;
+  void*                 pSrcHandle = NULL;
+  SExtSourceCacheEntry* pSrc       = NULL;
+  CTG_ERR_JRET(ctgAcquireExtSource(pCtg, sourceName, &pSrcHash, &pSrcHandle, &pSrc));
+  if (NULL == pSrc) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);  // not found, leave *ppMeta as NULL
+  }
+
+  const char* dbKey = (dbName && dbName[0] != '\0') ? dbName : "";
+  size_t dbKeyLen = strlen(dbKey);
+  if (dbKeyLen == 0) dbKeyLen = 1;
+
+  void* ppDbHandle = taosHashAcquire(pSrc->pDbHash, dbKey, dbKeyLen);
+  if (ppDbHandle) {
+    SExtDbCache* pDb = *(SExtDbCache**)ppDbHandle;
+    void* ppTEHandle = taosHashAcquire(pDb->pTableHash, tableName, strlen(tableName));
+    if (ppTEHandle) {
+      SExtTableCacheEntry* pTE = *(SExtTableCacheEntry**)ppTEHandle;
+      CTG_LOCK(CTG_READ, &pTE->metaLock);
+      *ppMeta = extConnectorCloneTableSchema(pTE->pMeta);
+      CTG_UNLOCK(CTG_READ, &pTE->metaLock);
+      taosHashRelease(pDb->pTableHash, ppTEHandle);
+    }
+    taosHashRelease(pSrc->pDbHash, ppDbHandle);
+  }
+
+  ctgReleaseExtSource(pCtg, pSrcHash, pSrcHandle);
+
+_return:
+  CTG_API_LEAVE(code);
+}
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                          const SExtSourceCapability* pCap, int64_t capFetchedAt) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
+}
+
+int32_t catalogDemoteExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = extCapDemoteApply(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                      SExtSourceCapability* pCap, bool* pFound) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  bool    found = false;
+  int32_t code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, pCap, NULL, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(pCap);
+    CTG_API_LEAVE(code);
+  }
+
+  if (NULL != pFound) {
+    *pFound = found;
+  }
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  ctgClearExtCapabilityDemotions(&cap);
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = ctgClearExtCapabilityDemoteEntry(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pGlobalVer) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pDdlGen) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pDdlGen = atomic_load_64(&pCtg->extSrcDdlGen);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+// Replace the entire ext-source cache with the list pushed from mnode and update
+// the global version.  Sources not present in pSources are dropped; sources in
+// pSources are upserted.  globalVer is stored after all enqueue ops so that a
+// concurrent heartbeat cannot report the new version before the data is applied.
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources) {
+  CTG_API_ENTER();
+  if (NULL == pCtg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  // ctgReplaceExtSourceCacheEnqueue builds the complete new pExtSourceHash on the
+  // calling thread (inside the function, before enqueue) and enqueues a single
+  // CTG_OP_REPLACE_EXT_SOURCE_CACHE op.  The write thread does only an O(1)
+  // pointer swap under extHashLatch, then cleans up the old hash.
+  int32_t code = ctgReplaceExtSourceCacheEnqueue(pCtg, globalVer, pSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("catalogUpdateAllExtSources: ctgReplaceExtSourceCacheEnqueue failed, error:%s", tstrerror(code));
+  }
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = EXT_DEMOTE_KIND_CLAUSE, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  spec.detail.clauseKind = EXT_CLAUSE_FILTER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_PROJECTION;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_AGG;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_ORDER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_LIMIT;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_JOIN;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(catalogClearExtSourceDemotions(pCtg, sourceName));
 }
 
 void catalogDestroy(void) {
@@ -1985,25 +2889,44 @@ void catalogDestroy(void) {
     return;
   }
 
+  atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
+
+  /*
+   * Drain catalog readers that entered before exit was set.  In particular,
+   * ctgResetCacheTimer() may already have passed its exit check and be about
+   * to re-arm the timer; this barrier lets those old readers finish before we
+   * stop and clean up the timer handle.
+   */
+  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
+  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
+
   if (gCtgMgmt.cacheTimer) {
-    if (!taosTmrStop(gCtgMgmt.cacheTimer)) {
-/*
-      qDebug("catalog cacheTimer %" PRIuPTR " not stopped", (uintptr_t)gCtgMgmt.cacheTimer);
-    
-      while (!taosTmrIsStopped(&gCtgMgmt.cacheTimer)) {
-        taosMsleep(1);
-      }
-*/
+    tmr_h cacheTimer = gCtgMgmt.cacheTimer;
+    gCtgMgmt.cacheTimer = NULL;
+    if (!taosTmrStop(cacheTimer)) {
+      qDebug("catalog cacheTimer %" PRIuPTR " already executing or stopped", (uintptr_t)cacheTimer);
     }
 
-    qDebug("catalog cacheTimer %" PRIuPTR " is stopped", (uintptr_t)gCtgMgmt.cacheTimer);
-    gCtgMgmt.cacheTimer = NULL;
-    
+    qDebug("catalog cacheTimer %" PRIuPTR " stop requested", (uintptr_t)cacheTimer);
+  }
+
+  if (gCtgMgmt.timer) {
     taosTmrCleanUp(gCtgMgmt.timer);
     gCtgMgmt.timer = NULL;
   }
 
-  atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
+  /*
+   * taosTmrStop()/taosTmrCleanUp() do not wait for callbacks that have already
+   * been dispatched or are executing.  The timer controller is now torn down so
+   * no new ctgProcessTimerEvent() can be scheduled; take the catalog write lock
+   * once more to wait for any in-flight callback that already entered under the
+   * read lock to leave the catalog cache critical section before we free the
+   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp  -  placing
+   * it before would still let a dispatched callback re-enter and touch
+   * pCluster after taosHashCleanup().)
+   */
+  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
+  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
 
   if (!taosCheckCurrentInDll()) {
     (void)ctgClearCacheEnqueue(NULL, false, true, true, true);

@@ -1,0 +1,96 @@
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+package sqlparser
+
+func expectedStatementTypes() []string {
+	return []string{
+		"*sqlparser.AlterClusterStmt",
+		"*sqlparser.AlterDatabaseStmt",
+		"*sqlparser.AlterDnodeStmt",
+		"*sqlparser.AlterDnodesReloadStmt",
+		"*sqlparser.AlterEncryptKeyStmt",
+		"*sqlparser.AlterLocalStmt",
+		"*sqlparser.AlterNamedStmt",
+		"*sqlparser.AlterRoleStmt",
+		"*sqlparser.AlterTableStmt",
+		"*sqlparser.AlterTokenStmt",
+		"*sqlparser.AlterUserStmt",
+		"*sqlparser.AlterVgroupKeepStmt",
+		"*sqlparser.AssignLeaderStmt",
+		"*sqlparser.BalanceVgroupLeaderStmt",
+		"*sqlparser.BalanceVgroupStmt",
+		"*sqlparser.CompactStmt",
+		"*sqlparser.CreateAnodeStmt",
+		"*sqlparser.CreateBnodeStmt",
+		"*sqlparser.CreateComponentNodeStmt",
+		"*sqlparser.CreateDatabaseStmt",
+		"*sqlparser.CreateDnodeStmt",
+		"*sqlparser.CreateEncryptAlgrStmt",
+		"*sqlparser.CreateMountStmt",
+		"*sqlparser.CreateNamedStmt",
+		"*sqlparser.CreateRoleStmt",
+		"*sqlparser.CreateSubTableFromFileStmt",
+		"*sqlparser.CreateTableStmt",
+		"*sqlparser.CreateTokenStmt",
+		"*sqlparser.CreateUserStmt",
+		"*sqlparser.CreateViewStmt",
+		"*sqlparser.CreateVSubTableStmt",
+		"*sqlparser.DeleteStmt",
+		"*sqlparser.DescribeStmt",
+		"*sqlparser.DropAnodeStmt",
+		"*sqlparser.DropBnodeStmt",
+		"*sqlparser.DropComponentNodeStmt",
+		"*sqlparser.DropDatabaseStmt",
+		"*sqlparser.DropDnodeStmt",
+		"*sqlparser.DropEncryptAlgrStmt",
+		"*sqlparser.CreateFunctionStmt",
+		"*sqlparser.DropFunctionStmt",
+		"*sqlparser.DropMountStmt",
+		"*sqlparser.DropNamedStmt",
+		"*sqlparser.DropRoleStmt",
+		"*sqlparser.DropTableStmt",
+		"*sqlparser.DropTokenStmt",
+		"*sqlparser.DropUserStmt",
+		"*sqlparser.DropViewStmt",
+		"*sqlparser.ExplainStmt",
+		"*sqlparser.FlushDatabaseStmt",
+		"*sqlparser.GrantRoleStmt",
+		"*sqlparser.GrantStmt",
+		"*sqlparser.InsertQueryStmt",
+		"sqlparser.InsertStatement",
+		"*sqlparser.KillStmt",
+		"*sqlparser.MergeVgroupStmt",
+		"*sqlparser.MultiCreateTableStmt",
+		"*sqlparser.RedistributeVgroupStmt",
+		"*sqlparser.ResetQueryCacheStmt",
+		"*sqlparser.RestoreComponentNodeStmt",
+		"*sqlparser.RestoreDnodeStmt",
+		"*sqlparser.RevokeRoleStmt",
+		"*sqlparser.RollupStmt",
+		"*sqlparser.ScanStmt",
+		"*sqlparser.SelectStmt",
+		"*sqlparser.ShowStmt",
+		"*sqlparser.SplitVgroupStmt",
+		"*sqlparser.SsMigrateDatabaseStmt",
+		"*sqlparser.StreamStmt",
+		"*sqlparser.TopicStmt",
+		"*sqlparser.TrimDatabaseStmt",
+		"*sqlparser.TrimDatabaseWalStmt",
+		"*sqlparser.UpdateAnodeStmt",
+		"*sqlparser.UseDatabaseStmt",
+		"*sqlparser.XnodeStmt",
+	}
+}

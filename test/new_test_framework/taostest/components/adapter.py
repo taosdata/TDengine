@@ -1,0 +1,286 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import os
+import re
+import winrm
+from threading import Thread
+import platform
+import subprocess
+import psutil
+import time
+from concurrent.futures import ThreadPoolExecutor
+from ..util.file import dict2toml, dict2file
+from ..util.remote import Remote
+from ..util.common import TDCom
+
+class TaosAdapter:
+    def __init__(self, remote: Remote):
+        self._remote: Remote = remote
+        self._tmp_dir = "/tmp"
+        self.logger = remote._logger
+        self._local_host = platform.node()
+        self._processes = {}
+    def install(self, host, version):
+        installFlag = False
+        result = self._remote.cmd(host, ["which taosadapter"])
+        if result == "":
+            installFlag = True
+        else:
+            result = self._remote.cmd(host, ["taosadapter --version"])
+            if not result is None:
+                result = result.strip()
+                if re.match(f'.* v{version}-', result) == None:
+                    installFlag = True
+            else:
+                installFlag = True
+        if installFlag == True:
+            TDCom.download_pkg(version, self._remote, host)
+        return
+
+    def install_pkg(self, host, pkg):
+        TDCom.install_with_pkg(self._remote, host, pkg)
+
+    def _configure_and_start_windows(self, node, tmp_dir, nodeDict, config_dir, config_file):
+        win_adapter=winrm.Session(f'http://{node}:5985/wsman',auth=('administrator','tbase125!'))
+        config_dir_win = config_dir.replace('/','\\')
+        win_adapter.run_cmd(f"md {config_dir_win}")
+        self._remote.cmd(self._local_host,f'scp {os.path.join(tmp_dir, config_file)} administrator@{node}:/{config_dir}/')
+        # os.system(f'scp {os.path.join(tmp_dir, config_file)} administrator@{node}:/{config_dir}/')
+        win_adapter.run_cmd('sc create taosadapter binpath= C:/TDengine/taosadapter.exe type= own start= auto displayname= taosadapter')
+        win_adapter.run_cmd(f'net start taosadapter')
+
+    def _configure_and_start(self, node, tmp_dir, nodeDict, config_dir, config_file):
+        self._remote.mkdir(node, config_dir)
+        self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
+        taosadapter_path = nodeDict["spec"]["taosadapterPath"] if "taosadapterPath" in nodeDict["spec"] else "/usr/bin/taosadapter"
+        if platform.system().lower() == "windows" and node in ("localhost", self._local_host):
+            process = subprocess.Popen(
+                [taosadapter_path, "-c", nodeDict['spec']['config_file']],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self._processes[node] = process
+            time.sleep(5)
+            if process.poll() is not None:
+                raise RuntimeError(f"taosadapter exited during startup: {process.returncode}")
+        elif platform.system().lower() == "windows":
+            start_cmd = f"mintty -h never {taosadapter_path} -c  {nodeDict['spec']['config_file']}"
+            self._remote.cmd_windows(node, [start_cmd, "sleep 5s"])
+        else:
+            self._remote.cmd(node, [f"screen -d -m {taosadapter_path} -c {nodeDict['spec']['config_file']}", "sleep 5s"])
+            # `screen -d -m` reports success even when the child dies right away,
+            # so a dead adapter used to stay unnoticed until the first WebSocket
+            # operation failed minutes later with an opaque "connection refused".
+            # Report it here with the adapter log; this stays a warning because
+            # many cases never touch the adapter and must keep running.
+            self._verify_started(node, taosadapter_path, nodeDict)
+
+    def _adapter_log_tail(self, node, nodeDict, lines=50):
+        log_dir = nodeDict["spec"]["adapter_config"]["log"]["path"]
+        cmd = (f'f=$(ls -t {log_dir}/taosadapter*.log 2>/dev/null | head -n1); '
+               f'if [ -n "$f" ]; then echo "----- tail of $f -----"; tail -n {lines} "$f"; fi; true')
+        return (self._remote.cmd(node, cmd) or "").strip()
+
+    def _verify_started(self, node, taosadapter_path, nodeDict, retries=15):
+        pattern = f"{taosadapter_path} -c {nodeDict['spec']['config_file']}"
+        # Poll in one remote round trip; echoes "yes" once the process shows up.
+        # The binary name is split into two adjacent literals ("taos""adapter")
+        # so that this very command line does not contain the pattern it greps
+        # for, otherwise `ps -ef` would always match the shell running the check.
+        cmd = (f'running=no; p="taos""adapter -c {nodeDict["spec"]["config_file"]}"; '
+               f'for i in $(seq 1 {retries}); do '
+               f'if ps -ef | grep -F "$p" | grep -v grep >/dev/null; then running=yes; break; fi; '
+               f'sleep 1; done; echo $running')
+        out = (self._remote.cmd(node, cmd) or "").strip()
+        if not out.endswith("yes"):
+            tail = self._adapter_log_tail(node, nodeDict)
+            self.logger.error(f"taosadapter is not running after startup on {node} "
+                              f"(config: {nodeDict['spec']['config_file']}, expected process: {pattern}); "
+                              f"cases that need the REST/WebSocket port will fail:\n{tail}")
+
+    def configure_and_start(self, tmp_dir, nodeDict):
+        config_dir, config_file = os.path.split(nodeDict["spec"]["config_file"])
+        
+        dict2toml(tmp_dir, config_file, nodeDict["spec"]["adapter_config"])
+        self.logger.debug(f"nodeDict['spec']['adapter_config']: {nodeDict['spec']['adapter_config']}")
+        self.logger.debug(f"nodeDict['spec']: {nodeDict['spec']}")
+        # dict2file(tmp_dir, "taos.cfg", nodeDict["spec"]["taos_config"])
+        with ThreadPoolExecutor(max_workers=max(1, len(nodeDict["fqdn"]))) as executor:
+            futures = []
+            for node in nodeDict["fqdn"]:
+                configure = self._configure_and_start
+                if ("system" in nodeDict["spec"]
+                        and nodeDict["spec"]["system"].lower() == "windows"
+                        and not (platform.system().lower() == "windows"
+                                 and node in ("localhost", self._local_host))):
+                    configure = self._configure_and_start_windows
+                futures.append(executor.submit(configure, node, tmp_dir, nodeDict, config_dir, config_file))
+            for future in futures:
+                future.result()
+
+    def uninstall(self):
+        pass
+
+    def reset(self, nodeDict):
+        tmpDict = nodeDict["spec"]
+        removeLog = "for i in `find . -name 'taos*'`; do cat /dev/null >$i; done"
+        for i in nodeDict["fqdn"]:
+            cmdList = []
+            for dir in (tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
+                cmdList.append("cd {};{}".format(dir, removeLog))
+            self._remote.cmd(i, cmdList)
+
+    def destroy(self, nodeDict):
+        tmpDict = nodeDict["spec"]
+        for i in nodeDict["fqdn"]:
+            if platform.system().lower() == "windows" and i in ("localhost", self._local_host):
+                process = self._processes.pop(i, None)
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                continue
+            if platform.system().lower() == "windows":
+                if "asanDir" in i:
+                    self.logger.info("Windows not support asan test yet")
+                else:
+                    self.logger.debug("destroy taosadapter on windows")
+                    pid = None
+                    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                        if ('mintty' in  proc.info['name']
+                            and proc.info['cmdline']  # 确保 cmdline 非空
+                            and any('taosadapter' in arg for arg in proc.info['cmdline'])
+                        ):
+                            self.logger.debug(proc.info)
+                            self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
+                            pid = proc.info['pid']
+                            #kernel32 = ctypes.windll.kernel32
+                            #kernel32.GenerateConsoleCtrlEvent(0, pid)
+                            killCmd = f"taskkill /PID {pid} /T /F"
+                            #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
+                            self._remote.cmd_windows(i, [killCmd])
+            
+            # if 'system' in nodeDict['spec'].keys() and nodeDict['spec']['system'].lower() == 'windows':
+                # win_taosadapter=winrm.Session(f'http://{i}:5985/wsman',auth=('administrator','tbase125!'))
+                # win_taosadapter.run_cmd("taskkill -f /im taosadapter.exe")
+                # win_taosadapter.run_cmd("sc delete 'taosdadapter'")
+                # for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
+                #             tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
+                #     dir_win = dir.replace('/','\\')
+                #     win_taosadapter.run_cmd(f"rd /S /Q {dir_win}")
+            else:
+                if "asanDir" in tmpDict:
+                    if i == "localhost":
+                        killCmd = ["ps -ef | grep -w taosadapter | grep -v grep | awk '{print $2}' | xargs kill "]
+                        env = os.environ.copy()
+                        env.pop('LD_PRELOAD', None)
+                        try:
+                            subprocess.run(killCmd, shell=True, text=True, env=env)
+                        except Exception as e:
+                            print(e)
+                    else:
+                        killCmd = ["ps -ef | grep -w %s | grep -v grep | awk '{print $2}' | xargs kill " % nodeDict["name"]]
+                        self._remote.cmd(i, killCmd)
+                else:
+                    killCmd = [
+                        "ps -ef|grep -wi %s| grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1 || true" % nodeDict[
+                            "name"]]
+                    self._remote.cmd(i, killCmd)
+                #cmdList = []
+                #for dir in (tmpDict["config_file"], tmpDict["adapter_config"]["taosConfigDir"],
+                #            tmpDict["adapter_config"]["log"]["path"], tmpDict["taos_config"]["logDir"]):
+                #    cmdList.append("rm -rf {}".format(dir))
+                #self._remote.cmd(i, cmdList)
+
+    def _install(self, host, version, pkg):
+        if pkg is None:
+            self.install(host, version)
+        else:
+            # if package specified, install the package without checking version
+            self.install_pkg(host, pkg)
+
+    def setup(self, tmp_dir, nodeDict):
+        hosts = nodeDict["fqdn"]
+        version = nodeDict["spec"]["version"]
+        pkg = nodeDict["server_pkg"]
+        threads = []
+        for host in hosts:
+            t = Thread(target = self._install, args = (host, version, pkg))
+            t.start()
+            threads.append(t)
+        for thread in threads:
+            thread.join()
+
+    def launch(self, tmp_dir, nodeDict):
+        self.configure_and_start(tmp_dir, nodeDict)
+
+    def update_cfg(self, tmp_dict, cfg_dict, node, restart):
+        config_dir, config_file = os.path.split(tmp_dict["spec"]["config_file"])
+        for i in cfg_dict.keys():
+            for j in cfg_dict[i].keys():
+                if type(cfg_dict[i][j]) == dict:
+                    tmp_dict["spec"][i][j].update(cfg_dict[i][j])
+                else:
+                    tmp_dict["spec"][i][j] = cfg_dict[i][j]
+            if i == 'adapter_config':
+                dict2toml(self._tmp_dir, config_file,
+                          tmp_dict["spec"]["adapter_config"])
+            else:
+                dict2file(self._tmp_dir, "taos.cfg",
+                          tmp_dict["spec"]["taos_config"])
+        adapterCfgPath = os.path.join(self._tmp_dir, config_file)
+        taosCfgPath = os.path.join(self._tmp_dir, "taos.cfg")
+        
+        for i in tmp_dict["fqdn"]:
+            if i == node or node == 'all':
+                self._remote.put(
+                    i, adapterCfgPath, config_dir)
+                self._remote.put(i, taosCfgPath, config_dir)
+                if restart:
+                    killCmd = "ps -ef | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+                    self._remote.cmd(i, [killCmd, "screen -d -m taosadapter -c {}  ".format(tmp_dict["spec"]["config_file"]), "sleep 5s"])
+
+    def update_taosa_toml(self, tmp_dict, node, restart):
+        config_dir, config_file = os.path.split(tmp_dict["spec"]["config_file"])
+        dict2toml(self._tmp_dir, config_file, tmp_dict["spec"]["adapter_config"])
+        adapterCfgPath = os.path.join(self._tmp_dir, config_file)
+        taosCfgPath = os.path.join(self._tmp_dir, "taos.cfg")
+        for i in tmp_dict["fqdn"]:
+            if i == node or node == 'all':
+                self._remote.put(
+                    i, adapterCfgPath, config_dir)
+                self._remote.put(i, taosCfgPath, config_dir)
+                if restart:
+                    killCmd = "ps -ef | grep -wi taosAdapter | grep -v grep | awk '{print $2}' | xargs kill -9 > /dev/null 2>&1"
+                    self._remote.cmd(i, [killCmd, "screen -d -m taosadapter -c {}  ".format(tmp_dict["spec"]["config_file"]), "sleep 5s"])
+
+    def get_cfg(self, tmp_dict, cfg_dict):
+        if cfg_dict:
+            for i, j in cfg_dict.items():
+                if type(j) == dict:
+                    for k, l in j.items():
+                        if type(l) == dict:
+                            for m, n in l.items():
+                                cfg_dict[i][k][m] = tmp_dict['spec'][i][k][m]
+                        else:
+                            cfg_dict[i][k] = tmp_dict['spec'][i][k]
+                else:
+                    cfg_dict[i] = tmp_dict['spec'][i]
+            return cfg_dict
+        else:
+            return tmp_dict["spec"]

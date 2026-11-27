@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientSession.h"
 #include "cmdnodes.h"
 #include "command.h"
 #include "os.h"
@@ -25,6 +28,7 @@
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
+#include "tmsg.h"
 #include "tname.h"
 #include "tversion.h"
 
@@ -35,16 +39,212 @@ static void setErrno(SRequestObj* pRequest, int32_t code) {
   terrno = code;
 }
 
+static bool isExtSourceDdlReq(int32_t msgType) {
+  return msgType == TDMT_MND_CREATE_EXT_SOURCE || msgType == TDMT_MND_ALTER_EXT_SOURCE ||
+         msgType == TDMT_MND_DROP_EXT_SOURCE || msgType == TDMT_MND_REFRESH_EXT_SOURCE;
+}
+
+static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
+  (void)code;
+  if (pRequest == NULL || !isExtSourceDdlReq(pRequest->type) || pRequest->extSourceName[0] == '\0') {
+    return;
+  }
+
+  SCatalog*     pCtg  = NULL;
+  SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+  if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    // Invalidate on completion even when the DDL failed: the server may have
+    // committed while the client saw an error or lost the response.  Keeping the
+    // entry out of the cache forces the next reader to fetch the authoritative
+    // state, and the generation bump drops heartbeat pushes built before this
+    // point.
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
+              pRequest->self, pRequest->extSourceName, TMSG_INFO(pRequest->type), tstrerror(rmCode),
+              pRequest->requestId);
+    }
+  }
+}
+
+#ifdef TD_ENTERPRISE
+void tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source) {
+  if (pTscObj == NULL || pTscObj->pAppInfo == NULL || pTscObj->pAppInfo->pTransporter == NULL || txnId == 0) {
+    return;
+  }
+
+  SMTransReq req = {0};
+  req.msgType = TDMT_MND_ROLLBACK_TXN;
+  req.txnId = txnId;
+  req.connId = pTscObj->id;
+  req.pVgSet = NULL;
+
+  int32_t contLen = tSerializeSMTransReq(NULL, 0, &req);
+  if (contLen <= 0) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize size failed",
+            pTscObj->id, txnId, source);
+    return;
+  }
+
+  void* pCont = rpcMallocCont(contLen);
+  if (pCont == NULL) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, alloc failed", pTscObj->id, txnId,
+            source);
+    return;
+  }
+
+  if (tSerializeSMTransReq(pCont, contLen, &req) <= 0) {
+    rpcFreeCont(pCont);
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback skipped in %s, serialize failed", pTscObj->id,
+            txnId, source);
+    return;
+  }
+
+  SEpSet  epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  SRpcMsg rpcMsg = {
+      .pCont = pCont,
+      .contLen = contLen,
+      .msgType = TDMT_MND_ROLLBACK_TXN,
+      .info.ahandle = 0,
+      .info.notFreeAhandle = 1,
+  };
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pTscObj->pAppInfo->pTransporter, &epSet, &rpcMsg, &rpcRsp);
+  if (code == TSDB_CODE_SUCCESS && rpcRsp.code != TSDB_CODE_SUCCESS) {
+    code = rpcRsp.code;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s failed, code:0x%x", pTscObj->id, txnId,
+            source, code);
+  } else {
+    tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " best-effort rollback in %s succeeded", pTscObj->id, txnId, source);
+  }
+
+  rpcFreeCont(rpcRsp.pCont);
+}
+#endif
+
 int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+  // A connection that successfully changes its OWN password must not be kicked by the
+  // hb stale-conn check. Enter a grace state (loginPassVer = -1 => server skips the kick)
+  // until the next hb adopts the server's authoritative passVer for this user.
+  if (code == TSDB_CODE_SUCCESS && pRequest->passAlterSelf && pRequest->pTscObj != NULL) {
+    atomic_store_8(&pRequest->pTscObj->passSelfChanged, 1);
+    atomic_store_32(&pRequest->pTscObj->loginPassVer, -1);
+  }
+
+  /*
+   * CREATE/OR REPLACE VIEW returns the effective view metadata. Install it into the
+   * local catalog directly (same pattern as CREATE TABLE/STABLE) instead of evicting
+   * the entry and re-fetching it on the next query.
+   */
+  bool viewMetaHandled = false;
+#ifdef TD_ENTERPRISE
+  if (code == TSDB_CODE_SUCCESS && pRequest->type == TDMT_MND_CREATE_VIEW && pMsg->pData != NULL && pMsg->len > 0) {
+    SMCreateViewRsp createRsp = {0};
+    SDecoder       coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    int32_t decodeCode = tDecodeSMCreateViewRsp(&coder, &createRsp);
+    tDecoderClear(&coder);
+
+    if (TSDB_CODE_SUCCESS == decodeCode && NULL != createRsp.pMeta) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ctgCode = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (TSDB_CODE_SUCCESS == ctgCode) {
+        // catalogUpdateViewMeta consumes pMeta on both success and failure paths.
+        ctgCode = catalogUpdateViewMeta(pCatalog, createRsp.pMeta);
+        createRsp.pMeta = NULL;
+        if (TSDB_CODE_SUCCESS == ctgCode) {
+          viewMetaHandled = true;
+          tscDebug("conn:0x%" PRIx64 ", view meta updated from create-view rsp, QID:0x%" PRIx64, pRequest->pTscObj->id,
+                   pRequest->requestId);
+        } else {
+          tscError("conn:0x%" PRIx64 ", failed to update view meta from create-view rsp, code:%s, QID:0x%" PRIx64,
+                   pRequest->pTscObj->id, tstrerror(ctgCode), pRequest->requestId);
+        }
+      } else {
+        tscError("conn:0x%" PRIx64 ", failed to get catalog handle for create-view rsp, code:%s, QID:0x%" PRIx64,
+                 pRequest->pTscObj->id, tstrerror(ctgCode), pRequest->requestId);
+      }
+    } else {
+      tscWarn("conn:0x%" PRIx64 ", failed to decode create-view rsp, code:0x%x, len:%d, QID:0x%" PRIx64,
+              pRequest->pTscObj->id, decodeCode, pMsg->len, pRequest->requestId);
+    }
+    tFreeSMCreateViewRsp(&createRsp);
+  }
+#endif
+
+  /*
+   * DROP VIEW has no response payload; evict the named views from the local catalog on
+   * success, mirroring the DROP TABLE path. A missing entry is a no-op.
+   */
+  if (code == TSDB_CODE_SUCCESS && pRequest->type == TDMT_MND_DROP_VIEW) {
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, true);
+    if (TSDB_CODE_SUCCESS != rmCode) {
+      tscError("conn:0x%" PRIx64 ", failed to evict dropped view meta, code:%s, QID:0x%" PRIx64,
+               pRequest->pTscObj->id, tstrerror(rmCode), pRequest->requestId);
+    } else {
+      viewMetaHandled = true;
+      tscDebug("conn:0x%" PRIx64 ", dropped view meta evicted from local catalog, QID:0x%" PRIx64,
+               pRequest->pTscObj->id, pRequest->requestId);
+    }
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && !viewMetaHandled) {
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
+    if (code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+      int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+        if (pTbName) {
+          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pRequest->txnId, pTbName);
+          if (rc != 0) {
+            code = rc;
+            break;
+          }
+        }
+      }
+    }
     if (removeMeta(pRequest->pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type)) != 0) {
       tscError("failed to remove meta data for table");
     }
   }
 
+  // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
+  // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
+  if (code == 0 && pRequest->txnId > 0 &&
+      (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
+    int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
+    for (int32_t i = 0; i < tbNum; ++i) {
+      SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
+      if (pTbName) {
+        char fullName[TSDB_TABLE_FNAME_LEN];
+        if (tNameExtractFullName(pTbName, fullName) == 0) {
+          (void)tscTxnUpsertTableMeta(pRequest->pTscObj, pRequest->txnId, fullName, NULL, "drop");
+        }
+      }
+    }
+  }
+
+  invalidateExtSourceCacheAfterDdl(pRequest, code);
+
+  // Preserve MNode custom error detail string (e.g. MAC preflight user list)
+  if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    if (pMsg->len <= pRequest->msgBufLen) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    } else {
+      taosMemoryFreeClear(pRequest->msgBuf);
+      pRequest->msgBuf = pMsg->pData;
+      pMsg->pData = NULL;
+      pRequest->msgBufLen = pMsg->len;
+    }
+  }
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
@@ -74,6 +274,11 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
+  if (pTscObj->connType == CONN_TYPE__AUTH_TEST) {
+    // auth test connection, no need to process connect rsp
+    goto End;
+  }
+
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
@@ -81,13 +286,13 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if ((code = taosCheckVersionCompatibleFromStr(td_version, connectRsp.sVer, 3)) != 0) {
-    tscError("version not compatible. client version: %s, server version: %s", td_version, connectRsp.sVer);
+    tscError("version not compatible. client version:%s, server version:%s", td_version, connectRsp.sVer);
     goto End;
   }
 
   int32_t now = taosGetTimestampSec();
   int32_t delta = abs(now - connectRsp.svrTimestamp);
-  if (delta > timestampDeltaLimit) {
+  if (delta > tsTimestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
     goto End;
@@ -98,9 +303,9 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto End;
   }
 
-  int updateEpSet = 1;
+  int    updateEpSet = 1;
+  SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   if (connectRsp.dnodeNum == 1) {
-    SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
     SEpSet dstEpSet = connectRsp.epSet;
     if (srcEpSet.numOfEps == 1) {
       if (rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
@@ -110,7 +315,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
       updateEpSet = 0;
     }
   }
-  if (updateEpSet == 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+  if (updateEpSet == 1 && !isEpsetEqual(&srcEpSet, &connectRsp.epSet)) {
     SEpSet corEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
     SEpSet* pOrig = &corEpSet;
@@ -123,48 +328,90 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
-    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
+    tscDebug("QID:0x%" PRIx64 ", epSet.fqdn[%d]:%s port:%d, conn:0x%" PRIx64, pRequest->requestId, i,
              connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
   pTscObj->sysInfo = connectRsp.sysInfo;
+  pTscObj->minSecLevel = connectRsp.minSecLevel;
+  pTscObj->maxSecLevel = connectRsp.maxSecLevel;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
+  if (pTscObj->user[0] == 0) {
+    tstrncpy(pTscObj->user, connectRsp.user, tListLen(pTscObj->user));
+    tstrncpy(pTscObj->tokenName, connectRsp.tokenName, tListLen(pTscObj->tokenName));
+  } else {
+    pTscObj->tokenName[0] = 0;
+  }
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
+  // Expose the connected server's version to shared code (the parser gates features an older
+  // server would silently drop, e.g. virtual child table owned columns/tags).
+  {
+    int32_t serverVerInt = 0;
+    if (taosVersionStrToInt(connectRsp.sVer, &serverVerInt) == 0) {
+      atomic_store_32(&tsServerVerInt, serverVerInt);
+    }
+  }
   tstrncpy(pTscObj->sDetailVer, connectRsp.sDetailVer, tListLen(pTscObj->sDetailVer));
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   pTscObj->pAppInfo->serverCfg.monitorParas = connectRsp.monitorParas;
   pTscObj->pAppInfo->serverCfg.enableAuditDelete = connectRsp.enableAuditDelete;
-  tscDebug("[monitor] paras from connect rsp, clusterId:%" PRIx64 " monitorParas threshold:%d scope:%d",
+  pTscObj->pAppInfo->serverCfg.enableAuditSelect = connectRsp.enableAuditSelect;
+  pTscObj->pAppInfo->serverCfg.enableAuditInsert = connectRsp.enableAuditInsert;
+  pTscObj->pAppInfo->serverCfg.auditLevel = connectRsp.auditLevel;
+  pTscObj->pAppInfo->serverCfg.sodInitial = connectRsp.sodInitial;
+  pTscObj->pAppInfo->serverCfg.macActive = connectRsp.macActive;
+  tscDebug("monitor paras from connect rsp, clusterId:0x%" PRIx64 ", threshold:%d scope:%d",
            connectRsp.clusterId, connectRsp.monitorParas.tsSlowLogThreshold, connectRsp.monitorParas.tsSlowLogScope);
   lastClusterId = connectRsp.clusterId;
 
   pTscObj->connType = connectRsp.connType;
   pTscObj->passInfo.ver = connectRsp.passVer;
+  atomic_store_32(&pTscObj->loginPassVer, connectRsp.passVer);
   pTscObj->authVer = connectRsp.authVer;
   pTscObj->whiteListInfo.ver = connectRsp.whiteListVer;
+  pTscObj->userId = connectRsp.userId;
 
   if (taosHashGet(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES) == NULL) {
     if (taosHashPut(appInfo.pInstMapByClusterId, &connectRsp.clusterId, LONG_BYTES, &pTscObj->pAppInfo,
                     POINTER_BYTES) != 0) {
       tscError("failed to put appInfo into appInfo.pInstMapByClusterId");
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto End;
     } else {
+#ifdef USE_MONITOR
       MonitorSlowLogData data = {0};
       data.clusterId = pTscObj->pAppInfo->clusterId;
-      data.type = SLOW_LOG_READ_BEGINNIG;
-      (void)monitorPutData2MonitorQueue(data);  // ignore
+      data.type = SLOW_LOG_READ_ALL;
+      (void)monitorPutData2MonitorQueue(data);  // ignore return code
       monitorClientSlowQueryInit(connectRsp.clusterId);
       monitorClientSQLReqInit(connectRsp.clusterId);
+#endif
     }
+  }
+
+  code = tscRefSessMetric(pTscObj);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
+  }
+
+  sessMetricRef(pTscObj->pSessMetric);
+
+  SSessParam pPara = {.type = SESSION_PER_USER, .value = 1};
+  code = tscUpdateSessMetric(pTscObj, &pPara);
+  if (TSDB_CODE_SUCCESS != code) {
+    tscError("failed to connect with user:%s, code:%s", pTscObj->user, tstrerror(code));
+    goto End;
   }
 
   (void)taosThreadMutexLock(&clientHbMgr.lock);
   SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, pTscObj->appHbMgrIdx);
   if (pAppHbMgr) {
-    if (hbRegisterConn(pAppHbMgr, pTscObj->id, connectRsp.clusterId, connectRsp.connType) != 0) {
-      tscError("0x%" PRIx64 " failed to register conn to hbMgr", pRequest->requestId);
+    if (hbRegisterConn(pAppHbMgr, pTscObj->id, pTscObj->user, pTscObj->tokenName, connectRsp.clusterId, connectRsp.connType) != 0) {
+      tscError("QID:0x%" PRIx64 ", failed to register conn to hbMgr", pRequest->requestId);
     }
   } else {
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
@@ -173,7 +420,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
   (void)taosThreadMutexUnlock(&clientHbMgr.lock);
 
-  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
+  tscDebug("QID:0x%" PRIx64 ", clusterId:0x%" PRIx64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
 
 End:
@@ -229,11 +476,19 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       char             dbFName[TSDB_DB_FNAME_LEN];
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != 0) {
-        tscError("0x%" PRIx64 " failed to refresh db vg info", pRequest->requestId);
+        tscError("QID:0x%" PRIx64 ", failed to refresh db vg info", pRequest->requestId);
       }
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != 0) {
-        tscError("0x%" PRIx64 " failed to refresh db vg info", pRequest->requestId);
+        tscError("QID:0x%" PRIx64 ", failed to refresh db vg info", pRequest->requestId);
+      }
+
+      // The creator is granted ownership of the new db on mnode immediately, but the local
+      // user-auth cache only learns about it via the next heartbeat round trip. Force a refresh
+      // now so a create-db statement immediately followed by DML on the new db (e.g. in a script)
+      // doesn't spuriously fail with "Permission denied to use database".
+      if (catalogRefreshUserAuth(pCatalog, &conn, pTscObj->user) != 0) {
+        tscError("QID:0x%" PRIx64 ", failed to refresh user auth at line %d", pRequest->requestId, __LINE__);
       }
     }
   }
@@ -254,19 +509,17 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       TSDB_CODE_MND_DB_IN_DROPPING == code) {
     SUseDbRsp usedbRsp = {0};
     if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
-      tscError("0x%" PRIx64 " deserialize SUseDbRsp failed", pRequest->requestId);
-    }
-    struct SCatalog* pCatalog = NULL;
-
-    if (usedbRsp.vgVersion >= 0) {  // cached in local
+      tscError("QID:0x%" PRIx64 ", deserialize SUseDbRsp failed", pRequest->requestId);
+    } else if (usedbRsp.vgVersion >= 0) {  // cached in local
+      struct SCatalog* pCatalog = NULL;
       int64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
-        tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
+        tscWarn("QID:0x%" PRIx64 ", catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
                 tstrerror(code1));
       } else {
         if (catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid) != 0) {
-          tscError("0x%" PRIx64 "catalogRemoveDB failed, db:%s, uid:%" PRId64, pRequest->requestId, usedbRsp.db,
+          tscError("QID:0x%" PRIx64 ", catalogRemoveDB failed, db:%s, uid:%" PRId64, pRequest->requestId, usedbRsp.db,
                    usedbRsp.uid);
         }
       }
@@ -292,19 +545,16 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SUseDbRsp usedbRsp = {0};
-  if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
-    tscError("0x%" PRIx64 " deserialize SUseDbRsp failed", pRequest->requestId);
+  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  if (code == TSDB_CODE_SUCCESS && strlen(usedbRsp.db) == 0) {
+    code = usedbRsp.errCode != 0 ? usedbRsp.errCode : TSDB_CODE_APP_ERROR;
   }
 
-  if (strlen(usedbRsp.db) == 0) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-
-    if (usedbRsp.errCode != 0) {
-      return usedbRsp.errCode;
-    } else {
-      return TSDB_CODE_APP_ERROR;
-    }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("QID:0x%" PRIx64 ", invalid SUseDbRsp, db:%s, failed since %s", pRequest->requestId, usedbRsp.db,
+             tstrerror(code));
+    setErrno(pRequest, code);
+    goto End;
   }
 
   tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
@@ -321,26 +571,28 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   SName name = {0};
   if (tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB) != TSDB_CODE_SUCCESS) {
-    tscError("0x%" PRIx64 " failed to parse db name:%s", pRequest->requestId, usedbRsp.db);
+    tscError("QID:0x%" PRIx64 ", failed to parse db name:%s", pRequest->requestId, usedbRsp.db);
   }
 
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
   if (code != 0) {
-    terrno = code;
     if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
 
-    tscError("0x%" PRIx64 " failed to build use db output since %s", pRequest->requestId, terrstr());
+    tscError("QID:0x%" PRIx64 ", failed to build use db output since %s", pRequest->requestId, tstrerror(code));
+    taosMemoryFreeClear(output.dbVgroup);
+    setErrno(pRequest, code);
+    goto End;
   } else if (output.dbVgroup && output.dbVgroup->vgHash) {
     struct SCatalog* pCatalog = NULL;
 
     int32_t code1 = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (code1 != TSDB_CODE_SUCCESS) {
-      tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
+      tscWarn("catalogGetHandle failed, clusterId:0x%" PRIx64 ", error:%s", pRequest->pTscObj->pAppInfo->clusterId,
               tstrerror(code1));
     } else {
       if (catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup) != 0) {
-        tscError("0x%" PRIx64 " failed to update db vg info, db:%s, dbId:%" PRId64, pRequest->requestId, output.db,
+        tscError("QID:0x%" PRIx64 ", failed to update db vg info, db:%s, dbId:%" PRId64, pRequest->requestId, output.db,
                  output.dbId);
       }
       output.dbVgroup = NULL;
@@ -348,15 +600,16 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFreeClear(output.dbVgroup);
-  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   if (tNameGetDbName(&name, db) != TSDB_CODE_SUCCESS) {
-    tscError("0x%" PRIx64 " failed to get db name since %s", pRequest->requestId, tstrerror(code));
+    tscError("QID:0x%" PRIx64 ", failed to get db name since %s", pRequest->requestId, tstrerror(code));
   }
 
   setConnectionDB(pRequest->pTscObj, db);
 
+End:
+  tFreeSUsedbRsp(&usedbRsp);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
@@ -367,7 +620,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  return 0;
+  return code;
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -412,7 +665,24 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
       SCatalog* pCatalog = NULL;
       int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (pRes->res != NULL) {
-        ret = handleCreateTbExecRes(pRes->res, pCatalog);
+        // Batch meta txn: skip global catalog cache update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pRequest->txnId == 0) {
+          if (ret == TSDB_CODE_SUCCESS) {
+            ret = handleCreateTbExecRes(pRes->res, pCatalog);
+          }
+        }
+#ifdef TD_ENTERPRISE
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "cached STB (CREATE STB)");
+          if (txnCode != 0) {
+            doRequestCallback(pRequest, txnCode);
+            return txnCode;
+          }
+        }
+#endif
       }
 
       if (ret != TSDB_CODE_SUCCESS) {
@@ -426,6 +696,19 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
+  // CREATE STABLE ... BASE ON flips the parents' hasInheritors flag. The response carries the new
+  // child's meta (so the generic RM_TBLMETA path is skipped), so invalidate the recorded parent
+  // stables explicitly here for both sync and async callers. No-op when the list is empty.
+  if (code == TSDB_CODE_SUCCESS && NULL != pRequest->targetTableList) {
+    // The request callback already fired with `code`, so a failure here cannot change
+    // the result; a stale parent meta entry is only re-fetched on next use. Log it
+    // rather than silently dropping the return.
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("QID:0x%" PRIx64 ", failed to invalidate parent stable meta, error:%s",
+              pRequest->requestId, tstrerror(rmCode));
+    }
+  }
   return code;
 }
 
@@ -436,13 +719,13 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     SDropDbRsp dropdbRsp = {0};
     if (tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp) != 0) {
-      tscError("0x%" PRIx64 " deserialize SDropDbRsp failed", pRequest->requestId);
+      tscError("QID:0x%" PRIx64 ", deserialize SDropDbRsp failed", pRequest->requestId);
     }
     struct SCatalog* pCatalog = NULL;
     code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
     if (TSDB_CODE_SUCCESS == code) {
       if (catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid) != 0) {
-        tscError("0x%" PRIx64 " failed to remove db:%s", pRequest->requestId, dropdbRsp.db);
+        tscError("QID:0x%" PRIx64 ", failed to remove db:%s", pRequest->requestId, dropdbRsp.db);
       }
       STscObj* pTscObj = pRequest->pTscObj;
 
@@ -453,11 +736,19 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       char             dbFName[TSDB_DB_FNAME_LEN] = {0};
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_INFORMATION_SCHEMA_DB);
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != TSDB_CODE_SUCCESS) {
-        tscError("0x%" PRIx64 " failed to refresh db vg info, db:%s", pRequest->requestId, dbFName);
+        tscError("QID:0x%" PRIx64 ", failed to refresh db vg info, db:%s", pRequest->requestId, dbFName);
       }
       (void)snprintf(dbFName, sizeof(dbFName) - 1, "%d.%s", pTscObj->acctId, TSDB_PERFORMANCE_SCHEMA_DB);
       if (catalogRefreshDBVgInfo(pCatalog, &conn, dbFName) != 0) {
-        tscError("0x%" PRIx64 " failed to refresh db vg info, db:%s", pRequest->requestId, dbFName);
+        tscError("QID:0x%" PRIx64 ", failed to refresh db vg info, db:%s", pRequest->requestId, dbFName);
+      }
+
+      // Dropping the db also revokes the dropper's (and other users') privileges on it at mnode.
+      // Refresh this session's user-auth cache now instead of waiting for the next heartbeat, so a
+      // stale ownedDbs entry can't be mistaken for ownership of a same-named db recreated by someone
+      // else in the meantime.
+      if (catalogRefreshUserAuth(pCatalog, &conn, pTscObj->user) != 0) {
+        tscError("QID:0x%" PRIx64 ", failed to refresh user auth at line %d", pRequest->requestId, __LINE__);
       }
     }
   }
@@ -479,6 +770,15 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+    // Preserve the mnode's custom error-detail string (e.g. a vstb alter name-conflict names
+    // the conflicting child table) so taos_errstr() points at the conflict source instead of
+    // the stock per-code text. Same pattern as genericRspCallback. Guard msgBufLen so a
+    // non-positive buffer cannot make copyLen wrap around to a huge memcpy length.
+    if (pMsg->pData != NULL && pMsg->len > 0 && pRequest->msgBufLen > 0) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    }
   } else {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};
@@ -505,7 +805,24 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       SCatalog* pCatalog = NULL;
       int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
       if (pRes->res != NULL) {
-        ret = handleAlterTbExecRes(pRes->res, pCatalog);
+        // Batch meta txn: skip global catalog cache update during txn to prevent
+        // cross-session pollution. Only populate per-connection pTxnTableMeta.
+        STscObj* pTscObj = pRequest->pTscObj;
+        if (pRequest->txnId == 0) {
+          if (ret == TSDB_CODE_SUCCESS) {
+            ret = handleAlterTbExecRes(pRes->res, pCatalog);
+          }
+        }
+#ifdef TD_ENTERPRISE
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "updated STB (ALTER STB)");
+          if (txnCode != 0) {
+            doRequestCallback(pRequest, txnCode);
+            return txnCode;
+          }
+        }
+#endif
       }
 
       if (ret != TSDB_CODE_SUCCESS) {
@@ -517,6 +834,19 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     if (tsem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
+    }
+  }
+  // ALTER STABLE ... ADD/DROP BASE ON flips the parents' hasInheritors flag. The response carries
+  // the altered table's meta (so the generic RM_TBLMETA path is skipped), so invalidate the recorded
+  // parent stables explicitly here for both sync and async callers. No-op when the list is empty.
+  if (code == TSDB_CODE_SUCCESS && NULL != pRequest->targetTableList) {
+    // The request callback already fired with `code`, so a failure here cannot change
+    // the result; a stale parent meta entry is only re-fetched on next use. Log it
+    // rather than silently dropping the return.
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("QID:0x%" PRIx64 ", failed to invalidate parent stable meta, error:%s",
+              pRequest->requestId, tstrerror(rmCode));
     }
   }
   return code;
@@ -550,6 +880,10 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
 
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD5_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD6_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
   int32_t numOfCfg = taosArrayGetSize(pVars);
@@ -594,6 +928,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, info, false);
     TSDB_CHECK_CODE(code, line, END);
+
+    char reboot[TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(reboot, pInfo->reboot, TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
+    code = colDataSetVal(pColInfo, i, reboot, false);
+    TSDB_CHECK_CODE(code, line, END);
   }
 
   pBlock->info.rows = numOfCfg;
@@ -630,26 +971,30 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
   (*pRsp)->numOfCols = htonl(SHOW_VARIABLES_RESULT_COLS);
 
-  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SHOW_VARIABLES_RESULT_COLS);
-  if (len < 0) {
-    uError("buildShowVariablesRsp error, len:%d", len);
-    code = terrno;
-    goto _exit;
+  int32_t len = 0;
+  if (pBlock->info.rows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SHOW_VARIABLES_RESULT_COLS);
+    if (len < 0) {
+      uError("buildShowVariablesRsp error, len:%d", len);
+      code = terrno;
+      goto _exit;
+    }
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+    int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+    (*pRsp)->payloadLen = htonl(payloadLen);
+    (*pRsp)->compLen = htonl(payloadLen);
+
+    if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+      uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+             (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
   }
+
   blockDataDestroy(pBlock);
-
-  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
-
-  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
-  (*pRsp)->payloadLen = htonl(payloadLen);
-  (*pRsp)->compLen = htonl(payloadLen);
-
-  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
-    uError("buildShowVariablesRsp error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
-           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
-    code = TSDB_CODE_TSC_INVALID_INPUT;
-    goto _exit;
-  }
+  pBlock = NULL;
 
   return TSDB_CODE_SUCCESS;
 _exit:
@@ -676,10 +1021,11 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildShowVariablesRsp(rsp.variables, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
     tFreeSShowVariablesRsp(&rsp);
@@ -831,10 +1177,11 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       code = buildRetriveTableRspForCompactDb(&rsp, &pRes);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false);
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
     }
 
     if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
       taosMemoryFree(pRes);
     }
   }
@@ -851,6 +1198,717 @@ int32_t processCompactDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
   return code;
 }
+
+static int32_t buildScanDbBlock(SScanDbRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(SCAN_DB_RESULT_COLS, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SCAN_DB_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  infoData.info.type = TSDB_DATA_TYPE_INT;
+  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SCAN_DB_RESULT_FIELD3_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+  SColumnInfoData* pIdCol = taosArrayGet(pBlock->pDataBlock, 1);
+  TSDB_CHECK_NULL(pIdCol, code, line, END, terrno);
+  SColumnInfoData* pReasonCol = taosArrayGet(pBlock->pDataBlock, 2);
+  TSDB_CHECK_NULL(pReasonCol, code, line, END, terrno);
+
+  char result[SCAN_DB_RESULT_FIELD1_LEN] = {0};
+  char reason[SCAN_DB_RESULT_FIELD3_LEN] = {0};
+  if (pRsp->bAccepted) {
+    STR_TO_VARSTR(result, "accepted");
+    code = colDataSetVal(pResultCol, 0, result, false);
+    TSDB_CHECK_CODE(code, line, END);
+    code = colDataSetVal(pIdCol, 0, (void*)&pRsp->scanId, false);
+    TSDB_CHECK_CODE(code, line, END);
+    STR_TO_VARSTR(reason, "success");
+    code = colDataSetVal(pReasonCol, 0, reason, false);
+    TSDB_CHECK_CODE(code, line, END);
+  } else {
+    STR_TO_VARSTR(result, "rejected");
+    code = colDataSetVal(pResultCol, 0, result, false);
+    TSDB_CHECK_CODE(code, line, END);
+    colDataSetNULL(pIdCol, 0);
+    STR_TO_VARSTR(reason, "scan is ongoing");
+    code = colDataSetVal(pReasonCol, 0, reason, false);
+    TSDB_CHECK_CODE(code, line, END);
+  }
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+
+  return TSDB_CODE_SUCCESS;
+END:
+  taosMemoryFree(pBlock);
+  taosArrayDestroy(pBlock->pDataBlock);
+  return code;
+}
+
+static int32_t buildRetriveTableRspForScanDb(SScanDbRsp* pScanDb, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildScanDbBlock(pScanDb, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->payloadLen = 0;
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(SCAN_DB_RESULT_COLS);
+
+  int32_t len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, SCAN_DB_RESULT_COLS);
+  if (len < 0) {
+    uError("%s error, len:%d", __func__, len);
+    code = terrno;
+    goto _exit;
+  }
+  blockDataDestroy(pBlock);
+
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+    uError("%s error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, __func__, len,
+           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
+  }
+
+  return TSDB_CODE_SUCCESS;
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
+
+static int32_t processScanDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SScanDbRsp         rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSScanDbRsp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildRetriveTableRspForScanDb(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+int32_t processTrimDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    STrimDbRsp         rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSCompactDbRsp(pMsg->pData, pMsg->len, (SCompactDbRsp*)&rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildRetriveTableRspForCompactDb(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+static int32_t buildCreateTokenBlock(SCreateTokenRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(CREATE_TOKEN_RESULT_COLS, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = CREATE_TOKEN_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  // Handle empty result case (when pRsp is NULL)
+  if (pRsp == NULL) {
+    pBlock->info.rows = 0;
+    *block = pBlock;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+
+  char result[sizeof(pRsp->token) + 64] = {0};
+  STR_TO_VARSTR(result, pRsp->token);
+  code = colDataSetVal(pResultCol, 0, result, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+
+END:
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
+  return code;
+}
+
+static int32_t buildTableRspForCreateToken(SCreateTokenRsp* pResp, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTokenBlock(pResp, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(CREATE_TOKEN_RESULT_COLS);
+
+  int32_t len = 0;
+  if (pBlock->info.rows > 0) {
+    len = blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOKEN_RESULT_COLS);
+    if (len < 0) {
+      uError("buildTableRspFroCreateToken error, len:%d", len);
+      code = terrno;
+      goto _exit;
+    }
+
+    SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+    int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+    (*pRsp)->payloadLen = htonl(payloadLen);
+    (*pRsp)->compLen = htonl(payloadLen);
+
+    if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+      uError("buildTableRspFroCreateToken error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+             (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+      code = TSDB_CODE_TSC_INVALID_INPUT;
+      goto _exit;
+    }
+  } else {
+    // Empty result case
+    SET_PAYLOAD_LEN((*pRsp)->data, 0, 0);
+    (*pRsp)->payloadLen = htonl(PAYLOAD_PREFIX_LEN);
+    (*pRsp)->compLen = htonl(PAYLOAD_PREFIX_LEN);
+  }
+  blockDataDestroy(pBlock);
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
+
+int32_t processCreateTokenRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SCreateTokenRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    
+    // Handle empty message case
+    if (pMsg->len == 0) {
+      code = buildTableRspForCreateToken(NULL, &pRes);
+    } else {
+      code = tDeserializeSCreateTokenResp(pMsg->pData, pMsg->len, &rsp);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = buildTableRspForCreateToken(&rsp, &pRes);
+      }
+    }
+    
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
+static int32_t buildCreateTotpSecretBlock(SCreateTotpSecretRsp* pRsp, SSDataBlock** block) {
+  int32_t      code = 0;
+  int32_t      line = 0;
+  SSDataBlock* pBlock = taosMemoryCalloc(CREATE_TOTP_SECRET_RESULT_COLS, sizeof(SSDataBlock));
+  TSDB_CHECK_NULL(pBlock, code, line, END, terrno);
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  TSDB_CHECK_NULL(pBlock->pDataBlock, code, line, END, terrno);
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = CREATE_TOTP_SECRET_RESULT_FIELD1_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  TSDB_CHECK_CODE(code, line, END);
+
+  SColumnInfoData* pResultCol = taosArrayGet(pBlock->pDataBlock, 0);
+  TSDB_CHECK_NULL(pResultCol, code, line, END, terrno);
+
+  char result[sizeof(pRsp->totpSecret) + 64] = {0};
+  STR_TO_VARSTR(result, pRsp->totpSecret);
+  code = colDataSetVal(pResultCol, 0, result, false);
+  TSDB_CHECK_CODE(code, line, END);
+
+  pBlock->info.rows = 1;
+
+  *block = pBlock;
+  return TSDB_CODE_SUCCESS;
+
+END:
+  if (pBlock) {
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+  }
+  return code;
+}
+
+static int32_t buildTableRspForCreateTotpSecret(SCreateTotpSecretRsp* pResp, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTotpSecretBlock(pResp, &pBlock);
+  if (code) {
+    return code;
+  }
+
+  size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
+  size_t rspSize = sizeof(SRetrieveTableRsp) + dataEncodeBufSize + PAYLOAD_PREFIX_LEN;
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    code = terrno;
+    goto _exit;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+
+  (*pRsp)->numOfRows = htobe64((int64_t)pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(CREATE_TOTP_SECRET_RESULT_COLS);
+
+  int32_t len =
+      blockEncode(pBlock, (*pRsp)->data + PAYLOAD_PREFIX_LEN, dataEncodeBufSize, CREATE_TOTP_SECRET_RESULT_COLS);
+  if (len < 0) {
+    uError("buildTableRspFroCreateTotpSecret error, len:%d", len);
+    code = terrno;
+    goto _exit;
+  }
+
+  blockDataDestroy(pBlock);
+  SET_PAYLOAD_LEN((*pRsp)->data, len, len);
+
+  int32_t payloadLen = len + PAYLOAD_PREFIX_LEN;
+  (*pRsp)->payloadLen = htonl(payloadLen);
+  (*pRsp)->compLen = htonl(payloadLen);
+
+  if (payloadLen != rspSize - sizeof(SRetrieveTableRsp)) {
+    uError("buildTableRspFroCreateTotpSecret error, len:%d != rspSize - sizeof(SRetrieveTableRsp):%" PRIu64, len,
+           (uint64_t)(rspSize - sizeof(SRetrieveTableRsp)));
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _exit;
+  }
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (*pRsp) {
+    taosMemoryFree(*pRsp);
+    *pRsp = NULL;
+  }
+  if (pBlock) {
+    blockDataDestroy(pBlock);
+    pBlock = NULL;
+  }
+  return code;
+}
+
+int32_t processCreateTotpSecretRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+  } else {
+    SCreateTotpSecretRsp    rsp = {0};
+    SRetrieveTableRsp* pRes = NULL;
+    code = tDeserializeSCreateTotpSecretRsp(pMsg->pData, pMsg->len, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildTableRspForCreateTotpSecret(&rsp, &pRes);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = setQueryResultFromRsp(&pRequest->body.resInfo, pRes, false, pRequest->stmtBindVersion > 0);
+    }
+
+    if (code != 0) {
+      pRequest->body.resInfo.pRspMsg = NULL;
+      taosMemoryFree(pRes);
+    }
+  }
+
+  taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
+int32_t processCreateXnodeTaskRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  if (code != TSDB_CODE_SUCCESS) {
+    setErrno(pRequest, code);
+    if (code == TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR) {
+      if (pMsg->pData != NULL && pMsg->len > 0) {
+        if (pMsg->len <= pRequest->msgBufLen) {
+          tstrncpy(pRequest->msgBuf, (char*)pMsg->pData, pRequest->msgBufLen);
+        } else {
+          taosMemoryFreeClear(pRequest->msgBuf);
+          pRequest->msgBuf = pMsg->pData;
+          pMsg->pData = NULL;
+          pRequest->msgBufLen = pMsg->len;
+        }
+      }
+    }
+  }
+
+  if (pMsg->pData) {
+    taosMemoryFree(pMsg->pData);
+  }
+  taosMemoryFree(pMsg->pEpSet);
+
+  if (pRequest->body.queryFp != NULL) {
+    pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+  } else if (tsem_post(&pRequest->body.rspSem) != 0) {
+    tscError("failed to post semaphore");
+  }
+  return code;
+}
+
+#ifdef TD_ENTERPRISE
+static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  SRequestObj* pRequest = param;
+  setErrno(pRequest, code);
+  txn_id_t orphanTxnId = 0;
+
+  if (code == TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
+    STscObj*   pTscObj = pRequest->pTscObj;
+    SMTransReq rsp = {0};
+    if (tDeserializeSMTransReq(pMsg->pData, pMsg->len, &rsp) == 0) {
+      (void)taosThreadMutexLock(&pTscObj->mutex);
+      pTscObj->txnId = rsp.txnId;
+      pTscObj->txnDdlCount = 0;
+      // Option is fixed at BEGIN and always overwritten, so it never leaks from a previous txn.
+      pTscObj->txnFlags = 0;
+      if (pRequest->pQuery != NULL && pRequest->pQuery->pRoot != NULL &&
+          nodeType(pRequest->pQuery->pRoot) == QUERY_NODE_BEGIN_TRANS_STMT &&
+          (((SBeginTransStmt*)pRequest->pQuery->pRoot)->flags & TRANS_STMT_FLAG_ALLOW_NONTXN)) {
+        pTscObj->txnFlags |= TSC_TXN_FLAG_ALLOW_NONTXN;
+      }
+      atomic_store_8(&pTscObj->txnState, UTXN_STAGE_ACTIVE);
+      if (pTscObj->pTxnVgSet == NULL) {
+        pTscObj->pTxnVgSet = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+        if (pTscObj->pTxnVgSet == NULL) {
+          orphanTxnId = rsp.txnId;
+          atomic_store_8(&pTscObj->txnState, 0);
+          pTscObj->txnId = 0;
+          pTscObj->txnFlags = 0;
+          (void)taosThreadMutexUnlock(&pTscObj->mutex);
+          code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          setErrno(pRequest, code);
+          tscBestEffortRollbackOrphanTxn(pTscObj, orphanTxnId, "processBeginTxnRsp");
+          tFreeSMTransReq(&rsp);
+          taosMemoryFree(pMsg->pEpSet);
+          taosMemoryFree(pMsg->pData);
+          if (pRequest->body.queryFp != NULL) {
+            doRequestCallback(pRequest, code);
+          } else {
+            if (tsem_post(&pRequest->body.rspSem) != 0) {
+              tscError("failed to post semaphore");
+            }
+          }
+          return code;
+        }
+      }
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " began", pTscObj->id, pTscObj->txnId);
+    } else {
+      code = TSDB_CODE_INVALID_MSG;
+      setErrno(pRequest, code);
+      tscError("conn:0x%" PRIx64 ", processBeginTxnRsp: deserialization failed", pTscObj->id);
+    }
+    tFreeSMTransReq(&rsp);
+  }
+
+  // On failure: reset txnState from UTXN_STAGE_BEGIN_PENDING back to IDLE
+  // so that future taos_txn_begin() calls are not permanently blocked.
+  if (code != TSDB_CODE_SUCCESS) {
+    STscObj* pTscObj = pRequest->pTscObj;
+    (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (pTscObj->txnState == UTXN_STAGE_BEGIN_PENDING) {
+      atomic_store_8(&pTscObj->txnState, UTXN_STAGE_IDLE);
+      pTscObj->txnFlags = 0;
+    }
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  }
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  if (pRequest->body.queryFp != NULL) {
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+// Reset all txn-local state on COMMIT or ROLLBACK.
+//
+// The per-connection pTxnTableMeta shadows the global catalog for the duration of the txn
+// (handleQueryExecRsp / processAlterStbRsp deliberately skip catalogUpdateTableMeta while txnId > 0,
+// so a concurrent connection never observes uncommitted schema). Freeing it here therefore un-shadows
+// whatever the global catalog still holds - which, for every table the txn altered, is the schema as
+// of BEGIN. Relying on catalogChkTbMetaVersion to notice is not enough: that only runs on a query
+// execution response, while a DDL statement resolves its target schema from the cache during
+// translate. The next statement after COMMIT would then be translated against the pre-txn schema.
+//
+// For some alters the resulting error code happens to sit in NEED_CLIENT_RM_TBLMETA_ERROR, so the
+// client silently evicts and retries and the staleness is invisible; for others it does not
+// (RENAME TAG yields TSDB_CODE_PAR_INVALID_TAG_NAME) and the statement fails outright. Rather than
+// widen that error-code whitelist - which would make every genuine typo pay a forced full refresh,
+// and still miss codes like PAR_DUPLICATED_COLUMN - evict exactly the tables this txn touched, at
+// the one point where the set is known precisely.
+void tscResetTxnState(STscObj* pTscObj) {
+  // Table names are collected under the mutex but evicted after releasing it: ctgRemoveTbMetaFromCache
+  // enqueues a synchronous request and blocks on the catalog worker, which must not happen while
+  // holding the connection mutex.
+  SArray* pStaleTables = NULL;
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  atomic_store_8(&pTscObj->txnState, 0);
+  pTscObj->txnId = 0;
+  pTscObj->txnFlags = 0;
+  pTscObj->txnDdlCount = 0;
+  tSimpleHashCleanup(pTscObj->pTxnVgSet);
+  pTscObj->pTxnVgSet = NULL;
+
+  if (pTscObj->pTxnTableMeta) {
+    // Best-effort: a failed alloc only costs a stale cache entry, exactly the behaviour before this
+    // eviction existed, so it must not block the state reset below.
+    pStaleTables = taosArrayInit(taosHashGetSize(pTscObj->pTxnTableMeta), sizeof(SName));
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter))) {
+      if (NULL != pStaleTables) {
+        size_t keyLen = 0;
+        char*  key = taosHashGetKey(pIter, &keyLen);
+        // The key is the "acct.db.table" full name used by tscTxnUpsertTableMeta. A DROP records a
+        // NULL sentinel under the same key and removeMeta already evicted it, but re-evicting a
+        // missing entry is a no-op, so the sentinel needs no special case here.
+        char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+        if (keyLen < TSDB_TABLE_FNAME_LEN) {
+          TAOS_MEMCPY(fullName, key, keyLen);
+          SName name = {0};
+          if (TSDB_CODE_SUCCESS ==
+              tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) {
+            if (NULL == taosArrayPush(pStaleTables, &name)) {
+              taosArrayDestroy(pStaleTables);
+              pStaleTables = NULL;
+            }
+          }
+        }
+      }
+      STableMeta** ppMeta = (STableMeta**)pIter;
+      taosMemoryFreeClear(*ppMeta);
+    }
+    // Cleared, not destroyed: requests still in flight on this connection (their parse context and catalog jobs)
+    // borrow this hash pointer. It lives as long as the connection and is destroyed in destroyTscObj.
+    taosHashClear(pTscObj->pTxnTableMeta);
+  }
+
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed. Cleared, not destroyed,
+  // for the same reason as pTxnTableMeta.
+  taosHashClear(pTscObj->pTxnSuidMap);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
+  if (NULL != pStaleTables) {
+    SCatalog* pCatalog = NULL;
+    int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      int32_t tbNum = taosArrayGetSize(pStaleTables);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pName = taosArrayGet(pStaleTables, i);
+        if (NULL == pName) {
+          continue;
+        }
+        // Best-effort per table: a failure leaves one stale entry that a later version check or
+        // NEED_CLIENT_HANDLE_ERROR retry still recovers from, so keep evicting the rest.
+        int32_t rmCode = catalogRemoveTableMeta(pCatalog, pName);
+        if (TSDB_CODE_SUCCESS != rmCode) {
+          tscWarn("conn:0x%" PRIx64 ", failed to evict txn-altered table meta %s.%s, code:%s", pTscObj->id,
+                  pName->dbname, pName->tname, tstrerror(rmCode));
+        }
+      }
+    } else {
+      tscWarn("conn:0x%" PRIx64 ", failed to get catalog handle to evict txn-altered table meta, code:%s", pTscObj->id,
+              tstrerror(code));
+    }
+    taosArrayDestroy(pStaleTables);
+  }
+}
+
+// Terminal codes: txn no longer active on MNode  -  safe to discard client-side state.
+static bool tscIsTxnTerminalCode(int32_t code) {
+  return code == 0 || code == TSDB_CODE_TXN_COMMITTED || code == TSDB_CODE_TXN_ROLLEDBACK ||
+         code == TSDB_CODE_TXN_NOT_EXIST || code == TSDB_CODE_TXN_NOT_IN_PROGRESS;
+}
+
+static int32_t processTxnEndRsp(void* param, SDataBuf* pMsg, int32_t code, const char* op) {
+  SRequestObj* pRequest = param;
+  setErrno(pRequest, code);
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  tscInfo("conn:0x%" PRIx64 ", txn:%" PRIu64 " %s %s (SQL path)", pTscObj->id, pTscObj->txnId, op,
+          (code == 0) ? "success" : tstrerror(code));
+  if (tscIsTxnTerminalCode(code)) {
+    tscResetTxnState(pTscObj);
+  } else {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " %s failed with transient error %s, keeping txn state for retry",
+            pTscObj->id, pTscObj->txnId, op, tstrerror(code));
+  }
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  if (pRequest->body.queryFp != NULL) {
+    doRequestCallback(pRequest, code);
+  } else {
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("failed to post semaphore");
+    }
+  }
+  return code;
+}
+
+static int32_t processCommitTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  return processTxnEndRsp(param, pMsg, code, "commit");
+}
+
+static int32_t processRollbackTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
+  return processTxnEndRsp(param, pMsg, code, "rollback");
+}
+#endif
 
 __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
   switch (msgType) {
@@ -870,6 +1928,26 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return processShowVariablesRsp;
     case TDMT_MND_COMPACT_DB:
       return processCompactDbRsp;
+    case TDMT_MND_TRIM_DB:
+      return processTrimDbRsp;
+    case TDMT_MND_SCAN_DB:
+      return processScanDbRsp;
+    case TDMT_MND_CREATE_TOKEN:
+      return processCreateTokenRsp;
+    case TDMT_MND_CREATE_TOTP_SECRET:
+      return processCreateTotpSecretRsp;
+    case TDMT_MND_CREATE_XNODE_TASK:
+      return processCreateXnodeTaskRsp;
+
+#ifdef TD_ENTERPRISE
+    case TDMT_MND_BEGIN_TXN:
+      return processBeginTxnRsp;
+    case TDMT_MND_COMMIT_TXN:
+      return processCommitTxnRsp;
+    case TDMT_MND_ROLLBACK_TXN:
+      return processRollbackTxnRsp;
+#endif
+
     default:
       return genericRspCallback;
   }

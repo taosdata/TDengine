@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,7 +34,7 @@ void executeSQL(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int       code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "%s\n", taos_errstr(res));
+    printf("exec failed, error: %s\n", taos_errstr(res));
     taos_free_result(res);
     taos_close(taos);
     exit(EXIT_FAILURE);
@@ -49,8 +51,8 @@ void executeSQL(TAOS *taos, const char *sql) {
  */
 void checkErrorCode(TAOS_STMT *stmt, int code, const char *msg) {
   if (code != 0) {
-    fprintf(stderr, "%s. code: %d, error: %s\n", msg,code,taos_stmt_errstr(stmt));
-    taos_stmt_close(stmt);
+    printf("stmt failed:%s, code: %d, error: %s\n", msg, code, taos_stmt_errstr(stmt));
+    (void)taos_stmt_close(stmt);
     exit(EXIT_FAILURE);
   }
 }
@@ -74,8 +76,8 @@ void insertData(TAOS *taos) {
   // init
   TAOS_STMT *stmt = taos_stmt_init(taos);
   if (stmt == NULL) {
-      fprintf(stderr, "Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
-      exit(EXIT_FAILURE);
+    printf("Failed to init taos_stmt, error: %s\n", taos_stmt_errstr(NULL));
+    exit(EXIT_FAILURE);
   }
   // prepare
   const char *sql = "INSERT INTO ? USING meters TAGS(?,?) VALUES (?,?,?,?)";
@@ -99,7 +101,7 @@ void insertData(TAOS *taos) {
     // location
     tags[1].buffer_type = TSDB_DATA_TYPE_BINARY;
     tags[1].buffer_length = strlen(location);
-    tags[1].length =(int32_t *) &tags[1].buffer_length;
+    tags[1].length = (int32_t *)&tags[1].buffer_length;
     tags[1].buffer = location;
     tags[1].is_null = NULL;
     tags[1].num = 1;
@@ -134,13 +136,10 @@ void insertData(TAOS *taos) {
     params[3].num = 1;
 
     for (int j = 0; j < num_of_row; j++) {
-      struct timeval tv;
-      gettimeofday(&tv, NULL);
-      long long milliseconds = tv.tv_sec * 1000LL + tv.tv_usec / 1000;  // current timestamp in milliseconds
-      int64_t   ts = milliseconds + j;
-      float     current = (float)rand() / RAND_MAX * 30;
-      int       voltage = rand() % 300;
-      float     phase = (float)rand() / RAND_MAX;
+      int64_t   ts = 1609459200000LL + i * num_of_row * 1000LL + j * 1000LL;
+      float     current = 10.0f + j * 0.5f;
+      int       voltage = 100 + j * 10;
+      float     phase = 0.1f + j * 0.05f;
       params[0].buffer = &ts;
       params[1].buffer = &current;
       params[2].buffer = &voltage;
@@ -159,18 +158,19 @@ void insertData(TAOS *taos) {
     int affected = taos_stmt_affected_rows_once(stmt);
     total_affected += affected;
   }
-  fprintf(stdout, "Successfully inserted %d rows to power.meters.\n", total_affected);
-  taos_stmt_close(stmt);
+  printf("Successfully inserted %d rows to power.meters.\n", total_affected);
+  (void)taos_stmt_close(stmt);
 }
 
 int main() {
-  const char *host      = "localhost";
-  const char *user      = "root";
-  const char *password  = "taosdata";
-  uint16_t    port      = 6030;
-  TAOS *taos = taos_connect(host, user, password, NULL, port);
+  const char *host = "localhost";
+  const char *user = "root";
+  const char *password = "taosdata";
+  uint16_t    port = 6030;
+  TAOS       *taos = taos_connect(host, user, password, NULL, port);
   if (taos == NULL) {
-    fprintf(stderr, "Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL), taos_errstr(NULL));
+    printf("Failed to connect to %s:%hu, ErrCode: 0x%x, ErrMessage: %s.\n", host, port, taos_errno(NULL),
+           taos_errstr(NULL));
     taos_cleanup();
     exit(EXIT_FAILURE);
   }

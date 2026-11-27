@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -33,7 +35,7 @@
 TEST(testCase, tSimpleHashTest_intKey) {
   SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
-  assert(pHashObj != nullptr);
+  TD_ALWAYS_ASSERT(pHashObj != nullptr);
 
   ASSERT_EQ(0, tSimpleHashGetSize(pHashObj));
 
@@ -82,7 +84,7 @@ ASSERT(code == 0);
 TEST(testCase, tSimpleHashTest_binaryKey) {
   SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
-  assert(pHashObj != nullptr);
+  TD_ALWAYS_ASSERT(pHashObj != nullptr);
 
   ASSERT_EQ(0, tSimpleHashGetSize(pHashObj));
 

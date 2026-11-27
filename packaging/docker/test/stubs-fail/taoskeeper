@@ -1,0 +1,9 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Test stub for the docker entrypoint regression suite.
+
+echo "$$" > /tmp/taoskeeper.pid
+exec sleep 3600

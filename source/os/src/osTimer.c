@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -51,6 +53,7 @@ static volatile int timer_stop = 0;
 static void* timer_routine(void* arg) {
   (void)arg;
   setThreadName("timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   int             r = 0;
   struct timespec to = {0};
@@ -75,7 +78,9 @@ void taos_block_sigalrm(void) {
 }
 
 #else
+#ifndef TD_ASTRA
 #include <sys/syscall.h>
+#endif
 #include <unistd.h>
 
 static void taosDeleteTimer(void *tharg) {
@@ -87,6 +92,8 @@ static TdThread      timerThread;
 static timer_t       timerId;
 static volatile bool stopTimer = false;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
 static void *taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
@@ -98,10 +105,13 @@ static void *taosProcessAlarmSignal(void *tharg) {
   struct sigevent sevent = {{0}};
 
   setThreadName("tmr");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
 #ifdef _ALPINE
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent.sigev_notify_thread_id = syscall(__NR_gettid);
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  sevent.sigev_notify = SIGEV_THREAD;
 #else
   sevent.sigev_notify = SIGEV_THREAD_ID;
   sevent._sigev_un._tid = syscall(__NR_gettid);
@@ -110,8 +120,8 @@ static void *taosProcessAlarmSignal(void *tharg) {
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-     terrno = TAOS_SYSTEM_ERROR(errno);
-     return NULL;
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return NULL;
   }
 
   taosThreadCleanupPush(taosDeleteTimer, &timerId);
@@ -124,11 +134,11 @@ static void *taosProcessAlarmSignal(void *tharg) {
     ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
     if (-1 == timer_settime(timerId, 0, &ts, NULL)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
       break;
     }
 
-    int signo;
+    int     signo;
     int32_t code = 0;
     while (!stopTimer) {
       code = sigwait(&sigset, &signo);
@@ -145,6 +155,7 @@ static void *taosProcessAlarmSignal(void *tharg) {
 
   return NULL;
 }
+#pragma GCC diagnostic pop
 #endif
 
 int taosInitTimer(void (*callback)(int), int ms) {
@@ -216,17 +227,9 @@ void taosUninitTimer() {
 }
 
 int64_t taosGetMonotonicMs() {
-#if 0  
-  return getMonotonicUs() / 1000;
-#else
-  return taosGetTimestampMs();
-#endif
+  return taosGetMonoTimestampMs();
 }
 
 const char *taosMonotonicInit() {
-#if 0
-  return monotonicInit();
-#else
-  return NULL;
-#endif
+  return "CLOCK_MONOTONIC";
 }

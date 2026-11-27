@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -189,6 +191,8 @@ int32_t mpChunkNSAllocMem(SMemPool* pPool, SMPSession* pSession, int64_t size, u
   SMPNSChunk* pChunk = NULL;
   void* pRes = NULL;
   int64_t totalSize = size + sizeof(SMPMemHeader) + sizeof(SMPMemTailer) + alignment;
+  
+
   
   MP_ERR_JRET(mpChunkNewNS(pPool, &pChunk, totalSize));
   SMPMemHeader* pHeader = (SMPMemHeader*)pChunk->pMemStart;

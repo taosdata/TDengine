@@ -1,0 +1,64 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'a' AND abs(i) > 2 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000003000000000 |      9007199254740993 |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = 'a' AND abs(i) > 2 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=2 width=16) |
+          Output: columns=2 width=16 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=3 width=65535 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=((`rows`.`site` = 'a') AND (abs(`rows`.`i`) > 2)) |
+
+taos> SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2;
+        sum(i)         |
+========================
+      9007199254741012 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2;
+QUERY_PLAN |
+============
+ -> Aggregate (functions=1 width=8 input_order=unknown) |
+       Output: columns=1 width=8 blocking=1 |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=1 width=8 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+          Filter: conditions=((`rows`.`i` >= 3) AND (abs(`rows`.`i`) > 2)) |
+
+taos> SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2 ORDER BY time DESC LIMIT 2 OFFSET 1;
+           i           |             d             |
+====================================================
+                     7 |                       5.5 |
+      9007199254740993 | NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 AND abs(i) > 2 ORDER BY time DESC LIMIT 2 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 limit=2 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=desc  (columns=2 width=16) |
+          Output: columns=2 width=16 limit=3 offset=0 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=24) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=3 width=24 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=((`rows`.`i` >= 3) AND (abs(`rows`.`i`) > 2)) |

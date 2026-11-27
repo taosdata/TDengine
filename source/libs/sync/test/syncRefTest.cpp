@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -51,7 +68,7 @@ void cleanup() {
 
 int64_t start() {
   SyncObj *pObj = (SyncObj *)taosMemoryMalloc(sizeof(SyncObj));
-  assert(pObj != NULL);
+  TD_ALWAYS_ASSERT(pObj != NULL);
 
   pObj->data = &g;
   snprintf(pObj->name, sizeof(pObj->name), "%s", "hello");
@@ -105,10 +122,10 @@ int main() {
   int32_t ret;
 
   ret = init();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   int64_t rid = start();
-  assert(rid > 0);
+  TD_ALWAYS_ASSERT(rid > 0);
 
   for (int i = 0; i < 20; ++i) {
     TdThread tid;

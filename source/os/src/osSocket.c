@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -40,10 +42,24 @@
 #if defined(DARWIN)
 #include <dispatch/dispatch.h>
 #include "osEok.h"
-#else
+#elif !defined(TD_ASTRA)
 #include <sys/epoll.h>
 #endif
 #endif
+
+#ifdef TD_ASTRA
+#ifndef __BYTE_ORDER
+#define __BYTE_ORDER _BYTE_ORDER
+#endif
+
+#ifndef __BIG_ENDIAN
+#define __BIG_ENDIAN _BIG_ENDIAN
+#endif
+
+#ifndef __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN _LITTLE_ENDIAN
+#endif
+#endif  // TD_ASTRA
 
 #ifndef INVALID_SOCKET
 #define INVALID_SOCKET -1
@@ -84,7 +100,7 @@ int32_t taosCloseSocketNoCheck1(SocketFd fd) {
 #else
   int32_t code = close(fd);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return code;
@@ -143,7 +159,7 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 #else
   int32_t code = setsockopt(pSocket->fd, level, optname, optval, (int)optlen);
   if (-1 == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return 0;
@@ -153,7 +169,7 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
   const char *r = inet_ntop(AF_INET, &ipInt, dstStr, len);
   if (NULL == r) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return r;
@@ -165,7 +181,7 @@ const char *taosInetNtop(struct in_addr ipInt, char *dstStr, int32_t len) {
 
 #define TCP_CONN_TIMEOUT 3000  // conn timeout
 
-bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+int8_t taosValidIpAndPort(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;
   int32_t            reuse;
@@ -184,14 +200,14 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
   if (-1 == fd) {  // exception
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return false;
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return 0;
   }
 
   TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
   if (pSocket == NULL) {
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
-    return false;
+    return 0;
   }
   pSocket->refId = 0;
   pSocket->fd = fd;
@@ -200,19 +216,19 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   reuse = 1;
   if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   /* bind socket to server address */
   if (-1 == bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd))) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
-    return false;
+    return 0;
   }
 
   TAOS_SKIP_ERROR(taosCloseSocket(&pSocket));
 
-  return true;
+  return 1;
 }
 
 int32_t taosBlockSIGPIPE() {
@@ -230,6 +246,178 @@ int32_t taosBlockSIGPIPE() {
 
   return 0;
 #endif
+}
+
+// Classify a socket address as private/internal or public.
+// Recognizes RFC-1918, loopback, link-local, CGNAT, ULA, and other reserved ranges.
+// Used as the core validation primitive by taosIsPrivateUrl (DNS check) and by the
+// libcurl opensocket callback in tanalytics.c (connection-time check). Cross-platform:
+// works identically on POSIX and Winsock2 (sockaddr_in, sockaddr_in6, ntohl, memcmp are
+// standard).
+// Fail-closed: returns true (block) for NULL, unknown address families (AF_UNIX,
+// AF_UNSPEC, etc.), and all private/reserved ranges; returns false only for
+// recognized public IPv4/IPv6 addresses.
+bool taosIsPrivateIp(const struct sockaddr *addr) {
+  if (addr == NULL) return true;
+  if (addr->sa_family == AF_INET) {
+    uint32_t ip = ntohl(((const struct sockaddr_in *)addr)->sin_addr.s_addr);
+    return (ip >> 24) == 0 ||                    /* 0.0.0.0/8      this-network  */
+           (ip >> 24) == 10 ||                   /* 10.0.0.0/8     RFC-1918      */
+           (ip >> 24) == 127 ||                  /* 127.0.0.0/8    loopback      */
+           (ip & 0xffc00000U) == 0x64400000U ||  /* 100.64.0.0/10  CGNAT         */
+           (ip & 0xffff0000U) == 0xa9fe0000U ||  /* 169.254.0.0/16 link-local    */
+           (ip & 0xfff00000U) == 0xac100000U ||  /* 172.16.0.0/12  RFC-1918      */
+           (ip & 0xffffff00U) == 0xc0000000U ||  /* 192.0.0.0/24   IETF protocol */
+           (ip & 0xffff0000U) == 0xc0a80000U ||  /* 192.168.0.0/16 RFC-1918      */
+           (ip & 0xff000000U) == 0xe0000000U ||  /* 224.0.0.0/4    multicast     */
+           (ip & 0xf0000000U) == 0xf0000000U ||  /* 240.0.0.0/4    reserved      */
+           (ip & 0xfffe0000U) == 0xc6120000U ||  /* 198.18.0.0/15  benchmarking  */
+           ip == 0xffffffffU;                    /* 255.255.255.255 broadcast    */
+
+  }
+  if (addr->sa_family == AF_INET6) {
+    const uint8_t       *b = ((const struct sockaddr_in6 *)addr)->sin6_addr.s6_addr;
+    static const uint8_t v4mapped[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+    /* ::ffff:a.b.c.d  IPv4-mapped address, apply the IPv4 rules to the low 32 bits */
+    if (memcmp(b, v4mapped, sizeof(v4mapped)) == 0) {
+      struct sockaddr_in v4 = {0};
+      v4.sin_family = AF_INET;
+      memcpy(&v4.sin_addr, b + 12, 4);
+      return taosIsPrivateIp((const struct sockaddr *)&v4);
+    }
+
+    static const uint8_t loopback6[16] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    bool                 isUnspecified = true;
+    for (int32_t i = 0; i < 16; ++i) {
+      if (b[i] != 0) {
+        isUnspecified = false;
+        break;
+      }
+    }
+
+    return isUnspecified ||                            /* ::      unspecified  */
+           memcmp(b, loopback6, sizeof(loopback6)) == 0 || /* ::1  loopback    */
+           (b[0] == 0xfe && (b[1] & 0xc0) == 0x80) ||  /* fe80::/10 link-local */
+           (b[0] == 0xfe && (b[1] & 0xc0) == 0xc0) ||  /* fec0::/10 site-local */
+           (b[0] == 0xff) ||                           /* ff00::/8  multicast  */
+           (b[0] & 0xfe) == 0xfc;                      /* fc00::/7  ULA        */
+
+  }
+  // fail-closed: unknown address families (AF_UNIX, AF_UNSPEC, etc.) are treated as
+  // internal/blocked rather than allowed through as "public".
+  return true;
+}
+
+/*
+ * Extract the host part from a url into host.
+ * Handles the optional "userinfo@" prefix, the optional ":port" suffix and
+ * bracketed IPv6 literals such as http://[fe80::1]:6041/path.
+ * IPv6 zone IDs (e.g. http://[fe80::1%25eth0]:6041) are stripped before
+ * returning so that getaddrinfo receives a bare address without the zone suffix.
+ * Returns 0 on success, -1 when the authority component can not be parsed.
+ */
+static int32_t taosParseUrlHost(const char *url, char *host, int32_t hostLen) {
+  if (url == NULL || host == NULL || hostLen <= 0) return -1;
+
+  const char *p = strstr(url, "://");
+  if (p == NULL) return -1;
+  p += 3;
+
+  /* the authority component ends at the first '/', '?' or '#' */
+  const char *authEnd = p + strcspn(p, "/?#");
+
+  /* the host starts after the last '@' of the userinfo part */
+  const char *hostStart = p;
+  for (const char *q = p; q < authEnd; ++q) {
+    if (*q == '@') hostStart = q + 1;
+  }
+  if (hostStart >= authEnd) return -1;
+
+  if (*hostStart == '[') {
+    /* bracketed IPv6 literal, the port follows the closing ']' */
+    const char *close = memchr(hostStart + 1, ']', (size_t)(authEnd - hostStart - 1));
+    if (close == NULL) return -1;
+
+    int32_t len = (int32_t)(close - hostStart - 1);
+    if (len <= 0 || len >= hostLen) return -1;
+
+    memcpy(host, hostStart + 1, len);
+    host[len] = '\0';
+
+    /* strip IPv6 zone ID: "fe80::1%25eth0" -> "fe80::1" (RFC 6874 percent-encodes '%' as %25) */
+    char *zone = strchr(host, '%');
+    if (zone != NULL) *zone = '\0';
+    return 0;
+  }
+
+  /* plain host name or IPv4 literal, exclude the optional ":port" */
+  int32_t     len   = (int32_t)(authEnd - hostStart);
+  const char *colon = memchr(hostStart, ':', (size_t)len);
+  if (colon != NULL) len = (int32_t)(colon - hostStart);
+  if (len <= 0 || len >= hostLen) return -1;
+
+  memcpy(host, hostStart, len);
+  host[len] = '\0';
+  return 0;
+}
+
+// Perform a fast, early rejection of URLs that resolve to private/internal addresses.
+// IMPORTANT: This is a front-gate check only, not a complete SSRF defense.
+// DNS rebinding (TOCTOU window) can occur between this check and actual connection:
+// - At check time, getaddrinfo(host) may resolve to a public IP, passing this check.
+// - At connection time (curl), the same hostname may resolve to a private IP.
+// Mitigation: all callers MUST validate the peer address at connection time.
+// For curl-based transports, install a CURLOPT_OPENSOCKETFUNCTION callback: it runs
+// before connect() and is handed the resolved peer address (see taosCurlOpensocketCb
+// in tanalytics.c), so rejecting there closes this window and no connection to the
+// internal address is ever made. CURLOPT_SOCKOPTFUNCTION can not be used for that:
+// it also runs before connect(), where getpeername() reports no peer yet.
+bool taosIsPrivateUrl(const char *url) {
+  if (url == NULL) return true;
+
+  char host[256] = {0};
+  if (taosParseUrlHost(url, host, (int32_t)sizeof(host)) != 0) return true;
+
+  /* fail closed: only a resolved public address clears the verdict */
+  bool blocked = true;
+
+#ifdef WINDOWS
+  // Initialize Winsock, getaddrinfo is a Winsock 2 API and fails with
+  // WSANOTINITIALISED when no WSAStartup 2.x has been performed in this process
+  // (taosWinSocketInit negotiates 1.1 only), which would block every URL.
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    uError("taosIsPrivateUrl: WSAStartup failed: %d, treating '%s' as blocked", iResult, host);
+    return true;
+  }
+#endif
+
+  struct addrinfo hints = {0}, *res = NULL, *rp;
+  hints.ai_family   = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+  int rc = getaddrinfo(host, NULL, &hints, &res);
+  if (rc != 0) {
+    uError("taosIsPrivateUrl: DNS resolution failed for '%s': %s; treating as blocked", host, gai_strerror(rc));
+    goto _err;
+  }
+
+  blocked = false;
+  for (rp = res; rp != NULL; rp = rp->ai_next) {
+    if (taosIsPrivateIp(rp->ai_addr)) {
+      uDebug("taosIsPrivateUrl: '%s' resolves to a private/internal address, blocked", host);
+      blocked = true;
+      break;
+    }
+  }
+  freeaddrinfo(res);
+
+_err:
+#ifdef WINDOWS
+  WSACleanup();
+#endif
+  return blocked;
 }
 
 int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
@@ -264,11 +452,11 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
         inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
-        code = TAOS_SYSTEM_ERROR(errno);
+        code = TAOS_SYSTEM_ERROR(ERRNO);
         goto _err;
       }
 
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       goto _err;
     }
 
@@ -299,7 +487,7 @@ int32_t taosGetIpv4FromFqdn(const char *fqdn, uint32_t *ip) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
     } else {
       // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
@@ -319,7 +507,239 @@ _err:
   }
   return code;
 }
+int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *pAddr) {
+  int32_t code = 0;
+  OS_PARAM_CHECK(fqdn);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
+  }
+#endif
 
+#if defined(LINUX)
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+  bool             inRetry = false;
+
+  char ipStr[INET6_ADDRSTRLEN];
+  while (true) {
+    int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+    if (ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
+        continue;
+      } else if (EAI_SYSTEM == ret) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        goto _err;
+      }
+
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      goto _err;
+    }
+
+    if (result->ai_family == AF_INET6) {
+      struct sockaddr_in6 *p6 = (struct sockaddr_in6 *)result->ai_addr;
+
+      const char *t = inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+      TAOS_UNUSED(t);
+
+      pAddr->type = 1;
+    } else if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+
+      const char *t = inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      TAOS_UNUSED(t);
+
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+
+    freeaddrinfo(result);
+    goto _err;
+  }
+#else
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_UNSPEC;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    if (result->ai_family == AF_INET6) {
+      struct sockaddr_in6 *p6 = (struct sockaddr_in6 *)result->ai_addr;
+      inet_ntop(AF_INET6, &p6->sin6_addr, pAddr->ipv6, sizeof(pAddr->ipv6));
+      pAddr->type = 1;
+    } else if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+    freeaddrinfo(result);
+    goto _err;
+  } else {
+#ifdef EAI_SYSTEM
+    if (ret == EAI_SYSTEM) {
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
+    } else {
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    }
+#else
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+#endif
+  }
+#endif
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+
+#ifdef WINDOWS
+  WSACleanup();
+#endif
+  return code;
+}
+
+int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *pAddr) {
+  int32_t code = 0;
+  OS_PARAM_CHECK(fqdn);
+  int64_t limitMs = 1000;
+  int64_t st = taosGetTimestampMs(), cost = 0;
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    code = TAOS_SYSTEM_WINSOCKET_ERROR(WSAGetLastError());
+    goto _err;
+  }
+#endif
+
+#if defined(LINUX)
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+  bool             inRetry = false;
+
+  char ipStr[INET6_ADDRSTRLEN];
+  while (true) {
+    int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+    if (ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
+        continue;
+      } else if (EAI_SYSTEM == ret) {
+        code = TAOS_SYSTEM_ERROR(ERRNO);
+        goto _err;
+      }
+
+      code = TAOS_SYSTEM_ERROR(ERRNO);
+      goto _err;
+    }
+
+    if (result->ai_family == AF_INET) {
+      struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+      const char         *t = inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+      TAOS_UNUSED(t);
+
+      pAddr->type = 0;
+    } else {
+      code = TSDB_CODE_RPC_FQDN_ERROR;
+      goto _err;
+    }
+
+    freeaddrinfo(result);
+    goto _err;
+  }
+#else
+  struct addrinfo hints = {0};
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  struct addrinfo *result = NULL;
+
+  int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
+  if (result) {
+    struct sockaddr_in *p4 = (struct sockaddr_in *)result->ai_addr;
+    inet_ntop(AF_INET, &p4->sin_addr, pAddr->ipv4, sizeof(pAddr->ipv4));
+    freeaddrinfo(result);
+    pAddr->type = 0;
+    goto _err;
+  } else {
+#ifdef EAI_SYSTEM
+    if (ret == EAI_SYSTEM) {
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, ERRNO, strerror(ERRNO));
+    } else {
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    }
+    code = TSDB_CODE_RPC_FQDN_ERROR;
+#else
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+#endif
+  }
+#endif
+
+_err:
+  cost = taosGetTimestampMs() - st;
+  if (cost >= limitMs) {
+    uWarn("get ip from fqdn:%s, cost:%" PRId64 "ms", fqdn, cost);
+  }
+#ifdef WINDOWS
+  WSACleanup();
+#endif
+  return code;
+}
+int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr) {
+  int32_t code = 0;
+  if (enableIpv6) {
+    code = taosGetIpv6FromFqdn(fqdn, addr);
+  } else {
+    code = taosGetIp4FromFqdn(fqdn, addr);
+  }
+  return code;
+}
+
+int8_t taosIpAddrIsEqual(SIpAddr *ip1, SIpAddr *ip2) {
+  if (ip1->type == ip2->type) {
+    if (ip1->type == 0) {
+      return (strcmp(ip1->ipv4, ip2->ipv4) == 0 ? 1 : 0);
+    } else {
+      return (strcmp(ip1->ipv6, ip2->ipv6) == 0 ? 1 : 0);
+    }
+  }
+  return 0;
+}
+
+int32_t taosGetFqdnWithTimeCost(char *fqdn, int64_t *timeoutMs) {
+  int32_t code = 0;
+  int64_t startMs = taosGetTimestampMs();
+
+  code = taosGetFqdn(fqdn);
+  int64_t cost = taosGetTimestampMs() - startMs;
+  if (timeoutMs != NULL) {
+    *timeoutMs = cost;
+  }
+  return code;
+}
 int32_t taosGetFqdn(char *fqdn) {
   OS_PARAM_CHECK(fqdn);
 #ifdef WINDOWS
@@ -350,20 +770,23 @@ int32_t taosGetFqdn(char *fqdn) {
 #else  // linux
 
 #endif  // linux
-
-#if defined(LINUX)
+#if defined(TD_ASTRA)
+  tstrncpy(fqdn, hostname, TD_FQDN_LEN);
+#elif defined(LINUX)
 
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
   hints.ai_flags = AI_CANONNAME;
+  bool inRetry = false;
 
   while (true) {
     int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
     if (ret) {
-      if (EAI_AGAIN == ret) {
+      if (EAI_AGAIN == ret && !inRetry) {
+        inRetry = true;
         continue;
       } else if (EAI_SYSTEM == ret) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
         return terrno;
       }
 
@@ -400,11 +823,11 @@ void taosInetNtoa(char *ipstr, uint32_t ip) {
   if (ipstr == NULL) {
     return;
   }
-  unsigned char *bytes = (unsigned char *) &ip;
+  unsigned char *bytes = (unsigned char *)&ip;
   (void)snprintf(ipstr, TD_IP_LEN, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);
 }
 
-uint32_t taosInetAddr(const char *ipstr){
+uint32_t taosInetAddr(const char *ipstr) {
   if (ipstr == NULL) {
     return 0;
   }
@@ -414,10 +837,9 @@ uint32_t taosInetAddr(const char *ipstr){
 int32_t taosIgnSIGPIPE() {
   sighandler_t h = signal(SIGPIPE, SIG_IGN);
   if (SIG_ERR == h) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
-
   return 0;
 }
 
@@ -425,15 +847,16 @@ int32_t taosIgnSIGPIPE() {
  * Set TCP connection timeout per-socket level.
  * ref [https://github.com/libuv/help/issues/54]
  */
-int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
+int32_t taosCreateSocketWithTimeout(uint32_t timeout, int8_t t) {
 #if defined(WINDOWS)
   SOCKET fd;
 #else
   int fd;
 #endif
+  int32_t type = t == 0 ? AF_INET : AF_INET6;
 
-  if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+  if ((fd = socket(type, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -449,10 +872,18 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   //  taosCloseSocketNoCheck1(fd);
   //  return -1;
   //}
-#else  // Linux like systems
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
+  uint32_t conn_timeout_ms = timeout;
+  if (0 != setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms)) ||
+      0 != setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
+    return terrno;
+  }
+#else                    // Linux like systems
   uint32_t conn_timeout_ms = timeout;
   if (-1 == setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseSocketNoCheck1(fd));
     return terrno;
   }
@@ -508,16 +939,108 @@ uint64_t taosNtoh64(uint64_t val) {
 }
 
 int32_t taosSetSockOpt2(int32_t fd) {
-#if defined(WINDOWS) || defined(DARWIN)
+#if defined(WINDOWS)
+#ifndef SIO_TCP_SET_ACK_FREQUENCY
+#define SIO_TCP_SET_ACK_FREQUENCY _WSAIOW(IOC_VENDOR, 23)
+#endif
+  int   freq = 1;
+  DWORD bytesReturned = 0;
+  if (WSAIoctl((SOCKET)(uintptr_t)fd, SIO_TCP_SET_ACK_FREQUENCY, &freq, sizeof(freq), NULL, 0, &bytesReturned, NULL,
+               NULL) == SOCKET_ERROR) {
+    terrno = TAOS_SYSTEM_ERROR(WSAGetLastError());
+    return terrno;
+  }
+  return 0;
+#elif defined(DARWIN) || defined(TD_ASTRA)
   return 0;
 #else
   int32_t ret = setsockopt(fd, IPPROTO_TCP, TCP_QUICKACK, (int[]){1}, sizeof(int));
   if (ret < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     return 0;
   }
 #endif
+}
+
+int32_t taosSetTcpKeepalive(int fd, int keepalive_sec) {
+#if defined(WINDOWS)
+  #ifndef TD_TCP_KEEPALIVE_DEFINED
+  #define TD_TCP_KEEPALIVE_DEFINED
+  #ifndef SIO_KEEPALIVE_VALS
+  #define SIO_KEEPALIVE_VALS 0x98000004
+  #endif
+  struct td_tcp_keepalive {
+    uint32_t onoff;
+    uint32_t keepalivetime;
+    uint32_t keepaliveinterval;
+  };
+  #endif
+  struct td_tcp_keepalive vals;
+  vals.onoff = 1;
+  vals.keepalivetime = keepalive_sec * 1000;
+  vals.keepaliveinterval = 1000;
+  DWORD bytesReturned = 0;
+  if (WSAIoctl((SOCKET)(uintptr_t)fd, SIO_KEEPALIVE_VALS, &vals, sizeof(vals), NULL, 0, &bytesReturned, NULL,
+               NULL) == SOCKET_ERROR) {
+    terrno = TAOS_SYSTEM_ERROR(WSAGetLastError());
+    return terrno;
+  }
   return 0;
+#elif defined(DARWIN)
+  // macOS: setsockopt-based keepalive
+  int32_t on = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t idle = keepalive_sec;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPALIVE, &idle, sizeof(idle)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+#else
+  // Linux: setsockopt-based keepalive
+  int32_t on = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t idle = keepalive_sec;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  int32_t intvl = 1;
+  if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  return 0;
+#endif
+}
+
+int32_t taosValidFqdn(int8_t enableIpv6, char *fqdn) {
+  int32_t code = 0;
+  SIpAddr addr = {.type = -1};
+  code = taosGetIpFromFqdn(enableIpv6, fqdn, &addr);
+  if (code != 0) {
+    return code;
+  }
+
+  if (enableIpv6) {
+    // when ipv6 is enabled, allow both IPv4 and IPv6 addresses
+    // taosGetIpFromFqdn will use AF_UNSPEC and return first available address
+    // both IPv4 (type=0) and IPv6 (type=1) are acceptable
+    if (addr.type != 0 && addr.type != 1) {
+      return TSDB_CODE_RPC_FQDN_ERROR;
+    }
+    return code;  // validation always succeeds when ipv6 is enabled (dual-stack mode)
+  } else {
+    if (addr.type == 1) return TSDB_CODE_RPC_FQDN_ERROR;
+  }
+
+  return code;
 }

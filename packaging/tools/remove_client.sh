@@ -1,43 +1,90 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Script to stop the client and uninstall database, but retain the config and log files.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 # set -x
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
+verMode=edge
+PREFIX="taos"
 
-installDir="/usr/local/taos"
 clientName="taos"
 uninstallScript="rmtaos"
 
 clientName2="taos"
 productName2="TDengine"
+productName="TDengine TSDB"
 
 benchmarkName2="${clientName2}Benchmark"
 demoName2="${clientName2}demo"
 dumpName2="${clientName2}dump"
+inspect_name="${clientName2}inspect"
+taosgen_name="${clientName2}taosgen"
 uninstallScript2="rm${clientName2}"
 
-installDir="/usr/local/${clientName2}"
+# User mode detection and path setup
+if [ "$(id -u)" -ne 0 ]; then
+  user_mode=1
+  installDir="$HOME/${clientName2}"
+  bin_link_dir="$HOME/.local/bin"
+  lib_link_dir="$HOME/.local/lib"
+  lib64_link_dir="$HOME/.local/lib64"
+  inc_link_dir="$HOME/.local/include"
+  log_dir="$HOME/${clientName2}/log"
+  cfg_dir="$HOME/${clientName2}/cfg"
+  csudo=""
+else
+  user_mode=0
+  installDir="/usr/local/${clientName2}"
+  bin_link_dir="/usr/bin"
+  lib_link_dir="/usr/lib"
+  lib64_link_dir="/usr/lib64"
+  inc_link_dir="/usr/include"
+  log_dir="/var/log/${clientName2}"
+  cfg_dir="/etc/${clientName2}"
+  csudo=""
+  if command -v sudo >/dev/null; then
+    csudo="sudo "
+  fi
+fi
 
-#install main path
+# Install path discovery from .install_path
+_script_real="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+_script_dir="$(dirname "$_script_real")"
+_guessed_dir=""
+if [[ "$_script_dir" == */bin ]]; then
+  _guessed_dir="${_script_dir%/bin}"
+elif [[ "$_script_dir" == */${clientName2} ]]; then
+  _guessed_dir="$_script_dir"
+fi
+
+if [ -n "${_guessed_dir:-}" ] && [ -f "${_guessed_dir}/.install_path" ]; then
+  installDir=$(cat "${_guessed_dir}/.install_path")
+elif [ -f "/usr/local/${clientName2}/.install_path" ] && [ "$user_mode" -eq 0 ]; then
+  installDir=$(cat "/usr/local/${clientName2}/.install_path")
+elif [ -f "$HOME/${clientName2}/.install_path" ] && [ "$user_mode" -eq 1 ]; then
+  installDir=$(cat "$HOME/${clientName2}/.install_path")
+fi
+
 install_main_dir=${installDir}
-
 log_link_dir=${installDir}/log
 cfg_link_dir=${installDir}/cfg
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-lib64_link_dir="/usr/lib64"
-inc_link_dir="/usr/include"
-log_dir="/var/log/${clientName2}"
-cfg_dir="/etc/${clientName2}"
-
-csudo=""
-if command -v sudo > /dev/null; then
-    csudo="sudo "
-fi
 
 function kill_client() {
     pid=$(ps -C ${clientName2} | grep -w ${clientName2} | grep -v $uninstallScript2 | awk '{print $1}')
@@ -47,51 +94,56 @@ function kill_client() {
 }
 
 function clean_bin() {
-    # Remove link
-    ${csudo}rm -f ${bin_link_dir}/${clientName2}      || :
-    ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
-    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
-    ${csudo}rm -f ${bin_link_dir}/${dumpName2}        || :
-    ${csudo}rm -f ${bin_link_dir}/${uninstallScript}    || :
-    ${csudo}rm -f ${bin_link_dir}/set_core  || :
+    # Remove links
+    ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
+    ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+    ${csudo}rm -f ${bin_link_dir}/set_core || :
+    [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+    [ -L ${bin_link_dir}/${taosgen_name} ] && ${csudo}unlink ${bin_link_dir}/${taosgen_name} || :
 
     if [ "$verMode" == "cluster" ] && [ "$clientName" != "$clientName2" ]; then
         ${csudo}rm -f ${bin_link_dir}/${clientName2} || :
-        ${csudo}rm -f ${bin_link_dir}/${demoName2}        || :
-        ${csudo}rm -f ${bin_link_dir}/${benchmarkName2}   || :
+        ${csudo}rm -f ${bin_link_dir}/${demoName2} || :
+        ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
         ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
         ${csudo}rm -f ${bin_link_dir}/${uninstallScript2} || :
+        [ -L ${bin_link_dir}/${inspect_name} ] && ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+        [ -L ${bin_link_dir}/${taosgen_name} ] && ${csudo}unlink ${bin_link_dir}/${taosgen_name} || :
     fi
 }
 
 function clean_lib() {
-  # Remove link
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  [ -f ${lib_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
-
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
-  #${csudo}rm -rf ${v15_java_app_dir}           || :
+    # Remove links in lib and lib64 directories
+    for dir in "${lib_link_dir}" "${lib64_link_dir}"; do
+        if [ -d "$dir" ]; then
+            for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*"; do
+                ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
+            done
+        fi
+    done
 }
 
 function clean_header() {
     # Remove link
-    ${csudo}rm -f ${inc_link_dir}/taos.h           || :
-    ${csudo}rm -f ${inc_link_dir}/taosdef.h        || :
-    ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
-    ${csudo}rm -f ${inc_link_dir}/tdef.h      || :
-    ${csudo}rm -f ${inc_link_dir}/taosudf.h      || :    
-    ${csudo}rm -f ${inc_link_dir}/taosws.h      || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h || :
+    ${csudo}rm -f ${inc_link_dir}/taosdef.h || :
+    ${csudo}rm -f ${inc_link_dir}/taoserror.h || :
+    ${csudo}rm -f ${inc_link_dir}/tdef.h || :
+    ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
+    ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 }
 
 function clean_config() {
     # Remove link
-    ${csudo}rm -f ${cfg_link_dir}/*            || :
+    ${csudo}rm -f ${cfg_link_dir}/* || :
 }
 
 function clean_log() {
     # Remove link
-    ${csudo}rm -rf ${log_link_dir}    || :
+    ${csudo}rm -rf ${log_link_dir} || :
 }
 
 function clean_config_and_log_dir() {
@@ -129,5 +181,40 @@ clean_config_and_log_dir
 
 ${csudo}rm -rf ${install_main_dir}
 
+# Clean env variables from shell rc file for non-root uninstall
+function clean_env_file() {
+  if [ "$user_mode" -ne 1 ]; then
+    return 0
+  fi
+
+  local env_file=""
+  local login_shell="${SHELL##*/}"
+  if [ "$login_shell" = "zsh" ]; then
+    env_file="${HOME}/.zshrc"
+  elif [ "$login_shell" = "bash" ] || [ -z "$login_shell" ]; then
+    env_file="${HOME}/.bashrc"
+  else
+    env_file="${HOME}/.profile"
+  fi
+
+  if [ ! -f "$env_file" ]; then
+    return 0
+  fi
+
+  local tmp_file="${env_file}.tmp.$$"
+  local escaped_bin escaped_lib
+  escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
+  escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
+  sed -e "/^# ${productName} install path$/d" \
+      -e "/^# taos bin env$/d" \
+      -e "/^# taos lib env$/d" \
+      -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
+      -e "\|^export PATH=${escaped_bin}:.*|d" \
+      -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
+      -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
+      "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"
+}
+clean_env_file
+
 echo -e "${GREEN}${productName2} client is removed successfully!${NC}"
-echo 
+echo

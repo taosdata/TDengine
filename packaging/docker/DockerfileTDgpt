@@ -1,0 +1,74 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+ARG ARCH=amd64
+ARG TDGPT_ENV_VERSION=1.1
+ARG TDGPT_LITE_ENV_VERSION=1.2
+FROM tdengine/tdgpt-env-${ARCH}:${TDGPT_ENV_VERSION} AS tdgpt
+
+ARG pkgFile
+ARG modelDlUrl
+
+COPY ${modelDlUrl}/tdtsfm/taos.pth /var/lib/taos/taosanode/model/tdtsfm/
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+ENV INSTALL_VENV=False
+COPY ${pkgFile} /tmp/
+RUN set -eux; \
+    TDGPT_INSTALL_DIR=/tmp/tdgpt-installer; \
+    mkdir -p "${TDGPT_INSTALL_DIR}"; \
+    tar -xf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
+    cd "${TDGPT_INSTALL_DIR}"; \
+    /bin/bash install.sh; \
+    test -f /usr/local/taos/taosanode/share/tsfm/tsfm-release.json; \
+    rm -rf /tmp/*
+
+WORKDIR /root
+EXPOSE 6035 6036 6037 6038 6039 6061 6062
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
+FROM tdengine/tdgpt-lite-env-${ARCH}:${TDGPT_LITE_ENV_VERSION} AS tdgpt_lite
+
+ARG pkgFile
+
+COPY entrypoint-lite.sh /usr/local/bin/entrypoint-lite.sh
+RUN chmod +x /usr/local/bin/entrypoint-lite.sh
+
+ENV INSTALL_VENV=False
+COPY ${pkgFile} /tmp/
+RUN set -eux; \
+    TDGPT_INSTALL_DIR=/tmp/tdgpt-installer; \
+    mkdir -p "${TDGPT_INSTALL_DIR}"; \
+    tar -xf /tmp/"${pkgFile}" --strip-components=1 --directory="${TDGPT_INSTALL_DIR}"; \
+    cd "${TDGPT_INSTALL_DIR}"; \
+    /bin/bash install.sh; \
+    test -f /usr/local/taos/taosanode/share/tsfm/tsfm-release.json; \
+    rm -rf /tmp/*; \
+    find /usr/local/lib /usr/local/taos /var/lib/taos/taosanode/venv \
+        -type d -name __pycache__ -prune -exec rm -rf {} +
+
+WORKDIR /root
+EXPOSE 6035 6036 6037 6038 6039
+ENTRYPOINT ["/usr/local/bin/entrypoint-lite.sh"]
+
+FROM tdgpt AS tdgpt_full
+
+COPY ${modelDlUrl}/timemoe/* \
+    /var/lib/taos/taosanode/model/timemoe/
+COPY --link ${modelDlUrl}/moment/* \
+    /var/lib/taos/taosanode/model/moment/
+COPY --link ${modelDlUrl}/moirai-small/* \
+    /var/lib/taos/taosanode/model/moirai/

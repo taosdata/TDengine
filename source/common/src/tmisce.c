@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,13 +20,14 @@
 #include "tglobal.h"
 #include "tjson.h"
 #include "tmisce.h"
+#include "tcompare.h"
 
-int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+int32_t taosGetIpv4FromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
   memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
   tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
 
-  char* temp = strchr(pEp->fqdn, ':');
+  char* temp = strrchr(pEp->fqdn, ':');
   if (temp) {
     *temp = 0;
     pEp->port = taosStr2UInt16(temp + 1, NULL, 10);
@@ -40,8 +43,86 @@ int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   if (pEp->port <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+  return 0;
+}
+
+static int8_t isValidPort(const char* str) {
+  if (!str || !*str) return 0;
+  for (const char* p = str; *p; ++p) {
+    if (*p < '0' || *p > '9') {
+      return 0;
+    }
+  }
+  return 1;
+}
+
+static int32_t taosGetDualIpFromEp(const char* ep, SEp* pEp) {
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+  pEp->port = 0;
+  char buf[TSDB_FQDN_LEN] = {0};
+
+  if (ep[0] == '[') {
+    // [IPv6]:port format
+    const char* end = strchr(ep, ']');
+    if (!end) return TSDB_CODE_INVALID_PARA;
+
+    int ipLen = end - ep - 1;
+    if (ipLen >= TSDB_FQDN_LEN) ipLen = TSDB_FQDN_LEN - 1;
+
+    tstrncpy(pEp->fqdn, ep + 1, ipLen + 1);
+
+    if (*(end + 1) == ':' && *(end + 2)) {
+      pEp->port = taosStr2UInt16(end + 2, NULL, 10);
+    }
+  } else {
+    // Compatible with ::1:6030, ::1, IPv4:port, hostname:port, etc.
+    tstrncpy(buf, ep, sizeof(buf));
+
+    char* lastColon = strrchr(buf, ':');
+    char* firstColon = strchr(buf, ':');
+
+    if (lastColon && firstColon != lastColon) {
+      // Multiple colons, possibly IPv6:port or pure IPv6
+      char* portStr = lastColon + 1;
+      if (isValidPort(portStr) && lastColon != buf && (*(lastColon - 1) != ':')) {
+        *lastColon = 0;
+        tstrncpy(pEp->fqdn, buf, TSDB_FQDN_LEN);
+        pEp->port = taosStr2UInt16(portStr, NULL, 10);
+      } else {
+        tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+      }
+    } else if (lastColon) {
+      // Only one colon, IPv4:port or hostname:port
+      char* portStr = lastColon + 1;
+      if (isValidPort(portStr) && lastColon != buf) {
+        *lastColon = 0;
+        tstrncpy(pEp->fqdn, buf, TSDB_FQDN_LEN);
+        pEp->port = taosStr2UInt16(portStr, NULL, 10);
+      } else {
+        tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+      }
+    } else {
+      // No colon, pure hostname or IPv6 without port
+      tstrncpy(pEp->fqdn, ep, TSDB_FQDN_LEN);
+    }
+  }
+
+  if (pEp->port == 0) {
+    pEp->port = tsServerPort;
+  }
+
+  if (pEp->port <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   return 0;
+}
+int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
+  if (tsEnableIpv6) {
+    return taosGetDualIpFromEp(ep, pEp);
+  } else {
+    return taosGetIpv4FromEp(ep, pEp);
+  }
 }
 
 int32_t addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port) {
@@ -257,7 +338,24 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
+#ifdef TD_ENTERPRISE
+static bool showVarPrivAllowed(uint8_t showPrivMask, int8_t cfgPrivType) {
+  switch (cfgPrivType) {
+    case CFG_PRIV_SYSTEM:
+      return (showPrivMask & SHOW_VAR_PRIV_SYSTEM) != 0;
+    case CFG_PRIV_SECURITY:
+      return (showPrivMask & SHOW_VAR_PRIV_SECURITY) != 0;
+    case CFG_PRIV_AUDIT:
+      return (showPrivMask & SHOW_VAR_PRIV_AUDIT) != 0;
+    case CFG_PRIV_DEBUG:
+      return (showPrivMask & SHOW_VAR_PRIV_DEBUG) != 0;
+    default:
+      return false;
+  }
+}
+#endif
+
+int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePattern, uint8_t showPrivMask) {
   int32_t  code = 0;
   SConfig* pConf = taosGetCfg();
   if (pConf == NULL) {
@@ -291,6 +389,14 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
 
     // GRANT_CFG_SKIP;
     char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    if (likePattern && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
+      continue;
+    }
+#ifdef TD_ENTERPRISE
+    if (!showVarPrivAllowed(showPrivMask, pItem->privType)) {
+      continue;
+    }
+#endif
     STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
 
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
@@ -307,7 +413,7 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     if (strcasecmp(pItem->name, "dataDir") == 0 && exSize > 0) {
       char* buf = &value[VARSTR_HEADER_SIZE];
       pDiskCfg = taosArrayGet(pItem->array, index);
-      valueLen = tsnprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
+      valueLen = snprintf(buf, TSDB_CONFIG_PATH_LEN, "%s", pDiskCfg->dir);
       index++;
     } else {
       TAOS_CHECK_GOTO(cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_PATH_LEN, &valueLen), NULL,
@@ -349,8 +455,8 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     char info[TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE] = {0};
     if (strcasecmp(pItem->name, "dataDir") == 0 && pDiskCfg) {
       char* buf = &info[VARSTR_HEADER_SIZE];
-      valueLen = tsnprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
-                           pDiskCfg->primary, pDiskCfg->disable);
+      valueLen = snprintf(buf, TSDB_CONFIG_INFO_LEN, "level %d primary %d disabled %" PRIi8, pDiskCfg->level,
+                          pDiskCfg->primary, pDiskCfg->disable);
     } else {
       valueLen = 0;
     }
@@ -363,6 +469,18 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol) {
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, info, false), NULL, _exit);
 
+    char reboot[TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE] = {0};
+    TAOS_CHECK_GOTO(cfgDumpItemRestart(pItem, &reboot[VARSTR_HEADER_SIZE], TSDB_CONFIG_REBOOT_LEN, &valueLen), NULL,
+                    _exit);
+    varDataSetLen(reboot, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, reboot, false), NULL, _exit);
+
     numOfRows++;
     if (index > 0 && index <= exSize) {
       goto _start;
@@ -373,4 +491,47 @@ _exit:
   if (locked) cfgUnLock(pConf);
   cfgDestroyIter(pIter);
   TAOS_RETURN(code);
+}
+
+int16_t taosAppNameToId(const char* appName) {
+  // The knownApps array must be sorted by name in ascending order for binary search to work correctly.
+  static const struct {
+    const char* name;
+    int16_t     id;
+  } knownApps[] = {
+      {"IDMP", TD_APP_IDMP},
+      {"TDgpt", TD_APP_TDGPT},
+      {"TDinsight", TD_APP_TD_INSIGHT},
+      {"TSDB", TD_APP_TSDB},
+      {"taos", TD_APP_TAOS},
+      {"taosAdapter", TD_APP_TAOS_ADAPTER},
+      {"taosAi", TD_APP_TAOS_AI},
+      {"taosBenchmark", TD_APP_TAOS_BENCHMARK},
+      {"taosExplorer", TD_APP_TAOS_EXPLORER},
+      {"taosX", TD_APP_TAOSX},
+      {"taosdump", TD_APP_TAOS_DUMP},
+      {"taosgen", TD_APP_TAOS_GEN},
+      {"taoskeeper", TD_APP_TAOS_KEEPER},
+      {"taoskeeper.exe", TD_APP_TAOS_KEEPER},
+  };
+  const int32_t appCnt = (int32_t)tListLen(knownApps);
+
+  if (NULL == appName || 0 == appName[0]) {
+    return TD_APP_UNKNOWN;
+  }
+
+  // binary search for the appName in the knownApps array
+  int32_t left = 0, right = appCnt - 1;
+  while (left <= right) {
+    int32_t mid = left + (right - left) / 2;
+    int     cmp = strcmp(appName, knownApps[mid].name);
+    if (cmp == 0) {
+      return knownApps[mid].id;
+    } else if (cmp < 0) {
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+  return TD_APP_UNKNOWN;
 }

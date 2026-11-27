@@ -1,0 +1,151 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+name: taosKeeper Test
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+      - "3.3.8"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+  push:
+    branches:
+      - "main"
+      - "3.0"
+      - "3.3.6"
+      - "3.3.8"
+    paths:
+      - "tools/keeper/**"
+      - ".github/workflows/taoskeeper*.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and test on ubuntu-latest
+
+    steps:
+      - name: Checkout the repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential cmake libgeos-dev
+
+      - name: Get CMake
+        uses: lukka/get-cmake@latest
+        with:
+          cmakeVersion: 3.31.6
+
+      - name: Determine taosadapter branch
+        id: taosadapter_ref
+        run: |
+          branch="${{ github.base_ref }}"
+          if [ -z "$branch" ]; then
+            branch="${{ github.ref_name }}"
+          fi
+          case "$branch" in
+            3.0) ref="3.0" ;;
+            3.3.6) ref="3.3.6" ;;
+            3.3.8) ref="3.3.8" ;;
+            *) ref="main" ;;
+          esac
+          echo "value=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout taosAdapter
+        uses: actions/checkout@v4
+        with:
+          repository: taosdata/taosadapter
+          ref: ${{ steps.taosadapter_ref.outputs.value }}
+          path: .ci-deps/taosadapter
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: tools/keeper/go.mod
+          cache-dependency-path: |
+            tools/keeper/go.sum
+            .ci-deps/taosadapter/go.sum
+
+      - name: Install TDengine
+        run: |
+          mkdir debug
+          cd debug
+          cmake .. -DBUILD_TOOLS=OFF -DBUILD_TEST=OFF -DBUILD_DEPENDENCY_TESTS=OFF
+          make -j 4
+          sudo make install
+          which taosd
+
+      - name: Build and install taosAdapter and taosKeeper
+        run: |
+          go -C .ci-deps/taosadapter build -o "$RUNNER_TEMP/taosadapter" .
+          go -C tools/keeper build -o "$RUNNER_TEMP/taoskeeper" .
+          sudo install -m 755 "$RUNNER_TEMP/taosadapter" "$RUNNER_TEMP/taoskeeper" /usr/local/bin/
+          sudo install -m 644 .ci-deps/taosadapter/example/config/taosadapter.toml /etc/taos/taosadapter.toml
+          sudo install -m 644 tools/keeper/config/taoskeeper.toml /etc/taos/taoskeeper.toml
+          which taosadapter
+          which taoskeeper
+
+      - name: Start taosd
+        run: |
+          cp /etc/taos/taos.cfg ./
+          echo "supportVnodes 256" >> taos.cfg
+          nohup sudo taosd -c "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/taosd.log" 2>&1 &
+
+      - name: Start taosadapter
+        run: |
+          nohup sudo taosadapter > "$RUNNER_TEMP/taosadapter.log" 2>&1 &
+          for attempt in {1..60}; do
+            if curl --silent --fail --max-time 2 --user root:taosdata \
+              --data 'select server_version()' http://127.0.0.1:6041/rest/sql \
+              | python3 -c '
+          import json, sys
+          try:
+              ready = json.load(sys.stdin).get("code") == 0
+          except (ValueError, AttributeError):
+              ready = False
+          sys.exit(0 if ready else 1)
+          '; then
+              exit 0
+            fi
+            echo "Waiting for TDengine REST SQL readiness ($attempt/60)"
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/taosd.log" "$RUNNER_TEMP/taosadapter.log"
+          exit 1
+
+      - name: Run tests with coverage
+        working-directory: tools/keeper
+        run: |
+          go mod tidy
+          sudo TEST_USERNAME=${{ secrets.KEEPER_TEST_USERNAME }} \
+            TEST_PASSWORD=${{ secrets.KEEPER_TEST_PASSWORD }} \
+            go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" \
+            -coverpkg=./... -coverprofile=coverage.out ./...
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.KEEPER_CODECOV_TOKEN }}
+          files: tools/keeper/coverage.out
+          fail_ci_if_error: true
+          verbose: true
+          slug: taosdata/taoskeeper

@@ -1,0 +1,343 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import datetime
+import time
+
+from new_test_framework.utils import tdLog, tdSql, etool
+
+
+class TestLeftAsofJoinDiff64bit:
+    DB_NAME = "ts7045210011"
+    FRONT_TABLE = "front_machine"
+    BACK_TABLE = "back_machine"
+
+    BASE_TIME = datetime.datetime(2026, 7, 1, 0, 0, 1)
+    TOTAL_ROWS = 70002
+    BATCH_SIZE = 2000
+
+    FIRST_PICI_ROWS = 50000
+    RANGE_START_OFFSET = 65535
+    RANGE_END_OFFSET = 70001
+
+    PICI_FIRST = "DD26070111M056"
+    PICI_SECOND = "DD26070113M001"
+    PICI_THIRD = "DD26070308M001"
+    PICI_FOURTH = "DD26070400M002"
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    # --- util ---
+    def _ts_ms(self, offset_seconds):
+        return int((self.BASE_TIME + datetime.timedelta(seconds=offset_seconds)).timestamp() * 1000)
+
+    def _ts_str(self, offset_seconds):
+        return (self.BASE_TIME + datetime.timedelta(seconds=offset_seconds)).strftime("%Y-%m-%d %H:%M:%S.000")
+
+    def _drop_db(self):
+        tdSql.execute(f"drop database if exists {self.DB_NAME}")
+
+    def _prepare_schema(self):
+        self._drop_db()
+        tdSql.execute(f"create database {self.DB_NAME} keep 36500")
+        tdSql.execute(f"use {self.DB_NAME}")
+        tdSql.execute(
+            f"""
+            create table {self.FRONT_TABLE} (
+                ts timestamp,
+                duny1_gt_zs bigint,
+                duny2_gt_zs bigint,
+                dutn1_gt_zs bigint,
+                dutn2_gt_zs bigint,
+                duxn1_gt_zs bigint,
+                duxn2_gt_zs bigint
+            )
+            """
+        )
+        tdSql.execute(
+            f"""
+            create table {self.BACK_TABLE} (
+                ts timestamp,
+                pici_hao binary(32),
+                chanxian_zhuangtai int
+            )
+            """
+        )
+
+    def _insert_front_rows(self):
+        tdLog.info("=== insert front_machine rows for 64-bit diff regression")
+        for start in range(0, self.TOTAL_ROWS, self.BATCH_SIZE):
+            values = []
+            end = min(start + self.BATCH_SIZE, self.TOTAL_ROWS)
+            for row_idx in range(start, end):
+                ts_ms = self._ts_ms(row_idx)
+                values.append(
+                    f"({ts_ms}, {row_idx}, {row_idx + 10}, {row_idx + 20}, {row_idx + 30}, {row_idx + 40}, {row_idx + 50})"
+                )
+            tdLog.info(f"=== insert front_machine rows [{start}, {end}) started")
+            start_time = time.monotonic()
+            tdSql.execute(f"insert into {self.FRONT_TABLE} values " + ",".join(values))
+            tdLog.info(
+                f"=== insert front_machine rows [{start}, {end}) completed in "
+                f"{time.monotonic() - start_time:.3f}s"
+            )
+
+    def _insert_back_rows(self):
+        tdLog.info("=== insert back_machine rows for pici switches")
+        second_offset = self.FIRST_PICI_ROWS
+        third_offset = self.RANGE_START_OFFSET
+        fourth_offset = self.RANGE_END_OFFSET - 1
+        start_time = time.monotonic()
+        tdSql.execute(
+            f"""
+            insert into {self.BACK_TABLE} values
+                ({self._ts_ms(0)}, '{self.PICI_FIRST}', 1),
+                ({self._ts_ms(second_offset)}, '{self.PICI_SECOND}', 1),
+                ({self._ts_ms(third_offset)}, '{self.PICI_THIRD}', 1),
+                ({self._ts_ms(fourth_offset)}, '{self.PICI_FOURTH}', 1)
+            """
+        )
+        tdLog.info(f"=== insert back_machine rows completed in {time.monotonic() - start_time:.3f}s")
+
+    def _prepare_data(self):
+        self._prepare_schema()
+        self._insert_front_rows()
+        self._insert_back_rows()
+        tdLog.info("=== left asof join diff data prepared")
+        print("prepare left asof join diff data ............ [ passed ]")
+
+    def _join_from_clause(self):
+        return f"""
+            from {self.FRONT_TABLE} a
+            left asof join {self.BACK_TABLE} b
+            on a.ts >= b.ts
+            where b.ts > '2026-07-01'
+              and b.ts < '2026-07-09'
+              and a.ts > '2026-07-01'
+              and a.ts < '2026-07-09'
+              and b.chanxian_zhuangtai = 1
+        """
+
+    def _diff_query_core(self, with_filter=False):
+        extra_filter = f" and b.pici_hao = '{self.PICI_FIRST}'" if with_filter else ""
+        return f"""
+            select
+                a.ts,
+                b.pici_hao as pici_hao,
+                abs(diff(duny1_gt_zs, 0)) as diff_duny1_gt_zs,
+                abs(diff(duny2_gt_zs, 2)) as diff_duny2_gt_zs,
+                abs(diff(dutn1_gt_zs, 2)) as diff_dutn1_gt_zs,
+                abs(diff(dutn2_gt_zs, 2)) as diff_dutn2_gt_zs,
+                abs(diff(duxn1_gt_zs, 2)) as diff_duxn1_gt_zs,
+                abs(diff(duxn2_gt_zs, 2)) as diff_duxn2_gt_zs
+            {self._join_from_clause()}
+            {extra_filter}
+        """
+
+    def _raw_query_core(self):
+        return f"""
+            select
+                a.ts,
+                b.pici_hao as pici_hao,
+                duny1_gt_zs as diff_duny1_gt_zs,
+                duny2_gt_zs as diff_duny2_gt_zs,
+                dutn1_gt_zs as diff_dutn1_gt_zs,
+                dutn2_gt_zs as diff_dutn2_gt_zs,
+                duxn1_gt_zs as diff_duxn1_gt_zs,
+                duxn2_gt_zs as diff_duxn2_gt_zs
+            {self._join_from_clause()}
+        """
+
+    def _outer_diff_query_core(self):
+        return f"""
+            select
+                ts,
+                pici_hao,
+                abs(diff(duny1_gt_zs, 0)) as diff_duny1_gt_zs,
+                abs(diff(duny2_gt_zs, 2)) as diff_duny2_gt_zs,
+                abs(diff(dutn1_gt_zs, 2)) as diff_dutn1_gt_zs,
+                abs(diff(dutn2_gt_zs, 2)) as diff_dutn2_gt_zs,
+                abs(diff(duxn1_gt_zs, 2)) as diff_duxn1_gt_zs,
+                abs(diff(duxn2_gt_zs, 2)) as diff_duxn2_gt_zs
+            from (
+                select
+                    a.ts,
+                    b.pici_hao as pici_hao,
+                    duny1_gt_zs,
+                    duny2_gt_zs,
+                    dutn1_gt_zs,
+                    dutn2_gt_zs,
+                    duxn1_gt_zs,
+                    duxn2_gt_zs
+                {self._join_from_clause()}
+            ) t
+        """
+
+    def _timed_query(self, label, sql):
+        tdLog.info(f"=== SQL started [{label}]: {sql.strip()}")
+        start = time.monotonic()
+        try:
+            result = tdSql.query(sql, row_tag=True)
+        except Exception:
+            tdLog.info(
+                f"=== SQL failed [{label}] after {time.monotonic() - start:.3f}s"
+            )
+            raise
+        tdLog.info(
+            f"=== SQL completed [{label}] in {time.monotonic() - start:.3f}s, "
+            f"rows={len(result)}"
+        )
+        return result
+
+    def _assert_timestamp(self, label, row, expected_offset):
+        actual_ms = round(row[0].timestamp() * 1000)
+        expected_ms = self._ts_ms(expected_offset)
+        if actual_ms != expected_ms:
+            raise AssertionError(
+                f"{label}: expected timestamp {expected_ms}, actual {actual_ms}"
+            )
+
+    def _assert_result(
+        self, label, sql, expected_count, first_offset, last_offset,
+        last_values, check_range=False, range_first_values=None,
+    ):
+        rows = self._timed_query(
+            label, f"select * from ({sql}) t order by ts asc"
+        )
+        assertion_start = time.monotonic()
+        if len(rows) != expected_count:
+            raise AssertionError(
+                f"{label}: expected {expected_count} rows, actual {len(rows)}"
+            )
+        self._assert_timestamp(f"{label} first row", rows[0], first_offset)
+        self._assert_timestamp(f"{label} last row", rows[-1], last_offset)
+        for col, expected in last_values.items():
+            tdSql.checkData(len(rows) - 1, col, expected)
+
+        if check_range:
+            range_start = self._ts_ms(self.RANGE_START_OFFSET)
+            range_end = self._ts_ms(self.RANGE_END_OFFSET)
+            range_rows = [
+                row for row in rows
+                if range_start <= round(row[0].timestamp() * 1000) <= range_end
+            ]
+            expected_range_count = self.RANGE_END_OFFSET - self.RANGE_START_OFFSET + 1
+            if len(range_rows) != expected_range_count:
+                raise AssertionError(
+                    f"{label}: expected {expected_range_count} range rows, "
+                    f"actual {len(range_rows)}"
+                )
+            self._assert_timestamp(
+                f"{label} range first row", range_rows[0], self.RANGE_START_OFFSET
+            )
+            self._assert_timestamp(
+                f"{label} range last row", range_rows[-1], self.RANGE_END_OFFSET
+            )
+            if range_rows[0][1] != self.PICI_THIRD:
+                raise AssertionError(f"{label}: unexpected first range pici {range_rows[0][1]}")
+            if range_rows[-1][1] != self.PICI_FOURTH:
+                raise AssertionError(f"{label}: unexpected last range pici {range_rows[-1][1]}")
+            for col, expected in (range_first_values or {}).items():
+                actual = range_rows[0][col]
+                if actual != expected:
+                    raise AssertionError(
+                        f"{label}: expected first range column {col}={expected}, "
+                        f"actual {actual}"
+                    )
+        tdLog.info(
+            f"=== assertions completed [{label}] in "
+            f"{time.monotonic() - assertion_start:.3f}s"
+        )
+
+    def do_filtered_diff_case(self):
+        sql = self._diff_query_core(with_filter=True)
+        self._assert_result(
+            "filtered diff", sql, self.FIRST_PICI_ROWS - 1, 1,
+            self.FIRST_PICI_ROWS - 1, {1: self.PICI_FIRST, 2: 1, 7: 1},
+        )
+        print("filtered left asof join diff ............... [ passed ]")
+
+    def do_unfiltered_diff_case(self):
+        sql = self._diff_query_core(with_filter=False)
+        self._assert_result(
+            "unfiltered diff", sql, self.TOTAL_ROWS - 1, 1,
+            self.TOTAL_ROWS - 1, {2: 1, 7: 1}, check_range=True,
+            range_first_values={2: 1, 7: 1},
+        )
+        print("unfiltered left asof join diff ............. [ passed ]")
+
+    def do_unfiltered_raw_case(self):
+        sql = self._raw_query_core()
+        self._assert_result(
+            "unfiltered raw", sql, self.TOTAL_ROWS, 0,
+            self.TOTAL_ROWS - 1,
+            {2: self.TOTAL_ROWS - 1, 7: self.TOTAL_ROWS - 1 + 50},
+            check_range=True,
+            range_first_values={
+                2: self.RANGE_START_OFFSET,
+                7: self.RANGE_START_OFFSET + 50,
+            },
+        )
+        print("unfiltered left asof join raw columns ...... [ passed ]")
+
+    def do_outer_diff_case(self):
+        sql = self._outer_diff_query_core()
+        self._assert_result(
+            "outer diff", sql, self.TOTAL_ROWS - 1, 1,
+            self.TOTAL_ROWS - 1, {2: 1, 7: 1}, check_range=True,
+            range_first_values={2: 1, 7: 1},
+        )
+        print("outer subquery diff ........................ [ passed ]")
+
+    # --- main ---
+    def test_left_asof_join_diff_64bit(self):
+        """Left asof join diff regression with large result rows
+
+        1. Build front/back tables whose left asof join output exceeds 65535 diff rows
+        2. Verify the filtered query stays correct below the old uint16 threshold
+        3. Verify the unfiltered diff query keeps the rows immediately after the old 65535 boundary
+        4. Verify the no-diff control query still returns the full joined rows
+        5. Verify the outer-subquery-and-then-diff shape returns the same boundary-crossing range
+
+        Catalog:
+            - JoinQuery
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-07-10 Codex add left asof join diff large-row regression
+
+        """
+        case_start = time.monotonic()
+        try:
+            self._prepare_data()
+            self.do_filtered_diff_case()
+            self.do_unfiltered_diff_case()
+            self.do_unfiltered_raw_case()
+            self.do_outer_diff_case()
+        finally:
+            tdLog.info("=== left asof join diff cleanup started")
+            cleanup_start = time.monotonic()
+            self._drop_db()
+            tdLog.info(
+                f"=== left asof join diff cleanup completed in "
+                f"{time.monotonic() - cleanup_start:.3f}s; "
+                f"case elapsed={time.monotonic() - case_start:.3f}s"
+            )

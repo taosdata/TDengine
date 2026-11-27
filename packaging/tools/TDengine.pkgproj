@@ -493,7 +493,7 @@
 				<key>LOCATION</key>
 				<integer>0</integer>
 				<key>NAME</key>
-				<string>TDengine</string>
+				<string>TDengine TSDB</string>
 				<key>OVERWRITE_PERMISSIONS</key>
 				<true/>
 				<key>PAYLOAD_SIZE</key>
@@ -685,7 +685,7 @@
 						<key>LANGUAGE</key>
 						<string>English</string>
 						<key>VALUE</key>
-						<string>TDengine</string>
+						<string>TDengine-TSDB</string>
 					</dict>
 				</array>
 			</dict>

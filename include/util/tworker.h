@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,9 +18,9 @@
 #ifndef _TD_UTIL_WORKER_H_
 #define _TD_UTIL_WORKER_H_
 
+#include "tarray.h"
 #include "tlist.h"
 #include "tqueue.h"
-#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +43,7 @@ typedef struct SQWorkerPool {
   const char   *name;
   SQueueWorker *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SQWorkerPool;
 
 typedef struct SAutoQWorkerPool {
@@ -49,6 +52,7 @@ typedef struct SAutoQWorkerPool {
   const char   *name;
   SArray       *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 } SAutoQWorkerPool;
 
 typedef struct SWWorker {
@@ -67,6 +71,7 @@ struct SWWorkerPool {
   const char   *name;
   SWWorker     *workers;
   TdThreadMutex mutex;
+  int32_t       threadCategory;  // EThreadCategory or -1 for no affinity
 };
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
@@ -96,6 +101,8 @@ typedef struct {
   FItem            fp;
   void            *param;
   SQWorkerPoolType poolType;
+  bool             stopNoWaitQueue;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
 } SSingleWorkerCfg;
 
 typedef struct {
@@ -103,6 +110,7 @@ typedef struct {
   STaosQueue      *queue;
   SQWorkerPoolType poolType;  // default to QWORKER_POOL
   void            *pool;
+  bool             stopNoWaitQueue;
 } SSingleWorker;
 
 typedef struct {
@@ -110,6 +118,7 @@ typedef struct {
   int32_t     max;
   FItems      fp;
   void       *param;
+  int32_t     threadCategory;  // EThreadCategory or -1 for no affinity
 } SMultiWorkerCfg;
 
 typedef struct {
@@ -139,6 +148,8 @@ typedef struct SQueryAutoQWorkerPool {
   int32_t       min;
   int32_t       maxInUse;
 
+  // Serialize execution-slot transfers with waiter registration.
+  TdThreadMutex schedulingLock;
   int64_t       activeRunningN; // 4 bytes for activeN, 4 bytes for runningN
   // activeN are running workers and workers waiting at reading new queue msgs
   // runningN are workers processing queue msgs, not include blocking/waitingAfterBlock/waitingBeforeProcessMsg workers.
@@ -151,6 +162,7 @@ typedef struct SQueryAutoQWorkerPool {
   TdThreadMutex waitingBeforeProcessMsgLock;
   TdThreadCond  waitingBeforeProcessMsgCond;
 
+  
   int32_t       backupNum; // workers that are in backup pool, not reading msg from queue
   TdThreadMutex backupLock;
   TdThreadCond  backupCond;
@@ -162,7 +174,9 @@ typedef struct SQueryAutoQWorkerPool {
   SList                          *exitedWorkers;
   STaosQset                      *qset;
   struct SQueryAutoQWorkerPoolCB *pCb;
-  bool                            exit;
+  bool                            stopNoWaitQueue;
+  volatile bool                   exit;
+  int32_t                         threadCategory;  // EThreadCategory or -1 for no affinity
 } SQueryAutoQWorkerPool;
 
 int32_t     tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pPool);
@@ -175,6 +189,37 @@ typedef struct SQueryAutoQWorkerPoolCB {
   int32_t (*beforeBlocking)(void *pPool);
   int32_t (*afterRecoverFromBlocking)(void *pPool);
 } SQueryAutoQWorkerPoolCB;
+
+typedef struct SDispatchWorker {
+  int32_t     id;
+  int32_t     pid;
+  TdThread    thread;
+  void       *pool;
+  STaosQueue *queue;
+  STaosQset  *qset;
+} SDispatchWorker;
+
+struct SDispatchWorkerPool;
+
+typedef int32_t (*DispatchFp)(struct SDispatchWorkerPool* pPool, void* pParam, int32_t *pWorkerIdx);
+
+typedef struct SDispatchWorkerPool {
+  const char      *name;
+  int32_t          num;
+  int32_t          max;
+  FItems           fp;
+  void            *param;
+  SDispatchWorker *pWorkers;
+  DispatchFp       dispatchFp;
+  TdThreadMutex    poolLock;
+  bool             exit;
+  int32_t          threadCategory;  // EThreadCategory or -1 for no affinity
+} SDispatchWorkerPool;
+
+int32_t tDispatchWorkerInit(SDispatchWorkerPool *pPool);
+void    tDispatchWorkerCleanup(SDispatchWorkerPool *pPool);
+int32_t tDispatchWorkerAllocQueue(SDispatchWorkerPool *pPool, void *ahandle, FItem fp, DispatchFp dispatchFp);
+int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool* pPool, void* pTask);
 
 #ifdef __cplusplus
 }

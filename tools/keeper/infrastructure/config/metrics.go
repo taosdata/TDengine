@@ -1,29 +1,63 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package config
 
-type MetricsConfig struct {
+import (
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
+)
+
+type Metrics struct {
 	Cluster  string   `toml:"cluster"`
 	Prefix   string   `toml:"prefix"`
 	Database Database `toml:"database"`
 	Tables   []string `toml:"tables"`
 }
 
-type TaosAdapter struct {
-	Address []string `toml:"address"`
-}
-
-type Metric struct {
-	Alias  string            `toml:"alias"`
-	Help   string            `toml:"help"`
-	Unit   string            `toml:"unit"`
-	Type   string            `toml:"type"`
-	Labels map[string]string `toml:"labels"`
-}
-
-type Environment struct {
-	InCGroup bool `toml:"incgroup"`
-}
-
 type Database struct {
 	Name    string                 `toml:"name"`
 	Options map[string]interface{} `toml:"options"`
+}
+
+func initMetrics() {
+	viper.SetDefault("metrics.prefix", "")
+	_ = viper.BindEnv("metrics.prefix", "TAOS_KEEPER_METRICS_PREFIX")
+	pflag.String("metrics.prefix", "", `prefix in metrics names. Env "TAOS_KEEPER_METRICS_PREFIX"`)
+
+	viper.SetDefault("metrics.database.name", "log")
+	_ = viper.BindEnv("metrics.database.name", "TAOS_KEEPER_METRICS_DATABASE")
+	pflag.String("metrics.database.name", "log", `database for storing metrics data. Env "TAOS_KEEPER_METRICS_DATABASE"`)
+
+	viper.SetDefault("metrics.database.options.vgroups", 1)
+	_ = viper.BindEnv("metrics.database.options.vgroups", "TAOS_KEEPER_METRICS_VGROUPS")
+	pflag.Int("metrics.database.options.vgroups", 1, `database option vgroups for metrics database. Env "TAOS_KEEPER_METRICS_VGROUPS"`)
+
+	viper.SetDefault("metrics.database.options.buffer", 64)
+	_ = viper.BindEnv("metrics.database.options.buffer", "TAOS_KEEPER_METRICS_BUFFER")
+	pflag.Int("metrics.database.options.buffer", 64, `database option buffer for metrics database. Env "TAOS_KEEPER_METRICS_BUFFER"`)
+
+	viper.SetDefault("metrics.database.options.keep", 90)
+	_ = viper.BindEnv("metrics.database.options.keep", "TAOS_KEEPER_METRICS_KEEP")
+	pflag.Int("metrics.database.options.keep", 90, `database option keep for metrics database. Env "TAOS_KEEPER_METRICS_KEEP"`)
+
+	viper.SetDefault("metrics.database.options.cachemodel", "both")
+	_ = viper.BindEnv("metrics.database.options.cachemodel", "TAOS_KEEPER_METRICS_CACHEMODEL")
+	pflag.String("metrics.database.options.cachemodel", "both", `database option cachemodel for metrics database. Env "TAOS_KEEPER_METRICS_CACHEMODEL"`)
+
+	viper.SetDefault("metrics.tables", []string{})
+	_ = viper.BindEnv("metrics.tables", "TAOS_KEEPER_METRICS_TABLES")
+	pflag.StringArray("metrics.tables", []string{}, `export some tables that are not super table, multiple values split with white space. Env "TAOS_KEEPER_METRICS_TABLES"`)
 }

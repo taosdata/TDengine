@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -76,8 +78,56 @@ const char *sdbTableName(ESdbType type) {
       return "arb_group";
     case SDB_ANODE:
       return "anode";
+    case SDB_BNODE:
+      return "bnode";
+    case SDB_XNODE:
+      return "xnode";
     case SDB_CFG:
       return "config";
+    case SDB_MOUNT:
+      return "mount";
+    case SDB_MOUNT_LOG:
+      return "mount_log";
+    case SDB_SSMIGRATE:
+      return "ssmigrate";
+    case SDB_SCAN:
+      return "scan";
+    case SDB_SCAN_DETAIL:
+      return "scan_detail";
+    case SDB_RSMA:
+      return "rsma";
+    case SDB_RETENTION:
+      return "retention";
+    case SDB_RETENTION_DETAIL:
+      return "retention_detail";
+    case SDB_INSTANCE:
+      return "instance";
+    case SDB_ENCRYPT_ALGORITHMS:
+      return "encrypt_algr";
+    case SDB_TOKEN:
+      return "token";
+    case SDB_ROLE:
+      return "role";
+    case SDB_XNODE_TASK:
+      return "xnode_task";
+    case SDB_XNODE_AGENT:
+      return "xnode_agent";
+    case SDB_XNODE_JOB:
+      return "xnode_job";
+    case SDB_XNODE_USER_PASS:
+      return "xnode_user_pass";
+    case SDB_SECURITY_POLICY:
+      return "security_policy";
+    case SDB_GRANT_CLS:
+      return "grant_cls";
+    case SDB_TXN:
+      return "txn";
+    case SDB_TXN_LOG:
+      return "txn_log";
+    case SDB_TXN_SEQ:
+      return "txn_seq";
+    case SDB_EXT_SOURCE:
+      return "ext_source";
     default:
       return "undefine";
   }
@@ -254,6 +304,14 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   pSdb->tableVer[pOldRow->type]++;
   sdbUnLock(pSdb, type);
 
+  SdbDropFp dropFp = pSdb->dropFps[type];
+  if (dropFp != NULL) {
+    int32_t code = (*dropFp)(pSdb, pOldRow->pObj);
+    if (code != 0) {
+      mError("row:%p, failed to apply logical drop for type:%s since %s", pOldRow, sdbTableName(type), tstrerror(code));
+    }
+  }
+
   sdbFreeRow(pSdb, pRow, false);
 
   sdbCheckRow(pSdb, pOldRow);
@@ -382,6 +440,9 @@ void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
   }
+  if (ref < 0) {
+    mError("row:%p, ref:%d, type:%s", pRow, ref, sdbTableName(type));
+  }
 
   if (lock) {
     sdbUnLock(pSdb, type);
@@ -406,7 +467,8 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
       continue;
     }
 
-    (void)atomic_add_fetch_32(&pRow->refCount, 1);
+    (void) atomic_add_fetch_32(&pRow->refCount, 1);
+
     sdbPrintOper(pSdb, pRow, "fetch");
     *ppObj = pRow->pObj;
     break;
@@ -546,4 +608,17 @@ int32_t sdbGetValidSize(SSdb *pSdb, ESdbType type) {
   int32_t num = 0;
   sdbTraverse(pSdb, type, countValid, &num, 0, 0);
   return num;
+}
+
+
+bool sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey) {
+  SHashObj *hash = sdbGetHash(pSdb, type);
+  if (hash == NULL) return false;
+  int32_t keySize = sdbGetkeySize(pSdb, type, pKey);
+
+  sdbReadLock(pSdb, type);
+  void* p = taosHashGet(hash, pKey, keySize);
+  sdbUnLock(pSdb, type);
+
+  return (NULL != p);
 }

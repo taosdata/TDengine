@@ -1,51 +1,54 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
-PROJECT(TDengine)
+# Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest)
-FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
-FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
-
-IF(HEADER_GTEST_INCLUDE_DIR AND(LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
-    MESSAGE(STATUS "gTest library found, build unit test")
-
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
-    AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
-
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/terrorTest.cpp)
-    ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
-
-    LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
-    LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
-    ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
-
-    LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
-    ADD_EXECUTABLE(trefTest ${BIN_SRC})
-    TARGET_LINK_LIBRARIES(trefTest common util)
-ENDIF()
+# CMAKE_MINIMUM_REQUIRED(VERSION 2.8...3.20)
+# PROJECT(TDengine)
 
 # IF (TD_LINUX)
 # ADD_EXECUTABLE(trefTest ./trefTest.c)
 # TARGET_LINK_LIBRARIES(trefTest util common)
 # ENDIF ()
-INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
+INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/source/util/inc)
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/include/common)
 
 add_executable(heapTest "heapTest.cpp")
-target_link_libraries(heapTest os util gtest_main)
-add_test(
-    NAME heapTest
-    COMMAND heapTest
-)
+DEP_ext_gtest(heapTest)
+target_link_libraries(heapTest PRIVATE os util)
+if(NOT TD_WINDOWS)
+    add_test(
+        NAME heapTest
+        COMMAND heapTest
+    )
+endif()
 
 # arrayTest
 add_executable(arrayTest "arrayTest.cpp")
-target_link_libraries(arrayTest os util gtest_main)
+DEP_ext_gtest(arrayTest)
+target_link_libraries(arrayTest PRIVATE os util)
 add_test(
     NAME arrayTest
     COMMAND arrayTest
+)
+
+# tconvTest
+add_executable(tconvTest "tconvTest.cpp")
+DEP_ext_gtest(tconvTest)
+target_link_libraries(tconvTest PRIVATE os util)
+add_test(
+    NAME tconvTest
+    COMMAND tconvTest
 )
 
 # # freelistTest
@@ -62,7 +65,8 @@ add_test(
 
 # cfgTest
 add_executable(cfgTest "cfgTest.cpp")
-target_link_libraries(cfgTest os util gtest_main)
+DEP_ext_gtest(cfgTest)
+target_link_libraries(cfgTest PRIVATE os util)
 add_test(
     NAME cfgTest
     COMMAND cfgTest
@@ -70,7 +74,8 @@ add_test(
 
 # bloomFilterTest
 add_executable(bloomFilterTest "bloomFilterTest.cpp")
-target_link_libraries(bloomFilterTest os util gtest_main)
+DEP_ext_gtest(bloomFilterTest)
+target_link_libraries(bloomFilterTest PRIVATE os util)
 add_test(
     NAME bloomFilterTest
     COMMAND bloomFilterTest
@@ -78,7 +83,8 @@ add_test(
 
 # taosbsearchTest
 add_executable(taosbsearchTest "taosbsearchTest.cpp")
-target_link_libraries(taosbsearchTest os util gtest_main)
+DEP_ext_gtest(taosbsearchTest)
+target_link_libraries(taosbsearchTest PRIVATE os util)
 add_test(
     NAME taosbsearchTest
     COMMAND taosbsearchTest
@@ -86,7 +92,8 @@ add_test(
 
 # trbtreeTest
 add_executable(rbtreeTest "trbtreeTest.cpp")
-target_link_libraries(rbtreeTest os util gtest_main)
+DEP_ext_gtest(rbtreeTest)
+target_link_libraries(rbtreeTest PRIVATE os util)
 add_test(
     NAME rbtreeTest
     COMMAND rbtreeTest
@@ -94,7 +101,9 @@ add_test(
 
 # pageBufferTest
 add_executable(pageBufferTest "pageBufferTest.cpp")
-target_link_libraries(pageBufferTest os util gtest_main)
+target_compile_definitions(pageBufferTest PRIVATE BUILD_TEST)
+DEP_ext_gtest(pageBufferTest)
+target_link_libraries(pageBufferTest PRIVATE os util)
 add_test(
     NAME pageBufferTest
     COMMAND pageBufferTest
@@ -102,7 +111,8 @@ add_test(
 
 # talgoTest
 add_executable(talgoTest "talgoTest.cpp")
-target_link_libraries(talgoTest os util gtest_main)
+DEP_ext_gtest(talgoTest)
+target_link_libraries(talgoTest PRIVATE os util)
 add_test(
     NAME talgoTest
     COMMAND talgoTest
@@ -110,7 +120,8 @@ add_test(
 
 # tbaseCodecTest
 add_executable(tbaseCodecTest "tbaseCodecTest.cpp")
-target_link_libraries(tbaseCodecTest os util common gtest_main)
+DEP_ext_gtest(tbaseCodecTest)
+target_link_libraries(tbaseCodecTest PRIVATE os util common)
 add_test(
     NAME tbaseCodecTest
     COMMAND tbaseCodecTest
@@ -118,21 +129,32 @@ add_test(
 
 # bufferTest
 add_executable(bufferTest "bufferTest.cpp")
-target_link_libraries(bufferTest os util gtest_main)
+DEP_ext_gtest(bufferTest)
+target_link_libraries(bufferTest PRIVATE os util)
 add_test(
     NAME bufferTest
     COMMAND bufferTest
 )
 
 add_executable(regexTest "regexTest.cpp")
-target_link_libraries(regexTest os util gtest_main)
+DEP_ext_gtest(regexTest)
+target_link_libraries(regexTest PRIVATE os util)
 add_test(
     NAME regexTest
     COMMAND regexTest
 )
 
+add_executable(lrucacheTest "lrucacheTest.cpp")
+DEP_ext_gtest(lrucacheTest)
+target_link_libraries(lrucacheTest PRIVATE os util)
+add_test(
+    NAME lrucacheTest
+    COMMAND lrucacheTest
+)
+
 add_executable(logTest "log.cpp")
-target_link_libraries(logTest os util common gtest_main)
+DEP_ext_gtest(logTest)
+target_link_libraries(logTest PRIVATE os util common)
 add_test(
     NAME logTest
     COMMAND logTest
@@ -143,26 +165,43 @@ target_include_directories(
 )
 
 add_executable(decompressTest "decompressTest.cpp")
-target_link_libraries(decompressTest os util common gtest_main)
+DEP_ext_gtest(decompressTest)
+target_link_libraries(decompressTest PRIVATE os util common)
 add_test(
     NAME decompressTest
     COMMAND decompressTest
 )
 
+add_executable(objpoolTest "objpoolTest.cpp")
+DEP_ext_gtest(objpoolTest)
+target_link_libraries(objpoolTest PRIVATE os util common)
+add_test(
+    NAME objpoolTest
+    COMMAND objpoolTest
+)
 
-IF($TD_LINUX)
-    add_executable(utilTests "utilTests.cpp")
-    target_link_libraries(utilTests os util common gtest_main)
+# timerTest
+add_executable(timerTest "timerTest.cpp")
+DEP_ext_gtest(timerTest)
+target_link_libraries(timerTest PRIVATE os util)
+add_test(
+    NAME timerTest
+    COMMAND timerTest
+)
+
+if(TD_LINUX)
+    add_executable(utilTests utilTests.cpp stringTest.cpp)
+    DEP_ext_gtest(utilTests)
+    target_link_libraries(utilTests PRIVATE os util common)
     add_test(
         NAME utilTests
         COMMAND utilTests
     )
-ENDIF()
 
-if(${TD_LINUX})
     # terrorTest
     add_executable(terrorTest "terrorTest.cpp")
-    target_link_libraries(terrorTest os util common gtest_main)
+    DEP_ext_gtest(terrorTest)
+    target_link_libraries(terrorTest PRIVATE os util common)
     add_test(
         NAME terrorTest
         COMMAND terrorTest
@@ -176,10 +215,55 @@ if(${TD_LINUX})
 
     # memPoolTest
     add_executable(memPoolTest "memPoolTest.cpp")
-    target_link_libraries(memPoolTest os util common gtest_main)
+    DEP_ext_gtest(memPoolTest)
+    DEP_ext_cppstub(memPoolTest)
+    target_link_libraries(memPoolTest PRIVATE os util common)
     add_test(
         NAME memPoolTest
         COMMAND memPoolTest
     )
 
+    # queryAutoQWorkerTest
+    add_executable(queryAutoQWorkerTest "queryAutoQWorkerTest.cpp")
+    DEP_ext_gtest(queryAutoQWorkerTest)
+    target_link_libraries(queryAutoQWorkerTest PRIVATE os util common)
+    add_test(
+        NAME queryAutoQWorkerTest
+        COMMAND queryAutoQWorkerTest
+    )
+endif()
+
+# compressBench -- manual micro-benchmark / verifier for the L2 compression
+# dispatch table (stock vs. runtime-loaded accel backends). It is a C program
+# with its own main(), not a gtest, so it is built without DEP_ext_gtest.
+# Linux-only: links libm and calls libc clock_gettime directly.
+# Deliberately NOT registered via add_test(): it is a manual tool and must stay
+# out of ctest / CI for now. Run the built binary by hand, e.g.
+#   ./compressBench --codec all --size 1m --iters 30 --warmup 5 --shape mixed
+if(TD_LINUX)
+    add_executable(compressBench "compressBench.c")
+    target_link_libraries(compressBench PRIVATE util m)
+    target_include_directories(
+        compressBench
+        PRIVATE
+            ${TD_SOURCE_DIR}/include/util
+            ${TD_SOURCE_DIR}/include/common
+            ${TD_SOURCE_DIR}/include/os
+    )
+endif()
+
+# compressAccelTest -- verifies that the accelerated L2 backends are really
+# loaded: points TAOS_COMPRESS_ACCEL_ZLIB at the system libz (resolved at
+# runtime via dlopen/dlinfo, so no hard-coded path), then checks that the
+# dispatch table was rebound and that compress/decompress round-trips and
+# interoperates with the stock implementation. Skips when the system libz is
+# absent. Requires the accel code to be compiled in.
+if(TD_LINUX AND BUILD_WITH_ACCEL_COMPRESS)
+    add_executable(compressAccelTest "compressAccelTest.cpp")
+    DEP_ext_gtest(compressAccelTest)
+    target_link_libraries(compressAccelTest PRIVATE os util common)
+    add_test(
+        NAME compressAccelTest
+        COMMAND compressAccelTest
+    )
 endif()

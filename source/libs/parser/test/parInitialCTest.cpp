@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), AS published by the Free Software Foundation.
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -13,20 +15,471 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
+#include <array>
+#include <cstring>
 #include <fstream>
+#include <memory>
+
+#include "stub.h"
 
 #include "parTestUtil.h"
+#include "parAst.h"
+#include "parInt.h"
+#include "parUtil.h"
+
+#include "nodes.h"
 
 using namespace std;
 
 namespace ParserTest {
 
+namespace {
+
+enum class StrictAppendFailure {
+  None,
+  TagColumn,
+  TbnameFunction,
+};
+
+StrictAppendFailure g_strictAppendFailure = StrictAppendFailure::None;
+
+bool shouldFailStrictAppend(SNode* pNode) {
+  if (nullptr == pNode) {
+    return false;
+  }
+
+  if (StrictAppendFailure::TagColumn == g_strictAppendFailure && QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    return 0 == strcmp(pCol->colName, "tag1");
+  }
+
+  if (StrictAppendFailure::TbnameFunction == g_strictAppendFailure && QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    return 0 == strcmp(pFunc->functionName, "tbname");
+  }
+
+  return false;
+}
+
+int32_t strictAppendForTsmaTest(SNodeList** pList, SNode* pNode) {
+  if (shouldFailStrictAppend(pNode)) {
+    nodesDestroyNode(pNode);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (NULL == *pList) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class StrictAppendStubGuard {
+ public:
+  explicit StrictAppendStubGuard(StrictAppendFailure failure) {
+    g_strictAppendFailure = failure;
+    stub_.set(nodesListMakeStrictAppend, strictAppendForTsmaTest);
+  }
+
+  ~StrictAppendStubGuard() {
+    stub_.reset(nodesListMakeStrictAppend);
+    g_strictAppendFailure = StrictAppendFailure::None;
+  }
+
+ private:
+  Stub stub_;
+};
+
+using QueryGuard = unique_ptr<SQuery, decltype(&qDestroyQuery)>;
+
+QueryGuard parseInitialSql(const char* pSql) {
+  array<char, 1024> msgBuf = {0};
+  SParseContext     cxt = {0};
+  cxt.acctId = 0;
+  cxt.db = "test";
+  cxt.pUser = "root";
+  cxt.isSuperUser = true;
+  cxt.enableSysInfo = true;
+  cxt.privInfo = UINT16_MAX;
+  cxt.pSql = pSql;
+  cxt.sqlLen = strlen(pSql);
+  cxt.pMsg = msgBuf.data();
+  cxt.msgLen = msgBuf.max_size();
+  cxt.svrVer = "3.0.0.0";
+
+  SQuery* pQuery = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, parse(&cxt, &pQuery)) << msgBuf.data();
+  return QueryGuard(pQuery, qDestroyQuery);
+}
+
+}  // namespace
+
 class ParserInitialCTest : public ParserDdlTest {};
+
+TEST(ParseMetaCacheTest, scopedVstRefsPreserveOuterResultsAndErrors) {
+  SParseMetaCache outer = {};
+  SParseMetaCache inner = {};
+  inner.pVStbRefParent = &outer;
+  SName name = {};
+  const char key[] = "0.db.leaf";
+  ASSERT_EQ(0, tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  SArray* refs = nullptr;
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, getVStbRefDbsFromCache(&inner, &name, &refs));
+
+  ASSERT_EQ(0, reserveVStbRefDbsInCache(0, "db", "leaf", &outer));
+  unique_ptr<SHashObj, decltype(&taosHashCleanup)> outerHash(outer.pVStbRefDbs, taosHashCleanup);
+  ASSERT_EQ(0, reserveVStbRefDbsInCache(0, "db", "leaf", &inner));
+  unique_ptr<SHashObj, decltype(&taosHashCleanup)> innerHash(inner.pVStbRefDbs, taosHashCleanup);
+  SArray outerRefs = {};
+  SMetaRes outerResult = {};
+  outerResult.pRes = &outerRefs;
+  SMetaRes* entry = &outerResult;
+  ASSERT_EQ(0, taosHashPut(outerHash.get(), key, sizeof(key) - 1, &entry, sizeof(entry)));
+  ASSERT_EQ(0, getVStbRefDbsFromCache(&inner, &name, &refs));
+  EXPECT_EQ(&outerRefs, refs);
+
+  SMetaRes innerResult = {};
+  innerResult.code = TSDB_CODE_PAR_INTERNAL_ERROR;
+  entry = &innerResult;
+  ASSERT_EQ(0, taosHashPut(innerHash.get(), key, sizeof(key) - 1, &entry, sizeof(entry)));
+  EXPECT_EQ(TSDB_CODE_PAR_INTERNAL_ERROR, getVStbRefDbsFromCache(&inner, &name, &refs));
+  EXPECT_EQ(0, getVStbRefDbsFromCache(&outer, &name, &refs));
+  EXPECT_EQ(&outerRefs, refs);
+}
+
+TEST_F(ParserInitialCTest, referenceMetadataDupOwnsExtension) {
+  using MetaGuard = unique_ptr<STableMeta, decltype(&queryFreeTableMeta)>;
+  MetaGuard source((STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta) + 2 * sizeof(SSchema)), queryFreeTableMeta);
+  ASSERT_NE(source, nullptr);
+  source->tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  source->tableInfo.numOfColumns = 2;
+  SVtableReferenceExt* pExt = &source->referenceExt;
+  pExt->pReferences = (SReferenceEntry*)taosMemoryCalloc(1, sizeof(SReferenceEntry));
+  pExt->pBindings = (SVtableBindingLink*)taosMemoryCalloc(1, sizeof(SVtableBindingLink));
+  pExt->pDeclarations = (SVtableDeclOrder*)taosMemoryCalloc(1, sizeof(SVtableDeclOrder));
+  ASSERT_NE(pExt->pReferences, nullptr);
+  ASSERT_NE(pExt->pBindings, nullptr);
+  ASSERT_NE(pExt->pDeclarations, nullptr);
+  pExt->nReferences = pExt->nBindings = pExt->nDeclarations = 1;
+  tstrncpy(pExt->pReferences[0].alias, "r", TSDB_COL_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].sourceName, "src", TSDB_TABLE_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].objectName, "samples", TSDB_TABLE_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].timeColumn, "event_time", TSDB_COL_NAME_LEN);
+  pExt->pBindings[0].colId = 2;
+  pExt->pBindings[0].bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(pExt->pBindings[0].alias, "r", TSDB_COL_NAME_LEN);
+  pExt->pDeclarations[0].bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(pExt->pDeclarations[0].alias, "r", TSDB_COL_NAME_LEN);
+
+  MetaGuard copy(tableMetaDup(source.get()), queryFreeTableMeta);
+  ASSERT_NE(copy, nullptr);
+  EXPECT_NE(copy->referenceExt.pReferences, pExt->pReferences);
+  EXPECT_NE(copy->referenceExt.pBindings, pExt->pBindings);
+  EXPECT_NE(copy->referenceExt.pDeclarations, pExt->pDeclarations);
+  EXPECT_STREQ(copy->referenceExt.pReferences[0].timeColumn, "event_time");
+  copy.reset();
+  EXPECT_STREQ(pExt->pReferences[0].timeColumn, "event_time");
+  EXPECT_STREQ(pExt->pBindings[0].alias, "r");
+}
+
+TEST_F(ParserInitialCTest, referenceDeclarationAst) {
+  QueryGuard query = parseInitialSql(
+      "CREATE VTABLE v_reference (ts TIMESTAMP, value DOUBLE FROM r.value, "
+      "local_value DOUBLE FROM test.r.value) "
+      "REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP EventTime "
+      "SERIES s AS influx.db.cpu (site='beijing')");
+  ASSERT_NE(query, nullptr);
+  const SCreateVTableStmt* pStmt = (const SCreateVTableStmt*)query->pRoot;
+  ASSERT_EQ(nodeType(pStmt), QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT);
+  ASSERT_EQ(LIST_LENGTH(pStmt->pSeriesList), 2);
+  const SReferenceDeclNode* pDecl = (const SReferenceDeclNode*)nodesListGetNode(pStmt->pSeriesList, 0);
+  ASSERT_EQ(nodeType(pDecl), QUERY_NODE_REFERENCE_DECL);
+  EXPECT_STREQ(pDecl->entry.alias, "r");
+  EXPECT_STREQ(pDecl->entry.sourceName, "sqlsrc");
+  EXPECT_STREQ(pDecl->entry.dbName, "telemetry");
+  EXPECT_STREQ(pDecl->entry.schemaName, "dbo");
+  EXPECT_STREQ(pDecl->entry.objectName, "samples");
+  EXPECT_STREQ(pDecl->entry.timeColumn, "EventTime");
+  const SColumnOptions* pAlias = (const SColumnOptions*)((SColumnDefNode*)nodesListGetNode(pStmt->pCols, 1))->pOptions;
+  const SColumnOptions* pLocal = (const SColumnOptions*)((SColumnDefNode*)nodesListGetNode(pStmt->pCols, 2))->pOptions;
+  EXPECT_EQ(pAlias->refPathParts, 2);
+  EXPECT_EQ(pLocal->refPathParts, 3);
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode((const SNode*)pDecl, &pClone), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pClone));
+  nodesDestroyNode(pClone);
+  char* json = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(nodesNodeToString((const SNode*)pDecl, false, &json, &length), TSDB_CODE_SUCCESS);
+  SNode* pRestored = nullptr;
+  ASSERT_EQ(nodesStringToNode(json, &pRestored), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pRestored));
+  nodesDestroyNode(pRestored);
+  taosMemoryFree(json);
+  char* message = nullptr;
+  int32_t messageLength = 0;
+  ASSERT_EQ(nodesNodeToMsg((const SNode*)pDecl, &message, &messageLength), TSDB_CODE_SUCCESS);
+  pRestored = nullptr;
+  ASSERT_EQ(nodesMsgToNode(message, messageLength, &pRestored), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pRestored));
+  nodesDestroyNode(pRestored);
+  taosMemoryFree(message);
+}
+
+TEST_F(ParserInitialCTest, referenceMixedQuotedSeriesIdentifiers) {
+  char sql[] =
+      "CREATE VTABLE v_mixed (ts TIMESTAMP, value DOUBLE FROM r.value) "
+      "SERIES `S1` AS `influx``source`.`Metrics`.`cpu.load` (site='beijing') "
+      "REFERENCE r AS sqlsrc.telemetry.samples TIMESTAMP event_time";
+  QueryGuard query = parseInitialSql(sql);
+  ASSERT_NE(query, nullptr);
+  const auto* statement = reinterpret_cast<const SCreateVTableStmt*>(query->pRoot);
+  ASSERT_EQ(LIST_LENGTH(statement->pSeriesList), 2);
+  const auto* series = reinterpret_cast<const SSeriesDeclNode*>(nodesListGetNode(statement->pSeriesList, 0));
+  ASSERT_EQ(nodeType(series), QUERY_NODE_SERIES_DECL);
+  EXPECT_STREQ(series->alias, "S1");
+  EXPECT_STREQ(series->sourceName, "influx`source");
+  EXPECT_STREQ(series->dbName, "Metrics");
+  EXPECT_STREQ(series->measurementName, "cpu.load");
+}
+
+TEST_F(ParserInitialCTest, referenceAlterSyntax) {
+  const char* statements[] = {
+      "ALTER VTABLE v ADD REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP `EventTime`",
+      "ALTER VTABLE v MODIFY REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP `CollectedAt`",
+      "ALTER VTABLE v REMOVE REFERENCE r"};
+  const int8_t actions[] = {TSDB_ALTER_TABLE_ADD_REFERENCE, TSDB_ALTER_TABLE_MODIFY_REFERENCE,
+                            TSDB_ALTER_TABLE_REMOVE_REFERENCE};
+  for (size_t i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i) {
+    QueryGuard query = parseInitialSql(statements[i]);
+    ASSERT_NE(query, nullptr);
+    const SAlterTableStmt* pStmt = (const SAlterTableStmt*)query->pRoot;
+    EXPECT_EQ(pStmt->alterType, actions[i]);
+  }
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE v (ts TIMESTAMP) REFERENCE `RefA` AS `src`.`db`.`schema`.`T` TIMESTAMP `EventTime`");
+    ASSERT_NE(query, nullptr);
+    const SCreateVTableStmt* pStmt = (const SCreateVTableStmt*)query->pRoot;
+    const SReferenceDeclNode* pDecl = (const SReferenceDeclNode*)nodesListGetNode(pStmt->pSeriesList, 0);
+    EXPECT_STREQ(pDecl->entry.alias, "RefA");
+    EXPECT_STREQ(pDecl->entry.objectName, "T");
+    EXPECT_STREQ(pDecl->entry.timeColumn, "EventTime");
+  }
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.t", TSDB_CODE_PAR_INCOMPLETE_SQL);
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.t TIMESTAMP now()", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.schema.t.extra.column TIMESTAMP ts",
+               TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+TEST_F(ParserInitialCTest, createVSubTableBatchAst) {
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE IF NOT EXISTS v_explicit "
+        "(value FROM src1.value) USING vst (location) TAGS ('beijing')");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->dbName, "test");
+    EXPECT_STREQ(pStmt->tableName, "v_explicit");
+    EXPECT_STREQ(pStmt->useDbName, "test");
+    EXPECT_STREQ(pStmt->useTableName, "vst");
+    EXPECT_TRUE(pStmt->ignoreExists);
+    ASSERT_NE(pStmt->pSpecificColRefs, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pSpecificColRefs), 1);
+    EXPECT_EQ(pStmt->pColRefs, nullptr);
+  }
+
+  {
+    QueryGuard query = parseInitialSql("CREATE VTABLE v_positional (src2.value) USING vst TAGS (2)");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->tableName, "v_positional");
+    EXPECT_FALSE(pStmt->ignoreExists);
+    EXPECT_EQ(pStmt->pSpecificColRefs, nullptr);
+    ASSERT_NE(pStmt->pColRefs, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pColRefs), 1);
+  }
+
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE v_no_refs USING vst TAGS (3) "
+        "SERIES influx AS ext0.db0.measurement0 (site='beijing')");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    const SCreateVSubTableStmt* pStmt = (const SCreateVSubTableStmt*)query->pRoot;
+    EXPECT_STREQ(pStmt->tableName, "v_no_refs");
+    EXPECT_EQ(pStmt->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pStmt->pColRefs, nullptr);
+    ASSERT_NE(pStmt->pSeriesList, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pStmt->pSeriesList), 1);
+  }
+
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE "
+        "IF NOT EXISTS v1 (value FROM src1.value) USING vst1 (location) TAGS ('beijing') "
+        "v2 (src2.value) USING vst2 TAGS (2) "
+        "SERIES influx AS ext0.db0.measurement0 (site='shanghai') "
+        "v3 USING vst3 TAGS (3)");
+    ASSERT_NE(query, nullptr);
+    ASSERT_EQ(nodeType(query->pRoot), QUERY_NODE_CREATE_MULTI_TABLES_STMT);
+
+    const SCreateMultiTablesStmt* pMulti = (const SCreateMultiTablesStmt*)query->pRoot;
+    ASSERT_NE(pMulti->pSubTables, nullptr);
+    ASSERT_EQ(LIST_LENGTH(pMulti->pSubTables), 3);
+
+    const SCreateVSubTableStmt* pFirst = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 0);
+    const SCreateVSubTableStmt* pSecond = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 1);
+    const SCreateVSubTableStmt* pThird = (const SCreateVSubTableStmt*)nodesListGetNode(pMulti->pSubTables, 2);
+    ASSERT_NE(pFirst, nullptr);
+    ASSERT_NE(pSecond, nullptr);
+    ASSERT_NE(pThird, nullptr);
+    EXPECT_EQ(nodeType(pFirst), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+    EXPECT_EQ(nodeType(pSecond), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+    EXPECT_EQ(nodeType(pThird), QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT);
+
+    EXPECT_STREQ(pFirst->tableName, "v1");
+    EXPECT_TRUE(pFirst->ignoreExists);
+    ASSERT_NE(pFirst->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pFirst->pColRefs, nullptr);
+    EXPECT_STREQ(pSecond->tableName, "v2");
+    EXPECT_FALSE(pSecond->ignoreExists);
+    EXPECT_EQ(pSecond->pSpecificColRefs, nullptr);
+    ASSERT_NE(pSecond->pColRefs, nullptr);
+    ASSERT_NE(pSecond->pSeriesList, nullptr);
+    EXPECT_EQ(LIST_LENGTH(pSecond->pSeriesList), 1);
+    EXPECT_STREQ(pThird->tableName, "v3");
+    EXPECT_EQ(pThird->pSpecificColRefs, nullptr);
+    EXPECT_EQ(pThird->pColRefs, nullptr);
+  }
+}
+
+TEST_F(ParserInitialCTest, createVSubTableBatchSyntaxError) {
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1), v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  // `v2 (ts TIMESTAMP` is the start of another subtable clause whose column
+  // list is unclosed, so the parser reports an incomplete statement rather
+  // than a syntax error. `v2 (ts TIMESTAMP) USING vst TAGS (2)` completes it.
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_INCOMPLETE_SQL);
+  // Include standalone-table tags so mixed batch syntax is rejected before EOF.
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1) v2 (ts TIMESTAMP) TAGS (location INT)",
+               TSDB_CODE_PAR_SYNTAX_ERROR);
+}
+
+TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {
+  login("root");
+
+  ENodeType expectedType = QUERY_NODE_CREATE_XNODE_TASK_STMT;
+  bool        hasExpectedParser = false;
+  std::string expectedParser;
+  auto checkParser = [&](const CowStr& parser) {
+    if (!hasExpectedParser) {
+      ASSERT_EQ(parser.ptr, nullptr);
+    } else {
+      ASSERT_NE(parser.ptr, nullptr);
+      ASSERT_EQ(parser.len, expectedParser.size());
+      ASSERT_EQ(std::string(parser.ptr, parser.len), expectedParser);
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), expectedType);
+    if (QUERY_NODE_CREATE_XNODE_TASK_STMT == expectedType) {
+      ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_CREATE_XNODE_TASK);
+      SMCreateXnodeTaskReq req = {0};
+      ASSERT_EQ(tDeserializeSMCreateXnodeTaskReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+                TSDB_CODE_SUCCESS);
+      checkParser(req.options.parser);
+      tFreeSMCreateXnodeTaskReq(&req);
+    } else {
+      ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_UPDATE_XNODE_TASK);
+      SMUpdateXnodeTaskReq req = {0};
+      ASSERT_EQ(tDeserializeSMUpdateXnodeTaskReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+                TSDB_CODE_SUCCESS);
+      checkParser(req.parser);
+      tFreeSMUpdateXnodeTaskReq(&req);
+    }
+  });
+
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH status 'created'");
+
+  hasExpectedParser = true;
+  expectedParser = "";
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser ''");
+
+  expectedParser = "json";
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser 'json'");
+
+  expectedParser = R"({"parser":{"value":"{\"x\":\"y\"}"}})";
+  run(R"(CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser '{\"parser\":{\"value\":\"{\\\"x\\\":\\\"y\\\"}\"}}')");
+
+  expectedType = QUERY_NODE_UPDATE_XNODE_TASK_STMT;
+
+  hasExpectedParser = false;
+  run("ALTER XNODE TASK 'task' WITH status 'running'");
+
+  hasExpectedParser = true;
+  expectedParser = "";
+  run("ALTER XNODE TASK 'task' WITH parser ''");
+
+  expectedParser = "json";
+  run("ALTER XNODE TASK 'task' WITH parser 'json'");
+
+  expectedParser = R"({"parser":{"value":"{\"x\":\"y\"}"}})";
+  run(R"(ALTER XNODE TASK 'task' WITH parser '{\"parser\":{\"value\":\"{\\\"x\\\":\\\"y\\\"}\"}}')");
+}
+
+TEST_F(ParserInitialCTest, xnodeTaskParserBinaryLength) {
+  SAstCreateContext context = {0};
+  char              parserKey[] = "parser";
+  char              parserLiteral[] = {'\'', 'a', 'b', '\0', 'c', 'd', '\''};
+  SToken            key = {0};
+  key.n = 6;
+  key.type = TK_NK_ID;
+  key.z = parserKey;
+  SToken value = {0};
+  value.n = sizeof(parserLiteral);
+  value.type = TK_NK_STRING;
+  value.z = parserLiteral;
+
+  SNode* options = createDefaultXnodeTaskOptions(&context);
+  ASSERT_NE(options, nullptr);
+  options = setXnodeTaskOption(&context, options, &key, &value);
+  ASSERT_NE(options, nullptr);
+
+  const auto* xnodeOptions = reinterpret_cast<const SXnodeTaskOptions*>(options);
+  ASSERT_NE(xnodeOptions->parser, nullptr);
+  ASSERT_EQ(xnodeOptions->parserLen, 5);
+  ASSERT_EQ(std::string(xnodeOptions->parser, xnodeOptions->parserLen), std::string("ab\0cd", 5));
+
+  nodesDestroyNode(options);
+}
 
 /*
  * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
+#ifndef TD_ENTERPRISE
+  run("COMPACT DATABASE test", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'",
+      TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   SCompactDbReq expect = {0};
 
   auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
@@ -57,6 +510,7 @@ TEST_F(ParserInitialCTest, compact) {
 
   setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
   run("COMPACT DATABASE testus END WITH 1675749683000000000");
+#endif
 }
 
 /*
@@ -476,21 +930,46 @@ TEST_F(ParserInitialCTest, createFunction) {
     tFreeSCreateFuncReq(&req);
   });
 
+  // validateUdfLibraryPath (added for CVE-2023-38502) requires:
+  //   - binary UDFs: platform-native extension + library magic header
+  //   - python UDFs: no strict enforcement, any file works
   struct udfFile {
-    udfFile(const std::string& filename) : path_(filename) {
+    udfFile(const std::string& filename, bool nativeLib) : path_(filename) {
       std::ofstream file(filename, std::ios::binary);
-      file << 123 << "abc" << '\n';
+      if (nativeLib) {
+#ifdef WINDOWS
+        // Minimal PE header magic: 'M' 'Z'
+        const unsigned char peMagic[16] = {'M', 'Z', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(peMagic), sizeof(peMagic));
+#else
+        // Minimal ELF magic: 0x7f 'E' 'L' 'F' + 12 padding bytes
+        const unsigned char elfMagic[16] = {0x7f, 'E', 'L', 'F', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(elfMagic), sizeof(elfMagic));
+#endif
+      } else {
+        file << "# python udf\n";
+      }
       file.close();
     }
-    ~udfFile() { assert(0 == remove(path_.c_str())); }
+    ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
-  } udffile("udf");
+  }
+#ifdef WINDOWS
+      udfLib("udf.dll", true),
+#else
+      udfLib("udf.so", true),
+#endif
+      udfPy("udf.py", false);
 
   setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+#ifdef WINDOWS
+  run("CREATE FUNCTION udf1 AS 'udf.dll' OUTPUTTYPE INT");
+#else
+  run("CREATE FUNCTION udf1 AS 'udf.so' OUTPUTTYPE INT");
+#endif
 
   setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
-  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
+  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf.py' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
@@ -499,120 +978,6 @@ TEST_F(ParserInitialCTest, createFunction) {
  */
 TEST_F(ParserInitialCTest, createView) {
   useDb("root", "test");
-
-  SCMCreateStreamReq expect = {0};
-
-  auto clearCreateStreamReq = [&]() {
-    tFreeSCMCreateStreamReq(&expect);
-    memset(&expect, 0, sizeof(SCMCreateStreamReq));
-  };
-
-  auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
-                                int8_t igExists = 0) {
-    snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
-    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-    snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
-    expect.igExists = igExists;
-    expect.sql = taosStrdup(pSql);
-  };
-
-  auto setStreamOptions =
-      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
-          int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
-          int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
-        expect.createStb = createStb;
-        expect.triggerType = triggerType;
-        expect.maxDelay = maxDelay;
-        expect.watermark = watermark;
-        expect.fillHistory = fillHistory;
-        expect.igExpired = igExpired;
-        expect.igUpdate = igUpdate;
-      };
-
-  auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
-    SField field = {0};
-    strcpy(field.name, pFieldName);
-    field.type = type;
-    field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
-    field.flags |= COL_SMA_ON;
-
-    if (NULL == expect.pTags) {
-      expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
-    }
-    ASSERT_TRUE(nullptr != taosArrayPush(expect.pTags, &field));
-    expect.numOfTags += 1;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
-    SCMCreateStreamReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
-                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(std::string(req.sourceDB), std::string(expect.sourceDB));
-    ASSERT_EQ(std::string(req.targetStbFullName), std::string(expect.targetStbFullName));
-    ASSERT_EQ(req.igExists, expect.igExists);
-    ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
-    ASSERT_EQ(req.triggerType, expect.triggerType);
-    ASSERT_EQ(req.maxDelay, expect.maxDelay);
-    ASSERT_EQ(req.watermark, expect.watermark);
-    ASSERT_EQ(req.fillHistory, expect.fillHistory);
-    ASSERT_EQ(req.igExpired, expect.igExpired);
-    ASSERT_EQ(req.numOfTags, expect.numOfTags);
-    if (expect.numOfTags > 0) {
-      ASSERT_EQ(taosArrayGetSize(req.pTags), expect.numOfTags);
-      ASSERT_EQ(taosArrayGetSize(req.pTags), taosArrayGetSize(expect.pTags));
-      for (int32_t i = 0; i < expect.numOfTags; ++i) {
-        SField* pField = (SField*)taosArrayGet(req.pTags, i);
-        SField* pExpectField = (SField*)taosArrayGet(expect.pTags, i);
-        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
-        ASSERT_EQ(pField->type, pExpectField->type);
-        ASSERT_EQ(pField->bytes, pExpectField->bytes);
-        ASSERT_EQ(pField->flags, pExpectField->flags);
-      }
-    }
-    ASSERT_EQ(req.checkpointFreq, expect.checkpointFreq);
-    ASSERT_EQ(req.createStb, expect.createStb);
-    ASSERT_EQ(req.igUpdate, expect.igUpdate);
-    tFreeSCMCreateStreamReq(&req);
-  });
-
-  setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
-      "update 1 into st3 as select count(*) from t1 interval(10s)",
-      "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
-      "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq("s1", "test",
-                     "create stream s1 into st3 tags(tname varchar(10), id int) subtable(concat('new-', tname)) as "
-                     "select _wstart wstart, count(*) cnt from st1 partition by tbname tname, tag1 id interval(10s)",
-                     "st3");
-  addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
-  addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  // st1 already exists
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
-      "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
-  run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
-  clearCreateStreamReq();
 }
 
 /*
@@ -673,83 +1038,105 @@ TEST_F(ParserInitialCTest, createQnode) {
  * functions:
  *     function [, function] ...
  */
-TEST_F(ParserInitialCTest, createSmaIndex) {
+//TEST_F(ParserInitialCTest, createSmaIndex) {
+//  useDb("root", "test");
+//
+//  SMCreateSmaReq expect = {0};
+//
+//  auto setCreateSmacReq = [&](const char* pIndexName, const char* pStbName, int64_t interval, int8_t intervalUnit,
+//                              int64_t offset = 0, int64_t sliding = -1, int8_t slidingUnit = -1, int8_t igExists = 0) {
+//    memset(&expect, 0, sizeof(SMCreateSmaReq));
+//    strcpy(expect.name, pIndexName);
+//    strcpy(expect.stb, pStbName);
+//    expect.igExists = igExists;
+//    expect.intervalUnit = intervalUnit;
+//    expect.slidingUnit = slidingUnit < 0 ? intervalUnit : slidingUnit;
+//    expect.timezone = 0;
+//    expect.dstVgId = 1;
+//    expect.interval = interval;
+//    expect.offset = offset;
+//    expect.sliding = sliding < 0 ? interval : sliding;
+//    expect.maxDelay = -1;
+//    expect.watermark = TSDB_DEFAULT_ROLLUP_WATERMARK;
+//    expect.deleteMark = TSDB_DEFAULT_ROLLUP_DELETE_MARK;
+//  };
+//
+//  auto setOptionsForCreateSmacReq = [&](int64_t maxDelay, int64_t watermark, int64_t deleteMark) {
+//    expect.maxDelay = maxDelay;
+//    expect.watermark = watermark;
+//    expect.deleteMark = deleteMark;
+//  };
+//
+//  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+//    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_INDEX_STMT);
+//    SMCreateSmaReq req = {0};
+//    ASSERT_TRUE(pQuery->pPrevRoot);
+//    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
+//
+//    SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
+//    SCmdMsgInfo*      pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
+//    if (NULL == pCmdMsg) FAIL();
+//    //pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
+//    //pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
+//    pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
+//    if (!pCmdMsg->pMsg) FAIL();
+//    //ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
+//    ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
+//    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+//
+//    ASSERT_EQ(std::string(req.name), std::string(expect.name));
+//    ASSERT_EQ(std::string(req.stb), std::string(expect.stb));
+//    ASSERT_EQ(req.igExists, expect.igExists);
+//    ASSERT_EQ(req.intervalUnit, expect.intervalUnit);
+//    ASSERT_EQ(req.slidingUnit, expect.slidingUnit);
+//    ASSERT_EQ(req.timezone, expect.timezone);
+//    ASSERT_EQ(req.dstVgId, expect.dstVgId);
+//    ASSERT_EQ(req.interval, expect.interval);
+//    ASSERT_EQ(req.offset, expect.offset);
+//    ASSERT_EQ(req.sliding, expect.sliding);
+//    ASSERT_EQ(req.maxDelay, expect.maxDelay);
+//    ASSERT_EQ(req.watermark, expect.watermark);
+//    ASSERT_EQ(req.deleteMark, expect.deleteMark);
+//    ASSERT_GT(req.exprLen, 0);
+//    ASSERT_EQ(req.tagsFilterLen, 0);
+//    ASSERT_GT(req.sqlLen, 0);
+//    ASSERT_GT(req.astLen, 0);
+//    ASSERT_NE(req.expr, nullptr);
+//    ASSERT_EQ(req.tagsFilter, nullptr);
+//    ASSERT_NE(req.sql, nullptr);
+//    ASSERT_NE(req.ast, nullptr);
+//    tFreeSMCreateSmaReq(&req);
+//  });
+//
+//  setCreateSmacReq("0.test.index1", "0.test.t1", 10 * MILLISECOND_PER_SECOND, 's');
+//  run("CREATE SMA INDEX index1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
+//
+//  setCreateSmacReq("0.test.index2", "0.test.st1", 5 * MILLISECOND_PER_SECOND, 's');
+//  setOptionsForCreateSmacReq(10 * MILLISECOND_PER_SECOND, 20 * MILLISECOND_PER_SECOND, 1000 * MILLISECOND_PER_SECOND);
+//  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(5s) WATERMARK 20s MAX_DELAY 10s "
+//      "DELETE_MARK 1000s");
+//}
+
+TEST_F(ParserInitialCTest, createTsmaClearsTagColumnAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
   useDb("root", "test");
+  setAsyncFlag("-1");
+  StrictAppendStubGuard stub(StrictAppendFailure::TagColumn);
 
-  SMCreateSmaReq expect = {0};
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
 
-  auto setCreateSmacReq = [&](const char* pIndexName, const char* pStbName, int64_t interval, int8_t intervalUnit,
-                              int64_t offset = 0, int64_t sliding = -1, int8_t slidingUnit = -1, int8_t igExists = 0) {
-    memset(&expect, 0, sizeof(SMCreateSmaReq));
-    strcpy(expect.name, pIndexName);
-    strcpy(expect.stb, pStbName);
-    expect.igExists = igExists;
-    expect.intervalUnit = intervalUnit;
-    expect.slidingUnit = slidingUnit < 0 ? intervalUnit : slidingUnit;
-    expect.timezone = 0;
-    expect.dstVgId = 1;
-    expect.interval = interval;
-    expect.offset = offset;
-    expect.sliding = sliding < 0 ? interval : sliding;
-    expect.maxDelay = -1;
-    expect.watermark = TSDB_DEFAULT_ROLLUP_WATERMARK;
-    expect.deleteMark = TSDB_DEFAULT_ROLLUP_DELETE_MARK;
-  };
+TEST_F(ParserInitialCTest, createTsmaClearsTbnameFunctionAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  setAsyncFlag("-1");
+  StrictAppendStubGuard stub(StrictAppendFailure::TbnameFunction);
 
-  auto setOptionsForCreateSmacReq = [&](int64_t maxDelay, int64_t watermark, int64_t deleteMark) {
-    expect.maxDelay = maxDelay;
-    expect.watermark = watermark;
-    expect.deleteMark = deleteMark;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_INDEX_STMT);
-    SMCreateSmaReq req = {0};
-    ASSERT_TRUE(pQuery->pPrevRoot);
-    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pPrevRoot));
-
-    SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pQuery->pRoot;
-    SCmdMsgInfo*      pCmdMsg = (SCmdMsgInfo*)taosMemoryMalloc(sizeof(SCmdMsgInfo));
-    if (NULL == pCmdMsg) FAIL();
-    pCmdMsg->msgType = TDMT_MND_CREATE_SMA;
-    pCmdMsg->msgLen = tSerializeSMCreateSmaReq(NULL, 0, pStmt->pReq);
-    pCmdMsg->pMsg = taosMemoryMalloc(pCmdMsg->msgLen);
-    if (!pCmdMsg->pMsg) FAIL();
-    ASSERT_TRUE(0 < tSerializeSMCreateSmaReq(pCmdMsg->pMsg, pCmdMsg->msgLen, pStmt->pReq));
-    ((SQuery*)pQuery)->pCmdMsg = pCmdMsg;
-    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMCreateSmaReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(std::string(req.stb), std::string(expect.stb));
-    ASSERT_EQ(req.igExists, expect.igExists);
-    ASSERT_EQ(req.intervalUnit, expect.intervalUnit);
-    ASSERT_EQ(req.slidingUnit, expect.slidingUnit);
-    ASSERT_EQ(req.timezone, expect.timezone);
-    ASSERT_EQ(req.dstVgId, expect.dstVgId);
-    ASSERT_EQ(req.interval, expect.interval);
-    ASSERT_EQ(req.offset, expect.offset);
-    ASSERT_EQ(req.sliding, expect.sliding);
-    ASSERT_EQ(req.maxDelay, expect.maxDelay);
-    ASSERT_EQ(req.watermark, expect.watermark);
-    ASSERT_EQ(req.deleteMark, expect.deleteMark);
-    ASSERT_GT(req.exprLen, 0);
-    ASSERT_EQ(req.tagsFilterLen, 0);
-    ASSERT_GT(req.sqlLen, 0);
-    ASSERT_GT(req.astLen, 0);
-    ASSERT_NE(req.expr, nullptr);
-    ASSERT_EQ(req.tagsFilter, nullptr);
-    ASSERT_NE(req.sql, nullptr);
-    ASSERT_NE(req.ast, nullptr);
-    tFreeSMCreateSmaReq(&req);
-  });
-
-  setCreateSmacReq("0.test.index1", "0.test.t1", 10 * MILLISECOND_PER_SECOND, 's');
-  run("CREATE SMA INDEX index1 ON t1 FUNCTION(MAX(c1), MIN(c3 + 10), SUM(c4)) INTERVAL(10s)");
-
-  setCreateSmacReq("0.test.index2", "0.test.st1", 5 * MILLISECOND_PER_SECOND, 's');
-  setOptionsForCreateSmacReq(10 * MILLISECOND_PER_SECOND, 20 * MILLISECOND_PER_SECOND, 1000 * MILLISECOND_PER_SECOND);
-  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(5s) WATERMARK 20s MAX_DELAY 10s "
-      "DELETE_MARK 1000s");
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
 }
 
 /*
@@ -900,6 +1287,18 @@ TEST_F(ParserInitialCTest, createStable) {
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
   clearCreateStbReq();
 
+  setCreateStbReq("test", "ohlcv_1m");
+  addFieldToCreateStbReq(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
+  addFieldToCreateStbReq(true, "open", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "high", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "low", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "close", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "volume", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(false, "symbol", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
+  run("CREATE STABLE ohlcv_1m(ts TIMESTAMP, open BIGINT UNSIGNED, high BIGINT UNSIGNED, low BIGINT UNSIGNED, "
+      "close BIGINT UNSIGNED, volume BIGINT UNSIGNED) TAGS(symbol VARCHAR(10))");
+  clearCreateStbReq();
+
   setCreateStbReq("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
                   1 * MILLISECOND_PER_MINUTE, 1000 * MILLISECOND_PER_SECOND, 200 * MILLISECOND_PER_MINUTE, 100,
                   "test create table");
@@ -956,150 +1355,6 @@ TEST_F(ParserInitialCTest, createStableSemanticCheck) {
 
   run("CREATE STABLE rollup_db.stb2 (ts TIMESTAMP, c1 INT) TAGS (tag1 INT) ROLLUP(MAX) MAX_DELAY 10s WATERMARK 18m",
       TSDB_CODE_PAR_INVALID_TABLE_OPTION);
-}
-
-/*
- * CREATE STREAM [IF NOT EXISTS] stream_name [stream_options]
- *     INTO stb_name [TAGS (create_definition [, create_definition] ...)] [SUBTABLE (expr)] AS subquery
- *
- * stream_options:
- *     stream_option ...
- *
- * stream_option: {
- *     TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
- *   | WATERMARK   time
- *   | IGNORE EXPIRED value
- *   | FILL_HISTORY value
- * }
- */
-TEST_F(ParserInitialCTest, createStream) {
-  useDb("root", "test");
-
-  SCMCreateStreamReq expect = {0};
-
-  auto clearCreateStreamReq = [&]() {
-    tFreeSCMCreateStreamReq(&expect);
-    memset(&expect, 0, sizeof(SCMCreateStreamReq));
-  };
-
-  auto setCreateStreamReq = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
-                                int8_t igExists = 0) {
-    snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
-    snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-    snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
-    expect.igExists = igExists;
-    expect.sql = taosStrdup(pSql);
-  };
-
-  auto setStreamOptions =
-      [&](int8_t createStb = STREAM_CREATE_STABLE_TRUE, int8_t triggerType = STREAM_TRIGGER_WINDOW_CLOSE,
-          int64_t maxDelay = 0, int64_t watermark = 0, int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED,
-          int8_t fillHistory = STREAM_DEFAULT_FILL_HISTORY, int8_t igUpdate = STREAM_DEFAULT_IGNORE_UPDATE) {
-        expect.createStb = createStb;
-        expect.triggerType = triggerType;
-        expect.maxDelay = maxDelay;
-        expect.watermark = watermark;
-        expect.fillHistory = fillHistory;
-        expect.igExpired = igExpired;
-        expect.igUpdate = igUpdate;
-      };
-
-  auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
-    SField field = {0};
-    strcpy(field.name, pFieldName);
-    field.type = type;
-    field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
-    field.flags |= COL_SMA_ON;
-
-    if (NULL == expect.pTags) {
-      expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
-    }
-    ASSERT_TRUE(taosArrayPush(expect.pTags, &field) != nullptr);
-    expect.numOfTags += 1;
-  };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
-    SCMCreateStreamReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
-                tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-
-    ASSERT_EQ(std::string(req.name), std::string(expect.name));
-    ASSERT_EQ(std::string(req.sourceDB), std::string(expect.sourceDB));
-    ASSERT_EQ(std::string(req.targetStbFullName), std::string(expect.targetStbFullName));
-    ASSERT_EQ(req.igExists, expect.igExists);
-    ASSERT_EQ(std::string(req.sql), std::string(expect.sql));
-    ASSERT_EQ(req.triggerType, expect.triggerType);
-    ASSERT_EQ(req.maxDelay, expect.maxDelay);
-    ASSERT_EQ(req.watermark, expect.watermark);
-    ASSERT_EQ(req.fillHistory, expect.fillHistory);
-    ASSERT_EQ(req.igExpired, expect.igExpired);
-    ASSERT_EQ(req.numOfTags, expect.numOfTags);
-    if (expect.numOfTags > 0) {
-      ASSERT_EQ(taosArrayGetSize(req.pTags), expect.numOfTags);
-      ASSERT_EQ(taosArrayGetSize(req.pTags), taosArrayGetSize(expect.pTags));
-      for (int32_t i = 0; i < expect.numOfTags; ++i) {
-        SField* pField = (SField*)taosArrayGet(req.pTags, i);
-        SField* pExpectField = (SField*)taosArrayGet(expect.pTags, i);
-        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
-        ASSERT_EQ(pField->type, pExpectField->type);
-        ASSERT_EQ(pField->bytes, pExpectField->bytes);
-        ASSERT_EQ(pField->flags, pExpectField->flags);
-      }
-    }
-    ASSERT_EQ(req.checkpointFreq, expect.checkpointFreq);
-    ASSERT_EQ(req.createStb, expect.createStb);
-    ASSERT_EQ(req.igUpdate, expect.igUpdate);
-    tFreeSCMCreateStreamReq(&req);
-  });
-
-  setCreateStreamReq("s1", "test", "create stream s1 into st3 as select count(*) from t1 interval(10s)", "st3");
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 fill_history 0 ignore "
-      "update 1 into st3 as select count(*) from t1 interval(10s)",
-      "st3", 1);
-  setStreamOptions(STREAM_CREATE_STABLE_TRUE, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND,
-                   10 * MILLISECOND_PER_SECOND, 0, 0, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 FILL_HISTORY 0 IGNORE "
-      "UPDATE 1 INTO st3 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReq("s1", "test",
-                     "create stream s1 into st3 tags(tname varchar(10), id int) subtable(concat('new-', tname)) as "
-                     "select _wstart wstart, count(*) cnt from st1 partition by tbname tname, tag1 id interval(10s)",
-                     "st3");
-  addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
-  addTag("id", TSDB_DATA_TYPE_INT);
-  setStreamOptions();
-  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  // st1 already exists
-  setCreateStreamReq(
-      "s1", "test",
-      "create stream s1 into st1 tags(tag2) as select max(c1), c2 from t1 partition by tbname tag2 interval(10s)",
-      "st1");
-  setStreamOptions(STREAM_CREATE_STABLE_FALSE);
-  run("CREATE STREAM s1 INTO st1 TAGS(tag2) AS SELECT MAX(c1), c2 FROM t1 PARTITION BY TBNAME tag2 INTERVAL(10S)");
-  clearCreateStreamReq();
-}
-
-TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
-  useDb("root", "test");
-
-  run("CREATE STREAM s1 INTO st1 AS SELECT PERCENTILE(c1, 30) FROM t1 INTERVAL(10S)",
-      TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
-  run("CREATE STREAM s2 INTO st1 AS SELECT ts, to_json('{c1:1}') FROM st1 PARTITION BY TBNAME",
-      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
-  run("CREATE STREAM s3 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tbname)) "
-      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 INTERVAL(10S)",
-      TSDB_CODE_PAR_INVALID_STREAM_QUERY);
 }
 
 /*
@@ -1331,6 +1586,12 @@ TEST_F(ParserInitialCTest, createTopic) {
                     "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
+
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 "
+      "PARTITION BY c1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
 }
 
 /*
@@ -1345,7 +1606,6 @@ TEST_F(ParserInitialCTest, createUser) {
 
   auto setCreateUserReq = [&](const char* pUser, const char* pPass, int8_t sysInfo = 1) {
     strcpy(expect.user, pUser);
-    strcpy(expect.pass, pPass);
     expect.createType = 0;
     expect.superUser = 0;
     expect.sysInfo = sysInfo;
@@ -1362,17 +1622,135 @@ TEST_F(ParserInitialCTest, createUser) {
     ASSERT_EQ(req.sysInfo, expect.sysInfo);
     ASSERT_EQ(req.enable, expect.enable);
     ASSERT_EQ(std::string(req.user), std::string(expect.user));
-    ASSERT_EQ(std::string(req.pass), std::string(expect.pass));
     tFreeSCreateUserReq(&req);
   });
 
-  setCreateUserReq("wxy", "123456");
-  run("CREATE USER wxy PASS '123456'");
+  setCreateUserReq("wxy", "12345678@Abc");
+  run("CREATE USER wxy PASS '12345678@Abc'");
   clearCreateUserReq();
 
-  setCreateUserReq("wxy1", "a123456", 1);
-  run("CREATE USER wxy1 PASS 'a123456' SYSINFO 1");
+  setCreateUserReq("wxy1", "12345678@Abc", 1);
+  run("CREATE USER wxy1 PASS '12345678@Abc' SYSINFO 1");
   clearCreateUserReq();
 }
 
+}  // namespace ParserTest
+
+// ---------------------------------------------------------------------------
+// Direct unit tests for createRawValueNodeExt (GHSA-vxcq-cqrc-f8j3)
+//
+// The bug: when the function jumps to _exit (e.g. pLiteral==NULL or
+// nodesMakeNode fails), it destroys pLeft/pRight then CHECK_PARSER_STATUS
+// jumps to _err which destroys pLeft/pRight a second time.
+//
+// The fix: null pLeft and pRight immediately after destroying them at _exit,
+// so the second nodesDestroyNode call at _err is a safe no-op.
+//
+// Running under AddressSanitizer will catch a double-free regression.
+// ---------------------------------------------------------------------------
+namespace {
+
+// Build a minimal SAstCreateContext without a live SParseContext.
+static void initMinimalAstCxt(SAstCreateContext* pCxt, int32_t errCode, char* msgBuf, int32_t msgLen) {
+  memset(pCxt, 0, sizeof(*pCxt));
+  pCxt->msgBuf.buf = msgBuf;
+  pCxt->msgBuf.len = msgLen;
+  pCxt->errCode    = errCode;
+}
+
+// Build a trivial non-null SNode* (a raw SValueNode) to use as pLeft/pRight.
+static SNode* makeSimpleNode() {
+  SNode* pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  return (code == TSDB_CODE_SUCCESS) ? pNode : nullptr;
+}
+
+}  // namespace
+
+// Test 1: success path — valid pLiteral, non-null pRight.
+// pRight must be freed exactly once (inside _exit normal flow).
+TEST(createRawValueNodeExtTest, successPathFreesRightOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  char    lit[]   = "100";
+  SToken  token;
+  token.n = (uint32_t)strlen(lit);
+  token.type = 0;
+  token.z = lit;
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, &token, nullptr, pRight);
+  // pRight is consumed (freed) by the function regardless of success/failure.
+  EXPECT_EQ(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(result, nullptr);
+  nodesDestroyNode(result);
+}
+
+// Test 2: error path via pLiteral==NULL with non-null pRight.
+// Before the fix, this triggered a double-free of pRight:
+//   _exit frees pRight → CHECK_PARSER_STATUS → _err frees pRight again.
+// After the fix, _exit nulls pRight so _err's nodesDestroyNode(NULL) is safe.
+TEST(createRawValueNodeExtTest, nullLiteralErrorPathNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  // pLiteral = nullptr triggers the "Invalid parameters" goto _exit path.
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, nullptr, pRight);
+  // pRight is consumed (freed) by the function; result must be NULL on error.
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 3: error path via pLiteral==NULL with both pLeft and pRight non-null.
+// Both nodes must be freed exactly once.
+TEST(createRawValueNodeExtTest, nullLiteralBothNodesNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 4: pre-existing error (pCxt->errCode != 0) — CHECK_PARSER_STATUS at
+// the top jumps directly to _err, which frees pLeft/pRight exactly once.
+TEST(createRawValueNodeExtTest, preExistingErrorFreesNodesOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_FAILED, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 5: SQL-level regression — CREATE TABLE USING TAGS with an
+// INTEGER + duration tag value exercises the createRawValueNodeExt
+// success path end-to-end through the parser.
+namespace ParserTest {
+TEST_F(ParserInitialCTest, createRawValueNodeExtViaTagsLiteralExpr) {
+  useDb("root", "test");
+  // tag3 is TIMESTAMP; "1000 + 1s" exercises tags_literal ::= NK_INTEGER NK_PLUS duration_literal
+  // which calls createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C).
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 + 1s)");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 - 1s)");
+}
 }  // namespace ParserTest

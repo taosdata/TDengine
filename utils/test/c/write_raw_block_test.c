@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -62,12 +64,12 @@ void init_env() {
   action("use db_raw");
 
   action(
-      "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` INT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, "
+      "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` INT, `voltage` INT, `phase` FLOAT, data decimal(4,2)) TAGS (`groupid` INT, "
       "`location` VARCHAR(16))");
   action("create table d0 using meters tags(1, 'San Francisco')");
   action("create table d1 using meters tags(2, 'San Francisco')");
   action("create table d2 using meters tags(3, 'San Francisco')");
-  action("insert into d0 (ts, current) values (now, 120)");
+  action("insert into d0 (ts, current, data) values (now, 120, 2.32)");
 
   action("create table ntba(ts timestamp, addr binary(32))");
   action("create table ntbb(ts timestamp, addr binary(8))");

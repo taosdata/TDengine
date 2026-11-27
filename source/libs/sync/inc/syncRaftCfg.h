@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,7 +24,7 @@ extern "C" {
 
 #include "syncInt.h"
 
-int32_t syncWriteCfgFile(SSyncNode *pNode);
+int32_t syncWriteCfgFile(SSyncNode *pNode, const char *reason);
 int32_t syncReadCfgFile(SSyncNode *pNode);
 
 #ifdef __cplusplus

@@ -1,0 +1,116 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import time
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
+
+
+class TestBalanceLeader:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def check_balance_leader(self):
+        tdSql.query(f"show d1.vgroups", show = True)
+        c1 = 0
+        if tdSql.checkDataV2(0, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if tdSql.checkDataV2(1, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if tdSql.checkDataV2(2, 4, "leader", True) == True:
+            c1 = c1 + 1
+        if c1 != 1:
+            return 1
+
+        c2 = 0
+        if tdSql.checkDataV2(0, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if tdSql.checkDataV2(1, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if tdSql.checkDataV2(2, 7, "leader", True) == True:
+            c2 = c2 + 1
+        if c2 != 1:
+            return 2
+
+        c3 = 0
+        if tdSql.checkDataV2(0, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if tdSql.checkDataV2(1, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if tdSql.checkDataV2(2, 10, "leader", True) == True:
+            c3 = c3 + 1
+        if c3 != 1:
+            return 3
+
+        # success
+        return 0
+
+    def test_balance_leader(self):
+        """balance leader
+
+        1. -
+
+        Catalog:
+            - Database:Sync
+
+        Since: v3.3.7.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: TS-6480
+
+        History:
+            - 2025-9-24 dmchen init
+
+        """
+
+        clusterComCheck.checkDnodes(4)
+        tdSql.execute(f"alter dnode 1 'supportVnodes' '0'")
+        tdSql.execute(f"alter dnode 2 'supportVnodes' '4'")
+        tdSql.execute(f"alter dnode 3 'supportVnodes' '4'")
+        tdSql.execute(f"alter dnode 4 'supportVnodes' '4'")
+        clusterComCheck.checkDnodeSupportVnodes(1, 0)
+        clusterComCheck.checkDnodeSupportVnodes(2, 4)
+        clusterComCheck.checkDnodeSupportVnodes(3, 4)
+        clusterComCheck.checkDnodeSupportVnodes(4, 4)
+
+        tdLog.info(f"========== step1")
+        tdSql.query(f"select * from information_schema.ins_dnodes")
+        tdSql.checkRows(4)
+        tdSql.checkKeyData(1, 4, "ready")
+        tdSql.checkKeyData(2, 4, "ready")
+        tdSql.checkKeyData(3, 4, "ready")
+        tdSql.checkKeyData(4, 4, "ready")
+
+        tdSql.execute(f"create database d1 replica 3 vgroups 3")
+        clusterComCheck.checkDbReady("d1")
+
+        tdSql.execute(f"balance vgroup leader force")
+
+        clusterComCheck.checkTransactions()
+        tdSql.query(f"show transactions")
+        tdSql.checkRows(0)
+
+        clusterComCheck.checkDbReady("d1")
+
+        tdLog.info(f"========== step2")
+        idx = -1
+        for i in range(20):
+            idx = self.check_balance_leader()
+            if idx == 0:
+                break
+            time.sleep(1)
+        if idx != 0:
+            tdLog.exit(f"balance leader failed, dnode {idx} not found leader.")

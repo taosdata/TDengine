@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -79,7 +81,6 @@ typedef struct SDataFileRAWWriterConfig {
   STsdb  *tsdb;
   int32_t szPage;
 
-  SDiskID did;
   int64_t fid;
   int64_t cid;
   int32_t level;
@@ -99,14 +100,12 @@ typedef struct SDataFileRAWWriter {
   STsdbFD *fd;
 } SDataFileRAWWriter;
 
-typedef struct SDataFileRAWWriter SDataFileRAWWriter;
-
 int32_t tsdbDataFileRAWWriterOpen(const SDataFileRAWWriterConfig *config, SDataFileRAWWriter **writer);
 int32_t tsdbDataFileRAWWriterClose(SDataFileRAWWriter **writer, bool abort, TFileOpArray *opArr);
 
 int32_t tsdbDataFileRAWWriterDoOpen(SDataFileRAWWriter *writer);
-int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *bHdr, 
-                                      int32_t encryptAlgorithm, char* encryptKey);
+int32_t tsdbDataFileRAWWriteBlockData(SDataFileRAWWriter *writer, const STsdbDataRAWBlockHeader *bHdr,
+                                      SEncryptData *encryptData);
 int32_t tsdbDataFileRAWFlush(SDataFileRAWWriter *writer);
 
 #ifdef __cplusplus

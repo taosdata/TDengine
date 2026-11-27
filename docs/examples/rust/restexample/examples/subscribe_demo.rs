@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
@@ -64,7 +79,7 @@ async fn main() -> anyhow::Result<()> {
     let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;
 
-    // ANCHOR: consumer_commit_manually   
+    // ANCHOR: consumer_commit_manually
     consumer
         .stream()
         .try_for_each(|(offset, message)| async {
@@ -86,7 +101,6 @@ async fn main() -> anyhow::Result<()> {
         .await?;
     // ANCHOR_END: consumer_commit_manually
 
- 
     // ANCHOR: assignments
     let assignments = consumer.assignments().await.unwrap();
     log::info!("assignments: {:?}", assignments);
@@ -126,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
     // after seek offset
     let assignments = consumer.assignments().await.unwrap();
     log::info!("after seek offset assignments: {:?}", assignments);
-   
+
     consumer.unsubscribe().await;
 
     task.await??;

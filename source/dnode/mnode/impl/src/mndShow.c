@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,13 +17,15 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "mndInt.h"
 #include "mndPrivilege.h"
 #include "mndUser.h"
+#include "mndXnode.h"
 #include "systable.h"
+#include "tmsg.h"
 
 #define SHOW_STEP_SIZE            100
 #define SHOW_COLS_STEP_SIZE       4096
-#define SHOW_PRIVILEGES_STEP_SIZE 2048
 
 static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq);
 static void      mndFreeShowObj(SShowObj *pShow);
@@ -72,6 +76,16 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_ANODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ANODES_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_ANODE_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_BNODE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_TASKS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_AGENTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_AGENTS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_XNODE_JOBS, len) == 0) {
+    type = TSDB_MGMT_TABLE_XNODE_JOBS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_ARBGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_ARBGROUP;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -96,6 +110,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USERS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_USER_FULL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOKENS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TOKEN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
@@ -122,16 +138,36 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_INSTANCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_INSTANCE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_TASKS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAM_TASKS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAM_RECALCULATES, len) == 0) {
+    type = TSDB_MGMT_TABLE_STREAM_RECALCULATES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_USER_PRIVILEGES, len) == 0) {
     type = TSDB_MGMT_TABLE_PRIVILEGES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VIEWS, len) == 0) {
     type = TSDB_MGMT_TABLE_VIEWS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACTS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_ALGORITHMS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_ALGORITHMS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ENCRYPT_STATUS, len) == 0) {
+    type = TSDB_MGMT_TABLE_ENCRYPT_STATUS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SCANS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SCAN;
   } else if (strncasecmp(name, TSDB_INS_TABLE_COMPACT_DETAILS, len) == 0) {
     type = TSDB_MGMT_TABLE_COMPACT_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SCAN_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SCAN_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SSMIGRATES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SSMIGRATE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANSACTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNAP_SEND_VNODES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SNAP_SEND_VNODES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SNAP_SEND_FILESETS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SNAP_SEND_FILESETS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_FULL, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS_FULL;
   } else if (strncasecmp(name, TSDB_INS_TABLE_GRANTS_LOGS, len) == 0) {
@@ -146,6 +182,38 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_USAGE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_FILESETS, len) == 0) {
     type = TSDB_MGMT_TABLE_FILESETS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VC_COLS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VC_COL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_MOUNTS, len) == 0) {
+    type = TSDB_MGMT_TABLE_MOUNT;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RSMAS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RSMA;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_RETENTION_DETAILS, len) == 0) {
+    type = TSDB_MGMT_TABLE_RETENTION_DETAIL;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_ROLE_COL_PRIVILEGES, len) == 0) {
+    type = TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SECURITY_POLICIES, len) == 0) {
+    type = TSDB_MGMT_TABLE_SECURITY_POLICIES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, len) == 0) {
+    type = TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_LOGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TXN_LOG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_ORPHANS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TXN_ORPHANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_VSTABLE_INHERITS, len) == 0) {
+    type = TSDB_MGMT_TABLE_VSTABLE_INHERITS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_EXT_SOURCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_EXT_SOURCES;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_BACKUPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_BACKUP;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -168,6 +236,22 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
+  showObj.txnId = pReq->txnId;
+  showObj.colMaskSet = pReq->colMaskSet != 0;
+  (void)memcpy(showObj.colMask, pReq->colMask, sizeof(showObj.colMask));
+  showObj.xnodeOutputMode = XNODE_SHOW_OUTPUT_PLAINTEXT;
+  showObj.xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_NONE;
+  showObj.xnodeRetrieveFilterValue = 0;
+  if (showObj.type == TSDB_MGMT_TABLE_XNODE_TASKS || showObj.type == TSDB_MGMT_TABLE_XNODE_JOBS) {
+    int32_t resolveCode = mndXnodeResolveShowMode(tsXnodeDsnProtection, pReq->xnodeDsnOutputMode,
+                                                  &showObj.xnodeOutputMode);
+    if (resolveCode != TSDB_CODE_SUCCESS) {
+      terrno = resolveCode;
+      return NULL;
+    }
+    showObj.xnodeRetrieveFilterType = pReq->xnodeRetrieveFilterType;
+    showObj.xnodeRetrieveFilterValue = pReq->xnodeRetrieveFilterValue;
+  }
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
@@ -185,6 +269,15 @@ static void mndFreeShowObj(SShowObj *pShow) {
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
+  // [Security fix] Guard the index into freeIterFps against an out-of-range type. pShow->type is
+  // an int8_t produced by convertToRetrieveType(); a value outside [0, TSDB_MGMT_TABLE_MAX) (for
+  // example -1) would be an out-of-bounds read here. Such an object should no longer be created
+  // (see the guard in mndProcessRetrieveSysTableReq), but skip defensively on destruction too.
+  if (pShow->type < 0 || pShow->type >= TSDB_MGMT_TABLE_MAX) {
+    mError("show:0x%" PRIx64 ", skip free since invalid type:%d", pShow->id, pShow->type);
+    return;
+  }
+
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
     if (pShow->pIter != NULL) {
@@ -195,6 +288,8 @@ static void mndFreeShowObj(SShowObj *pShow) {
       pShow->pIter = NULL;
     }
   }
+
+  mndXnodeCleanupShowProtection(pShow);
 
   mTrace("show:0x%" PRIx64 ", is destroyed, data:%p", pShow->id, pShow);
 }
@@ -232,11 +327,16 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   int32_t    rowsToRead = SHOW_STEP_SIZE;
   int32_t    size = 0;
   int32_t    rowsRead = 0;
+  SRetrieveMetaTableRsp *pRsp = NULL;
   mDebug("mndProcessRetrieveSysTableReq start");
   SRetrieveTableReq retrieveReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq));
+  // The codec tolerates senders that predate the xnode retrieve options; reject inconsistent
+  // combinations here, where they are actually consumed.
+  TAOS_CHECK_RETURN(tValidateSRetrieveTableReq(&retrieveReq));
 
-  mDebug("process to retrieve systable req db:%s, tb:%s", retrieveReq.db, retrieveReq.tb);
+  mDebug("process to retrieve systable req db:%s, tb:%s, compactId:%" PRId64, retrieveReq.db, retrieveReq.tb,
+         retrieveReq.compactId);
 
   if (retrieveReq.showId == 0) {
     STableMetaRsp *pMeta = taosHashGet(pMnode->infosMeta, retrieveReq.tb, strlen(retrieveReq.tb));
@@ -247,6 +347,23 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
         mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
         TAOS_RETURN(code);
       }
+    }
+
+    // [Security fix] Harden against an out-of-range show type before any show object is created.
+    // convertToRetrieveType() returns -1 for any table name it does not map onto an EShowType
+    // (for example "ins_dnode_variables", which is served by dnodes rather than the mnode).
+    // Such a name still passes the infosMeta/perfsMeta existence check above (it is registered
+    // there), so without this guard the -1 would be stored in pShow->type (an int8_t) and later
+    // used as a negative array index into retrieveFps/freeIterFps. That is an out-of-bounds read
+    // (CWE-129): retrieveFps[-1] aliases the non-NULL showId counter (SShowMgmt.showId immediately
+    // precedes retrieveFps[]), so the NULL guard never fires and the mnode crashes via an indirect
+    // call through a small integer. Reject the request early, before creating the show object.
+    int32_t retrieveType = convertToRetrieveType(retrieveReq.tb, tListLen(retrieveReq.tb));
+    if (retrieveType < 0 || retrieveType >= TSDB_MGMT_TABLE_MAX) {
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      mError("failed to process show-retrieve req since table:%s is not retrievable by mnode, type:%d",
+             retrieveReq.tb, retrieveType);
+      TAOS_RETURN(code);
     }
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);
@@ -267,43 +384,64 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
   }
 
-  if (pShow->type == TSDB_MGMT_TABLE_COL) {  // expend capacity for ins_columns
+  if (pShow->xnodeProtectionFailed) {
+    code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
+    TAOS_RETURN(code);
+  }
+
+  // expend capacity for ins_columns and privileges
+  if (pShow->type == TSDB_MGMT_TABLE_COL) {
     rowsToRead = SHOW_COLS_STEP_SIZE;
-  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES) {
+  } else if (pShow->type == TSDB_MGMT_TABLE_PRIVILEGES || pShow->type == TSDB_MGMT_TABLE_ROLE_PRIVILEGES ||
+             pShow->type == TSDB_MGMT_TABLE_ROLE_COL_PRIVILEGES) {
     rowsToRead = SHOW_PRIVILEGES_STEP_SIZE;
   }
   ShowRetrieveFp retrieveFp = pMgmt->retrieveFps[pShow->type];
   if (retrieveFp == NULL) {
+    mndXnodeCleanupShowProtection(pShow);
     mndReleaseShowObj(pShow, false);
     code = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: retrieveFp is NULL", pShow->id, tstrerror(code));
     TAOS_RETURN(code);
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
   if (retrieveReq.user[0] != 0) {
-    (void)memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+    (void)memcpy(RPC_MSG_USER(pReq), retrieveReq.user, TSDB_USER_LEN);
   } else {
-    (void)memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+    (void)memcpy(RPC_MSG_USER(pReq), TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
   }
   code = -1;
   if (retrieveReq.db[0] &&
-      (code = mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db)) != 0) {
+      (code = mndCheckShowPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), pShow->type, retrieveReq.db)) != 0) {
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
     TAOS_RETURN(code);
   }
+#if 0
   if (pShow->type == TSDB_MGMT_TABLE_USER_FULL) {
-    if (strcmp(pReq->info.conn.user, "root") != 0) {
-      mError("The operation is not permitted, user:%s, pShow->type:%d", pReq->info.conn.user, pShow->type);
+    if (strcmp(RPC_MSG_USER(pReq), "root") != 0) {
+      mError("The operation is not permitted, user:%s, pShow->type:%d", RPC_MSG_USER(pReq), pShow->type);
       code = TSDB_CODE_MND_NO_RIGHTS;
       TAOS_RETURN(code);
     }
   }
+#endif
 
   int32_t numOfCols = pShow->pMeta->numOfColumns;
 
   SSDataBlock *pBlock = NULL;
   code = createDataBlock(&pBlock);
   if (code) {
+    if ((pShow->type == TSDB_MGMT_TABLE_XNODE_TASKS || pShow->type == TSDB_MGMT_TABLE_XNODE_JOBS) &&
+        pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT) {
+      pShow->xnodeProtectionFailed = true;
+      code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+    }
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
     TAOS_RETURN(code);
   }
 
@@ -315,10 +453,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     idata.info.bytes = p->bytes;
     idata.info.type = p->type;
     idata.info.colId = p->colId;
-    TAOS_CHECK_RETURN(blockDataAppendColInfo(pBlock, &idata));
+    TAOS_CHECK_GOTO(blockDataAppendColInfo(pBlock, &idata), NULL, _exit);
   }
 
-  TAOS_CHECK_RETURN(blockDataEnsureCapacity(pBlock, rowsToRead));
+  TAOS_CHECK_GOTO(blockDataEnsureCapacity(pBlock, rowsToRead), NULL, _exit);
 
   if (mndCheckRetrieveFinished(pShow)) {
     mDebug("show:0x%" PRIx64 ", read finished, numOfRows:%d", pShow->id, pShow->numOfRows);
@@ -328,6 +466,8 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     if (rowsRead < 0) {
       code = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+      if (pShow->xnodeProtectionFailed) code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+      mndXnodeCleanupShowProtection(pShow);
       mndReleaseShowObj(pShow, true);
       blockDataDestroy(pBlock);
       TAOS_RETURN(code);
@@ -337,13 +477,25 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     mDebug("show:0x%" PRIx64 ", stop retrieve data, rowsRead:%d numOfRows:%d", pShow->id, rowsRead, pShow->numOfRows);
   }
 
+  const bool retrieveFinished = rowsRead == 0 || mndCheckRetrieveFinished(pShow);
+  // Per-page batch: every page must finish its envelope batch before the page is
+  // delivered, so encoded fields never reach the client ahead of a successful
+  // envelopeBatchFinish(). The next page lazily begins a fresh batch.
+  if (mndXnodeFinishShowProtection(pShow) != TSDB_CODE_SUCCESS) {
+    pShow->xnodeProtectionFailed = true;
+    mndXnodeCleanupShowProtection(pShow);
+    mndReleaseShowObj(pShow, false);
+    blockDataDestroy(pBlock);
+    TAOS_RETURN(TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED);
+  }
+
   size_t dataEncodeBufSize = blockGetEncodeSize(pBlock);
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
          dataEncodeBufSize;
 
-  SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
+  pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
-    mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+    mError("show:0x%" PRIx64 ", failed to retrieve data since %s: pRsp is NULL", pShow->id, tstrerror(terrno));
     code = terrno;
     goto _exit;
   }
@@ -368,9 +520,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
 
     int32_t len = blockEncode(pBlock, pStart, dataEncodeBufSize, pShow->pMeta->numOfColumns);
     if (len < 0) {
-      mError("show:0x%" PRIx64 ", failed to retrieve data since %s", pShow->id, tstrerror(code));
+      mError("show:0x%" PRIx64 ", failed to retrieve data since %s: block len(%d) < 0", pShow->id, tstrerror(terrno),
+             len);
       code = terrno;
-      return code;
+      goto _exit;
     }
   }
 
@@ -379,9 +532,10 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   pReq->info.rsp = pRsp;
   pReq->info.rspLen = size;
 
-  if (rowsRead == 0 || mndCheckRetrieveFinished(pShow)) {
+  if (retrieveFinished) {
     pRsp->completed = 1;
     mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
+    mndXnodeCleanupShowProtection(pShow);
     mndReleaseShowObj(pShow, true);
   } else {
     mDebug("show:0x%" PRIx64 ", retrieve not completed yet", pShow->id);
@@ -391,6 +545,13 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
 _exit:
+  if (pShow != NULL &&
+      (pShow->type == TSDB_MGMT_TABLE_XNODE_TASKS || pShow->type == TSDB_MGMT_TABLE_XNODE_JOBS) &&
+      pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT && code != TSDB_CODE_SUCCESS) {
+    pShow->xnodeProtectionFailed = true;
+    code = TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED;
+  }
+  mndXnodeCleanupShowProtection(pShow);
   mndReleaseShowObj(pShow, false);
   blockDataDestroy(pBlock);
   if (pRsp) {
@@ -414,4 +575,18 @@ void mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp
 void mndAddShowFreeIterHandle(SMnode *pMnode, EShowType showType, ShowFreeIterFp fp) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   pMgmt->freeIterFps[showType] = fp;
+}
+
+bool mndShowColRequested(const SShowObj *pShow, int32_t colIdx) {
+  if (!pShow->colMaskSet || pShow->pMeta == NULL || colIdx < 0 || colIdx >= pShow->pMeta->numOfColumns) {
+    return true;
+  }
+
+  int32_t colId = pShow->pMeta->pSchemas[colIdx].colId;
+  if (colId <= 0 || colId > TSDB_RETRIEVE_COL_MASK_BYTES * 8) {
+    return true;
+  }
+
+  int32_t bit = colId - 1;
+  return (pShow->colMask[bit / 8] & (1u << (bit % 8))) != 0;
 }

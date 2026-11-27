@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,6 +28,8 @@ extern "C" {
 #include "tcommon.h"
 #include "tglobal.h"
 #include "ttimer.h"
+#include "streamMsg.h"
+#include "extConnector.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER  100
@@ -44,11 +48,22 @@ extern "C" {
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
+// Minimum number of cached view versions carried by one heartbeat. When a rent slot
+// holds fewer views, the heartbeat keeps collecting subsequent slots until this
+// threshold is reached (or all slots have been visited).
+#define CTG_VIEW_HB_MIN_NUM 20
+
+// Safety timeout for the in-flight view heartbeat round. A response that takes longer
+// is treated as lost so the sweep can re-send the batch.
+#define CTG_VIEW_HB_RSP_TIMEOUT_MS 10000
+
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
 #define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_PAR_TABLE_NOT_EXIST
 
 #define CTG_BATCH_FETCH 1
+
+#define CATLOG_TIMEOUT 60000
 
 typedef enum {
   CTG_CI_CLUSTER = 0,
@@ -72,6 +87,8 @@ typedef enum {
   CTG_CI_SVR_VER,
   CTG_CI_VIEW,
   CTG_CI_TBL_TSMA,
+  CTG_CI_VSUB_TBLS,
+  CTG_CI_EXT_SOURCE,   // federated query: cached external source entry
   CTG_CI_MAX_VALUE,
 } CTG_CACHE_ITEM;
 
@@ -109,6 +126,11 @@ enum {
   CTG_OP_DROP_TB_TSMA,
   CTG_OP_CLEAR_CACHE,
   CTG_OP_UPDATE_DB_TSMA_VERSION,
+  CTG_OP_UPDATE_EXT_SOURCE,         // federated query: upsert ext source cache entry
+  CTG_OP_DROP_EXT_SOURCE,           // federated query: remove ext source + its table cache
+  CTG_OP_UPDATE_EXT_TABLE_META,     // federated query: upsert one ext table schema
+  CTG_OP_UPDATE_EXT_CAPABILITY,     // federated query: write connector-probed capability
+  CTG_OP_REPLACE_EXT_SOURCE_CACHE,  // federated query: atomically replace entire ext source cache
   CTG_OP_MAX
 };
 
@@ -133,6 +155,9 @@ typedef enum {
   CTG_TASK_GET_TB_TSMA,
   CTG_TASK_GET_TSMA,
   CTG_TASK_GET_TB_NAME,
+  CTG_TASK_GET_V_STBREFDBS,
+  CTG_TASK_GET_RSMA,
+  CTG_TASK_GET_EXT_SOURCE,     // federated query Phase A: fetch ext source from mnode
 } CTG_TASK_TYPE;
 
 typedef enum {
@@ -158,16 +183,22 @@ typedef struct SCtgCacheStat {
 
 typedef struct SCtgAuthReq {
   SRequestConnInfo* pConn;
+  SPrivInfo*        privInfo;
   SUserAuthInfo*    pRawReq;
+  SHashObj*         tbPrivs;
   SGetUserAuthRsp   authInfo;
-  AUTH_TYPE         singleType;
+  EPrivType         singleType;
   bool              onlyCache;
   bool              tbNotExists;
+  // Table meta that a GET_TB_META sub task of this very auth check has just fetched (NULL if none). The check uses
+  // it before it looks into the cache, so that its result does not depend on the fetched meta still being there.
+  const STableMeta* pFetchedMeta;
 } SCtgAuthReq;
 
 typedef struct SCtgAuthRsp {
   SUserAuthRes* pRawRes;
   bool          metaNotExists;
+  bool          withInsertCond;
 } SCtgAuthRsp;
 
 typedef struct SCtgTbCacheInfo {
@@ -261,9 +292,16 @@ typedef struct SCtgUdfCtx {
   char udfName[TSDB_FUNC_NAME_LEN];
 } SCtgUdfCtx;
 
+// A user auth check that finds the table meta (or the super table name of a child table) missing in the cache fetches
+// the table meta and decides on what the fetch returned. If that is not enough, it fetches once more with
+// CTG_FLAG_FORCE_UPDATE, which bypasses the finished sub task of the first fetch and refreshes the cache. The callback
+// of a finished sub task runs on the same stack, so any further launch is refused instead of recursing.
+#define CTG_USER_META_FETCH_MAX 2
+
 typedef struct SCtgUserCtx {
   SUserAuthInfo user;
   int32_t       subTaskCode;
+  int8_t        metaFetchTimes;
 } SCtgUserCtx;
 
 typedef struct SCtgViewsCtx {
@@ -294,7 +332,6 @@ typedef struct SCtgTSMAFetch {
   // stream progress
   int32_t subFetchNum;
   int32_t finishedSubFetchNum;
-  int32_t vgNum;
 
   // tb tsma
   SName tsmaSourceTbName;
@@ -306,6 +343,32 @@ typedef struct SCtgTbTSMACtx {
   SArray* pResList;
   SArray* pFetches;
 } SCtgTbTSMACtx;
+
+typedef struct SCtgVStbRefDbsCtx {
+  SName*          pNames;
+
+  STableMeta*     pMeta;
+
+  int32_t         refLayer;       // current resolving ref layer, starts from first-hop referenced table meta layer
+  int32_t         vgNum;
+  bool            clonedVgroups;
+  SArray*         pVgroups;
+  int32_t         resCode;
+  int32_t         resDoneNum;
+  SArray*         pSubTablesList; // first-hop vnode rsp, SArray<SVSubTablesRsp>
+  SArray*         pLayerRefs;     // current resolving layer refs, SArray<SCtgVStbLayerRef>
+  SArray*         pLayerReqs;     // current layer batch-meta reqs, SArray<STablesReq>
+  SHashObj*       pFinalDbs;      // referenced db set across all resolved layers, key/value is db name
+  SHashObj*       pFinalExtSources;  // referenced external source set across all resolved layers, key is source name
+  SArray*         pResList;       // final result, SArray<SVStbRefDbsRsp>
+  int32_t         resIdx;
+  int32_t         numOfColRefs;
+  SRefColInfo*    pColRefCols;
+  SColRef*        pResolvedColRefs;
+  // Synthesized tag ref info from first child table
+  int32_t         numOfTagRefs;
+  SRefColInfo*    pTagRefCols;
+} SCtgVStbRefDbsCtx;
 
 typedef STableIndexRsp STableIndex;
 typedef STableTSMAInfo STSMACache;
@@ -338,9 +401,51 @@ typedef struct SCtgTSMACache {
   bool     retryFetch;
 } SCtgTSMACache;
 
+// --------------------------------------------------------------------
+// Federated query: per-cluster external source cache structures
+// --------------------------------------------------------------------
+
+// One cached schema entry for a single external table.
+// Lifecycle: stored in pTableHash which uses HASH_ENTRY_LOCK.
+// Readers: taosHashAcquire(pTableHash, name)  ->  CTG_LOCK(READ, metaLock)  ->  clone pMeta  ->  UNLOCK  ->  taosHashRelease
+// Writers (write thread, serial): CTG_LOCK(WRITE, metaLock)  ->  swap pMeta  ->  UNLOCK
+typedef struct SExtTableCacheEntry {
+  SRWLatch       metaLock;   // guards pMeta/fetchedAt; acquired at fine granularity (like SCtgTbCache.metaLock)
+  SExtTableMeta* pMeta;      // heap-allocated schema; freed under metaLock WRITE on eviction/update
+  int64_t        fetchedAt;  // taosGetTimestampMs() when schema was fetched
+} SExtTableCacheEntry;
+
+// Per-(db,schema) table schema cache within one external source.
+// pTableHash uses HASH_ENTRY_LOCK; readers use taosHashAcquire/taosHashRelease + per-entry metaLock.
+// No external lock is needed to access pTableHash: hash's own entry-level locking is sufficient.
+typedef struct SExtDbCache {
+  SHashObj* pTableHash;  // key: tableName, value: SExtTableCacheEntry* (HASH_ENTRY_LOCK)
+} SExtDbCache;
+
+// Cache entry for one external data source (per catalog instance).
+// Lifecycle guarded by HASH_ENTRY_LOCK on pCtg->pExtSourceHash (taosHashAcquire/taosHashRelease).
+// pDbHash uses HASH_ENTRY_LOCK: readers call taosHashAcquire(pDbHash,...) without any external lock.
+// entryLock is a fine-grained lock ONLY for the source/capability/capFetchedAt scalar fields.
+typedef struct SExtSourceCacheEntry {
+  SRWLatch             entryLock;    // guards source/capability/capFetchedAt scalar fields only
+  SGetExtSourceRsp     source;       // connection info fetched from mnode
+  SExtSourceCapability capability;   // pushdown flags probed by connector
+  int64_t              capFetchedAt; // 0 = not yet probed
+  SHashObj*            pDbHash;      // key: dbKey, value: SExtDbCache* (HASH_ENTRY_LOCK, no external lock needed)
+} SExtSourceCacheEntry;
+
+// Task context for CTG_TASK_GET_EXT_SOURCE.
+typedef struct SCtgExtSourceCtx {
+  char* sourceName;  // points into pReq->pExtSourceCheck element (borrowed)
+} SCtgExtSourceCtx;
+
+// --------------------------------------------------------------------
+
 typedef struct SCtgDBCache {
-  SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
   uint64_t     dbId;
+  uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
+  uint64_t     dbCacheSize;
+  SRWLatch     dbLock;  // RC between destroy tbCache/stbCache and all reads
   int8_t       deleted;
   SCtgVgCache  vgCache;
   SCtgCfgCache cfgCache;
@@ -349,8 +454,6 @@ typedef struct SCtgDBCache {
   SHashObj*    stbCache;   // key:suid, value:char*
   SHashObj*    tsmaCache;  // key:tbname, value: SCtgTSMACache
   int32_t      tsmaVersion;
-  uint64_t     dbCacheNum[CTG_CI_MAX_VALUE];
-  uint64_t     dbCacheSize;
 } SCtgDBCache;
 
 typedef struct SCtgRentSlot {
@@ -369,6 +472,34 @@ typedef struct SCtgRentMgmt {
   SCtgRentSlot* slots;
 } SCtgRentMgmt;
 
+/*
+ * View metadata heartbeat verification sweep.
+ *
+ * The client reports only a limited batch of cached view versions per heartbeat, so the
+ * global view version (dynViewVer) must not be committed when one batch has been checked:
+ * every rent slot must be validated against the same pending version first. The sweep
+ * keeps the pending version and the set of already validated slots until then.
+ *
+ * Threading: the heartbeat request thread and the heartbeat response callback access
+ * this state; lock protects it. Catalog writes do not need it: view metadata written
+ * to the cache always comes from mnode, so it is at least as fresh as the sweep.
+ */
+typedef struct SCtgViewSweep {
+  SRWLatch        lock;
+  SDynViewVersion pendingVer;      // global version the current sweep is validating
+  bool            hasPending;      // a sweep is in progress
+  bool            awaitingRsp;     // a request batch was sent and its response not applied yet
+  int64_t         sentMsec;        // send time of the pending request (timeout guard)
+  int64_t         sentReqId;       // request id of the pending batch (response association)
+  uint32_t        nextSlot;        // next rent slot to collect (round robin)
+  uint32_t        verifiedNum;     // number of rent slots already verified for pendingVer
+  uint8_t*        verifiedSlots;   // bitmap of verified rent slots (viewRent.slotNum bits)
+  uint32_t        verifiedCapacity;  // capacity of verifiedSlots in bytes
+  uint32_t        sentNum;         // slots carried by the pending request
+  uint32_t*       sentSlots;       // slot indices carried by the pending request
+  uint32_t        sentCapacity;    // capacity of sentSlots in entries
+} SCtgViewSweep;
+
 typedef struct SCtgUserAuth {
   SRWLatch        lock;
   SGetUserAuthRsp userAuth;
@@ -379,12 +510,17 @@ typedef struct SCatalog {
   int64_t         clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
-  SHashObj*       userCache;  // key:user, value:SCtgUserAuth
-  SHashObj*       dbCache;    // key:dbname, value:SCtgDBCache
+  SCtgViewSweep   viewSweep;  // view metadata version verification state
+  SHashObj*       userCache;      // key:user, value:SCtgUserAuth
+  SHashObj*       dbCache;        // key:dbname, value:SCtgDBCache
   SCtgRentMgmt    dbRent;
   SCtgRentMgmt    stbRent;
   SCtgRentMgmt    viewRent;
   SCtgRentMgmt    tsmaRent;
+  SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
+  SRWLatch        extHashLatch;   // protects pExtSourceHash pointer during bulk-replace swaps
+  int64_t         extSrcGlobalVer;// client's known mnode global ext-source version (0 = unknown)
+  int64_t         extSrcDdlGen;   // client-local ext-source invalidation generation (monotonic)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 
@@ -402,7 +538,9 @@ typedef struct SCtgJob {
   int64_t   refId;
   int32_t   batchId;
   SHashObj* pBatchs;
+  SHashObj* pDbShortNameMap;  // key: short db name, value: full db name
   SArray*   pTasks;
+  SArray*   pRetiredTaskBufs;  // old pTasks buffers kept alive until job free, see ctgGrowTaskArray
   int32_t   subTaskNum;
   int32_t   taskDone;
   SMetaData jobRes;
@@ -433,6 +571,9 @@ typedef struct SCtgJob {
   int32_t          tbTsmaNum;
   int32_t          tsmaNum;  // currently, only 1 is possible
   int32_t          tbNameNum;
+  int32_t          vstbRefDbNum;
+  int32_t          extSourceCheckNum;  // federated query Phase A: number of ext sources to probe
+  SArray*          pExtTableMetaReqs;  // federated query Phase B: SArray<SExtTableMetaReq>* (borrowed from pReq)
 } SCtgJob;
 
 typedef struct SCtgMsgCtx {
@@ -453,7 +594,8 @@ typedef struct SCtgTaskCallbackParam {
 } SCtgTaskCallbackParam;
 
 typedef struct SCtgTask SCtgTask;
-typedef int32_t (*ctgSubTaskCbFp)(SCtgTask*);
+struct SCtgTaskReq;
+typedef int32_t (*ctgSubTaskCbFp)(struct SCtgTaskReq*);
 
 typedef struct SCtgSubRes {
   CTG_TASK_TYPE  type;
@@ -481,6 +623,8 @@ struct SCtgTask {
 typedef struct SCtgTaskReq {
   SCtgTask* pTask;
   int32_t   msgIdx;
+  uint8_t   autoCreateCtb;
+  SHashObj* pBatchs;  // callback-local batch container carried by the current task request
 } SCtgTaskReq;
 
 typedef int32_t (*ctgInitTaskFp)(SCtgJob*, int32_t, void*);
@@ -502,10 +646,7 @@ typedef struct SCtgAsyncFps {
 } SCtgAsyncFps;
 
 typedef struct SCtgApiStat {
-#if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
-#endif
-
 } SCtgApiStat;
 
 typedef struct SCtgRuntimeStat {
@@ -631,6 +772,67 @@ typedef struct SCtgDropTbTSMAMsg {
   uint64_t  tbId;
   bool      dropAllForTb;
 } SCtgDropTbTSMAMsg;
+
+// --------------------------------------------------------------------
+// Federated query: cache-op message structs
+// --------------------------------------------------------------------
+
+// CTG_OP_UPDATE_EXT_SOURCE: upsert connection info from mnode.
+typedef struct SCtgUpdateExtSourceMsg {
+  SCatalog*        pCtg;
+  char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SGetExtSourceRsp sourceRsp;  // copied from RPC response
+} SCtgUpdateExtSourceMsg;
+
+// CTG_OP_DROP_EXT_SOURCE: remove source + all its table-schema cache.
+typedef struct SCtgDropExtSourceMsg {
+  SCatalog* pCtg;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SCtgDropExtSourceMsg;
+
+// CTG_OP_UPDATE_EXT_TABLE_META: upsert one table schema within a source.
+typedef struct SCtgUpdateExtTableMetaMsg {
+  SCatalog*      pCtg;
+  char           sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char           dbKey[TSDB_DB_NAME_LEN * 2 + 2]; // "dbName\0schemaName\0"
+  char           tableName[TSDB_TABLE_NAME_LEN];
+  SExtTableMeta* pMeta;  // ownership transferred to write thread
+} SCtgUpdateExtTableMetaMsg;
+
+// CTG_OP_UPDATE_EXT_CAPABILITY: store connector-probed pushdown flags.
+typedef struct SCtgUpdateExtCapMsg {
+  SCatalog*            pCtg;
+  char                 sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SExtSourceCapability capability;
+  int64_t              capFetchedAt;
+} SCtgUpdateExtCapMsg;
+
+// CTG_OP_REPLACE_EXT_SOURCE_CACHE: replace the entire live ext source cache in one shot.
+//
+// Design overview (pointer-swap with extHashLatch):
+//  1. Calling thread (HB thread): calls ctgReplaceExtSourceCacheEnqueue which invokes
+//     ctgBuildNewExtSourceHash to build a fully-populated SHashObj* (same structure
+//     as pExtSourceHash, freeFp = ctgExtSourceHashFreeFp).  This is the "heavy" work.
+//  2. Write thread: receives pNewHash, acquires extHashLatch WRITE lock, swaps
+//     pCtg->pExtSourceHash, releases write lock (very short critical section), then
+//     calls taosHashCleanup(pOldHash) outside the lock.
+//
+// Why this is safe:
+//  - ctgAcquireExtSource holds extHashLatch READ lock for the ENTIRE acquire -> release
+//    interval.  So when the write thread acquires the WRITE lock it is GUARANTEED that
+//    no reader is between its taosHashAcquire and taosHashRelease.
+//  - After the write lock is released, new readers see pNewHash.
+//  - pOldHash has zero active taosHashAcquire references  ->  taosHashCleanup is safe.
+//
+// pNewHash is owned by this message; the write thread frees it (after swap it becomes
+// pOldHash) via taosHashCleanup.
+typedef struct SCtgReplaceExtSourceCacheMsg {
+  SCatalog* pCtg;
+  int64_t   globalVer;  // new HB global version; written to pCtg->extSrcGlobalVer after swap
+  SHashObj* pNewHash;   // fully built on calling thread; write thread does swap  ->  cleanup old
+} SCtgReplaceExtSourceCacheMsg;
+
+// --------------------------------------------------------------------
 
 typedef struct SCtgCacheOperation {
   int32_t opId;
@@ -776,10 +978,12 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_META_NHIT_INC() CTG_CACHE_NHIT_INC(CTG_CI_OTHERTABLE_META, 1)
 
-#define CTG_IS_META_NULL(type)   ((type) == META_TYPE_NULL_TABLE)
-#define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
-#define CTG_IS_META_TABLE(type)  ((type) == META_TYPE_TABLE)
-#define CTG_IS_META_BOTH(type)   ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_NULL(type)    ((type) == META_TYPE_NULL_TABLE)
+#define CTG_IS_META_CTABLE(type)  ((type) == META_TYPE_CTABLE)
+#define CTG_IS_META_VCTABLE(type) ((type) == META_TYPE_VCTABLE)
+#define CTG_IS_META_TABLE(type)   ((type) == META_TYPE_TABLE)
+#define CTG_IS_META_BOTH(type)    ((type) == META_TYPE_BOTH_TABLE)
+#define CTG_IS_META_VBOTH(type)   ((type) == META_TYPE_BOTH_VTABLE)
 
 #define CTG_FLAG_STB          0x1
 #define CTG_FLAG_NOT_STB      0x2
@@ -814,8 +1018,12 @@ typedef struct SCtgCacheItemInfo {
    (CTG_TASK_GET_VIEW == (_taskType)) || (CTG_TASK_GET_TB_TSMA == (_taskType)) ||                \
    (CTG_TASK_GET_TB_NAME == (_taskType)))
 
+#define CTG_HAS_MULTI_MSGCTX(_taskType) \
+  (CTG_IS_BATCH_TASK(_taskType) || (CTG_TASK_GET_V_STBREFDBS == (_taskType)))
+
 #define CTG_GET_TASK_MSGCTX(_task, _id) \
-  (CTG_IS_BATCH_TASK((_task)->type) ? taosArrayGet((_task)->msgCtxs, (_id)) : &(_task)->msgCtx)
+  (((_id) >= 0 && CTG_HAS_MULTI_MSGCTX((_task)->type) && (_task)->msgCtxs) ? taosArrayGet((_task)->msgCtxs, (_id)) \
+                                                                             : &(_task)->msgCtx)
 
 #define CTG_META_SIZE(pMeta) \
   (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
@@ -827,19 +1035,19 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_CACHE_OVERFLOW(_csize, _maxsize) ((_maxsize >= 0) ? ((_csize) >= (_maxsize)*1048576L * 0.9) : false)
 #define CTG_CACHE_LOW(_csize, _maxsize)      ((_maxsize >= 0) ? ((_csize) <= (_maxsize)*1048576L * 0.75) : true)
 
-#define ctgFatal(param, ...) qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgError(param, ...) qError("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgWarn(param, ...)  qWarn("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgInfo(param, ...)  qInfo("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgDebug(param, ...) qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
-#define ctgTrace(param, ...) qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgFatal(param, ...) qFatal(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgError(param, ...) qError(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgWarn(param, ...)  qWarn (param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgInfo(param, ...)  qInfo (param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgDebug(param, ...) qDebug(param ", ctg:%p" , __VA_ARGS__, pCtg)
+#define ctgTrace(param, ...) qTrace(param ", ctg:%p" , __VA_ARGS__, pCtg)
 
-#define ctgTaskFatal(param, ...) qFatal("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskError(param, ...) qError("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskWarn(param, ...)  qWarn("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskInfo(param, ...)  qInfo("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskDebug(param, ...) qDebug("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
-#define ctgTaskTrace(param, ...) qTrace("QID:%" PRIx64 " CTG:%p " param, pTask->pJob->queryId, pCtg, __VA_ARGS__)
+#define ctgTaskFatal(param, ...) qFatal("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskError(param, ...) qError("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskWarn(param, ...)  qWarn ("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskInfo(param, ...)  qInfo ("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskDebug(param, ...) qDebug("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
+#define ctgTaskTrace(param, ...) qTrace("QID:0x%" PRIx64 ", " param ", ctg:%p", pTask->pJob->queryId, __VA_ARGS__, pCtg)
 
 #define CTG_LOCK_DEBUG(...)     \
   do {                          \
@@ -869,9 +1077,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before read lock");                                               \
         break;                                                                                       \
       }                                                                                              \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rlock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rlock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) <= 0) {                                                            \
         qError("invalid lock value after read lock");                                                \
         break;                                                                                       \
@@ -881,9 +1089,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before write lock");                                              \
         break;                                                                                       \
       }                                                                                              \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wlock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWLockLatch(_lock);                                                                         \
-      CTG_LOCK_DEBUG("CTG WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wlock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) != TD_RWLATCH_WRITE_FLAG_COPY) {                                   \
         qError("invalid lock value after write lock");                                               \
         break;                                                                                       \
@@ -898,9 +1106,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before read unlock");                                              \
         break;                                                                                        \
       }                                                                                               \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rulock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosRUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg rulock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) < 0) {                                                              \
         qError("invalid lock value after read unlock");                                               \
         break;                                                                                        \
@@ -910,9 +1118,9 @@ typedef struct SCtgCacheItemInfo {
         qError("invalid lock value before write unlock");                                             \
         break;                                                                                        \
       }                                                                                               \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wulock:%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       taosWUnLockLatch(_lock);                                                                        \
-      CTG_LOCK_DEBUG("CTG WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+      CTG_LOCK_DEBUG("ctg wulock:%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
       if (atomic_load_32((_lock)) < 0) {                                                              \
         qError("invalid lock value after write unlock");                                              \
         break;                                                                                        \
@@ -949,20 +1157,20 @@ typedef struct SCtgCacheItemInfo {
   do {                                               \
     int32_t __code = c;                              \
     CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);            \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     CTG_RET(__code);                                 \
   } while (0)
 
 #define CTG_API_NLEAVE()                             \
   do {                                               \
     CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);            \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     return;                                          \
   } while (0)
 
 #define CTG_API_ENTER()                              \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_API_LEAVE(TSDB_CODE_CTG_OUT_OF_SERVICE);   \
@@ -971,7 +1179,7 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_API_NENTER()                             \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_API_NLEAVE();                              \
@@ -980,7 +1188,7 @@ typedef struct SCtgCacheItemInfo {
 
 #define CTG_API_JENTER()                             \
   do {                                               \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__); \
     CTG_LOCK(CTG_READ, &gCtgMgmt.lock);              \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {    \
       CTG_ERR_JRET(TSDB_CODE_CTG_OUT_OF_SERVICE);    \
@@ -990,13 +1198,13 @@ typedef struct SCtgCacheItemInfo {
 #define CTG_API_LEAVE_NOLOCK(c)                      \
   do {                                               \
     int32_t __code = c;                              \
-    CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); \
+    CTG_API_DEBUG("ctg api leave %s", __FUNCTION__); \
     CTG_RET(__code);                                 \
   } while (0)
 
 #define CTG_API_ENTER_NOLOCK()                            \
   do {                                                    \
-    CTG_API_DEBUG("CTG API enter %s", __FUNCTION__);      \
+    CTG_API_DEBUG("ctg api enter %s", __FUNCTION__);      \
     if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {         \
       CTG_API_LEAVE_NOLOCK(TSDB_CODE_CTG_OUT_OF_SERVICE); \
     }                                                     \
@@ -1007,10 +1215,10 @@ void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
 int32_t ctgdShowStatInfo(void);
 
-int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq, bool related);
+int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
-                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
+                               int32_t* fetchIdx, int32_t baseResIdx, SArray* pList, bool autoCreate);
 int32_t ctgGetTbNamesFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst);
@@ -1025,14 +1233,18 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropViewMeta(SCtgCacheOperation* action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation* action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
+int32_t ctgAcquireDBCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
 void    ctgReleaseDBCache(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRUnlockVgInfo(SCtgDBCache* dbCache);
 int32_t ctgTbMetaExistInCache(SCatalog* pCtg, const char* dbFName, const char* tbName, int32_t* exist);
 int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
-int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t* tbType,
+int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t *rver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgChkAuthFromCacheWithMeta(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, const STableMeta* pFetchedMeta,
+                                    bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgGetUserAuthFromCache(SCatalog* pCtg, const char* user, bool* inCache, SGetUserAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);
 int32_t ctgDropStbMetaEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId, const char* stbName, uint64_t suid,
@@ -1052,7 +1264,17 @@ int32_t ctgMetaRentAdd(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size)
 int32_t ctgMetaRentUpdate(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size, __compar_fn_t sortCompare,
                           __compar_fn_t searchCompare);
 int32_t ctgMetaRentGet(SCtgRentMgmt* mgmt, void** res, uint32_t* num, int32_t size);
+int32_t ctgMetaRentGetSlotByIdx(SCtgRentMgmt* mgmt, int32_t slotIdx, void** res, uint32_t* num, int32_t size);
 int32_t ctgMetaRentRemove(SCtgRentMgmt* mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare);
+
+// View metadata heartbeat sweep (see SCtgViewSweep).
+int32_t ctgGetViewsForHbCheck(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                              SDynViewVersion** dynViewVersion);
+int32_t ctgApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+int32_t ctgViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+int32_t ctgViewSweepTryCommit(SCatalog* pCtg);
+int32_t ctgViewSweepOnHbError(SCatalog* pCtg);
+void    ctgViewSweepFree(SCtgViewSweep* pSweep);
 void    ctgRemoveStbRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveViewRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveTSMARent(SCatalog* pCtg, SCtgDBCache* dbCache);
@@ -1073,6 +1295,7 @@ int32_t ctgOpUpdateTbIndex(SCtgCacheOperation* operation);
 int32_t ctgOpClearCache(SCtgCacheOperation* operation);
 int32_t ctgOpUpdateViewMeta(SCtgCacheOperation* operation);
 int32_t ctgReadTbTypeFromCache(SCatalog* pCtg, char* dbFName, char* tableName, int32_t* tbType);
+int32_t ctgReadTbTypeSuidFromCache(SCatalog *pCtg, char *dbFName, char *tbName, int32_t *tbType, int64_t* suid);
 int32_t ctgGetTbHashVgroupFromCache(SCatalog* pCtg, const SName* pTableName, SVgroupInfo** pVgroup);
 int32_t ctgGetViewsFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgViewsCtx* ctx, int32_t dbIdx,
                              int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
@@ -1094,6 +1317,10 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
                                   STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTbMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMetaOutput* out,
                               SCtgTaskReq* tReq);
+int32_t ctgGetRsmaMetaFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* name, SRsmaMetaOutput* out,
+                                SCtgTaskReq* tReq);
+int32_t ctgGetStreamCreateSqlFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* streamFName,
+                                       SGetStreamCreateSqlRsp* out);
 int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* vgroupInfo,
                               STableMetaOutput* out, SCtgTaskReq* tReq);
 int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
@@ -1109,16 +1336,21 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
                    void* param);
 int32_t ctgLaunchJob(SCtgJob* pJob);
 int32_t ctgMakeAsyncRes(SCtgJob* pJob);
-int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
-int32_t ctgGetTbCfgCb(SCtgTask* pTask);
+int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp fp, void* param);
+int32_t ctgGetTbCfgCb(SCtgTaskReq* pReq);
+int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq);
 void    ctgFreeHandle(SCatalog* pCatalog);
 
 void    ctgFreeSViewMeta(SViewMeta* pMeta);
+void    ctgFreeBatchMeta(void* meta);
 void    ctgFreeMsgSendParam(void* param);
 void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
+bool    ctgIsMetaTouchedByTxn(const SRequestConnInfo* pConn, const STableMetaOutput* pOut);
+bool    ctgIsCachedMetaTouchedByTxn(const SRequestConnInfo* pConn, const SName* pName, const STableMeta* pMeta);
+int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta);
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);
 void    ctgFreeHandleImpl(SCatalog* pCtg);
@@ -1142,6 +1374,7 @@ void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);
 char*   ctgTaskTypeStr(CTG_TASK_TYPE type);
+SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId);
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId);
 int32_t ctgGetTablesReqNum(SArray* pList);
 int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag);
@@ -1152,7 +1385,12 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock);
 void    ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock);
-int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
+#if defined(BUILD_TEST)
+void    ctgTestResetStopQueueDestroyState(void);
+int32_t ctgTestGetStopQueueDestroyCount(void);
+bool    ctgTestDidStopQueueDestroyRspSemBeforeFree(void);
+#endif
+int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, SCtgUserAuth* pUser, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
                            bool* exists);
@@ -1161,7 +1399,6 @@ int32_t ctgdGetOneHandle(SCatalog** pHandle);
 int     ctgVgInfoComp(const void* lp, const void* rp);
 int32_t ctgMakeVgArray(SDBVgInfo* dbInfo, const char* dbName, bool isFullName);
 int32_t ctgMakeVgArraySortBy(SDBVgInfo* dbInfo, __compar_fn_t sort_func);
-int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgReadDBCfgFromCache(SCatalog* pCtg, const char* dbFName, SDbCfgInfo* pDbCfg);
 
 int32_t ctgAcquireVgMetaFromCache(SCatalog* pCtg, const char* dbFName, const char* tbName, SCtgDBCache** pDb,
@@ -1170,6 +1407,7 @@ int32_t ctgCopyTbMeta(SCatalog* pCtg, SCtgTbMetaCtx* ctx, SCtgDBCache** pDb, SCt
                       char* dbFName);
 void    ctgReleaseVgMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCache* pCache);
 void    ctgReleaseTbMetaToCache(SCatalog* pCtg, SCtgDBCache* dbCache, SCtgTbCache* pCache);
+int32_t  ctgReadTbTypeAndSuidFromCache(SCatalog* pCtg, const SName* pTableName, int8_t* pTableType, uint64_t* pSuid);
 void    ctgGetGlobalCacheStat(SCtgCacheStat* pStat);
 int32_t ctgChkSetAuthRes(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res);
 int32_t ctgBuildViewNullRes(SCtgTask* pTask, SCtgViewsCtx* pCtx);
@@ -1185,12 +1423,13 @@ uint64_t ctgGetClusterCacheSize(SCatalog* pCtg);
 void     ctgClearHandleMeta(SCatalog* pCtg, int64_t* pClearedSize, int64_t* pCleardNum, bool* roundDone);
 void     ctgClearAllHandleMeta(int64_t* clearedSize, int64_t* clearedNum, bool* roundDone);
 void     ctgProcessTimerEvent(void* param, void* tmrId);
+void     ctgResetCacheTimer(void);
 int32_t  ctgBuildUseDbOutput(SUseDbOutput** ppOut, SDBVgInfo* vgInfo);
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid, char** stbName);
-int32_t ctgGetTbTagCb(SCtgTask* pTask);
-int32_t ctgGetUserCb(SCtgTask* pTask);
+int32_t ctgGetTbTagCb(SCtgTaskReq* pReq);
+int32_t ctgGetUserCb(SCtgTaskReq* pReq);
 
 int32_t ctgGetTbTSMAFromCache(SCatalog* pCtg, SCtgTbTSMACtx* pCtx, int32_t dbIdx, int32_t* fetchIdx, int32_t baseResIdx,
                               SArray* pList);
@@ -1206,15 +1445,62 @@ uint64_t ctgGetTbTSMACacheSize(STSMACache* pTsmaInfo);
 void     ctgFreeTbTSMAInfo(void* p);
 bool     hasOutOfDateTSMACache(SArray* pTsmas);
 bool     isCtgTSMACacheOutOfDate(STSMACache* pTsmaCache);
-int32_t  ctgGetStreamProgressFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName,
-                                       SVgroupInfo* vgroupInfo, SStreamProgressRsp* out, SCtgTaskReq* tReq,
-                                       void* bInput);
+int32_t  ctgGetStreamProgressFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTbName, SStreamProgressRsp* out, SCtgTaskReq* tReq,
+                                       void* bInput, int32_t nodeId);
+int32_t ctgAddBatch(SCatalog* pCtg, int32_t vgId, SRequestConnInfo* pConn, SCtgTaskReq* tReq, int32_t msgType,
+                    void* msg, uint32_t msgLen);
+
+int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, int64_t suid, SVgroupInfo* vgroupInfo, SCtgTaskReq* tReq);
 int32_t ctgAddTSMAFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag,
                         CTG_TSMA_FETCH_TYPE fetchType, const SName* sourceTbName);
 int32_t ctgOpUpdateDbTsmaVersion(SCtgCacheOperation* pOper);
 int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId,
                                       bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
+
+// --------------------------------------------------------------------
+// Federated query: ext source cache helpers
+// --------------------------------------------------------------------
+int32_t ctgInitExtSourceCache(SCatalog* pCtg);
+void    ctgDestroyExtSourceCache(SCatalog* pCtg);
+// Acquire a reference to an ext source entry (HASH_ENTRY_LOCK ref-count).
+// On hit: *ppHandle = raw taosHashAcquire return (must be passed to ctgReleaseExtSource),
+// ctgAcquireExtSource  -  acquires a taosHashAcquire ref on the node AND a read lock on
+// pCtg->extHashLatch.  The caller MUST call ctgReleaseExtSource to release both.
+// On cache hit:  *ppHash != NULL, *ppHandle != NULL, *ppEntry != NULL.
+// On cache miss: *ppHash == NULL (no release needed).
+// *ppHash MUST be passed verbatim to ctgReleaseExtSource so taosHashRelease is called
+// against the exact hash the node belongs to.
+int32_t ctgAcquireExtSource(SCatalog* pCtg, const char* sourceName,
+                            SHashObj** ppHash, void** ppHandle, SExtSourceCacheEntry** ppEntry);
+// ctgReleaseExtSource  -  releases the taosHashAcquire ref then the extHashLatch read lock.
+// pHash must be the value written by ctgAcquireExtSource.
+void    ctgReleaseExtSource(SCatalog* pCtg, SHashObj* pHash, void* pHandle);
+// Legacy read helper (does NOT hold a reference; safe only on write thread).
+int32_t ctgReadExtSourceFromCache(SCatalog* pCtg, const char* sourceName, SExtSourceCacheEntry** ppEntry);
+int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpDropExtSource(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation);
+int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation);
+int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation);
+int32_t ctgUpdateExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, SGetExtSourceRsp* pRsp, bool syncOp);
+int32_t ctgDropExtSourceEnqueue(SCatalog* pCtg, const char* sourceName, bool syncOp);
+// ctgReplaceExtSourceCacheEnqueue  -  deep-copies pSources and enqueues a single
+// CTG_OP_REPLACE_EXT_SOURCE_CACHE op. On success the write thread owns the copy.
+int32_t ctgReplaceExtSourceCacheEnqueue(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
+int32_t ctgUpdateExtTableMetaEnqueue(SCatalog* pCtg, const char* sourceName, const char* dbKey,
+                                     const char* tableName, SExtTableMeta* pMeta, bool syncOp);
+int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SExtSourceCapability* pCap,
+                               int64_t capFetchedAt, bool syncOp);
+int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                 SGetExtSourceRsp* out, SCtgTask* pTask);
+int32_t ctgFetchExtTableMetas(SCtgJob* pJob);
+#if defined(BUILD_TEST)
+void    ctgTestResetDropTsmaForTbEnqueueState(void);
+void    ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(int32_t code);
+bool    ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire(void);
+int32_t ctgTestGetDropTsmaForTbCallerCleanupCount(void);
+#endif
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,8 +19,11 @@
 #define _TD_DND_MGMT_H_
 
 // tobe deleted
+#ifdef USE_UDF
 #include "uv.h"
+#endif
 
+#include "dmRepair.h"
 #include "dmInt.h"
 #include "tfs.h"
 
@@ -58,6 +63,7 @@ typedef struct {
   char desc[TSDB_STEP_DESC_LEN];
 } SStartupInfo;
 
+#ifdef USE_UDF
 typedef struct SUdfdData {
   bool         startCalled;
   bool         needCleanUp;
@@ -71,6 +77,7 @@ typedef struct SUdfdData {
   int32_t      stopCalled;
   int32_t      dnodeId;
 } SUdfdData;
+#endif
 
 typedef struct SDnode {
   int8_t        once;
@@ -78,12 +85,15 @@ typedef struct SDnode {
   EDndRunStatus status;
   SStartupInfo  startup;
   SDnodeData    data;
+#ifdef USE_UDF
   SUdfdData     udfdData;
+#endif
   TdThreadMutex mutex;
   TdFilePtr     lockfile;
   STfs         *pTfs;
   SMgmtWrapper  wrappers[NODE_END];
   SDnodeTrans   trans;
+  SCorrelationRuntime *pCorrelationRuntime;
 } SDnode;
 
 // dmEnv.c
@@ -128,11 +138,16 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // dmMonitor.c
 void dmSendMonitorReport();
+void dmSendMetricsReport();
 void dmMonitorCleanExpiredSamples();
+void dmMetricsCleanExpiredSamples();
 void dmSendAuditRecords();
 void dmGetVnodeLoads(SMonVloadInfo *pInfo);
 void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo);
+void dmCollectVnodeTxnIdle(SArray **ppQueries);
+void dmSetVnodeSyncTimeout();
 void dmGetMnodeLoads(SMonMloadInfo *pInfo);
+void dmSetMnodeSyncTimeout();
 void dmGetQnodeLoads(SQnodeLoad *pInfo);
 
 #ifdef __cplusplus

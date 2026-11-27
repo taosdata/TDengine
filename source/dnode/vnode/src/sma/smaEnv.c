@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #include "sma.h"
 
 typedef struct SSmaStat SSmaStat;
@@ -228,11 +231,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       int64_t refId = taosAddRef(smaMgmt.rsetId, pRSmaStat);
       if (refId < 0) {
         code = terrno;
-        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
+        smaError("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d failed since:%s", SMA_VID(pSma),
                  refId, smaMgmt.rsetId, SMA_MGMT_REF_NUM, tstrerror(code));
         TAOS_CHECK_GOTO(code, &lino, _exit);
       } else {
-        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
+        smaDebug("vgId:%d, taosAddRef refId:%" PRIi64 " to rsetId:%d max:%d succeed", SMA_VID(pSma), refId,
                  smaMgmt.rsetId, SMA_MGMT_REF_NUM);
       }
       pRSmaStat->refId = refId;
@@ -404,6 +407,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
 
 void *tdRSmaExecutorFunc(void *param) {
   setThreadName("vnode-rsma");
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   if (tdRSmaProcessExecImpl((SSma *)param, RSMA_EXEC_OVERFLOW) < 0) {
     smaError("vgId:%d, failed to process rsma exec", SMA_VID((SSma *)param));
@@ -423,7 +427,7 @@ static int32_t tdRsmaStartExecutor(const SSma *pSma) {
 
   for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
     if (taosThreadCreate(&pthread[i], &thAttr, tdRSmaExecutorFunc, (void *)pSma) != 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
+      code = TAOS_SYSTEM_ERROR(ERRNO);
       smaError("vgId:%d, failed to create pthread for rsma since %s", SMA_VID(pSma), tstrerror(code));
       TAOS_RETURN(code);
     }
@@ -457,7 +461,7 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
       if (taosCheckPthreadValid(pthread[i])) {
-        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64 "", SMA_VID(pSma), taosGetPthreadId(pthread[i]));
+        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64, SMA_VID(pSma), taosGetPthreadId(pthread[i]));
         (void)taosThreadJoin(pthread[i], NULL);
       }
     }
@@ -466,3 +470,4 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
   }
   TAOS_RETURN(0);
 }
+#endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
@@ -58,20 +63,142 @@ typedef struct {
 #endif
 
 #include <objbase.h>
+#include <signal.h>
+#include <stdlib.h>
 
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
 #pragma warning(pop)
 
+// Write a single stack frame line to hFile.
+// dbghelp functions are available via the statically-linked dbghelp.lib.
+static void taosWinWriteOneFrame(HANDLE hFile, HANDLE hProcess, DWORD64 pc, DWORD idx) {
+  char         symBuf[sizeof(SYMBOL_INFO) + MAX_SYM_NAME];
+  PSYMBOL_INFO pSym = (PSYMBOL_INFO)symBuf;
+  pSym->SizeOfStruct = sizeof(SYMBOL_INFO);
+  pSym->MaxNameLen   = MAX_SYM_NAME;
+
+  DWORD64 symDisp = 0;
+  char   *symName = (char *)"<unknown>";
+  if (SymFromAddr(hProcess, pc, &symDisp, pSym)) {
+    symName = pSym->Name;
+  }
+
+  IMAGEHLP_LINE64 li = {0};
+  li.SizeOfStruct     = sizeof(IMAGEHLP_LINE64);
+  DWORD lineDisp      = 0;
+
+  char line[4096];
+  int  n;
+  if (SymGetLineFromAddr64(hProcess, pc, &lineDisp, &li)) {
+    n = _snprintf_s(line, sizeof(line), _TRUNCATE, "#%-3lu 0x%016I64X  %s  (%s:%lu)\r\n",
+                    (unsigned long)idx, pc, symName, li.FileName, (unsigned long)li.LineNumber);
+  } else {
+    n = _snprintf_s(line, sizeof(line), _TRUNCATE, "#%-3lu 0x%016I64X  %s\r\n",
+                    (unsigned long)idx, pc, symName);
+  }
+  DWORD w = 0;
+  if (n > 0) (void)WriteFile(hFile, line, (DWORD)n, &w, NULL);
+}
+
+// Walk the call stack from the exception context and write each frame to hFile.
+static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
+  HANDLE  hProcess = GetCurrentProcess();
+  HANDLE  hThread  = GetCurrentThread();
+  CONTEXT ctx      = *ep->ContextRecord; /* copy: StackWalk64 modifies it */
+
+  SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS | SYMOPT_LOAD_LINES);
+  SymInitialize(hProcess, NULL, TRUE);
+
+  STACKFRAME64 sf   = {0};
+  DWORD        mach;
+#if defined(_M_X64)
+  mach                = IMAGE_FILE_MACHINE_AMD64;
+  sf.AddrPC.Offset    = ctx.Rip; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Rbp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Rsp; sf.AddrStack.Mode = AddrModeFlat;
+#elif defined(_M_IX86)
+  mach                = IMAGE_FILE_MACHINE_I386;
+  sf.AddrPC.Offset    = ctx.Eip; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Ebp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Esp; sf.AddrStack.Mode = AddrModeFlat;
+#elif defined(_M_ARM64)
+  mach                = IMAGE_FILE_MACHINE_ARM64;
+  sf.AddrPC.Offset    = ctx.Pc; sf.AddrPC.Mode    = AddrModeFlat;
+  sf.AddrFrame.Offset = ctx.Fp; sf.AddrFrame.Mode = AddrModeFlat;
+  sf.AddrStack.Offset = ctx.Sp; sf.AddrStack.Mode = AddrModeFlat;
+#else
+  SymCleanup(hProcess);
+  return; /* unsupported architecture */
+#endif
+
+  static const char hdr[] = "=== Stack Trace ===\r\n";
+  DWORD w = 0;
+  (void)WriteFile(hFile, hdr, (DWORD)(sizeof(hdr) - 1), &w, NULL);
+
+  for (DWORD i = 0; i < 128; i++) {
+    if (!StackWalk64(mach, hProcess, hThread, &sf, (PVOID)&ctx,
+                     NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL))
+      break;
+    if (sf.AddrPC.Offset == 0) break;
+    taosWinWriteOneFrame(hFile, hProcess, sf.AddrPC.Offset, i);
+  }
+  SymCleanup(hProcess);
+}
+
+// Split the running executable's full path into a directory (with trailing
+// backslash) and a base file name with its extension stripped, e.g.
+// "C:\TDengine\taosdump.exe" -> dir="C:\TDengine\", name="taosdump". This
+// mechanism is shared by every TDengine binary (taosd, taosdump, taos, ...),
+// so the dump/log file name must reflect the actual crashing process instead
+// of being hardcoded. Falls back to "taosd" only if the module path cannot
+// be resolved at all, so a dump/log is still produced.
+static void taosWinGetExeDirAndName(TdWchar* dir, size_t dirCap, TdWchar* name, size_t nameCap) {
+  TdWchar exePath[MAX_PATH];
+  DWORD   len = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+  DWORD dirEnd = len;
+  while (dirEnd > 0 && exePath[dirEnd - 1] != L'\\') dirEnd--;
+
+  DWORD dirCopyLen = dirEnd < (DWORD)(dirCap - 1) ? dirEnd : (DWORD)(dirCap - 1);
+  wmemcpy(dir, exePath, dirCopyLen);
+  dir[dirCopyLen] = L'\0';
+
+  DWORD nameEnd = len;
+  for (DWORD i = len; i > dirEnd; i--) {
+    if (exePath[i - 1] == L'.') {
+      nameEnd = i - 1;
+      break;
+    }
+  }
+  DWORD nameLen     = (len > dirEnd && nameEnd > dirEnd) ? (nameEnd - dirEnd) : 0;
+  DWORD nameCopyLen = nameLen < (DWORD)(nameCap - 1) ? nameLen : (DWORD)(nameCap - 1);
+  if (nameCopyLen > 0) {
+    wmemcpy(name, exePath + dirEnd, nameCopyLen);
+    name[nameCopyLen] = L'\0';
+  } else {
+    wcsncpy_s(name, nameCap, L"taosd", _TRUNCATE);
+  }
+}
+
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
+  // Only handle fatal exceptions, let others pass through for vectored handler
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Skip non-fatal exceptions (like breakpoints during debugging)
+  if (code == EXCEPTION_BREAKPOINT || code == EXCEPTION_SINGLE_STEP) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+  
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
                                              IN MINIDUMP_TYPE                           DumpType,
                                              IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
                                              IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
                                              IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
 
-  HMODULE dll = LoadLibrary("dbghelp.dll");
+  // -- 1. load dbghelp ------------------------------------------------------
+  HMODULE dll = LoadLibraryA("dbghelp.dll");
   if (dll == NULL) return EXCEPTION_CONTINUE_SEARCH;
   FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
   if (mdwd == NULL) {
@@ -79,31 +206,184 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  TCHAR path[MAX_PATH];
-  DWORD len = GetModuleFileName(NULL, path, _countof(path));
-  path[len - 3] = 'd';
-  path[len - 2] = 'm';
-  path[len - 1] = 'p';
+  // -- 2. build timestamped file paths next to the running executable -------
+  //      Keeping dumps beside the exe makes them easy to find.
+  SYSTEMTIME st;
+  GetLocalTime(&st);
 
-  HANDLE file = CreateFile(path, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-  if (file == INVALID_HANDLE_VALUE) {
-    FreeLibrary(dll);
-    return EXCEPTION_CONTINUE_SEARCH;
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
+
+  TdWchar dmpPath[MAX_PATH];
+  TdWchar logPath[MAX_PATH];
+  _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+  _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+
+  // -- 3. write MiniDump with comprehensive type -----------------------------
+  HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (dmpFile != INVALID_HANDLE_VALUE) {
+    MINIDUMP_EXCEPTION_INFORMATION mei;
+    mei.ThreadId          = GetCurrentThreadId();
+    mei.ExceptionPointers = ep;
+    mei.ClientPointers    = FALSE;
+
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs                    |  /* global/static variables     */
+        MiniDumpWithProcessThreadData           |  /* all thread stacks + locals  */
+        MiniDumpWithHandleData                  |  /* open handles                */
+        MiniDumpWithIndirectlyReferencedMemory  |  /* memory pointed-to by locals */
+        MiniDumpWithThreadInfo                  |  /* thread times, start addr    */
+        MiniDumpWithFullMemoryInfo);               /* all VMAs (flags/state)      */
+    // Keep process/thread data and indirectly referenced memory enabled
+    // to capture more complete diagnostic information in the minidump
+
+    (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
+            dumpType, &mei, NULL, NULL);
+    CloseHandle(dmpFile);
   }
 
-  MINIDUMP_EXCEPTION_INFORMATION mei;
-  mei.ThreadId = GetCurrentThreadId();
-  mei.ExceptionPointers = ep;
-  mei.ClientPointers = FALSE;
+  // -- 4. write stack trace text log (usable without PDB on developer side) --
+  HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (logFile != INVALID_HANDLE_VALUE) {
+    char  hdr[512];
+    DWORD w = 0;
+    int   n = _snprintf_s(hdr, sizeof(hdr), _TRUNCATE,
+                          "ExceptionCode:    0x%08lX\r\n"
+                          "ExceptionAddress: 0x%016I64X\r\n"
+                          "ThreadId:         %lu\r\n"
+                          "\r\n",
+                          ep->ExceptionRecord->ExceptionCode,
+                          (DWORD64)(ULONG_PTR)ep->ExceptionRecord->ExceptionAddress,
+                          (unsigned long)GetCurrentThreadId());
+    if (n > 0) (void)WriteFile(logFile, hdr, (DWORD)n, &w, NULL);
+    taosWinWriteStackTrace(logFile, ep);
+    CloseHandle(logFile);
+  }
 
-  (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), file, MiniDumpWithHandleData, &mei, NULL, NULL);
-
-  CloseHandle(file);
   FreeLibrary(dll);
 
+  // Return EXCEPTION_CONTINUE_SEARCH so that Windows Error Reporting (WER /
+  // WerFault.exe) can write an out-of-process dump as a fallback.  WerFault
+  // runs in a separate process and is therefore immune to stack/heap corruption
+  // in this process  -  it will still produce a valid dump even when
+  // MiniDumpWriteDump above failed (e.g. due to stack overflow or heap
+  // corruption that zeroed out our stack frame).
+  // Configure the WER dump directory via (per crashing executable name, e.g.
+  // taosd.exe / taosdump.exe / taos.exe):
+  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\<exe name>
+  //     DumpFolder  REG_EXPAND_SZ  <path>
+  //     DumpType    REG_DWORD      2        (full user-mode dump)
+  //     DumpCount   REG_DWORD      10
   return EXCEPTION_CONTINUE_SEARCH;
 }
-LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
+
+// Vectored Exception Handler - called BEFORE SEH, can catch heap corruption
+static LONG WINAPI FlVectoredExceptionHandler(PEXCEPTION_POINTERS ep) {
+  DWORD code = ep->ExceptionRecord->ExceptionCode;
+
+  // Only handle critical exceptions that would terminate the process
+  // These exceptions may bypass SetUnhandledExceptionFilter in some cases
+  if (code == 0xC0000374 ||  // STATUS_HEAP_CORRUPTION
+      code == 0xC0000409 ||  // STATUS_STACK_BUFFER_OVERRUN (fast-fail)
+      code == 0xC00000FD) {  // STATUS_STACK_OVERFLOW
+    // Call FlCrashDump directly for these special exceptions
+    (void)FlCrashDump(ep);
+  }
+
+  // Let other exceptions pass to normal SEH handling
+  return EXCEPTION_CONTINUE_SEARCH;
+}
+
+// Helper function to generate dump without exception context (for CRT handlers)
+static void FlCrashDumpNoException(const char* reason) {
+  typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
+                                             IN MINIDUMP_TYPE                           DumpType,
+                                             IN CONST PMINIDUMP_EXCEPTION_INFORMATION   ExceptionParam,
+                                             IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+                                             IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
+
+  HMODULE dll = LoadLibraryA("dbghelp.dll");
+  if (dll == NULL) return;
+  FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
+  if (mdwd == NULL) {
+    FreeLibrary(dll);
+    return;
+  }
+
+  SYSTEMTIME st;
+  GetLocalTime(&st);
+
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
+
+  TdWchar dmpPath[MAX_PATH];
+  _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+
+  HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (dmpFile != INVALID_HANDLE_VALUE) {
+    MINIDUMP_TYPE dumpType = (MINIDUMP_TYPE)(
+        MiniDumpWithDataSegs | MiniDumpWithProcessThreadData |
+        MiniDumpWithHandleData | MiniDumpWithThreadInfo | MiniDumpWithFullMemoryInfo);
+    (*mdwd)(GetCurrentProcess(), GetCurrentProcessId(), dmpFile,
+            dumpType, NULL, NULL, NULL);  // No exception info
+    CloseHandle(dmpFile);
+  }
+
+  // Write reason to log file
+  TdWchar logPath[MAX_PATH];
+  _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
+  HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
+                               CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+  if (logFile != INVALID_HANDLE_VALUE) {
+    char msg[512];
+    int n = _snprintf_s(msg, sizeof(msg), _TRUNCATE,
+                        "CRT/Runtime Error: %s\r\nThreadId: %lu\r\n",
+                        reason, (unsigned long)GetCurrentThreadId());
+    DWORD w = 0;
+    if (n > 0) WriteFile(logFile, msg, (DWORD)n, &w, NULL);
+    CloseHandle(logFile);
+  }
+
+  FreeLibrary(dll);
+}
+
+// CRT invalid parameter handler
+static void FlInvalidParameterHandler(const TdWchar* expression, const TdWchar* function,
+                                       const TdWchar* file, unsigned int line, size_t reserved) {
+  (void)expression; (void)function; (void)file; (void)line; (void)reserved;
+  FlCrashDumpNoException("Invalid parameter detected in CRT function");
+  _exit(3);
+}
+
+// CRT pure virtual call handler
+static void FlPureCallHandler(void) {
+  FlCrashDumpNoException("Pure virtual function call");
+  _exit(3);
+}
+
+// abort() handler - called when abort() is invoked
+static void FlAbortHandler(int sig) {
+  (void)sig;
+  FlCrashDumpNoException("abort() called");
+  _exit(3);
+}
 
 #elif defined(_TD_DARWIN_64)
 
@@ -117,37 +397,98 @@ LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception);
 #else
 
 #include <argp.h>
+#ifndef TD_ASTRA
 #include <linux/sysctl.h>
 #include <sys/file.h>
 #include <sys/resource.h>
 #include <sys/statvfs.h>
 #include <sys/syscall.h>
+#endif
 #include <sys/utsname.h>
 #include <unistd.h>
 
 static pid_t tsProcId;
-static char  tsSysNetFile[] = "/proc/net/dev";
-static char  tsSysCpuFile[] = "/proc/stat";
-static char  tsCpuPeriodFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
-static char  tsCpuQuotaFile[] = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
+static const char *tsSysNetFile = "/proc/net/dev";
+static const char *tsSysCpuFile = "/proc/stat";
+static const char *tsCpuPeriodFile = "/sys/fs/cgroup/cpu/cpu.cfs_period_us";
+static const char *tsCpuQuotaFile = "/sys/fs/cgroup/cpu/cpu.cfs_quota_us";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
+
+// cgroup v2 paths
+static const char *tsCgroupV2CpuMaxFile = "/sys/fs/cgroup/cpu.max";
+static const char *tsCgroupV2MemMaxFile = "/sys/fs/cgroup/memory.max";
+static const char *tsCgroupV2MemCurFile = "/sys/fs/cgroup/memory.current";
+static const char *tsCgroupV2MemStatFile = "/sys/fs/cgroup/memory.stat";
+static const char *tsCgroupV2CpuStatFile = "/sys/fs/cgroup/cpu.stat";
+
+// cgroup v1 memory paths
+static const char *tsCgroupV1MemLimitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes";
+static const char *tsCgroupV1MemUsageFile = "/sys/fs/cgroup/memory/memory.usage_in_bytes";
+static const char *tsCgroupV1MemStatFile = "/sys/fs/cgroup/memory/memory.stat";
+static const char *tsCgroupV1CpuAcctFile = "/sys/fs/cgroup/cpuacct/cpuacct.usage";
+
+// Returns: 2 for cgroup v2, 1 for cgroup v1, 0 for no cgroup
+static int32_t taosDetectCgroupVersion() {
+  static volatile int32_t cgroupVersion = -1;
+
+  int32_t ver = atomic_load_32(&cgroupVersion);
+  if (ver >= 0) return ver;
+
+  if (taosCheckExistFile("/sys/fs/cgroup/cgroup.controllers")) {
+    ver = 2;
+  } else if (taosCheckExistFile(tsCpuQuotaFile) || taosCheckExistFile(tsCgroupV1MemLimitFile)) {
+    ver = 1;
+  } else {
+    ver = 0;
+  }
+
+  (void)atomic_val_compare_exchange_32(&cgroupVersion, -1, ver);
+  return ver;
+}
+
+// Read a single int64 value from a cgroup file. Returns 0 on success.
+static int32_t taosReadCgroupInt64(const char *path, int64_t *value) {
+  if (path == NULL || value == NULL) return -1;
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return -1;
+
+  char line[64] = {0};
+  if (taosGetsFile(pFile, sizeof(line), line) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  // "max" means no limit
+  if (strncmp(line, "max", 3) == 0) {
+    *value = INT64_MAX;
+    return 0;
+  }
+
+  char *endPtr = NULL;
+  int64_t v = taosStr2Int64(line, &endPtr, 10);
+  if (endPtr == line) return -1;
+  *value = v;
+  return 0;
+}
 
 static void taosGetProcIOnfos() {
   tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
   tsStreamMax = TMAX(sysconf(_SC_STREAM_MAX), 0);
+#ifndef TD_ASTRA
   tsProcId = (pid_t)syscall(SYS_gettid);
 
   (void)snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
   (void)snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
   (void)snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
+#endif
 }
 #endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
-  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 #ifdef WINDOWS
   FILETIME pre_idleTime = {0};
@@ -163,7 +504,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
     cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
     cpuInfo->nice = 0;
   }
-#elif defined(DARWIN)
+#elif defined(DARWIN) || defined(TD_ASTRA)
   cpuInfo->idle = 0;
   cpuInfo->system = 0;
   cpuInfo->user = 0;
@@ -188,7 +529,7 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
          cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle, &cpuInfo->wa, &cpuInfo->hi,
          &cpuInfo->si, &cpuInfo->st, &cpuInfo->guest, &cpuInfo->guest_nice);
   if (EOF == code) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     TAOS_SKIP_ERROR(taosCloseFile(&pFile));
     return terrno;
   }
@@ -200,7 +541,6 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
-  OS_PARAM_CHECK(cpuInfo);
   int32_t code = 0;
 
 #ifdef WINDOWS
@@ -214,7 +554,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     cpuInfo->cutime = 0;
     cpuInfo->cstime = 0;
   }
-#elif defined(DARWIN)
+#elif defined(DARWIN) || defined(TD_ASTRA)
   cpuInfo->stime = 0;
   cpuInfo->utime = 0;
   cpuInfo->cutime = 0;
@@ -238,7 +578,7 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
       code = sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime,
              &cpuInfo->cutime, &cpuInfo->cstime);
       if (EOF == code) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
         return terrno;
       }
              
@@ -272,9 +612,14 @@ void taosGetSystemInfo() {
   tsTotalMemoryKB = physical_pages * page_size / 1024;
   tsPageSizeKB = page_size / 1024;
   tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
-#else
+#elif defined(TD_ASTRA)
   taosGetProcIOnfos();
   TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false));
+  TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
+  TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
+#else
+  taosGetProcIOnfos();
+  TAOS_SKIP_ERROR(taosGetCpuCores(&tsNumOfCores, false)); 
   TAOS_SKIP_ERROR(taosGetTotalMemory(&tsTotalMemoryKB));
   TAOS_SKIP_ERROR(taosGetCpuUsage(NULL, NULL));
   TAOS_SKIP_ERROR(taosGetCpuInstructions(&tsSSE42Supported, &tsAVXSupported, &tsAVX2Supported, &tsFMASupported, &tsAVX512Supported));
@@ -378,12 +723,12 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
 
   if(sName) snprintf(sName, maxLen, "macOS");
   if (sysctl(osversion_name, 2, osversion, &osversion_len, NULL, 0) == -1) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   uint32_t major, minor;
   if (sscanf(osversion, "%u.%u", &major, &minor) == EOF) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
   }
   if (major >= 20) {
       major -= 9; // macOS 11 and newer
@@ -393,6 +738,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       snprintf(releaseName, maxLen, "macOS 10.%d.%d", major, minor);
   }
 
+  return 0;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  if(sName) snprintf(sName, maxLen, "Astra");
+  snprintf(releaseName, maxLen, "Astra");
   return 0;
 #else
   char    line[1024];
@@ -419,8 +768,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       continue;
     }
     if (!dest) continue;
-    const char *p = strchr(line, '=') + 1;
-    if (*p == '"') {
+    const char *eq = strchr(line, '=');
+    if (eq == NULL) continue;  // malformed line, no '='
+    const char *p = eq + 1;
+    if (*p == '"' && size >= 2) {
       p++;
       line[size - 2] = 0;
     }
@@ -479,6 +830,10 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   taosCloseCmd(&pCmd);
 
   return code;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  tstrncpy(cpuModel, "ft_2000_4", maxLen);
+  TAOS_SKIP_ERROR(taosGetCpuCores(numOfCores, false));
+  return 0;
 #else
   char    line[1024] = {0};
   size_t  size = 0;
@@ -539,64 +894,94 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #endif
 }
 
-// Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
-static int32_t taosCntrGetCpuCores(float *numOfCores) {
-  OS_PARAM_CHECK(numOfCores);
-#ifdef WINDOWS
-  return TSDB_CODE_UNSUPPORT_OS;
-#elif defined(_TD_DARWIN_64)
-  return TSDB_CODE_UNSUPPORT_OS;
-#else
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+// Try cgroup v2 cpu.max: format "$MAX $PERIOD" or "max $PERIOD"
+static int32_t taosCntrGetCpuCoresV2(float *numOfCores) {
+  TdFilePtr pFile = taosOpenFile(tsCgroupV2CpuMaxFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return -1;
+
+  char line[64] = {0};
+  if (taosGetsFile(pFile, sizeof(line), line) <= 0) {
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+
+  // "max" means no CPU limit
+  if (strncmp(line, "max", 3) == 0) {
+    return -1;
+  }
+
+  int64_t quota = 0, period = 0;
+  if (sscanf(line, "%" PRId64 " %" PRId64, &quota, &period) != 2 || period <= 0 || quota <= 0) {
+    return -1;
+  }
+
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
+  return (*numOfCores > 0) ? 0 : -1;
+}
+
+// Try cgroup v1 cpu.cfs_quota_us / cpu.cfs_period_us
+static int32_t taosCntrGetCpuCoresV1(float *numOfCores) {
   TdFilePtr pFile = NULL;
   if (!(pFile = taosOpenFile(tsCpuQuotaFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
+    return -1;
   }
   char qline[32] = {0};
   if (taosGetsFile(pFile, sizeof(qline), qline) <= 0) {
     TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-    goto _sys;
+    return -1;
   }
-  
   TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-  float quota = taosStr2Float(qline, NULL);
+
+  int64_t quota = taosStr2Int64(qline, NULL, 10);
   if (quota < 0) {
-    goto _sys;
+    return -1;
   }
 
   if (!(pFile = taosOpenFile(tsCpuPeriodFile, TD_FILE_READ | TD_FILE_STREAM))) {
-    goto _sys;
+    return -1;
   }
-  
   char pline[32] = {0};
   if (taosGetsFile(pFile, sizeof(pline), pline) <= 0) {
     TAOS_SKIP_ERROR(taosCloseFile(&pFile));
-    goto _sys;
+    return -1;
   }
-  
   TAOS_SKIP_ERROR(taosCloseFile(&pFile));
 
-  float period = taosStr2Float(pline, NULL);
-  float quotaCores = quota / period;
-  float sysCores = sysconf(_SC_NPROCESSORS_ONLN);
-  if (quotaCores < sysCores && quotaCores > 0) {
-    *numOfCores = quotaCores;
-  } else {
-    *numOfCores = sysCores;
+  int64_t period = taosStr2Int64(pline, NULL, 10);
+  if (period <= 0) return -1;
+
+  double quotaCores = (double)quota / (double)period;
+  double sysCores = (double)sysconf(_SC_NPROCESSORS_ONLN);
+  *numOfCores = (float)((quotaCores < sysCores && quotaCores > 0) ? quotaCores : sysCores);
+  return (*numOfCores > 0) ? 0 : -1;
+}
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
+
+// Returns the container's CPU quota if successful, otherwise returns the physical CPU cores
+static int32_t taosCntrGetCpuCores(float *numOfCores) {
+#ifdef WINDOWS
+  return TSDB_CODE_UNSUPPORT_OS;
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
+  return TSDB_CODE_UNSUPPORT_OS;
+#else
+  int32_t cgroupVer = taosDetectCgroupVersion();
+
+  if (cgroupVer == 2 && taosCntrGetCpuCoresV2(numOfCores) == 0) {
+    return 0;
   }
-  if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+  if (cgroupVer >= 1 && taosCntrGetCpuCoresV1(numOfCores) == 0) {
+    return 0;
   }
-  goto _end;
-  
-_sys:
+
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
-  
-_end:
   return 0;
-  
 #endif
 }
 
@@ -610,14 +995,17 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #elif defined(_TD_DARWIN_64)
   *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   if(*numOfCores <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
+  return 0;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  *numOfCores = 4;
   return 0;
 #else
   if (physical) {
     *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
     if(*numOfCores <= 0) {
-      return TAOS_SYSTEM_ERROR(errno);
+      return TAOS_SYSTEM_ERROR(ERRNO);
     }
   } else {
     int code= taosCntrGetCpuCores(numOfCores);
@@ -629,6 +1017,42 @@ int32_t taosGetCpuCores(float *numOfCores, bool physical) {
 #endif
 }
 
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+// Read cgroup CPU usage in microseconds. Returns 0 on success.
+static int32_t taosGetCgroupCpuUsageUsec(int64_t *usageUsec) {
+  if (usageUsec == NULL) return -1;
+
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  if (cgroupVer == 2) {
+    // cgroup v2: cpu.stat has "usage_usec <value>"
+    TdFilePtr pFile = taosOpenFile(tsCgroupV2CpuStatFile, TD_FILE_READ | TD_FILE_STREAM);
+    if (pFile == NULL) return -1;
+    char line[256] = {0};
+    while (taosGetsFile(pFile, sizeof(line), line) > 0) {
+      if (strncmp(line, "usage_usec", 10) == 0) {
+        if (sscanf(line + 10, " %" PRId64, usageUsec) != 1) {
+          TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+          return -1;
+        }
+        TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+        return 0;
+      }
+    }
+    TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+    return -1;
+  } else if (cgroupVer == 1) {
+    // cgroup v1: cpuacct.usage is in nanoseconds
+    int64_t usageNs = 0;
+    if (taosReadCgroupInt64(tsCgroupV1CpuAcctFile, &usageNs) == 0) {
+      *usageUsec = usageNs / 1000;
+      return 0;
+    }
+    return -1;
+  }
+  return -1;
+}
+#endif  // !WINDOWS && !_TD_DARWIN_64 && !TD_ASTRA
+
 int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t lastSysUsed = -1;
   static int64_t lastSysTotal = -1;
@@ -636,9 +1060,47 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t curSysUsed = 0;
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+  static int64_t lastCgroupUsageUsec = -1;
+  static int64_t lastWallTimeUsec = -1;
+#endif
 
   if (cpu_system != NULL) *cpu_system = 0;
   if (cpu_engine != NULL) *cpu_engine = 0;
+
+  bool    cgroupUsed = false;
+
+#if !defined(WINDOWS) && !defined(_TD_DARWIN_64) && !defined(TD_ASTRA)
+  // Try container-aware CPU usage first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupUsageUsec = 0;
+
+  if (cgroupVer > 0 && taosGetCgroupCpuUsageUsec(&cgroupUsageUsec) == 0) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) goto _proc_stat;
+    int64_t wallTimeUsec = (int64_t)ts.tv_sec * 1000000 + ts.tv_nsec / 1000;
+
+    if (lastCgroupUsageUsec >= 0 && lastWallTimeUsec >= 0) {
+      int64_t deltaUsage = cgroupUsageUsec - lastCgroupUsageUsec;
+      int64_t deltaWall = wallTimeUsec - lastWallTimeUsec;
+      if (deltaWall > 0 && deltaUsage >= 0) {
+        float numCores = 0;
+        TAOS_SKIP_ERROR(taosGetCpuCores(&numCores, false));
+        if (numCores <= 0) numCores = 1;
+        if (cpu_system != NULL) {
+          *cpu_system = (double)deltaUsage / (double)deltaWall / numCores * 100.0;
+          if (*cpu_system > 100.0) *cpu_system = 100.0;
+        }
+        cgroupUsed = true;
+      }
+    }
+    lastCgroupUsageUsec = cgroupUsageUsec;
+    lastWallTimeUsec = wallTimeUsec;
+  }
+
+_proc_stat:
+  ;
+#endif
 
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
@@ -650,7 +1112,7 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
 
     if(lastSysUsed >= 0 && lastSysTotal >=0 && lastProcTotal >=0){
       if (curSysTotal - lastSysTotal > 0 && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
-        if (cpu_system != NULL) {
+        if (!cgroupUsed && cpu_system != NULL) {
           *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
         }
         if (cpu_engine != NULL) {
@@ -716,11 +1178,34 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
   return 0;
 #elif defined(_TD_DARWIN_64)
   return 0;
+#elif defined(TD_ASTRA) // TD_ASTRA_TODO
+  *totalKB = (int64_t)256 * 1024;
+  return 0;
 #else
-  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
-  if(*totalKB <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+  int64_t pageSizeKB = tsPageSizeKB;
+  if (pageSizeKB <= 0) {
+    pageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   }
+  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * pageSizeKB);
+  if(*totalKB <= 0) {
+    return TAOS_SYSTEM_ERROR(ERRNO);
+  }
+
+  // Apply cgroup memory limit if available
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimitBytes = INT64_MAX;
+  if (cgroupVer == 2) {
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimitBytes));
+  } else if (cgroupVer == 1) {
+    TAOS_SKIP_ERROR(taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimitBytes));
+  }
+  if (cgroupLimitBytes > 0 && cgroupLimitBytes < INT64_MAX) {
+    int64_t cgroupLimitKB = cgroupLimitBytes / 1024;
+    if (cgroupLimitKB > 0 && cgroupLimitKB < *totalKB) {
+      *totalKB = cgroupLimitKB;
+    }
+  }
+
   return 0;
 #endif
 }
@@ -741,7 +1226,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 
   *usedKB = bytes_used / 1024;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   *usedKB = 0;
   return 0;
 #else
@@ -785,10 +1270,34 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 
   *availSize = nMemTotal - nMemFree;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   *availSize = 0;
   return 0;
 #else
+  // Try cgroup-aware available memory first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimit = 0;
+  int64_t cgroupCurrent = 0;
+
+  if (cgroupVer == 2) {
+    if (taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV2MemCurFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+      *availSize = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) : 0;
+      return 0;
+    }
+  } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
+      *availSize = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) : 0;
+      return 0;
+    }
+  }
+
+  // Fallback to /proc/meminfo
   TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return terrno;
@@ -825,8 +1334,47 @@ int32_t taosGetSysAvailMemory(int64_t *availSize) {
 #endif
 }
 
-int32_t taosGetSysMemory(int64_t *usedKB) {
+static void taosGetMemValue(char* line, char* key, int64_t* value){
+  if(value == NULL) return;
+  *value = 0;
+  if(line == NULL || line[0] == '\0') return;
+
+  char *colon_pos = strchr(line, ':');
+  if (colon_pos != NULL) {
+    *colon_pos = '\0';
+    if(sscanf(line, "%s", key) != 1){
+      key[0] = '\0';
+    }
+    if (sscanf(colon_pos + 1, "%" PRId64, value) != 1) {
+      *value = 0;
+    }
+  }
+}
+
+// Read "inactive_file" from cgroup memory.stat
+static int64_t taosGetCgroupMemCache(const char *statFile) {
+  TdFilePtr pFile = taosOpenFile(statFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return 0;
+
+  char    line[256] = {0};
+  int64_t inactiveFile = 0;
+  while (taosGetsFile(pFile, sizeof(line), line) > 0) {
+    if (strncmp(line, "inactive_file", 13) == 0) {
+      if (sscanf(line + 13, " %" PRId64, &inactiveFile) == 1) break;
+    }
+    // cgroup v1 uses "total_inactive_file"
+    if (strncmp(line, "total_inactive_file", 19) == 0) {
+      if (sscanf(line + 19, " %" PRId64, &inactiveFile) == 1) break;
+    }
+  }
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+  return inactiveFile;
+}
+
+int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB) {
   OS_PARAM_CHECK(usedKB);
+  OS_PARAM_CHECK(freeKB);
+  OS_PARAM_CHECK(cacheBufferKB);
 #ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
@@ -838,15 +1386,108 @@ int32_t taosGetSysMemory(int64_t *usedKB) {
   int64_t nMemTotal = memsStat.ullTotalPhys / 1024.0;
 
   *usedKB = nMemTotal - nMemFree;
+  *freeKB = nMemFree;
+  *cacheBufferKB = 0;
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA) // TD_ASTRA_TODO
   *usedKB = 0;
+  *freeKB = 0;
+  *cacheBufferKB = 0;
   return 0;
 #else
-  *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
-  if(*usedKB <= 0) {
-    return TAOS_SYSTEM_ERROR(errno);
+  // Try cgroup-aware memory stats first
+  int32_t cgroupVer = taosDetectCgroupVersion();
+  int64_t cgroupLimit = 0;
+  int64_t cgroupCurrent = 0;
+
+  if (cgroupVer == 2) {
+    if (taosReadCgroupInt64(tsCgroupV2MemMaxFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV2MemCurFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX) {
+      int64_t cache = taosGetCgroupMemCache(tsCgroupV2MemStatFile);
+      *cacheBufferKB = cache / 1024;
+      *usedKB = (cgroupCurrent > cache) ? (cgroupCurrent - cache) / 1024 : 0;
+      *freeKB = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) / 1024 : 0;
+      return 0;
+    }
+  } else if (cgroupVer == 1) {
+    // v1 uses a huge sentinel (near INT64_MAX) for "no limit"; also compare against physical memory
+    int64_t physMemBytes = (int64_t)sysconf(_SC_PHYS_PAGES) * sysconf(_SC_PAGESIZE);
+    if (taosReadCgroupInt64(tsCgroupV1MemLimitFile, &cgroupLimit) == 0 &&
+        taosReadCgroupInt64(tsCgroupV1MemUsageFile, &cgroupCurrent) == 0 &&
+        cgroupLimit > 0 && cgroupLimit < INT64_MAX && cgroupLimit < physMemBytes) {
+      int64_t cache = taosGetCgroupMemCache(tsCgroupV1MemStatFile);
+      *cacheBufferKB = cache / 1024;
+      *usedKB = (cgroupCurrent > cache) ? (cgroupCurrent - cache) / 1024 : 0;
+      *freeKB = (cgroupLimit > cgroupCurrent) ? (cgroupLimit - cgroupCurrent) / 1024 : 0;
+      return 0;
+    }
   }
+
+  // Fallback to /proc/meminfo
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
+    return terrno;
+  }
+
+  char    line[1024] = {0};
+  char    key[1024] = {0};
+  int64_t  value = 0;
+  ssize_t bytes = 0;
+
+  //MemTotal
+  int64_t total = 0;
+
+  //MemFree
+  int64_t mfree = 0;
+
+  //MemAvailable
+  int64_t available = 0;
+
+  //Buffers
+  int64_t buffer = 0;
+
+  //Cached
+  int64_t cached = 0;
+
+  //SwapCached ,Active, Inactive, Active(anon), Inactive(anon), Active(file), Inactive(file), Unevictable, Mlocked, SwapTotal
+
+  //SwapFree
+  int64_t swapFree = 0;
+
+  //Dirty, Writeback, AnonPages, Mapped, Shmem, KReclaimable, Slab
+
+  //SReclaimable
+  int64_t sReclaimable = 0;
+
+  for(int32_t i=0; i < 30; i++){
+    bytes = taosGetsFile(pFile, sizeof(line), line);
+    if (bytes < 0) {
+      TAOS_SKIP_ERROR(taosCloseFile(&pFile));
+      return terrno;
+    }
+    if (line[0] != 'M' && line[0] != 'B' && line[0] != 'C' && line[0] != 'S') {
+      line[0] = 0;
+      continue;
+    }
+    taosGetMemValue(line, key, &value);
+    if(strncmp(key, "MemTotal", 1024) == 0) {total = value; continue;}
+    if(strncmp(key, "MemFree", 1024) == 0) {mfree = value; continue;}
+    if(strncmp(key, "MemAvailable", 1024) == 0) {available = value; continue;}
+    if(strncmp(key, "Buffers", 1024) == 0) {buffer = value; continue;}
+    if(strncmp(key, "Cached", 1024) == 0) {cached = value; continue;}
+    if(strncmp(key, "SwapFree", 1024) == 0) {swapFree = value; continue;}
+    if(strncmp(key, "SReclaimable", 1024) == 0) {sReclaimable = value; continue;}
+  }
+
+  //free   Unused memory (MemFree and SwapFree in /proc/meminfo)
+  *freeKB = mfree;
+  //buffers Memory used by kernel buffers (Buffers in /proc/meminfo)
+  //cache  Memory used by the page cache and slabs (Cached and SReclaimable in /proc/meminfo)
+  *cacheBufferKB = buffer + cached + sReclaimable;
+  *usedKB = total - *freeKB - *cacheBufferKB;
+  
+  TAOS_SKIP_ERROR(taosCloseFile(&pFile));
   return 0;
 #endif
 }
@@ -867,15 +1508,15 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(ERRNO));
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 #elif defined(_TD_DARWIN_64)
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    // printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(ERRNO));
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -883,10 +1524,23 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;
   }
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
+  //  if (-1 == ioctl(dataDir, FIOFSTATVFSGETBYNAME, &info)) { // TODO:try to check whether the API is available
+  //     terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  //     return terrno;
+  diskSize->total = 100LL * 1024 * 1024 * 1024;
+  diskSize->avail = 50LL * 1024 * 1024 * 1024;
+  diskSize->used = 50LL * 1024 * 1024 * 1024;
+  //  } else {
+  //    diskSize->total = info.f_blocks * info.f_frsize;
+  //    diskSize->avail = info.f_bavail * info.f_frsize;
+  //    diskSize->used = diskSize->total - diskSize->avail;
+  //  }
+  return 0;
 #else
   struct statvfs info;
   if (-1 == statvfs(dataDir, &info)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -913,7 +1567,7 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     return 0;
   }
   return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   *rchars = 0;
   *wchars = 0;
   *read_bytes = 0;
@@ -1013,7 +1667,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
 
 #ifdef WINDOWS
   return 0;
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   return 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
@@ -1092,11 +1746,12 @@ void taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes
   if (transmit_bytes) *transmit_bytes = 0;
 }
 
+#if 0
 void taosKillSystem() {
 #ifdef WINDOWS
   printf("function taosKillSystem, exit!");
   exit(0);
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
   printf("function taosKillSystem, exit!");
   exit(0);
 #else
@@ -1105,6 +1760,7 @@ void taosKillSystem() {
   (void)kill(tsProcId, 2);
 #endif
 }
+#endif
 
 #define UUIDLEN (36)
 int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen) {
@@ -1128,6 +1784,25 @@ int32_t taosGetSystemUUIDLimit36(char *uid, int32_t uidlen) {
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
   uuid_unparse_lower(uuid, buf);
   (void)snprintf(uid, uidlen, "%.*s", (int)sizeof(buf), buf);
+  return 0;
+#elif defined(TD_ASTRA)
+  const char *template = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx";
+  const char *hex_chars = "0123456789abcdef";
+  int32_t     len = uidlen > 36 ? 36 : uidlen;
+
+  for (int32_t i = 0; i < len; i++) {
+    if (template[i] == 'x') {
+      uid[i] = hex_chars[taosRand() & 15];
+    } else if (template[i] == 'y') {
+      uid[i] = hex_chars[(taosRand() & 3) + 8];  // 8, 9, a, or b
+    } else {
+      uid[i] = template[i];
+    }
+  }
+  if (len >= 0) {
+    uid[len] = 0;
+  }
+
   return 0;
 #else
   int64_t len = 0;
@@ -1174,14 +1849,16 @@ char *taosGetCmdlineByPID(int pid) {
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
-  errno = 0;
+  SET_ERRNO(0);
 
   if (proc_pidpath(pid, cmdline, sizeof(cmdline)) <= 0) {
-    fprintf(stderr, "PID is %d, %s", pid, strerror(errno));
-    return strerror(errno);
+    fprintf(stderr, "PID is %d, %s", pid, strerror(ERRNO));
+    return strerror(ERRNO);
   }
 
   return cmdline;
+#elif defined(TD_ASTRA)
+  return "";
 #else
   static char cmdline[1024];
   (void)snprintf(cmdline, sizeof(cmdline), "/proc/%d/cmdline", pid);
@@ -1207,11 +1884,11 @@ char *taosGetCmdlineByPID(int pid) {
 
 int64_t taosGetOsUptime() {
 #ifdef WINDOWS
-#elif defined(_TD_DARWIN_64)
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
   struct sysinfo info;
   if (-1 == sysinfo(&info)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   
@@ -1224,9 +1901,22 @@ int64_t taosGetOsUptime() {
 void taosSetCoreDump(bool enable) {
   if (!enable) return;
 #ifdef WINDOWS
-  SetUnhandledExceptionFilter(exceptionHandler);
+  /* Register vectored exception handler FIRST - it runs before SEH and can
+   * catch heap corruption (STATUS_HEAP_CORRUPTION 0xC0000374) which may
+   * bypass SetUnhandledExceptionFilter in some cases. */
+  AddVectoredExceptionHandler(1, FlVectoredExceptionHandler);
+  
+  /* Also set the unhandled exception filter for normal crashes */
   SetUnhandledExceptionFilter(&FlCrashDump);
-#elif defined(_TD_DARWIN_64)
+  
+  /* Register CRT handlers for various runtime errors */
+  _set_invalid_parameter_handler(FlInvalidParameterHandler);
+  _set_purecall_handler(FlPureCallHandler);
+  
+  /* Handle abort() calls */
+  signal(SIGABRT, FlAbortHandler);
+  
+#elif defined(_TD_DARWIN_64) || defined(TD_ASTRA)
 #else
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
@@ -1240,7 +1930,7 @@ void taosSetCoreDump(bool enable) {
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
-      // printf("set unlimited fail, error: %s", strerror(errno));
+      // printf("set unlimited fail, error: %s", strerror(ERRNO));
       rlim_new.rlim_cur = rlim.rlim_max;
       rlim_new.rlim_max = rlim.rlim_max;
       (void)setrlimit(RLIMIT_CORE, &rlim_new);
@@ -1276,9 +1966,9 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && defined(SYS__sysctl)
   if (syscall(SYS__sysctl, &args) == -1) {
-    // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+    // printf("_sysctl(kern_core_uses_pid) set fail: %s", strerror(ERRNO));
   }
 #endif
 
@@ -1294,9 +1984,9 @@ void taosSetCoreDump(bool enable) {
 
   old_len = sizeof(old_usespid);
 
-#ifndef __loongarch64
+#if !defined(__loongarch64) && defined(SYS__sysctl)
   if (syscall(SYS__sysctl, &args) == -1) {
-    // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+    // printf("_sysctl(kern_core_uses_pid) get fail: %s", strerror(ERRNO));
   }
 #endif
 
@@ -1349,7 +2039,7 @@ SysNameInfo taosGetSysNameInfo() {
     tstrncpy(info.version, uts.version, sizeof(info.version));
     tstrncpy(info.machine, uts.machine, sizeof(info.machine));
   } else {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
 
   return info;
@@ -1388,7 +2078,7 @@ int32_t taosGetMaclocalhostnameByCommand(char *hostname, size_t maxLen) {
     }
     taosCloseCmd(&pCmd);
   }
-  return TAOS_SYSTEM_ERROR(errno);
+  return TAOS_SYSTEM_ERROR(ERRNO);
 }
 
 int32_t getMacLocalHostNameBySCD(char *hostname, size_t maxLen) {
@@ -1417,9 +2107,238 @@ int32_t taosGetlocalhostname(char *hostname, size_t maxLen) {
 #else
   int r = gethostname(hostname, maxLen);
   if (-1 == r) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return r;
 #endif
 }
+
+// --- CPU Affinity Management ---
+
+// Forward-declare config variables from tglobal.h to avoid circular dependency
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
+static SCpuAllocStatus gCpuAllocStatus = {0};
+
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset) {
+  CPU_ZERO(cpuset);
+  if (sched_getaffinity(0, sizeof(cpu_set_t), cpuset) != 0) {
+    // Fallback: set all cores based on tsNumOfCores
+    for (int i = 0; i < (int)tsNumOfCores; i++) {
+      CPU_SET(i, cpuset);
+    }
+    return (int32_t)tsNumOfCores;
+  }
+  return CPU_COUNT(cpuset);
+}
+#endif
+
+int32_t taosInitCpuAllocation(void) {
+  memset(&gCpuAllocStatus, 0, sizeof(gCpuAllocStatus));
+
+  if (!tsEnableCpuAffinity) {
+    gCpuAllocStatus.enabled = false;
+    uInfo("CPU affinity disabled by configuration (enableCpuAffinity=0)");
+    return 0;
+  }
+
+#ifdef __linux__
+  cpu_set_t availSet;
+  int32_t   totalCores = taosGetAvailableCpuSet(&availSet);
+  if (totalCores > TAOS_MAX_CPU_CORES) {
+    uWarn("System has %d cores, but TDengine CPU affinity only supports up to %d. Capping to %d.", totalCores,
+          TAOS_MAX_CPU_CORES, TAOS_MAX_CPU_CORES);
+    totalCores = TAOS_MAX_CPU_CORES;
+  }
+#else
+  int32_t totalCores = (int32_t)tsNumOfCores;
+  if (totalCores > TAOS_MAX_CPU_CORES) totalCores = TAOS_MAX_CPU_CORES;
+#endif
+
+  gCpuAllocStatus.totalCores = totalCores;
+
+  // Disable affinity if fewer than 3 cores available
+  if (totalCores < 3) {
+    gCpuAllocStatus.enabled = false;
+    uWarn("CPU affinity disabled: only %d cores available, need >= 3", totalCores);
+    return 0;
+  }
+
+  // Validate: managementCpuCores must leave at least 2 for write + read
+  if (tsManagementCpuCores > totalCores - 2) {
+    uError("managementCpuCores %d exceeds maximum %d (totalCores=%d)", tsManagementCpuCores, totalCores - 2,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  int32_t mgmt = tsManagementCpuCores;
+
+  // Use explicit core counts from config
+  int32_t readCount = tsReadCpuCores;
+  int32_t writeCount = tsOtherCpuCores;
+
+  // Validate sum does not exceed available cores
+  if (mgmt + readCount + writeCount > totalCores) {
+    uError("CPU core sum exceeds total: management=%d + read=%d + write=%d > total=%d", mgmt, readCount, writeCount,
+           totalCores);
+    return TSDB_CODE_INVALID_CFG_VALUE;
+  }
+
+  // Collect available core IDs in sorted order
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t nCores = 0;
+#ifdef __linux__
+  for (int i = 0; i < CPU_SETSIZE && nCores < totalCores; i++) {
+    if (CPU_ISSET(i, &availSet)) {
+      coreIds[nCores++] = i;
+    }
+  }
+#else
+  for (int i = 0; i < totalCores && i < TAOS_MAX_CPU_CORES; i++) {
+    coreIds[nCores++] = i;
+  }
+#endif
+
+  // Assign core IDs: management first, then write, then read
+  int32_t idx = 0;
+
+  // Management set
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].category = THREAD_CAT_MANAGEMENT;
+  gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count = mgmt;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  for (int32_t i = 0; i < mgmt; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].mask);
+#endif
+  }
+
+  // Write set
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].category = THREAD_CAT_WRITE;
+  gCpuAllocStatus.sets[THREAD_CAT_WRITE].count = writeCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  for (int32_t i = 0; i < writeCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_WRITE].mask);
+#endif
+  }
+
+  // Read set
+  gCpuAllocStatus.sets[THREAD_CAT_READ].category = THREAD_CAT_READ;
+  gCpuAllocStatus.sets[THREAD_CAT_READ].count = readCount;
+#ifdef __linux__
+  CPU_ZERO(&gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  for (int32_t i = 0; i < readCount; i++, idx++) {
+    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i] = coreIds[idx];
+#ifdef __linux__
+    CPU_SET(coreIds[idx], &gCpuAllocStatus.sets[THREAD_CAT_READ].mask);
+#endif
+  }
+
+  gCpuAllocStatus.enabled = true;
+
+  // Startup logging
+  char mgmtIds[512] = {0}, writeIds[512] = {0}, readIds[512] = {0};
+  int  off;
+
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].count; i++) {
+    off += snprintf(mgmtIds + off, sizeof(mgmtIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_MANAGEMENT].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_WRITE].count; i++) {
+    off += snprintf(writeIds + off, sizeof(writeIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_WRITE].coreIds[i]);
+  }
+  off = 0;
+  for (int32_t i = 0; i < gCpuAllocStatus.sets[THREAD_CAT_READ].count; i++) {
+    off += snprintf(readIds + off, sizeof(readIds) - off, "%s%d", i > 0 ? "," : "",
+                    gCpuAllocStatus.sets[THREAD_CAT_READ].coreIds[i]);
+  }
+
+  uInfo("CPU affinity enabled: management=%d cores [%s], write=%d cores [%s], read=%d cores [%s]", mgmt, mgmtIds,
+        writeCount, writeIds, readCount, readIds);
+
+  return 0;
+}
+
+void taosSetCpuAffinity(EThreadCategory category) {
+  if (!gCpuAllocStatus.enabled) {
+    return;
+  }
+
+  if (category < 0 || category >= THREAD_CAT_COUNT) {
+    uError("failed to set CPU affinity for category:%d", category);
+    return;
+  }
+
+#ifdef __linux__
+  int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &gCpuAllocStatus.sets[category].mask);
+  if (rc != 0) {
+    uError("failed to set CPU affinity for category %d: %s", category, strerror(rc));
+    return;
+  }
+#elif defined(WINDOWS)
+  // A Windows affinity mask is DWORD_PTR wide and is relative to the thread's
+  // processor group, which is the group the assigned core ids are taken from
+  // (they are enumerated by taosGetSystemInfo() for the current group).
+  const SCpuCoreSet *pSet = &gCpuAllocStatus.sets[category];
+  const int32_t      bits = (int32_t)(sizeof(DWORD_PTR) * 8);
+
+  DWORD_PTR mask = 0;
+  int32_t   applied = 0;
+  int32_t   dropped = 0;
+  for (int32_t i = 0; i < pSet->count; i++) {
+    int32_t id = pSet->coreIds[i];
+    if (id < 0 || id >= bits) {
+      dropped++;
+      continue;
+    }
+    mask |= ((DWORD_PTR)1 << id);
+    applied++;
+  }
+
+  if (applied == 0) {
+    uError("failed to set CPU affinity for category %d: no valid core id assigned", category);
+    return;
+  }
+
+  if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+    uError("failed to set CPU affinity for category %d, mask %" PRIu64 ": error %d", category, (uint64_t)mask,
+           (int32_t)GetLastError());
+    return;
+  }
+
+  if (dropped > 0) {
+    static int32_t logged = 0;
+    if (logged == 0) {
+      logged = 1;
+      uWarn("CPU affinity: %d assigned core(s) are outside the current processor group and cannot be bound on "
+            "Windows",
+            dropped);
+    }
+  }
+#else
+  static bool logged = false;
+  if (!logged) {
+    uInfo("CPU affinity not supported on this platform");
+    logged = true;
+  }
+#endif
+
+  return;
+}
+
+const SCpuAllocStatus *taosGetCpuAllocStatus(void) { return &gCpuAllocStatus; }

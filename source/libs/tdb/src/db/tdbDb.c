@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,7 +18,7 @@
 #include "tdbInt.h"
 
 int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback,
-                int32_t encryptAlgorithm, char *encryptKey) {
+                SEncryptData *encryptData) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -50,44 +52,58 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, i
 
   pDb->jfd = -1;
 
-  pDb->encryptAlgorithm = encryptAlgorithm;
-  if (encryptKey != NULL) {
-    tstrncpy(pDb->encryptKey, encryptKey, ENCRYPT_KEY_LEN + 1);
-  }
+  pDb->encryptData = encryptData;
 
   ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 
   pDb->nPgrHash = 8;
   tsize = sizeof(SPager *) * pDb->nPgrHash;
   pDb->pgrHash = tdbOsMalloc(tsize);
   if (pDb->pgrHash == NULL) {
-    return terrno;
+    ret = terrno;
+    goto _err;
   }
   memset(pDb->pgrHash, 0, tsize);
 
   ret = taosMulModeMkDir(dbname, 0755, false);
   if (ret < 0) {
-    return terrno;
+    ret = terrno;
+    goto _err;
   }
 
 #ifdef USE_MAINDB
   // open main db
   ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
   if (ret < 0) {
-    return ret;
+    goto _err;
   }
 
   ret = tdbTbOpen(TDB_FREEDB_NAME, sizeof(SPgno), 0, NULL, pDb, &pDb->pFreeDb, rollback);
   if (ret < 0) {
-    return ret;
+    goto _err;
+  }
+
+  // if the underlying data structure is a btree, it will do re-balance when there are too many pages,
+  // the re-balance process include allocate and deallocate of free pages, this is ok for other tables,
+  // but not for the free page table, because it is for free pages management, allocate/deallocate of
+  // free pages during re-balance result in data corruption. so convert it to a linked list based stack
+  // to avoid re-balance.
+  int tdbTbBtreeToStack(TTB *pTb);
+  ret = tdbTbBtreeToStack(pDb->pFreeDb);
+  if (ret < 0) {
+    goto _err;
   }
 #endif
 
   *ppDb = pDb;
   return 0;
+
+_err:
+  tdbClose(pDb);
+  return ret;
 }
 
 void tdbClose(TDB *pDb) {
@@ -277,7 +293,7 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
     tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
     return;
   }
-  *ppPager = pPager->pNext;
+  *ppPager = pPager->pHashNext;
 
   // decrease the counter
   pDb->nPager--;

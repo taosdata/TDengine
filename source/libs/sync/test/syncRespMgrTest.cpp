@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "syncTest.h"
 
 void logTest() {
@@ -26,7 +43,7 @@ void syncRespMgrInsert(uint64_t count) {
 void syncRespMgrDelTest(uint64_t begin, uint64_t end) {
   for (uint64_t i = begin; i <= end; ++i) {
     int32_t ret = syncRespMgrDel(pMgr, i);
-    assert(ret == 0);
+    TD_ALWAYS_ASSERT(ret == 0);
   }
 }
 
@@ -77,8 +94,8 @@ SSyncNode *createSyncNode() {
 
 void test1() {
   printf("------- test1 ---------\n");
-  assert(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
-  assert(pMgr != NULL);
+  TD_ALWAYS_ASSERT(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
+  TD_ALWAYS_ASSERT(pMgr != NULL);
 
   syncRespMgrInsert(10);
   syncRespMgrPrint();
@@ -102,8 +119,8 @@ void test1() {
 
 void test2() {
   printf("------- test2 ---------\n");
-  assert(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
-  assert(pMgr != NULL);
+  TD_ALWAYS_ASSERT(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
+  TD_ALWAYS_ASSERT(pMgr != NULL);
 
   syncRespMgrInsert(10);
   syncRespMgrPrint();
@@ -119,8 +136,8 @@ void test2() {
 
 void test3() {
   printf("------- test3 ---------\n");
-  assert(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
-  assert(pMgr != NULL);
+  TD_ALWAYS_ASSERT(syncRespMgrCreate(createSyncNode(), 0, &pMgr) == 0);
+  TD_ALWAYS_ASSERT(pMgr != NULL);
 
   syncRespMgrInsert(10);
   syncRespMgrPrint();
@@ -136,8 +153,8 @@ void test3() {
 
 void test4() {
   printf("------- test4 ---------\n");
-  assert(syncRespMgrCreate(createSyncNode(), 2, &pMgr) == 0);
-  assert(pMgr != NULL);
+  TD_ALWAYS_ASSERT(syncRespMgrCreate(createSyncNode(), 2, &pMgr) == 0);
+  TD_ALWAYS_ASSERT(pMgr != NULL);
 
   syncRespMgrInsert(5);
   syncRespMgrPrint();

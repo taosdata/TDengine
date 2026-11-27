@@ -1,0 +1,54 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+settings:
+- fqdn:
+  - localhost
+  name: taosd
+  spec:
+    config:
+      firstEP: localhost:6030
+    dnodes:
+    - config:
+        asyncLog: 0
+        cDebugFlag: 135
+        charset: UTF-8
+        dDebugFlag: 131
+        dataDir: /data/huoh/TDinternal/sim/dnode1/data
+        enableQueryHb: 1
+        jniDebugFlag: 131
+        locale: en_US.UTF-8
+        logDir: /data/huoh/TDinternal/sim/dnode1/log
+        mDebugFlag: 135
+        maxShellConns: 30000
+        monitor: 0
+        numOfLogLines: 100000000
+        qDebugFlag: 131
+        rpcDebugFlag: 135
+        sDebugFlag: 131
+        smaDebugFlag: 135
+        stDebugFlag: 135
+        statusInterval: 1
+        supportVnodes: '1024'
+        telemetryReporting: 0
+        tmrDebugFlag: 131
+        tqDebugFlag: 135
+        uDebugFlag: 131
+        vDebugFlag: 131
+        wDebugFlag: 131
+      config_dir: /data/huoh/TDinternal/sim/dnode1/cfg
+      endpoint: localhost:6030
+      taosdPath: /data/huoh/TDinternal/debug/build/bin/taosd
+    version: 2.4.0.0

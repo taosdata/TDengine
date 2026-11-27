@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -322,8 +324,8 @@ void basic_consume_loop(ws_tmq_t* tmq) {
 }
 // ANCHOR_END: basic_consume_loop
 
-// ANCHOR: consume_repeatly
-void consume_repeatly(ws_tmq_t* tmq) {
+// ANCHOR: consume_repeatedly
+void consume_repeatedly(ws_tmq_t* tmq) {
   int32_t                  numOfAssignment = 0;
   ws_tmq_topic_assignment* pAssign = NULL;
 
@@ -355,7 +357,7 @@ void consume_repeatly(ws_tmq_t* tmq) {
   // let's consume the messages again
   basic_consume_loop(tmq);
 }
-// ANCHOR_END: consume_repeatly
+// ANCHOR_END: consume_repeatedly
 
 // ANCHOR: manual_commit
 void manual_commit(ws_tmq_t* tmq) {
@@ -450,7 +452,7 @@ int main(int argc, char* argv[]) {
   basic_consume_loop(tmq);
   // ANCHOR_END: subscribe_3
 
-  consume_repeatly(tmq);
+  consume_repeatedly(tmq);
 
   manual_commit(tmq);
 

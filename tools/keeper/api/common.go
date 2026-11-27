@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -16,7 +31,7 @@ import (
 var commonLogger = log.GetLogger("CMN")
 
 func CreateDatabase(username string, password string, host string, port int, usessl bool, dbname string, databaseOptions map[string]interface{}) {
-	qid := util.GetQidOwn()
+	qid := util.GetQidOwn(config.Conf.InstanceID)
 	commonLogger := commonLogger.WithFields(logrus.Fields{config.ReqIDKey: qid})
 
 	ctx := context.Background()
@@ -33,7 +48,7 @@ func CreateDatabase(username string, password string, host string, port int, use
 	commonLogger.Warningf("create database sql: %s", createDBSql)
 
 	for i := 0; i < 3; i++ {
-		if _, err := conn.Exec(ctx, createDBSql, util.GetQidOwn()); err != nil {
+		if _, err := conn.Exec(ctx, createDBSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			commonLogger.Errorf("try %v times: create database %s error, msg:%v", i+1, dbname, err)
 			time.Sleep(5 * time.Second)
 			continue
@@ -72,7 +87,7 @@ func CreatTables(username string, password string, host string, port int, usessl
 
 	for _, createSql := range createList {
 		commonLogger.Infof("execute sql:%s", createSql)
-		if _, err = conn.Exec(ctx, createSql, util.GetQidOwn()); err != nil {
+		if _, err = conn.Exec(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			commonLogger.Errorf("execute sql: %s, error: %s", createSql, err)
 		}
 	}

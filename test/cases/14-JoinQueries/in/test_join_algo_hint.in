@@ -1,0 +1,24 @@
+USE hash_join_snap;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.ts = b.ts \G;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(HASH) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+
+SELECT /*+ JOIN_ALGO(HASH), JOIN_ALGO(MERGE) */ a.ts FROM l_norm a JOIN r_norm b ON a.ts = b.ts;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY ts) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY ts) b ON a.ts = b.ts \G;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, val FROM l_norm ORDER BY ts) a JOIN (SELECT ts, device, metric FROM r_norm ORDER BY ts) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm GROUP BY ts, device) b ON a.ts = b.ts \G;
+SELECT /*+ JOIN_ALGO(MERGE) */ a.ts, a.device, b.metric FROM (SELECT ts, device, MAX(val) AS val FROM l_norm GROUP BY ts, device) a JOIN (SELECT ts, device, MAX(metric) AS metric FROM r_norm GROUP BY ts, device) b ON a.ts = b.ts ORDER BY a.ts, a.device;
+
+EXPLAIN SELECT /*+ MERGE_JOIN */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+EXPLAIN SELECT /*+ HASH_JOIN */ a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts \G;
+
+SELECT /*+ JOIN_ALGO(MERGE), JOIN_ALGO(MERGE) */ a.ts FROM l_norm a JOIN r_norm b ON a.ts = b.ts;
+SELECT /*+ JOIN_ALGO(HASH), JOIN_ALGO(HASH) */ a.ts FROM l_norm a JOIN r_norm b ON a.ts = b.ts;
+SELECT /*+ MERGE_JOIN, MERGE_JOIN */ a.ts FROM l_norm a JOIN r_norm b ON a.ts = b.ts;
+SELECT /*+ HASH_JOIN, HASH_JOIN */ a.ts FROM l_norm a JOIN r_norm b ON a.ts = b.ts;

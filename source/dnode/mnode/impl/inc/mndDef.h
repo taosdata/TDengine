@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,14 +23,14 @@
 #include "cJSON.h"
 #include "scheduler.h"
 #include "sync.h"
+#include "tarray.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tlog.h"
 #include "tmsg.h"
 #include "trpc.h"
-#include "tstream.h"
 #include "ttimer.h"
-
+#include "tconfig.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -80,7 +82,64 @@ typedef enum {
   MND_OPER_BALANCE_VGROUP_LEADER,
   MND_OPER_CREATE_ANODE,
   MND_OPER_UPDATE_ANODE,
-  MND_OPER_DROP_ANODE
+  MND_OPER_DROP_ANODE,
+  MND_OPER_CREATE_BNODE,
+  MND_OPER_DROP_BNODE,
+  MND_OPER_CREATE_MOUNT,
+  MND_OPER_DROP_MOUNT,
+  MND_OPER_SCAN_DB,
+  MND_OPER_CREATE_RSMA,
+  MND_OPER_DROP_RSMA,
+  MND_OPER_ROLLUP_DB,
+  MND_OPER_SHOW_STB,
+  MND_OPER_ALTER_RSMA,
+  MND_OPER_ALTER_DNODE_RELOAD_TLS,
+  MND_OPER_CREATE_TOKEN,
+  MND_OPER_ALTER_TOKEN,
+  MND_OPER_DROP_TOKEN,
+  MND_OPER_CREATE_TABLE,
+  MND_OPER_CREATE_ROLE,
+  MND_OPER_DROP_ROLE,
+  MND_OPER_ALTER_ROLE,
+  MND_OPER_SSMIGRATE_DB,
+  MND_OPER_SHOW_DATABASES,
+  MND_OPER_SHOW_VGROUPS,
+  MND_OPER_SHOW_VNODES,
+  MND_OPER_SHOW_COMPACTS,
+  MND_OPER_SHOW_RETENTIONS,
+  MND_OPER_SHOW_SCANS,
+  MND_OPER_SHOW_SSMIGRATES,
+  MND_OPER_CREATE_XNODE,
+  MND_OPER_UPDATE_XNODE,
+  MND_OPER_DROP_XNODE,
+  MND_OPER_DRAIN_XNODE,
+  MND_OPER_CREATE_XNODE_TASK,
+  MND_OPER_START_XNODE_TASK,
+  MND_OPER_STOP_XNODE_TASK,
+  MND_OPER_UPDATE_XNODE_TASK,
+  MND_OPER_DROP_XNODE_TASK,
+  MND_OPER_CREATE_XNODE_JOB,
+  MND_OPER_UPDATE_XNODE_JOB,
+  MND_OPER_REBALANCE_XNODE_JOB,
+  MND_OPER_DROP_XNODE_JOB,
+  MND_OPER_CREATE_XNODE_AGENT,
+  MND_OPER_UPDATE_XNODE_AGENT,
+  MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_CREATE_EXT_SOURCE,
+  MND_OPER_ALTER_EXT_SOURCE,
+  MND_OPER_DROP_EXT_SOURCE,
+  MND_OPER_REFRESH_EXT_SOURCE,
+  MND_OPER_CONFIG_SOD,
+  MND_OPER_CONFIG_MAC,
+  MND_OPER_BEGIN_TXN,
+  MND_OPER_COMMIT_TXN,
+  MND_OPER_ROLLBACK_TXN,
+  MND_OPER_ALLOC_TXN_SEQ,
+  MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
+  MND_OPER_FLUSH_MNODE,
+  MND_OPER_RESTART_XNODE,
+  MND_OPER_ASSIGN_LEADER,  // cluster-level ASSIGN LEADER FORCE (2-replica arbitrator DR)
+  MND_OPER_MAX             // the max operation type
 } EOperType;
 
 typedef enum {
@@ -110,6 +169,7 @@ typedef enum {
   //  TRN_CONFLICT_TOPIC_INSIDE = 5,
   TRN_CONFLICT_ARBGROUP = 6,
   TRN_CONFLICT_TSMA = 7,
+  TRN_CONFLICT_ROLE = 8,
 } ETrnConflct;
 
 typedef enum {
@@ -131,7 +191,20 @@ typedef enum {
 typedef enum {
   TRN_EXEC_PARALLEL = 0,
   TRN_EXEC_SERIAL = 1,
+  TRN_EXEC_GROUP_PARALLEL = 2,
 } ETrnExec;
+
+typedef enum {
+  TRN_KILL_MODE_SKIP = 0,
+  TRN_KILL_MODE_INTERUPT = 1,
+  // TRN_KILL_MODE_ROLLBACK = 2,
+} ETrnKillMode;
+
+typedef enum {
+  TRANS_STOP_CB_PENDING = 0,
+  TRANS_STOP_CB_RUNNING,
+  TRANS_STOP_CB_DONE,
+} ETransStopCbState;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -153,14 +226,16 @@ typedef enum {
   DND_REASON_STATUS_MONITOR_SLOW_LOG_THRESHOLD_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SQL_MAX_LEN_NOT_MATCH,
   DND_REASON_STATUS_MONITOR_SLOW_LOG_SCOPE_NOT_MATCH,
-  DND_REASON_OTHERS
+  DND_REASON_OTHERS,
+  DND_REASON_TIME_UNSYNC
 } EDndReason;
 
 typedef enum {
-  CONSUMER_UPDATE_REB = 1,  // update after rebalance
+  CONSUMER_CLEAR      = 0,
+  CONSUMER_UPDATE_REB,      // update after rebalance
   CONSUMER_ADD_REB,         // add    after rebalance
   CONSUMER_REMOVE_REB,      // remove after rebalance
-  CONSUMER_UPDATE_REC,      // update after recover
+  CONSUMER_UPDATE_REC,      // discarded
   CONSUMER_UPDATE_SUB,      // update after subscribe req
   CONSUMER_INSERT_SUB,
 } ECsmUpdateType;
@@ -177,6 +252,15 @@ typedef struct {
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
+  // error-detail payload carried by a failed action's response (e.g. the vstb alter
+  // name-conflict check reports the conflicting child table). Runtime-only, never encoded:
+  // attached to the client rsp instead of rpcRsp when the trans fails with an error code.
+  // errRspCode records the error code the payload came with, so the detail is only attached
+  // when the final trans code still equals it (a later undo/rollback failure must not pair a
+  // different code with stale text).
+  void*         errRsp;
+  int32_t       errRspLen;
+  int32_t       errRspCode;
   int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;
@@ -194,6 +278,7 @@ typedef struct {
   SHashObj*     arbGroupIds;
   int32_t       startFunc;
   int32_t       stopFunc;
+  int8_t        stopCbState;
   int32_t       paramLen;
   void*         param;
   char          opername[TSDB_TRANS_OPER_LEN];
@@ -201,7 +286,80 @@ typedef struct {
   SRWLatch      lockRpcArray;
   int64_t       mTraceId;
   TdThreadMutex mutex;
+  bool          ableToBeKilled;
+  ETrnKillMode  killMode;
+  SHashObj*     redoGroupActions;
+  SHashObj*     groupActionPos;
+  int32_t       groupParallelNum;
+
+  // user data is for upper layer to store some additional infomation in the transaction,
+  // it is set and interpreted by upper layer, the transaction layer does not care about it.
+  // if user data is a complex structure, the upper layer should serialize/deserialize it.
+  // user data should always alloced from heap and can be freed by taosMemoryFree.
+  void*         userData;
+  int32_t       userDataLen;
 } STrans;
+
+// STxnObj: persistent object for a user batch transaction, stored in SDB and replicated
+// across all Raft peers.
+// Durable fields:     id / createUser / ownerId / createTime / term / stage / completedAt / pDbList
+// Non-durable fields: lastActiveTime, lock, pVgList, pShadowOps (all runtime-only, re-initialised on restore)
+// Design note on VGroup list:
+//   pVgList is NOT persisted in STxnObj.  VGroups are supplied by the client in every
+//   COMMIT / ROLLBACK message (SMTransReq.pVgSet).  The PREPARING stage is entered before
+//   COMMIT/ROLLBACK is processed, so the MNode always receives a fresh, authoritative list
+//   from the client at that point.  Persisting it in SDB would be redundant and would
+//   complicate the serialisation/deserialisation path.
+// Terminal outcome is encoded entirely in stage (COMMITTED / ROLLEDBACK).
+// completedAt is retained for TTL-based GC.
+// Inactivity timeout uses the global macro TSDB_TXN_HB_TIMEOUT and is not persisted.
+typedef struct {
+  txn_id_t id;
+  char     createUser[TSDB_USER_LEN];
+  int64_t  ownerId;         // owner ID of the associated client connection
+  int64_t  createTime;      // transaction creation timestamp (ms)
+  int64_t  lastActiveTime;  // (memory only, not serialised) most recent activity timestamp (ms); for timeout detection
+  SyncTerm   term;          // Raft term at txn creation; used for fencing after leader switchover
+  int8_t     stage;         // EUtxnStage: current transaction stage (persisted for leader recovery)
+  int64_t    completedAt;   // completion timestamp (ms); used for TTL GC (persisted; 0 = not yet done)
+  SArray*    pDbList;  // participating DB fullNames (array of char[TSDB_DB_FNAME_LEN]); persisted; for STB shadow op
+                       // DB resolution when rebuilding VGroup list on timeout rollback
+  SRWLatch lock;       // runtime read/write latch; not persisted
+  // --- runtime-only fields; not persisted to SDB ---
+  SSHashObj* pVgList;   // set of participating VGroup IDs (key=int32_t vgId); runtime-only, NOT persisted
+                        // populated from client COMMIT/ROLLBACK messages (SMTransReq.pVgSet) via mndMergeVgList()
+  // pShadowOps is accumulated by mndTxnAddShadowOp() and rebuilt via mndTxnRebuildShadowOpsFromSdb() from SStbObj.txnId
+  // on restart
+  SArray* pShadowOps;  // MNode-side list of STB shadow operations (array of SMndShadowOp); in-memory only
+  bool    shadowRebuildPending;  // restore must wait for an in-flight stream creation before rebuilding shadow ops
+} STxnObj;
+
+typedef struct {
+  int32_t  id;
+  txn_id_t maxRangeId;
+  SRWLatch lock;
+} STxnSeqObj;
+
+// STxnLogObj: compact persistent record of a completed (terminal) non-replicated user transaction.
+// Stored in SDB_TXN_LOG so mndGetOrphanTxnAction can answer VNode orphan queries after MNode restart.
+// Queried via: SELECT * FROM information_schema.ins_transaction_logs
+//
+// ETxnRollbackReason: why a rolled-back transaction was rolled back.
+// Persisted in STxnLogObj.rollbackReason (SDB_TXN_LOG v2+).
+typedef enum {
+  TXN_ROLLBACK_EXPLICIT = 0,           // explicit ROLLBACK issued by the client
+  TXN_ROLLBACK_HB_TIMEOUT = 1,         // MNode forcibly rolled back due to client inactivity (HB timeout)
+  TXN_ROLLBACK_EXCEEDED_LIFETIME = 2,  // MNode forcibly rolled back due to exceeded absolute lifetime limit
+} ETxnRollbackReason;
+
+typedef struct {
+  txn_id_t id;              // transaction ID (SDB key)
+  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / UTXN_STAGE_ROLLEDBACK (nothing else is written)
+  int8_t   rollbackReason;  // ETxnRollbackReason (0 = explicit; only meaningful when stage == ROLLEDBACK)
+  int64_t  createTime;      // creation timestamp (ms)
+  int64_t  completedAt;     // completion timestamp (ms); used for adaptive GC TTL
+  char     createUser[TSDB_USER_LEN];
+} STxnLogObj;
 
 typedef struct {
   int64_t id;
@@ -210,6 +368,32 @@ typedef struct {
   int64_t updateTime;
   int32_t upTime;
 } SClusterObj;
+
+typedef enum {
+  TSDB_SECURITY_POLICY_SOD = 1,  // Separation of Duties
+  TSDB_SECURITY_POLICY_MAC = 2,  // Mandatory Access Control
+} ESecurityPolicyType;
+
+// status field semantics per type:
+//   SOD:  0 = enabled (default), 1 = mandatory (irreversible)
+//   MAC:  0 = disabled (default), 1 = mandatory (irreversible)
+#define SEC_POLICY_STATUS_DEFAULT  0
+#define SEC_POLICY_STATUS_ENFORCED 1
+// Legacy aliases kept for readability at call sites
+#define SOD_MODE_ENABLED   SEC_POLICY_STATUS_DEFAULT
+#define SOD_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
+#define MAC_MODE_DISABLED  SEC_POLICY_STATUS_DEFAULT
+#define MAC_MODE_MANDATORY SEC_POLICY_STATUS_ENFORCED
+
+typedef struct {
+  int32_t type;  // ESecurityPolicyType  -  SDB key (SDB_KEY_INT32)
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t activateTime;
+  uint8_t status;  // SEC_POLICY_STATUS_DEFAULT or SEC_POLICY_STATUS_ENFORCED
+  char    activator[TSDB_USER_LEN];
+  char    reserve[48];  // private data space for future per-type extensions
+} SSecurityPolicyObj;
 
 typedef struct {
   int32_t    id;
@@ -236,8 +420,10 @@ typedef struct {
 } SDnodeObj;
 
 typedef struct {
-  int32_t nameLen;
   char*   name;
+  int32_t nameLen;
+  char*   pStatus;
+  char*   pNote;
 } SAnodeAlgo;
 
 typedef struct {
@@ -252,6 +438,102 @@ typedef struct {
   char*    url;
   SArray** algos;
 } SAnodeObj;
+
+/**
+ * @brief Stucture for XNode object.
+ *
+ * This structure represents an XNode in the system, which contains
+ * information about the node's ID, creation and update times, version,
+ * URL length, status, and a lock for synchronization.
+ */
+typedef struct {
+  int32_t  id;
+  int32_t  urlLen;
+  char*    url;
+  int32_t  statusLen;
+  char*    status;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  via;
+  int32_t  xnodeId;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  sourceType;
+  int32_t  sinkType;
+  int32_t  nameLen;
+  int32_t  sourceDsnLen;
+  int32_t  sinkDsnLen;
+  int32_t  parserLen;
+  int32_t  statusLen;
+  int32_t  reasonLen;
+  int32_t  createdByLen;
+  int32_t  labelsLen;
+  char*    name;
+  char*    sourceDsn;
+  char*    sinkDsn;
+  char*    parser;
+  char*    status;
+  char*    reason;
+  char*    createdBy;
+  char*    labels;
+  // Immutable creator UID; zero identifies records written before this field existed.
+  int64_t  ownerId;
+  // Account domain used when matching explicit XNode task privileges.
+  int32_t  acctId;
+  int8_t   desiredState;
+  SRWLatch lock;
+  // SArray** labels;
+  // int32_t  numOfLabels;
+  int8_t   type;
+} SXnodeTaskObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  taskId;
+  int32_t  configLen;
+  char*    config;
+  int32_t  via;
+  int32_t  xnodeId;
+  int32_t  statusLen;
+  char*    status;
+  int32_t  reasonLen;
+  char*    reason;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int8_t   desiredState;
+  SRWLatch lock;
+} SXnodeJobObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createTime;
+  int64_t  updateTime;
+  int32_t  nameLen;
+  int32_t  tokenLen;
+  int32_t  statusLen;
+  char*    name;
+  char*    token;
+  char*    status;
+  SRWLatch lock;
+} SXnodeAgentObj;
+
+typedef struct {
+  int32_t  id;
+  int32_t  userLen;
+  char*    user;
+  int32_t  passLen;
+  char*    pass;
+  int32_t  tokenLen;
+  char*    token;
+  int64_t  createTime;
+  int64_t  updateTime;
+  SRWLatch lock;
+} SXnodeUserPassObj;
 
 typedef struct {
   int32_t    id;
@@ -276,15 +558,44 @@ typedef struct {
 
 typedef struct {
   int32_t    id;
+  int32_t    leadersId[2];
+  int32_t    replicaId;
   int64_t    createdTime;
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
 
 typedef struct {
-  int32_t dnodeId;
+  SSnodeObj* target;
+  int32_t    affNum;
+  SSnodeObj  affSnode[2];
+  SSnodeObj  affNewReplica[2];
+} SSnodeDropTraversaCtx;
+
+typedef struct {
+  int32_t    id;
+  int32_t    proto;
+  int64_t    createdTime;
+  int64_t    updateTime;
+  SDnodeObj* pDnode;
+} SBnodeObj;
+
+typedef struct {
+  char       name[TSDB_TOKEN_NAME_LEN];
+  char       token[TSDB_TOKEN_LEN];
+  char       provider[TSDB_TOKEN_PROVIDER_LEN];
+  char       user[TSDB_USER_LEN];
+  char       extraInfo[TSDB_TOKEN_EXTRA_INFO_LEN];
+  int8_t     enabled;
+  int32_t    expireTime;  // in seconds
+  int32_t    createdTime; // in seconds
+  SRWLatch   lock;
+} STokenObj;
+
+typedef struct {
+  int32_t assignedDnodeId;
   char    token[TSDB_ARB_TOKEN_SIZE];
-  int8_t  acked;
+  int8_t  assignAcked;
 } SArbAssignedLeader;
 
 typedef struct {
@@ -308,6 +619,8 @@ typedef struct {
   int64_t            dbUid;
   SArbGroupMember    members[TSDB_ARB_GROUP_MEMBER_NUM];
   int8_t             isSync;
+  int32_t            code;
+  int64_t            updateTimeMs;
   SArbAssignedLeader assignedLeader;
   int64_t            version;
 
@@ -359,6 +672,14 @@ typedef struct {
   int64_t compStorage;   // Compressed storage on disk
 } SAcctInfo;
 
+
+typedef struct {
+  int32_t lastLoginTime;        // in seconds
+  int32_t lastFailedLoginTime;  // in seconds
+  int32_t failedLoginCount;
+} SLoginInfo;
+
+
 typedef struct {
   char      acct[TSDB_USER_LEN];
   int64_t   createdTime;
@@ -370,39 +691,137 @@ typedef struct {
 } SAcctObj;
 
 typedef struct {
-  char    user[TSDB_USER_LEN];
   char    pass[TSDB_PASSWORD_LEN];
+  int32_t setTime;  // password set time, in seconds
+} SUserPassword;
+
+// SScramCred is now defined in tmsg.h (shared by message layer and mnode)
+
+typedef struct {
+  SHashObj* pReadDbs;
+  SHashObj* pWriteDbs;
+  SHashObj* pReadTbs;
+  SHashObj* pWriteTbs;
+  SHashObj* pTopics;
+  SHashObj* pAlterTbs;
+  SHashObj* pReadViews;
+  SHashObj* pWriteViews;
+  SHashObj* pAlterViews;
+  SHashObj* pUseDbs;
+} SPrivHashObjSet;
+
+typedef struct {
+  union {
+    char name[TSDB_USER_LEN];
+    char user[TSDB_USER_LEN];
+  };
+
+  // passwords history, from newest to oldest,
+  // the latest one is the current password
+  int32_t        numOfPasswords;
+  SUserPassword* passwords;
+  char           salt[TSDB_PASSWORD_SALT_LEN + 1];
+
   char    acct[TSDB_USER_LEN];
-  int64_t createdTime;
-  int64_t updateTime;
+  char    totpsecret[TSDB_TOTP_SECRET_LEN];
+  int64_t createdTime;  // in milliseconds
+  int64_t updateTime;   // in milliseconds
+  int64_t uid;
   int8_t  superUser;
   int8_t  sysInfo;
   int8_t  enable;
+  int8_t  changePass;
   union {
     uint8_t flag;
     struct {
       uint8_t createdb : 1;
-      uint8_t reserve : 7;
+      uint8_t minSecLevel : 3;  // TD: 6671585124
+      uint8_t maxSecLevel : 3;  // TD: 6671585124
+      uint8_t reserve : 1;
     };
   };
-  int32_t       acctId;
-  int32_t       authVersion;
-  int32_t       passVersion;
-  int64_t       ipWhiteListVer;
-  SIpWhiteList* pIpWhiteList;
 
-  SHashObj* readDbs;
-  SHashObj* writeDbs;
-  SHashObj* topics;
-  SHashObj* readTbs;
-  SHashObj* writeTbs;
-  SHashObj* alterTbs;
-  SHashObj* readViews;
-  SHashObj* writeViews;
-  SHashObj* alterViews;
-  SHashObj* useDbs;
-  SRWLatch  lock;
+  int32_t sessionPerUser;
+  int32_t connectTime;      // unit is second
+  int32_t connectIdleTime;  // unit is second
+  int32_t callPerSession;
+  int32_t vnodePerCall;
+  int32_t failedLoginAttempts;
+  int32_t passwordLifeTime;   // unit is second
+  int32_t passwordReuseTime;  // unit is second
+  int32_t passwordReuseMax;
+  int32_t passwordLockTime;     // unit is second
+  int32_t passwordGraceTime;    // unit is second
+  int32_t inactiveAccountTime;  // unit is second
+  int32_t allowTokenNum;
+  int32_t tokenNum;
+
+  int32_t           acctId;
+  int32_t           authVersion;
+  int32_t           passVersion;
+  int64_t           ipWhiteListVer;
+  SIpWhiteListDual* pIpWhiteListDual;
+
+  int64_t             timeWhiteListVer;
+  SDateTimeWhiteList* pTimeWhiteList;
+
+  int64_t lastRoleRetrieve;  // Last retrieve time of role, unit is ms, default value is 0. Memory only and no need to
+                             // persist.
+  SHashObj* roles;           // k: roleName, v: flag (int8_t: 0x01 enable(default), 0x00 disable)
+
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
+
+  // table level privileges
+  SHashObj*        selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj*        ownedDbs;   // k:dbFName, v: empty
+  SRWLatch         lock;
+  int8_t           passEncryptAlgorithm;
+  SScramCred       scram;  // SCRAM-SHA-256 credentials for the current password (algo==0 if unset)
+  SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
+
+typedef struct {
+  char    name[TSDB_ROLE_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t version;
+  union {
+    uint8_t flag;
+    struct {
+      uint8_t enable : 1;
+      uint8_t sys : 1;            // system role
+      uint8_t reserve : 6;
+    };
+  };
+
+  SPrivSet sysPrivs;
+  /**
+   * N.B. The privileges of "select/insert/update/delete tables without row/col/tag conditions" are also
+   * stored in objPrivs.
+   */
+  SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
+
+  // table level privileges combined with row/col/tag conditions
+  SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* updateTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  SHashObj* deleteTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
+  // SHashObj* alterTbs;   // k:tbFName, v: empty
+  // SHashObj* useDbs;
+
+  SHashObj* parentRoles;  // not supported yet
+  SHashObj* subRoles;     // not supported yet
+  SRWLatch  lock;
+} SRoleObj;
 
 typedef struct {
   int32_t numOfVgroups;
@@ -411,6 +830,7 @@ typedef struct {
   int32_t pageSize;
   int32_t pages;
   int32_t cacheLastSize;
+  int32_t cacheLastShardBits;  // Number of shards for last cache LRU, -1 for auto
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
@@ -427,6 +847,15 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t isMount : 1;    // TS-5868
+      uint8_t allowDrop : 1;  // TS-7232
+      uint8_t securityLevel : 3; // TD: 6671585124
+      uint8_t padding : 3;
+    };
+  };
   int16_t hashPrefix;
   int16_t hashSuffix;
   int16_t sstTrigger;
@@ -437,15 +866,17 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walRetentionSize;
   int64_t walSegmentSize;
-  int32_t s3ChunkSize;
-  int32_t s3KeepLocal;
-  int8_t  s3Compact;
+  int32_t ssChunkSize;
+  int32_t ssKeepLocal;
+  int8_t  ssCompact;
   int8_t  withArbitrator;
   int8_t  encryptAlgorithm;
   int8_t  compactTimeOffset;  // hour
   int32_t compactInterval;    // minute
   int32_t compactStartTime;   // minute
   int32_t compactEndTime;     // minute
+  int8_t  isAudit;
+  int8_t  secureDelete;
 } SDbCfg;
 
 typedef struct {
@@ -455,6 +886,7 @@ typedef struct {
   int64_t  createdTime;
   int64_t  updateTime;
   int64_t  uid;
+  int64_t  ownerId;
   int32_t  cfgVersion;
   int32_t  vgVersion;
   SDbCfg   cfg;
@@ -462,19 +894,440 @@ typedef struct {
   int64_t  stateTs;
   int64_t  compactStartTime;
   int32_t  tsmaVersion;
+  int64_t  scanStartTime;
 } SDbObj;
+
+typedef struct {
+  int64_t uid;
+  char    name[TSDB_DB_FNAME_LEN];
+} SMountDbObj;
+
+typedef struct {
+  char         name[TSDB_MOUNT_NAME_LEN];
+  char         acct[TSDB_USER_LEN];
+  char         createUser[TSDB_USER_LEN];
+  int64_t      createdTime;
+  int64_t      updateTime;
+  int64_t      uid;
+  int16_t      nMounts;
+  int16_t      nDbs;
+  int32_t*     dnodeIds;
+  char**       paths;
+  SMountDbObj* dbObj;
+  SRWLatch     lock;
+} SMountObj;
+
+typedef struct {
+  int32_t  id;
+  int64_t  createdTime;
+  int64_t  updateTime;
+  int64_t  mountTimes;
+  int64_t  umountTimes;
+  SRWLatch lock;
+} SMountLogObj;
 
 typedef struct {
   int32_t    dnodeId;
   ESyncState syncState;
   int64_t    syncTerm;
+  int64_t    syncAppliedIndex;
+  int64_t    lastSyncAppliedIndexUpdateTime;
+  double     appliedRate;
+  int64_t    syncCommitIndex;
   bool       syncRestore;
   bool       syncCanRead;
   int64_t    roleTimeMs;
   int64_t    startTimeMs;
   ESyncRole  nodeRole;
   int32_t    learnerProgress;
+  int64_t    bufferSegmentUsed;
+  int64_t    bufferSegmentSize;
+  int32_t    snapSeq;
+  int64_t    syncTotalIndex;
+  // Runtime field (not persisted in SDB): timestamp in ms of the vnode's latest status heartbeat report.
+  // Used by mnode to determine whether a vnode missing from reports has been offline long enough.
+  int64_t    lastSeenMs;
+  int64_t    snapTotalSize;        // snapshot total bytes from the latest heartbeat report
+  int64_t    snapTransferredSize;  // transferred bytes from the latest heartbeat report
+  int64_t    prevTransferredSize;  // transferred bytes at the previous sample point, used for rate
+  int64_t    prevSampleMs;         // timestamp of the previous sample point (ms)
+  double     snapRate;             // instantaneous rate (bytes/second)
 } SVnodeGid;
+
+typedef struct {
+  int32_t   vgId;
+  int64_t   createdTime;
+  int64_t   updateTime;
+  int32_t   version;
+  uint32_t  hashBegin;
+  uint32_t  hashEnd;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  int64_t   dbUid;
+  int64_t   cacheUsage;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
+  int64_t   totalStorage;
+  int64_t   compStorage;
+  int64_t   pointsWritten;
+  int8_t    compact;
+  int8_t    snapRestoring;
+  int8_t    isTsma;
+  int8_t    replica;
+  SVnodeGid vnodeGid[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA];
+  void*     pTsma;
+  int32_t   numOfCachedTables;
+  int32_t   syncConfChangeVer;
+  int32_t   mountVgId;  // TS-5868
+  int64_t   keepVersion;  // WAL keep version, -1 for disabled
+  int64_t   keepVersionTime;  // WAL keep version time
+} SVgObj;
+
+typedef struct {
+  char           name[TSDB_TABLE_FNAME_LEN];
+  char           stb[TSDB_TABLE_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  char           dstTbName[TSDB_TABLE_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
+  int64_t        createdTime;
+  int64_t        uid;
+  int64_t        stbUid;
+  int64_t        dbUid;
+  int64_t        dstTbUid;
+  int64_t        ownerId;
+  int8_t         intervalUnit;
+  int8_t         slidingUnit;
+  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
+  int32_t        dstVgId;   // for stream
+  int64_t        interval;
+  int64_t        offset;
+  int64_t        sliding;
+  int32_t        exprLen;  // strlen + 1
+  int32_t        tagsFilterLen;
+  int32_t        sqlLen;
+  int32_t        astLen;
+  int32_t        version;
+  char*          expr;
+  char*          tagsFilter;
+  char*          sql;
+  char*          ast;
+  SSchemaWrapper schemaRow;  // for dstVgroup
+  SSchemaWrapper schemaTag;  // for dstVgroup
+  char           baseSmaName[TSDB_TABLE_FNAME_LEN];
+} SSmaObj;
+
+typedef struct {
+  char    name[TSDB_TABLE_NAME_LEN];
+  char    tbName[TSDB_TABLE_NAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int64_t tbUid;
+  int64_t dbUid;
+  int64_t ownerId;
+  int64_t interval[2];
+  union {
+    uint64_t reserved;
+  };
+  int32_t    version;
+  int8_t     tbType;
+  int8_t     intervalUnit;
+  int16_t    nFuncs;
+  col_id_t*  funcColIds;
+  func_id_t* funcIds;
+  SRWLatch   lock;
+} SRsmaObj;
+
+typedef struct {
+  char    name[TSDB_INDEX_FNAME_LEN];
+  char    stb[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  char    dstTbName[TSDB_TABLE_FNAME_LEN];
+  char    colName[TSDB_COL_NAME_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t uid;
+  int64_t stbUid;
+  int64_t dbUid;
+  int64_t ownerId;
+} SIdxObj;
+
+typedef struct {
+  col_id_t colId;
+  int32_t  cmprAlg;
+} SCmprObj;
+
+typedef struct {
+  char        name[TSDB_TABLE_FNAME_LEN];
+  char        db[TSDB_DB_FNAME_LEN];
+  char        createUser[TSDB_USER_LEN];
+  int64_t     createdTime;
+  int64_t     updateTime;
+  int64_t     uid;
+  int64_t     dbUid;
+  int64_t     ownerId;
+  int32_t     tagVer;
+  int32_t     colVer;
+  int32_t     smaVer;
+  int32_t     nextColId;
+  int64_t     maxdelay[2];
+  int64_t     watermark[2];
+  int32_t     ttl;
+  int32_t     numOfColumns;
+  int32_t     numOfTags;
+  int32_t     numOfFuncs;
+  int32_t     commentLen;
+  int32_t     ast1Len;
+  int32_t     ast2Len;
+  SArray*     pFuncs;
+  SSchema*    pColumns;
+  SSchema*    pTags;
+  char*       comment;
+  char*       pAst1;
+  char*       pAst2;
+  SRWLatch    lock;
+  int8_t      source;
+  SColCmpr*   pCmpr;
+  int64_t     keep;
+  SExtSchema* pExtSchemas;
+  int8_t      virtualStb;
+  int8_t      secureDelete;
+  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus  -  transaction status flag (shared enum for VNode/MNode)
+  int32_t     txnAlterReqsLen;  // batch-meta-txn: length of above blob (0 means no ALTER pending)
+  txn_id_t    txnId;            // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  void*       pTxnAlterReqs;    // batch-meta-txn: chained ALTER request data blob for crash recovery
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t securityLevel : 3;  // TD: 6671585124
+      uint32_t padding : 29;
+    };
+  };
+  // VST inheritance
+  int8_t   numParents;
+  int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
+  int8_t   hasChildren;  // Cache: whether this VST has child VSTs (1=yes, 0=no, -1=unknown)
+} SStbObj;
+
+typedef struct {
+  char     name[TSDB_FUNC_NAME_LEN];
+  char     createUser[TSDB_USER_LEN];
+  int64_t  createdTime;
+  int8_t   funcType;
+  int8_t   scriptType;
+  int8_t   align;
+  int8_t   outputType;
+  int32_t  outputLen;
+  int32_t  bufSize;
+  int64_t  signature;
+  int32_t  commentSize;
+  int32_t  codeSize;
+  char*    pComment;
+  char*    pCode;
+  int32_t  funcVersion;
+  SRWLatch lock;
+} SFuncObj;
+
+typedef struct {
+  char    id[TSDB_INSTANCE_ID_LEN];
+  char    type[TSDB_INSTANCE_TYPE_LEN];
+  char    desc[TSDB_INSTANCE_DESC_LEN];
+  int64_t firstRegTime;
+  int64_t lastRegTime;
+  int32_t expire;
+} SInstanceObj;
+
+typedef struct {
+  int64_t        id;
+  int8_t         type;
+  int8_t         replica;
+  int16_t        numOfColumns;
+  int32_t        numOfRows;
+  int32_t        curIterPackedRows;
+  void*          pIter;
+  SMnode*        pMnode;
+  STableMetaRsp* pMeta;
+  bool           restore;
+  bool           sysDbRsp;
+  char           db[TSDB_DB_FNAME_LEN];
+  char           filterTb[TSDB_TABLE_NAME_LEN];
+  int64_t        txnId;  // batch meta txn: same-txn visibility
+  int8_t         xnodeOutputMode;
+  int8_t         xnodeRetrieveFilterType;
+  int64_t        xnodeRetrieveFilterValue;
+  bool           xnodeProtectionFailed;
+  void*          pXnodeBatch;
+  bool           colMaskSet;
+  uint8_t        colMask[TSDB_RETRIEVE_COL_MASK_BYTES];
+} SShowObj;
+
+typedef struct {
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  char           createUser[TSDB_USER_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int64_t        ownerId;
+  int32_t        version;
+  int8_t         subType;   // column, db or stable
+  int8_t         withMeta;  // TODO
+  int32_t        sqlLen;
+  char*          sql;
+  char*          physicalPlan;
+  SSchemaWrapper schema;
+  int64_t        stbUid;
+  char           stbName[TSDB_TABLE_FNAME_LEN];
+  SRWLatch       lock;        // lock must be at the end for topic update
+} SMqTopicObj;
+
+typedef struct {
+  int64_t  consumerId;
+  char     cgroup[TSDB_CGROUP_LEN];
+  char     clientId[TSDB_CLIENT_ID_LEN];
+  char     user[TSDB_USER_LEN];
+  char     fqdn[TSDB_FQDN_LEN];
+  int8_t   updateType;  // used only for update
+  int32_t  epoch;
+  int32_t  status;
+  int32_t  hbStatus;          // hbStatus is not applicable to serialization
+  int32_t  pollStatus;        // pollStatus is not applicable to serialization
+  SRWLatch lock;              // lock is used for topics update
+  SArray*  currentTopics;     // SArray<char*>
+  SArray*  rebNewTopics;      // SArray<char*>
+  SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // subscribed by user
+  SArray* assignedTopics;  // SArray<char*>
+
+  // data for display
+  int32_t pid;
+  int64_t createTime;
+  int64_t pollTime;
+  int64_t subscribeTime;
+  int64_t rebalanceTime;
+
+  int8_t  withTbName;
+  int8_t  autoCommit;
+  int32_t autoCommitInterval;
+  int32_t resetOffsetCfg;
+  int32_t sessionTimeoutMs;
+  int32_t maxPollIntervalMs;
+} SMqConsumerObj;
+
+int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
+                           SMqConsumerObj** ppConsumer);
+void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
+void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
+int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
+void*   tDecodeSMqConsumerObj(const void* buf, const void* bufEnd, SMqConsumerObj* pConsumer, int8_t sver);
+
+typedef struct {
+  int64_t consumerId;  // -1 for unassigned
+  SArray* vgs;         // SArray<vgId>
+  SArray* offsetRows;  // SArray<OffsetRows>
+} SMqConsumerEp;
+
+void    freeSMqConsumerEp(void* data);
+int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
+void*   tDecodeSMqConsumerEp(const void* buf, const void* bufEnd, SMqConsumerEp* pEp, int8_t sver);
+
+typedef struct {
+  char      key[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t   dbUid;
+  int32_t   vgNum;
+  int8_t    subType;
+  int8_t    withMeta;
+  int64_t   stbUid;
+  SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
+  SArray*   unassignedVgs;  // SArray<vgId>
+  SArray*   offsetRows;
+  char      dbName[TSDB_DB_FNAME_LEN];
+  SHashObj* vgDnodeId;      // vgId -> SArray<dnodeId>
+  SRWLatch  lock;
+} SMqSubscribeObj;
+
+int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
+int32_t tCloneSubscribeObj(SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
+void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
+int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
+void*   tDecodeSubscribeObj(const void* buf, const void* bufEnd, SMqSubscribeObj* pSub, int8_t sver);
+
+typedef struct {
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
+} SMqRebInputObj;
+
+typedef struct {
+  int64_t  oldConsumerId;
+  int64_t  newConsumerId;
+  int32_t  vgId;
+} SMqRebOutputVg;
+
+typedef struct {
+  SArray*          rebVgs;            // SArray<SMqRebOutputVg>
+  SArray*          newConsumers;      // SArray<int64_t>
+  SArray*          removedConsumers;  // SArray<int64_t>
+  SArray*          modifyConsumers;   // SArray<int64_t>
+  SMqSubscribeObj* pSub;
+} SMqRebOutputObj;
+
+typedef struct SStreamRecalcPersistReq {
+  int64_t recalcId;
+  TSKEY   start;
+  TSKEY   end;
+  int64_t requestTimeMs;
+} SStreamRecalcPersistReq;
+
+typedef struct {
+  char                name[TSDB_STREAM_FNAME_LEN];
+  char                createUser[TSDB_USER_LEN];
+  SCMCreateStreamReq* pCreate;
+
+  SRWLatch lock;
+  // dynamic info
+  int32_t mainSnodeId;
+  int8_t  userDropped;  // no need to serialize
+  int8_t  userStopped;
+  int64_t createTime;
+  int64_t updateTime;
+  int64_t ownerId;
+  // Bitmap of STREAM_FLAG_* (defined in libs/new-stream/stream.h). Set at
+  // create (STREAM_FLAG_REF_EXT_SOURCE, bit 3, lifted from SCMCreateStreamReq.flags by
+  // mndStreamBuildObj); afterwards only STREAM_FLAG_TXN_TARGET_STOPPED is rewritten, and
+  // it is meaningful only while txnStatus == META_TXN_PRE_ALTER.
+  uint64_t flags;
+  uint64_t recalcRevision;
+  SArray*  pIncompleteRecalcs;  // SArray<SStreamRecalcPersistReq>
+  int8_t   sdbRawUpdateKind;    // EStreamRawUpdateKind; not business-serialized
+  // External source trigger specs live in pCreate->extSpecs
+  // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
+  // pCreate and persists for the whole lifetime of the stream object; there
+  // is no separate copy on SStreamObj itself.
+
+  // batch-meta-txn (stream phase 2): both fields are serialized into SDB_STREAM.
+  // Unlike userDropped/userStopped above, these MUST persist - the drop intent of
+  // an uncommitted txn has to survive a leader transfer, otherwise the new leader
+  // would resurrect a stream the txn had already dropped. See DS 5.2.
+  txn_id_t txnId;      // 0 = no associated txn; >0 = owning txn
+  int8_t   txnStatus;  // EMetaTxnStatus: NORMAL / PRE_CREATE / PRE_CREATE_DROP / PRE_DROP / PRE_ALTER
+} SStreamObj;
+// The START/STOP an owning txn wants applied at COMMIT is kept in the already-persisted
+// SStreamObj.flags as STREAM_FLAG_TXN_TARGET_STOPPED (libs/new-stream/stream.h, together with every
+// other STREAM_FLAG_* bit); it is meaningful only while txnStatus == META_TXN_PRE_ALTER (that status
+// itself means "an intent exists").
+#if 0
+typedef struct SStreamConf {
+  int8_t  igExpired;
+  int8_t  trigger;
+  int8_t  fillHistory;
+  int64_t triggerParam;
+  int64_t watermark;
+} SStreamConf;
 
 typedef struct {
   int32_t   vgId;
@@ -500,275 +1353,6 @@ typedef struct {
   int32_t   syncConfChangeVer;
 } SVgObj;
 
-typedef struct {
-  char           name[TSDB_TABLE_FNAME_LEN];
-  char           stb[TSDB_TABLE_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  char           dstTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t        createdTime;
-  int64_t        uid;
-  int64_t        stbUid;
-  int64_t        dbUid;
-  int64_t        dstTbUid;
-  int8_t         intervalUnit;
-  int8_t         slidingUnit;
-  int8_t         timezone;  // int8_t is not enough, timezone is unit of second
-  int32_t        dstVgId;   // for stream
-  int64_t        interval;
-  int64_t        offset;
-  int64_t        sliding;
-  int32_t        exprLen;  // strlen + 1
-  int32_t        tagsFilterLen;
-  int32_t        sqlLen;
-  int32_t        astLen;
-  int32_t        version;
-  char*          expr;
-  char*          tagsFilter;
-  char*          sql;
-  char*          ast;
-  SSchemaWrapper schemaRow;  // for dstVgroup
-  SSchemaWrapper schemaTag;  // for dstVgroup
-  char           baseSmaName[TSDB_TABLE_FNAME_LEN];
-} SSmaObj;
-
-typedef struct {
-  char    name[TSDB_INDEX_FNAME_LEN];
-  char    stb[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  char    dstTbName[TSDB_TABLE_FNAME_LEN];
-  char    colName[TSDB_COL_NAME_LEN];
-  int64_t createdTime;
-  int64_t uid;
-  int64_t stbUid;
-  int64_t dbUid;
-} SIdxObj;
-
-typedef struct {
-  col_id_t colId;
-  int32_t  cmprAlg;
-} SCmprObj;
-typedef struct {
-  char      name[TSDB_TABLE_FNAME_LEN];
-  char      db[TSDB_DB_FNAME_LEN];
-  int64_t   createdTime;
-  int64_t   updateTime;
-  int64_t   uid;
-  int64_t   dbUid;
-  int32_t   tagVer;
-  int32_t   colVer;
-  int32_t   smaVer;
-  int32_t   nextColId;
-  int64_t   maxdelay[2];
-  int64_t   watermark[2];
-  int32_t   ttl;
-  int32_t   numOfColumns;
-  int32_t   numOfTags;
-  int32_t   numOfFuncs;
-  int32_t   commentLen;
-  int32_t   ast1Len;
-  int32_t   ast2Len;
-  SArray*   pFuncs;
-  SSchema*  pColumns;
-  SSchema*  pTags;
-  char*     comment;
-  char*     pAst1;
-  char*     pAst2;
-  SRWLatch  lock;
-  int8_t    source;
-  SColCmpr* pCmpr;
-} SStbObj;
-
-typedef struct {
-  char     name[TSDB_FUNC_NAME_LEN];
-  int64_t  createdTime;
-  int8_t   funcType;
-  int8_t   scriptType;
-  int8_t   align;
-  int8_t   outputType;
-  int32_t  outputLen;
-  int32_t  bufSize;
-  int64_t  signature;
-  int32_t  commentSize;
-  int32_t  codeSize;
-  char*    pComment;
-  char*    pCode;
-  int32_t  funcVersion;
-  SRWLatch lock;
-} SFuncObj;
-
-typedef struct {
-  int64_t        id;
-  int8_t         type;
-  int8_t         replica;
-  int16_t        numOfColumns;
-  int32_t        numOfRows;
-  int32_t        curIterPackedRows;
-  void*          pIter;
-  SMnode*        pMnode;
-  STableMetaRsp* pMeta;
-  bool           restore;
-  bool           sysDbRsp;
-  char           db[TSDB_DB_FNAME_LEN];
-  char           filterTb[TSDB_TABLE_NAME_LEN];
-} SShowObj;
-
-typedef struct {
-  char           name[TSDB_TOPIC_FNAME_LEN];
-  char           db[TSDB_DB_FNAME_LEN];
-  char           createUser[TSDB_USER_LEN];
-  int64_t        createTime;
-  int64_t        updateTime;
-  int64_t        uid;
-  int64_t        dbUid;
-  int32_t        version;
-  int8_t         subType;   // column, db or stable
-  int8_t         withMeta;  // TODO
-  SRWLatch       lock;
-  int32_t        sqlLen;
-  int32_t        astLen;
-  char*          sql;
-  char*          ast;
-  char*          physicalPlan;
-  SSchemaWrapper schema;
-  int64_t        stbUid;
-  char           stbName[TSDB_TABLE_FNAME_LEN];
-  // forbid condition
-  int64_t ntbUid;
-  SArray* ntbColIds;
-  int64_t ctbStbUid;
-} SMqTopicObj;
-
-typedef struct {
-  int64_t  consumerId;
-  char     cgroup[TSDB_CGROUP_LEN];
-  char     clientId[TSDB_CLIENT_ID_LEN];
-  char     user[TSDB_USER_LEN];
-  char     fqdn[TSDB_FQDN_LEN];
-  int8_t   updateType;  // used only for update
-  int32_t  epoch;
-  int32_t  status;
-  int32_t  hbStatus;          // hbStatus is not applicable to serialization
-  int32_t  pollStatus;        // pollStatus is not applicable to serialization
-  SRWLatch lock;              // lock is used for topics update
-  SArray*  currentTopics;     // SArray<char*>
-  SArray*  rebNewTopics;      // SArray<char*>
-  SArray*  rebRemovedTopics;  // SArray<char*>
-
-  // subscribed by user
-  SArray* assignedTopics;  // SArray<char*>
-
-  // data for display
-  int32_t pid;
-  SEpSet  ep;
-  int64_t createTime;
-  int64_t subscribeTime;
-  int64_t rebalanceTime;
-
-  int8_t  withTbName;
-  int8_t  autoCommit;
-  int32_t autoCommitInterval;
-  int32_t resetOffsetCfg;
-  int32_t sessionTimeoutMs;
-  int32_t maxPollIntervalMs;
-} SMqConsumerObj;
-
-int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, char* topic, SCMSubscribeReq* subscribe,
-                           SMqConsumerObj** ppConsumer);
-void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
-void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
-int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
-
-typedef struct {
-  int32_t vgId;
-  //  char*   qmsg;  // SubPlanToString
-  SEpSet epSet;
-} SMqVgEp;
-
-SMqVgEp* tCloneSMqVgEp(const SMqVgEp* pVgEp);
-void     tDeleteSMqVgEp(SMqVgEp* pVgEp);
-int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
-
-typedef struct {
-  int64_t consumerId;  // -1 for unassigned
-  SArray* vgs;         // SArray<SMqVgEp*>
-  SArray* offsetRows;  // SArray<OffsetRows*>
-} SMqConsumerEp;
-
-// SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-// void           tDeleteSMqConsumerEp(void* pEp);
-int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
-void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
-
-typedef struct {
-  char      key[TSDB_SUBSCRIBE_KEY_LEN];
-  SRWLatch  lock;
-  int64_t   dbUid;
-  int32_t   vgNum;
-  int8_t    subType;
-  int8_t    withMeta;
-  int64_t   stbUid;
-  SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
-  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
-  SArray*   offsetRows;
-  char      dbName[TSDB_DB_FNAME_LEN];
-  char*     qmsg;  // SubPlanToString
-} SMqSubscribeObj;
-
-int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
-int32_t tCloneSubscribeObj(const SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
-void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
-int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
-
-// typedef struct {
-//   int32_t epoch;
-//   SArray* consumers;  // SArray<SMqConsumerEp*>
-// } SMqSubActionLogEntry;
-
-// SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// void                  tDeleteSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
-// int32_t               tEncodeSMqSubActionLogEntry(void** buf, const SMqSubActionLogEntry* pEntry);
-// void*                 tDecodeSMqSubActionLogEntry(const void* buf, SMqSubActionLogEntry* pEntry);
-//
-// typedef struct {
-//   char    key[TSDB_SUBSCRIBE_KEY_LEN];
-//   SArray* logs;  // SArray<SMqSubActionLogEntry*>
-// } SMqSubActionLogObj;
-//
-// SMqSubActionLogObj* tCloneSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// void                tDeleteSMqSubActionLogObj(SMqSubActionLogObj* pLog);
-// int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogObj* pLog);
-// void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
-
-typedef struct {
-  int32_t           oldConsumerNum;
-  const SMqRebInfo* pRebInfo;
-} SMqRebInputObj;
-
-typedef struct {
-  int64_t  oldConsumerId;
-  int64_t  newConsumerId;
-  SMqVgEp* pVgEp;
-} SMqRebOutputVg;
-
-typedef struct {
-  SArray*          rebVgs;            // SArray<SMqRebOutputVg>
-  SArray*          newConsumers;      // SArray<int64_t>
-  SArray*          removedConsumers;  // SArray<int64_t>
-  SArray*          modifyConsumers;   // SArray<int64_t>
-  SMqSubscribeObj* pSub;
-  //  SMqSubActionLogEntry* pLogEntry;
-} SMqRebOutputObj;
-
-typedef struct SStreamConf {
-  int8_t  igExpired;
-  int8_t  trigger;
-  int8_t  fillHistory;
-  int64_t triggerParam;
-  int64_t watermark;
-} SStreamConf;
 
 typedef struct {
   char     name[TSDB_STREAM_FNAME_LEN];
@@ -797,13 +1381,13 @@ typedef struct {
   int32_t fixedSinkVgId;  // 0 for shuffle
 
   // transformation
-  char*   sql;
-  char*   ast;
-  char*   physicalPlan;
-  SArray* tasks;  // SArray<SArray<SStreamTask>>
+  char* sql;
+  char* ast;
+  char* physicalPlan;
 
-  SArray* pHTasksList;  // generate the results for already stored ts data
-  int64_t hTaskUid;     // stream task for history ts data
+  SArray* pTaskList;   // SArray<SArray<SStreamTask>>
+  SArray* pHTaskList;  // generate the results for already stored ts data
+  int64_t hTaskUid;    // stream task for history ts data
 
   SSchemaWrapper outputSchema;
   SSchemaWrapper tagSchema;
@@ -819,9 +1403,12 @@ typedef struct {
 
   int32_t indexForMultiAggBalance;
   int8_t  subTableWithoutMd5;
-  char    reserve[256];
+  char    reserve[TSDB_RESERVE_VALUE_LEN];
 
+  SSHashObj*  pVTableMap;  // do not serialize
+  SQueryPlan* pPlan;       // do not serialize
 } SStreamObj;
+#endif
 
 typedef struct SStreamSeq {
   char     name[24];
@@ -839,13 +1426,14 @@ typedef struct {
   char     fullname[TSDB_VIEW_FNAME_LEN];
   char     name[TSDB_VIEW_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
-  char     user[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
   char*    querySql;
   char*    parameters;
   void**   defaultValues;
   char*    targetTable;
   uint64_t viewId;
   uint64_t dbId;
+  int64_t  ownerId;
   int64_t  createdTime;
   int32_t  version;
   int8_t   precision;
@@ -860,8 +1448,14 @@ int32_t tDecodeSViewObj(SDecoder* pDecoder, SViewObj* pObj, int32_t sver);
 void    tFreeSViewObj(SViewObj* pObj);
 
 typedef struct {
-  int32_t compactDetailId;
-  int32_t compactId;
+  union {
+    int32_t compactDetailId;
+    int32_t detailId;
+  };
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   int32_t vgId;
   int32_t dnodeId;
   int32_t numberFileset;
@@ -874,11 +1468,116 @@ typedef struct {
 } SCompactDetailObj;
 
 typedef struct {
-  int32_t compactId;
+  int32_t scanDetailId;
+  int32_t scanId;
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t numberFileset;
+  int32_t finished;
+  int64_t startTime;
+  int32_t newNumberFileset;
+  int32_t newFinished;
+  int32_t progress;
+  int64_t remainingTime;
+} SScanDetailObj;
+
+typedef struct {
+  union {
+    int32_t compactId;
+    int32_t id;
+  };
   char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
   int64_t startTime;
   SArray* compactDetail;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t optrType : 3;     // ETsdbOpType
+      uint32_t triggerType : 1;  // ETriggerType
+      uint32_t reserve : 28;
+    };
+  };
 } SCompactObj;
+
+typedef struct {
+  int32_t id;
+  char    algorithm_id[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+  char    desc[TSDB_ENCRYPT_ALGR_DESC_LEN];
+  int16_t type;
+  int8_t  source;
+  char    ossl_algr_name[TSDB_ENCRYPT_ALGR_NAME_LEN];
+} SEncryptAlgrObj;
+
+typedef struct {
+  int32_t scanId;
+  char    dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t dbUid;
+  int64_t startTime;
+  SArray* scanDetail;
+} SScanObj;
+
+// Backup lifecycle state persisted in SDB and surfaced in SHOW BACKUPS status.
+typedef enum {
+  BACKUP_STATE_RUNNING = 0,    // backup in progress
+  BACKUP_STATE_SUCCEEDED = 1,  // finished successfully
+  BACKUP_STATE_FAILED = 2,     // finished with error
+  BACKUP_STATE_CANCELLED = 3   // killed by user
+} EBackupState;
+
+// Cluster-level backup record persisted in SDB (drives SHOW BACKUPS history).
+// A record is keyed by backupId; chainId groups backups in the same chain.
+// code/bytesDone are updated by the backup progress timer; code holds the
+// final agent-side result once the backup finishes (0 = success).
+typedef struct {
+  int64_t chainId;        // backup chain id
+  int64_t backupId;       // backup id (SDB key)
+  int32_t dnodeId;        // dnode that owns backupRoot and runs the agent
+  char    backupRoot[TSDB_MOUNT_PATH_LEN];
+  char    dbName[TSDB_DB_FNAME_LEN];  // empty means whole cluster
+  int64_t startTime;
+  int64_t updateTime;     // most recent dnode progress report time
+  int64_t totalSize;      // bytes written so far
+  int8_t  isFull;         // 1 = full, 0 = incremental
+  int8_t  encrypted;      // 1 when the backup request included a password
+  int32_t code;           // final result code when state != RUNNING; 0 = success
+  int32_t state;          // EBackupState
+  int32_t totalVgroups;   // total number of vgroups to back up
+  int32_t finishedVgroups;// number of vgroups already backed up
+} SBackupObj;
+
+typedef SCompactObj       SRetentionObj;        // reuse compact obj for retention
+typedef SCompactDetailObj SRetentionDetailObj;  // reuse compact detail obj for retention
+typedef struct {
+  int32_t nodeId;    // dnode id of the leader vnode
+  int32_t vgId;
+  int32_t fid;  // file set id
+  int32_t state;
+  int64_t startTime;  // migration start time of this file set in seconds
+} SSsMigrateFileSet;
+
+typedef enum {
+  SSMIGRATE_VGSTATE_INIT = 0,                // initial state
+  SSMIGRATE_VGSTATE_WAITING_FSET_LIST = 1,   // waiting for file set list
+  SSMIGRATE_VGSTATE_FSET_LIST_RECEIVED = 2,  // file set list received
+  SSMIGRATE_VGSTATE_FSET_STARTING = 3,       // fset ssmigrate request was sent, waiting for response
+  SSMIGRATE_VGSTATE_FSET_STARTED = 4,        // fset ssmigrate response received
+} ESsMigrateVgroupState;
+
+typedef struct {
+  int32_t           id;  // migration id
+  int64_t           dbUid;
+  char              dbname[TSDB_TABLE_FNAME_LEN];
+  int64_t           startTime;        // migration start time in seconds
+  int64_t           stateUpdateTime;  // last state(vgState or currFest.state) update time in seconds
+  int32_t           vgIdx;            // index of current vgroup
+  int32_t           vgState;          // vgroup migration state
+  int32_t           fsetIdx;          // index of current file set
+  SSsMigrateFileSet currFset;         // current file set being processed
+  SArray*           vgroups;          // SArray<int32_t>, vgroup ids of current migration
+  SArray*           fileSets;         // SArray<int32_t>, file set ids of current vgroup
+} SSsMigrateObj;
 
 // SGrantLogObj
 typedef enum {
@@ -901,6 +1600,7 @@ typedef enum {
 #define GRANT_STATE_NUM       30
 #define GRANT_ACTIVE_NUM      10
 #define GRANT_ACTIVE_HEAD_LEN 30
+#define GRANT_ACTIVE_SIGN_LEN 30
 
 typedef struct {
   union {
@@ -951,6 +1651,26 @@ typedef struct {
   SRWLatch     lock;
 } SGrantLogObj;
 
+// ============================================================
+// External Source Object (SDB persistent object for federated query)
+// ============================================================
+#define EXT_SOURCE_VER_NUMBER   1    // SDB encoding version; increment when fields are added
+#define EXT_SOURCE_RESERVE_SIZE 64   // reserved tail bytes for future fields
+
+typedef struct SExtSourceObj {
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];      // SDB key (SDB_KEY_BINARY)
+  int8_t  type;                                 // EExtSourceType
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t port;
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    encryptedPassword[TSDB_EXT_SOURCE_ENC_PASSWORD_LEN]; // AES-encrypted password
+  char    defaultDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    defaultSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];  // JSON string
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t metaVersion;                          // incremented by REFRESH
+} SExtSourceObj;
 #ifdef __cplusplus
 }
 #endif

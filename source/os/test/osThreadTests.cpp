@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -110,7 +112,7 @@ TEST(osThreadTests, thread) {
   taosMsleep(300);
 
   (void)taosThreadCancel(tid1);
-  
+
   reti = taosThreadCreate(&tid2, NULL, funcPtr501, NULL);
   EXPECT_EQ(reti, 0);
   taosMsleep(1000);
@@ -431,6 +433,177 @@ TEST(osThreadTests, rwlock) {
   EXPECT_EQ(reti, 0);
 }
 
+/* Three-thread probe of the glibc default: a reader already inside, a writer
+ * queued, then a new reader. Reader-prefer lets the new reader in. Writer-prefer
+ * (PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP) makes a blocking Rdlock wait.
+ * Also checks that a zero-filled lock is usable without Init, which Windows
+ * callers rely on.
+ *
+ * Do not use TryWrlock to decide that the writer is queued. glibc trywrlock
+ * returns EBUSY as soon as any reader holds the lock, before the writer thread
+ * has entered wrlock. glibc tryrdlock returns EBUSY for writer-prefer only
+ * after that writer has installed WRLOCKED (state #4). Windows TryRdlock
+ * returns EBUSY only after nWriterWait > 0. A single sample therefore races
+ * the writer thread and sees code==0. */
+typedef struct {
+  TdThreadRwlock *pLock;
+  int32_t         stage;
+  int32_t         writerEntered;
+} SRwlockPreferArg;
+
+static void *rwlockHoldReader(void *param) {
+  SRwlockPreferArg *pArg = (SRwlockPreferArg *)param;
+  if (taosThreadRwlockRdlock(pArg->pLock) != 0) {
+    atomic_store_32(&pArg->stage, -1);
+    return NULL;
+  }
+  atomic_store_32(&pArg->stage, 1);
+  while (atomic_load_32(&pArg->stage) == 1) {
+    taosMsleep(1);
+  }
+  (void)taosThreadRwlockUnlock(pArg->pLock);
+  return NULL;
+}
+
+static void *rwlockWaitWriter(void *param) {
+  SRwlockPreferArg *pArg = (SRwlockPreferArg *)param;
+  while (atomic_load_32(&pArg->stage) < 1) {
+    taosMsleep(1);
+  }
+  /* Publish only after the thread is about to block. The probe still waits
+   * for TryRdlock to observe the queued writer; this flag is not enough. */
+  atomic_store_32(&pArg->writerEntered, 1);
+  if (taosThreadRwlockWrlock(pArg->pLock) != 0) {
+    atomic_store_32(&pArg->stage, -1);
+    return NULL;
+  }
+  (void)taosThreadRwlockUnlock(pArg->pLock);
+  return NULL;
+}
+
+/* Writer-prefer: spin until TryRdlock fails, which is the first observation
+ * that the writer is actually queued. Unlock every successful try so the
+ * reader count does not hide the writer. Returns the failing code, or 0 on
+ * timeout. */
+static int32_t rwlockWaitWriterVisible(TdThreadRwlock *pLock) {
+  int64_t startMs = taosGetTimestampMs();
+  int32_t code = 0;
+
+  for (;;) {
+    code = taosThreadRwlockTryRdlock(pLock);
+    if (code != 0) {
+      return code;
+    }
+    if (taosThreadRwlockUnlock(pLock) != 0) {
+      return 0;
+    }
+    if (taosGetTimestampMs() - startMs >= 2000) {
+      return 0;
+    }
+    taosMsleep(1);
+  }
+}
+
+static void rwlockPreferCheck(int32_t preferWriter, int32_t expectBlocked) {
+  TdThreadRwlock     lock = {0};
+  /* Linux TdThreadRwlockAttr is pthread_rwlockattr_t, not an int. Zero it;
+   * only the writer-prefer path calls AttrInit. */
+  TdThreadRwlockAttr attr;
+  TdThread           readerTid = {0};
+  TdThread           writerTid = {0};
+  SRwlockPreferArg   arg = {0};
+  int64_t            startMs = 0;
+  int32_t            elapsedMs = 0;
+  int32_t            code = 0;
+
+  (void)memset(&attr, 0, sizeof(attr));
+  if (preferWriter) {
+    ASSERT_EQ(taosThreadRwlockAttrInit(&attr), 0);
+    taosThreadRwlockAttrSetKindNP(&attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+    ASSERT_EQ(taosThreadRwlockInit(&lock, &attr), 0);
+    ASSERT_EQ(taosThreadRwlockAttrDestroy(&attr), 0);
+  } else {
+    /* Zero-filled lock, no Init. Linux PTHREAD_RWLOCK_INITIALIZER and the
+     * Windows SRWLOCK gate are both all-zero. */
+    ASSERT_EQ(taosThreadRwlockTryRdlock(&lock), 0);
+    ASSERT_EQ(taosThreadRwlockUnlock(&lock), 0);
+  }
+
+  arg.pLock = &lock;
+  ASSERT_EQ(taosThreadCreate(&readerTid, NULL, rwlockHoldReader, &arg), 0);
+  while (atomic_load_32(&arg.stage) < 1) {
+    taosMsleep(1);
+  }
+  ASSERT_EQ(taosThreadCreate(&writerTid, NULL, rwlockWaitWriter, &arg), 0);
+
+  startMs = taosGetTimestampMs();
+  if (expectBlocked) {
+    /* First failing TryRdlock is the proof the writer is queued. A single
+     * sample before that returns 0 on both glibc and Windows. */
+    code = rwlockWaitWriterVisible(&lock);
+    EXPECT_NE(code, 0);
+    atomic_store_32(&arg.stage, 3);
+  } else {
+    /* Reader-prefer never makes TryRdlock fail, so wait until the writer
+     * thread has at least called Wrlock, then confirm a new reader still
+     * gets in. The sleep covers the gap between the flag and the wrlock. */
+    while (atomic_load_32(&arg.writerEntered) == 0) {
+      ASSERT_LT(taosGetTimestampMs() - startMs, 2000);
+      taosMsleep(1);
+    }
+    taosMsleep(50);
+    code = taosThreadRwlockTryRdlock(&lock);
+    EXPECT_EQ(code, 0);
+    if (code == 0) {
+      ASSERT_EQ(taosThreadRwlockUnlock(&lock), 0);
+    }
+    atomic_store_32(&arg.stage, 3);
+  }
+  elapsedMs = (int32_t)(taosGetTimestampMs() - startMs);
+  EXPECT_LT(elapsedMs, 2000);
+
+  ASSERT_EQ(taosThreadJoin(readerTid, NULL), 0);
+  ASSERT_EQ(taosThreadJoin(writerTid, NULL), 0);
+  ASSERT_EQ(taosThreadRwlockDestroy(&lock), 0);
+}
+
+TEST(osThreadTests, rwlockPrefer) {
+  rwlockPreferCheck(0, 0);
+  rwlockPreferCheck(1, 1);
+}
+
+/* bse/meta/wal pass &pLock->attr into Init. Init must read the kind before it
+ * zeroes the lock, otherwise writer-prefer is silently dropped. */
+TEST(osThreadTests, rwlockAttrInsideLock) {
+  typedef struct {
+    TdThreadRwlock     lock;
+    TdThreadRwlockAttr attr;
+  } SLockWithAttr;
+  SLockWithAttr    obj;
+  TdThread         readerTid = {0};
+  TdThread         writerTid = {0};
+  SRwlockPreferArg arg = {0};
+
+  (void)memset(&obj, 0, sizeof(obj));
+  ASSERT_EQ(taosThreadRwlockAttrInit(&obj.attr), 0);
+  taosThreadRwlockAttrSetKindNP(&obj.attr, PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP);
+  ASSERT_EQ(taosThreadRwlockInit(&obj.lock, &obj.attr), 0);
+
+  arg.pLock = &obj.lock;
+  ASSERT_EQ(taosThreadCreate(&readerTid, NULL, rwlockHoldReader, &arg), 0);
+  while (atomic_load_32(&arg.stage) < 1) {
+    taosMsleep(1);
+  }
+  ASSERT_EQ(taosThreadCreate(&writerTid, NULL, rwlockWaitWriter, &arg), 0);
+  /* Same race as rwlockPrefer: TryWrlock fails while readers remain, before
+   * the writer is queued. Wait until TryRdlock itself sees the writer. */
+  EXPECT_NE(rwlockWaitWriterVisible(&obj.lock), 0);
+  atomic_store_32(&arg.stage, 3);
+  ASSERT_EQ(taosThreadJoin(readerTid, NULL), 0);
+  ASSERT_EQ(taosThreadJoin(writerTid, NULL), 0);
+  ASSERT_EQ(taosThreadRwlockDestroy(&obj.lock), 0);
+}
+
 TEST(osThreadTests, rdlockAttr) {
   int32_t            reti = 0;
   TdThreadRwlockAttr rdlockAttr;
@@ -498,4 +671,42 @@ TEST(osThreadTests, spinlock) {
 TEST(osThreadTests, others) {
   taosThreadTestCancel();
   taosThreadClear(NULL);
+
+  TdThread  tid1 = {0};
+  TdThread  tid2 = {0};
+  TdThread *thread = &tid1;
+  taosResetPthread(NULL);
+  taosResetPthread(thread);
+
+  bool retb = taosComparePthread(tid1, tid2);
+  EXPECT_TRUE(retb);
+
+  int32_t ret32 = taosGetAppName(NULL, NULL);
+  EXPECT_NE(ret32, 0);
+
+  char    name[32] = {0};
+  int32_t pid;
+  ret32 = taosGetPIdByName(name, NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = taosGetPIdByName(NULL, &pid);
+  EXPECT_NE(ret32, 0);
+
+  ret32 = tsem_timewait(NULL, 124);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_wait(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_init(NULL, 0, 0);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_post(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem_destroy(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_post(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_destroy(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_wait(NULL);
+  EXPECT_NE(ret32, 0);
+  ret32 = tsem2_timewait(NULL, 128);
+  EXPECT_NE(ret32, 0);
 }

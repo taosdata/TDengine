@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,10 +31,28 @@
 #include "os.h"
 #include "tlog.h"
 
+// Helper functions to build platform-specific test paths
+static void buildTestPath(char* buf, size_t bufSize, const char* relativePath) {
+  snprintf(buf, bufSize, "%stdengine-test-dir%s%s", TD_TMP_DIR_PATH, 
+           relativePath[0] ? TD_DIRSEP : "", relativePath);
+}
+
 TEST(osDirTests, taosRemoveDir) {
   int32_t ret = 0;
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testDir2[PATH_MAX];
+  char testFile2[PATH_MAX];
 
-  const char* testDir = "/tmp/tdengine-test-dir";
+  buildTestPath(testDir, sizeof(testDir), "");
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  buildTestPath(testDir2, sizeof(testDir2), "test-dir2");
+  buildTestPath(testFile2, sizeof(testFile2), "test-dir2/test-file2");
+  buildTestPath(testDir, sizeof(testDir), "");
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  buildTestPath(testDir2, sizeof(testDir2), "test-dir2");
+  buildTestPath(testFile2, sizeof(testFile2), "test-dir2/test-file2");
+
   if (taosDirExist(testDir)) {
     taosRemoveDir(testDir);
   }
@@ -42,18 +62,15 @@ TEST(osDirTests, taosRemoveDir) {
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
 
-  const char* testDir2 = "/tmp/tdengine-test-dir/test-dir2";
   ret = taosMkDir(testDir2);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile2 = "/tmp/tdengine-test-dir/test-dir2/test-file2";
-  TdFilePtr   testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  TdFilePtr testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr2, nullptr);
   ret = taosCloseFile(&testFilePtr2);
   EXPECT_EQ(ret, 0);
@@ -63,7 +80,44 @@ TEST(osDirTests, taosRemoveDir) {
   bool exist = taosDirExist(testDir);
   EXPECT_EQ(exist, false);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
+}
+
+TEST(osDirTests, taosClearDir) {
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testSubDir[PATH_MAX];
+  char testFile2[PATH_MAX];
+
+  buildTestPath(testDir, sizeof(testDir), "clear-dir");
+  buildTestPath(testFile, sizeof(testFile), "clear-dir/clear-file");
+  buildTestPath(testSubDir, sizeof(testSubDir), "clear-dir/subdir");
+  buildTestPath(testFile2, sizeof(testFile2), "clear-dir/subdir/clear-file2");
+
+  taosRemoveDir(testDir);
+
+  int32_t ret = taosMulMkDir(testDir);
+  EXPECT_EQ(ret, 0);
+
+  TdFilePtr f1 = taosCreateFile(testFile, TD_FILE_CREATE);
+  EXPECT_NE(f1, nullptr);
+  EXPECT_EQ(taosCloseFile(&f1), 0);
+
+  ret = taosMkDir(testSubDir);
+  EXPECT_EQ(ret, 0);
+  TdFilePtr f2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  EXPECT_NE(f2, nullptr);
+  EXPECT_EQ(taosCloseFile(&f2), 0);
+
+  // clear the directory: contents removed, directory itself kept
+  taosClearDir(testDir);
+
+  EXPECT_EQ(taosDirExist(testDir), true);
+  EXPECT_EQ(taosCheckExistFile(testFile), false);
+  EXPECT_EQ(taosDirExist(testSubDir), false);
+  EXPECT_EQ(taosCheckExistFile(testFile2), false);
+
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosDirExist) {
@@ -78,7 +132,9 @@ TEST(osDirTests, taosDirExist) {
   exist = taosDirExist(dir2);
   EXPECT_EQ(exist, false);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  char testDir[PATH_MAX];
+  buildTestPath(testDir, sizeof(testDir), "");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosMulMkDir) {
@@ -95,7 +151,8 @@ TEST(osDirTests, taosMulMkDir) {
   ret = taosMulMkDir(dir2);
   EXPECT_EQ(ret, -1);
 
-  const char* dir3 = "/tmp/tdengine-test-dir/1/2/3/4";
+  char dir3[PATH_MAX];
+  buildTestPath(dir3, sizeof(dir3), "1/2/3/4");
   taosRemoveDir(dir3);
   ret = taosMulMkDir(dir3);
   EXPECT_EQ(ret, 0);
@@ -115,17 +172,20 @@ TEST(osDirTests, taosMulMkDir) {
   EXPECT_EQ(ret, 0);
   taosRemoveDir(dir5);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  char testFile[PATH_MAX];
+  char dir6[PATH_MAX];
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
-  char dir6[2048] = {0};
-  strcpy(dir6, "/tmp/tdengine-test-dir/test-file/1/2/3/4");
+  buildTestPath(dir6, sizeof(dir6), "test-file/1/2/3/4");
   ret = taosMulMkDir(dir6);
   EXPECT_NE(ret, 0);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  char testDir[PATH_MAX];
+  buildTestPath(testDir, sizeof(testDir), "");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosMulModeMkDir) {
@@ -142,7 +202,8 @@ TEST(osDirTests, taosMulModeMkDir) {
   ret = taosMulModeMkDir(dir2, 777, true);
   EXPECT_NE(ret, 0);
 
-  const char* dir3 = "/tmp/tdengine-test-dir/1/2/3/4";
+  char dir3[PATH_MAX];
+  buildTestPath(dir3, sizeof(dir3), "1/2/3/4");
   taosRemoveDir(dir3);
   ret = taosMulMkDir(dir3);
   EXPECT_EQ(ret, 0);
@@ -176,13 +237,14 @@ TEST(osDirTests, taosMulModeMkDir) {
   EXPECT_EQ(ret, 0);
   taosRemoveDir(dir5);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  char testFile[PATH_MAX];
+  char dir6[PATH_MAX];
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
-  char dir6[2048] = {0};
-  strcpy(dir6, "/tmp/tdengine-test-dir/test-file/1/2/3/4");
+  buildTestPath(dir6, sizeof(dir6), "test-file/1/2/3/4");
   ret = taosMulModeMkDir(dir6, 777, true);
   EXPECT_NE(ret, 0);
 
@@ -193,12 +255,29 @@ TEST(osDirTests, taosMulModeMkDir) {
   ret = taosMulModeMkDir(dir7, 999, false);
   EXPECT_EQ(ret, 0);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  char testDir[PATH_MAX];
+  buildTestPath(testDir, sizeof(testDir), "");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosRemoveOldFiles) {
-  int32_t     ret = 0;
-  const char* testDir = "/tmp/tdengine-test-dir";
+  int32_t ret = 0;
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testDir2[PATH_MAX];
+  char testFile3[PATH_MAX];
+  char testFile4[PATH_MAX];
+  char testFile5[PATH_MAX];
+  char testFile6[PATH_MAX];
+  
+  buildTestPath(testDir, sizeof(testDir), "");
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  buildTestPath(testDir2, sizeof(testDir2), "test-dir2");
+  buildTestPath(testFile3, sizeof(testFile3), "log.1433726073.gz");
+  buildTestPath(testFile4, sizeof(testFile4), "log.80.gz");
+  snprintf(testFile5, sizeof(testFile5), "%stdengine-test-dir%slog.%d.gz", TD_TMP_DIR_PATH, TD_DIRSEP, taosGetTimestampSec());
+  buildTestPath(testFile6, sizeof(testFile6), "log.1433726073.gz");
+  
   if (taosDirExist(testDir)) {
     taosRemoveDir(testDir);
   }
@@ -206,39 +285,32 @@ TEST(osDirTests, taosRemoveOldFiles) {
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
 
   taosRemoveOldFiles(testFile, 10);
 
-  const char* testDir2 = "/tmp/tdengine-test-dir/test-dir2";
   ret = taosMkDir(testDir2);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile3 = "/tmp/tdengine-test-dir/log.1433726073.gz";
-  TdFilePtr   testFilePtr3 = taosCreateFile(testFile3, TD_FILE_CREATE);
+  TdFilePtr testFilePtr3 = taosCreateFile(testFile3, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr3, nullptr);
   ret = taosCloseFile(&testFilePtr3);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile4 = "/tmp/tdengine-test-dir/log.80.gz";
-  TdFilePtr   testFilePtr4 = taosCreateFile(testFile4, TD_FILE_CREATE);
+  TdFilePtr testFilePtr4 = taosCreateFile(testFile4, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr4, nullptr);
   ret = taosCloseFile(&testFilePtr4);
   EXPECT_EQ(ret, 0);
 
-  char testFile5[1024];
-  snprintf(testFile5, 1024, "/tmp/tdengine-test-dir/log.%d.gz", taosGetTimestampSec());
   TdFilePtr testFilePtr5 = taosCreateFile(testFile5, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr5, nullptr);
   ret = taosCloseFile(&testFilePtr5);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile6 = "/tmp/tdengine-test-dir/log.1433726073.gz";
-  TdFilePtr   testFilePtr6 = taosCreateFile(testFile6, TD_FILE_CREATE);
+  TdFilePtr testFilePtr6 = taosCreateFile(testFile6, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr6, nullptr);
   ret = taosCloseFile(&testFilePtr6);
   EXPECT_EQ(ret, 0);
@@ -248,12 +320,14 @@ TEST(osDirTests, taosRemoveOldFiles) {
   bool exist = taosDirExist(testDir);
   EXPECT_EQ(exist, true);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosExpandDir) {
-  int32_t     ret = 0;
-  const char* testDir = "/tmp/tdengine-test-dir";
+  int32_t ret = 0;
+  char testDir[PATH_MAX];
+  buildTestPath(testDir, sizeof(testDir), "");
+  
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
@@ -268,6 +342,15 @@ TEST(osDirTests, taosExpandDir) {
   ret = taosExpandDir("/x123", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
+  char exactFit[6] = {0};
+  ret = taosExpandDir("/x123", exactFit, sizeof(exactFit));
+  EXPECT_EQ(ret, 0);
+  EXPECT_STREQ(exactFit, "/x123");
+  char tooSmall[6] = "keep";
+  ret = taosExpandDir("/x123", tooSmall, sizeof(tooSmall) - 1);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_STREQ(tooSmall, "keep");
+
   ret = taosExpandDir("", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
@@ -276,14 +359,16 @@ TEST(osDirTests, taosExpandDir) {
     dir2[i] = '1';
   }
   ret = taosExpandDir(dir2, fullpath, 1024);
-  EXPECT_EQ(ret, 0);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosRealPath) {
   int32_t ret = 0;
-  char    testDir[PATH_MAX * 2] = "/tmp/tdengine-test-dir";
+  char testDir[PATH_MAX * 2];
+  buildTestPath(testDir, sizeof(testDir), "");
+  
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
@@ -304,7 +389,7 @@ TEST(osDirTests, taosRealPath) {
   ret = taosRealPath("/c/d", fullpath, 1024);
   EXPECT_NE(ret, 0);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosIsDir) {
@@ -357,13 +442,21 @@ TEST(osDirTests, taosReadDir) {
   TdDirEntryPtr rddir = taosReadDir(NULL);
   EXPECT_EQ(rddir, nullptr);
 
-  int32_t     ret = 0;
-  const char* testDir = "/tmp/tdengine-test-dir";
+  int32_t ret = 0;
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testDir2[PATH_MAX];
+  char testFile2[PATH_MAX];
+  
+  buildTestPath(testDir, sizeof(testDir), "");
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  buildTestPath(testDir2, sizeof(testDir2), "test-dir2");
+  buildTestPath(testFile2, sizeof(testFile2), "test-dir2/test-file2");
+  
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
@@ -371,12 +464,10 @@ TEST(osDirTests, taosReadDir) {
   TdDirPtr dir = taosOpenDir(testFile);
   EXPECT_EQ(dir, nullptr);
 
-  const char* testDir2 = "/tmp/tdengine-test-dir/test-dir2";
   ret = taosMkDir(testDir2);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile2 = "/tmp/tdengine-test-dir/test-dir2/test-file2";
-  TdFilePtr   testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  TdFilePtr testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr2, nullptr);
   ret = taosCloseFile(&testFilePtr2);
   EXPECT_EQ(ret, 0);
@@ -408,20 +499,28 @@ TEST(osDirTests, taosReadDir) {
   code = taosCloseDir(&dir);
   EXPECT_EQ(code, 0);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
 }
 
 TEST(osDirTests, taosGetDirSize) {
   TdDirEntryPtr rddir = taosReadDir(NULL);
   EXPECT_EQ(rddir, nullptr);
 
-  int32_t     ret = 0;
-  const char* testDir = "/tmp/tdengine-test-dir";
+  int32_t ret = 0;
+  char testDir[PATH_MAX];
+  char testFile[PATH_MAX];
+  char testDir2[PATH_MAX];
+  char testFile2[PATH_MAX];
+  
+  buildTestPath(testDir, sizeof(testDir), "");
+  buildTestPath(testFile, sizeof(testFile), "test-file");
+  buildTestPath(testDir2, sizeof(testDir2), "test-dir2");
+  buildTestPath(testFile2, sizeof(testFile2), "test-dir2/test-file2");
+  
   ret = taosMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile = "/tmp/tdengine-test-dir/test-file";
-  TdFilePtr   testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
+  TdFilePtr testFilePtr = taosCreateFile(testFile, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr, nullptr);
   ret = taosCloseFile(&testFilePtr);
   EXPECT_EQ(ret, 0);
@@ -429,12 +528,10 @@ TEST(osDirTests, taosGetDirSize) {
   TdDirPtr dir = taosOpenDir(testFile);
   EXPECT_EQ(dir, nullptr);
 
-  const char* testDir2 = "/tmp/tdengine-test-dir/test-dir2";
   ret = taosMkDir(testDir2);
   EXPECT_EQ(ret, 0);
 
-  const char* testFile2 = "/tmp/tdengine-test-dir/test-dir2/test-file2";
-  TdFilePtr   testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
+  TdFilePtr testFilePtr2 = taosCreateFile(testFile2, TD_FILE_CREATE);
   EXPECT_NE(testFilePtr2, nullptr);
   ret = taosCloseFile(&testFilePtr2);
   EXPECT_EQ(ret, 0);
@@ -446,7 +543,7 @@ TEST(osDirTests, taosGetDirSize) {
   ret = taosGetDirSize(testDir, &size);
   EXPECT_EQ(ret, 0);
 
-  taosRemoveDir("/tmp/tdengine-test-dir");
+  taosRemoveDir(testDir);
 
   taosRemoveDir("./tdengine-test-dir/1/2/3/5");
   taosRemoveDir("./tdengine-test-dir/1/2/3/4");
@@ -462,3 +559,120 @@ TEST(osDirTests, taosGetDirSize) {
   taosRemoveDir("tdengine-test-dir/");
   taosRemoveDir("tdengine-test-dir/");
 }
+
+TEST(osDirTests, taosGetCwd) {
+  char cwdBuf[1024] = {0};
+  taosGetCwd(cwdBuf, sizeof(cwdBuf));
+  EXPECT_GT(strlen(cwdBuf), 0);
+}
+
+TEST(osDirTests, taosAppPath) {
+  char appPath[PATH_MAX] = {0};
+  int32_t ret = taosAppPath(appPath, sizeof(appPath));
+  EXPECT_EQ(ret, 0);
+  EXPECT_GT(strlen(appPath), 0);
+
+  // Test with small buffer
+  char smallBuf[10] = {0};
+  ret = taosAppPath(smallBuf, sizeof(smallBuf));
+  // Should not crash, behavior may vary
+}
+
+TEST(osDirTests, taosMkDirExistingDir) {
+  char testDir[PATH_MAX];
+  buildTestPath(testDir, sizeof(testDir), "mkdirexist");
+  
+  // Clean up first
+  taosRemoveDir(testDir);
+  
+  // Ensure parent directory exists
+  char parentDir[PATH_MAX];
+  buildTestPath(parentDir, sizeof(parentDir), "");
+  taosMulMkDir(parentDir);
+  
+  // Create directory
+  int32_t ret = taosMkDir(testDir);
+  EXPECT_EQ(ret, 0);
+  
+  // Try creating the same directory again (should succeed or return 0)
+  ret = taosMkDir(testDir);
+  EXPECT_EQ(ret, 0);
+  
+  // Clean up
+  taosRemoveDir(testDir);
+  taosRemoveDir(parentDir);
+}
+
+TEST(osDirTests, taosCloseDirWithNullPointer) {
+  TdDirPtr nullPtr = NULL;
+  int32_t code = taosCloseDir(&nullPtr);
+  EXPECT_NE(code, 0);
+}
+
+TEST(osDirTests, taosDirEntryIsDirWithNull) {
+  bool isDir = taosDirEntryIsDir(NULL);
+  EXPECT_EQ(isDir, false);
+}
+
+TEST(osDirTests, taosExpandDirErrorCases) {
+  int32_t ret = 0;
+  char fullpath[1024] = "unchanged";
+
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, 0), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, -1), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
+  
+  // Test with very long directory name that might cause expansion issues
+  char longDir[PATH_MAX * 2];
+  memset(longDir, 'a', sizeof(longDir) - 1);
+  longDir[sizeof(longDir) - 1] = '\0';
+  
+  ret = taosExpandDir(longDir, fullpath, sizeof(fullpath));
+#ifdef WINDOWS
+  EXPECT_NE(ret, 0);
+  EXPECT_NE(terrno, 0);
+#else
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_CFG_VALUE);
+#endif
+  EXPECT_STREQ(fullpath, "unchanged");
+}
+
+#ifdef WINDOWS
+// taosMulMkDirW used to skip only a "C:\" drive prefix.  For a UNC path the
+// first character is a separator, so the walk truncated the buffer to an empty
+// string and called _wmkdir(L""), which fails every time: no directory below a
+// network share could ever be created.  The prefix now walks past the share and
+// only creates what is below it.
+TEST(osDirTests, taosMulMkDirWHandlesUncSharePrefix) {
+  WCHAR tmp[MAX_PATH] = {0};
+  ASSERT_NE(GetTempPathW(MAX_PATH, tmp), 0);
+
+  // "\\localhost\<drive>$" is the administrative share of the local drive, so
+  // the test does not depend on an external server.  It only resolves for an
+  // elevated process; otherwise the share is absent and there is nothing to
+  // assert about prefix handling.
+  char unc[TD_PATH_MAX] = {0};
+  char shareRoot[TD_PATH_MAX] = {0};
+  snprintf(shareRoot, sizeof(shareRoot), "\\\\localhost\\%c$", (char)tmp[0]);
+  snprintf(unc, sizeof(unc), "%s\\tdengine-unc-test\\nested\\leaf", shareRoot);
+
+  terrno = 0;
+  int32_t code = taosMulMkDirW(unc);
+  if (code != 0) {
+    GTEST_SKIP() << "local administrative share unavailable, terrno=" << terrno;
+  }
+  EXPECT_TRUE(taosDirExist(unc));
+
+  // Cleanup walks the same prefix logic.
+  taosRemoveDir(unc);
+  char    shareDeep[TD_PATH_MAX] = {0};
+  snprintf(shareDeep, sizeof(shareDeep), "%s\\tdengine-unc-test", shareRoot);
+  taosRemoveDir(shareDeep);
+}
+#endif

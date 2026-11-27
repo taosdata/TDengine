@@ -1,20 +1,74 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # tdbTest
-add_executable(tdbTest "tdbTest.cpp")
-target_link_libraries(tdbTest tdb gtest gtest_main)
+if(TD_LINUX)
+    add_executable(tdbTest "tdbTest.cpp")
+    DEP_ext_gtest(tdbTest)
+    target_link_libraries(tdbTest PRIVATE tdb)
+endif()
 
 # tdbUtilTest
 add_executable(tdbUtilTest "tdbUtilTest.cpp")
-target_link_libraries(tdbUtilTest tdb gtest gtest_main)
+DEP_ext_gtest(tdbUtilTest)
+target_link_libraries(tdbUtilTest PRIVATE tdb)
+add_test(
+    NAME tdbUtilTest
+    COMMAND tdbUtilTest
+)
 
 # overflow pages testing
 add_executable(tdbExOVFLTest "tdbExOVFLTest.cpp")
-target_link_libraries(tdbExOVFLTest tdb gtest gtest_main)
+DEP_ext_gtest(tdbExOVFLTest)
+target_link_libraries(tdbExOVFLTest PRIVATE tdb)
 
 # page defragment testing
 add_executable(tdbPageDefragmentTest "tdbPageDefragmentTest.cpp")
-target_link_libraries(tdbPageDefragmentTest tdb gtest gtest_main)
+DEP_ext_gtest(tdbPageDefragmentTest)
+target_link_libraries(tdbPageDefragmentTest PRIVATE tdb)
 
 # page recycling testing
 add_executable(tdbPageRecycleTest "tdbPageRecycleTest.cpp")
-target_link_libraries(tdbPageRecycleTest tdb gtest gtest_main)
+DEP_ext_gtest(tdbPageRecycleTest)
+target_link_libraries(tdbPageRecycleTest PRIVATE tdb)
 
+# page flush testing
+add_executable(tdbPageFlushTest "tdbPageFlushTest.cpp")
+DEP_ext_gtest(tdbPageFlushTest)
+target_link_libraries(tdbPageFlushTest PRIVATE tdb)
+
+# btree to stack testing
+add_executable(tdbBtreeToStackTest "tdbBtreeToStackTest.cpp")
+DEP_ext_gtest(tdbBtreeToStackTest)
+target_link_libraries(tdbBtreeToStackTest PRIVATE tdb)
+
+add_test(
+    NAME tdbBtreeToStackTest
+    COMMAND tdbBtreeToStackTest
+)
+
+add_test(
+    NAME tdbPageFlushTest
+    COMMAND tdbPageFlushTest
+)
+
+# The test binaries remove relative database directories such as "tdb".
+foreach(_tdb_test IN ITEMS tdbUtilTest tdbBtreeToStackTest tdbPageFlushTest)
+    set(_tdb_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/${_tdb_test}")
+    file(MAKE_DIRECTORY "${_tdb_test_work_dir}")
+    set_tests_properties(${_tdb_test} PROPERTIES
+        WORKING_DIRECTORY "${_tdb_test_work_dir}"
+    )
+endforeach()

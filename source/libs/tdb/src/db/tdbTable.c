@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "tdbInt.h"
+#include "tdTestSeam.h"
 
 struct STTB {
   TDB    *pEnv;
@@ -32,8 +35,6 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   char    fFullName[TDB_FILENAME_LEN];
   SPage  *pPage;
   SPgno   pgno;
-  void   *pKey = NULL;
-  int     nKey = 0;
   void   *pData = NULL;
   int     nData = 0;
 
@@ -63,8 +64,6 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       pgno = 0;
     } else {
       pgno = *(SPgno *)pData;
-
-      tdbFree(pKey);
       tdbFree(pData);
     }
 
@@ -104,7 +103,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   }
 
 #endif
-
+  /*
   if (rollback) {
     ret = tdbPagerRestoreJournals(pPager);
     if (ret < 0) {
@@ -117,6 +116,13 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
       tdbOsFree(pTb);
       return ret;
     }
+  }
+  */
+  // Always restore journal files with page flushing
+  ret = tdbPagerRestoreJournals(pPager);
+  if (ret < 0) {
+    tdbOsFree(pTb);
+    return ret;
   }
 
   // pTb->pBt
@@ -214,8 +220,30 @@ int tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreeGet(pTb->pBt, pKey, kLen, ppVal, vLen);
 }
 
+int32_t tdbTbGetBatch(TTB *pTb, STdbTbBatchGetArg *pArgs, int32_t numOfArgs) {
+  if (NULL == pTb) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return tdbBtreeGetBatch(pTb->pBt, pArgs, numOfArgs);
+}
+
 int tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pTb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
+}
+
+// tdbTbBtreeToStack, tdbTbPushFreePage, tdbTbPopFreePage are only for free page management,
+// they are using the b-tree as a stack, never call them for other purpose
+int tdbTbBtreeToStack(TTB *pTb) {
+  return tdbBtreeToStack(pTb->pBt);
+}
+
+int tdbTbPushFreePage(TTB *pTb, SPage* pPage, TXN *pTxn) {
+  return tdbBtreePushFreePage(pTb->pBt, pPage, pTxn);
+}
+
+int tdbTbPopFreePage(TTB *pTb, SPgno* pgno, TXN *pTxn) {
+  return tdbBtreePopFreePage(pTb->pBt, pgno, pTxn);
 }
 
 int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
@@ -229,7 +257,7 @@ int tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn) {
   }
 
   if ((ret = tdbBtcOpen(&pTbc->btc, pTb->pBt, pTxn)) != 0) {
-    taosMemoryFree(pTbc);
+    tdbOsFree(pTbc);
     return ret;
   }
 
@@ -273,13 +301,19 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   return 0;
 }
 
-int tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c) { return tdbBtcMoveTo(&pTbc->btc, pKey, kLen, c); }
+int tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c) {
+  TD_SEAM_RET(tdbTbcMoveTo, int32_t (*)(TBC *, const void *, int, int *), (pTbc, pKey, kLen, c));
+  return tdbBtcMoveTo(&pTbc->btc, pKey, kLen, c);
+}
 
 int tdbTbcMoveToFirst(TBC *pTbc) { return tdbBtcMoveToFirst(&pTbc->btc); }
 
 int tdbTbcMoveToLast(TBC *pTbc) { return tdbBtcMoveToLast(&pTbc->btc); }
 
-int tdbTbcMoveToNext(TBC *pTbc) { return tdbBtcMoveToNext(&pTbc->btc); }
+int tdbTbcMoveToNext(TBC *pTbc) {
+  TD_SEAM_RET(tdbTbcMoveToNext, int32_t (*)(TBC *), (pTbc));
+  return tdbBtcMoveToNext(&pTbc->btc);
+}
 
 int tdbTbcMoveToPrev(TBC *pTbc) { return tdbBtcMoveToPrev(&pTbc->btc); }
 
@@ -290,6 +324,7 @@ int tdbTbcGet(TBC *pTbc, const void **ppKey, int *pkLen, const void **ppVal, int
 int tdbTbcDelete(TBC *pTbc) { return tdbBtcDelete(&pTbc->btc); }
 
 int tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  TD_SEAM_RET(tdbTbcNext, int32_t (*)(TBC *, void **, int *, void **, int *), (pTbc, ppKey, kLen, ppVal, vLen));
   return tdbBtreeNext(&pTbc->btc, ppKey, kLen, ppVal, vLen);
 }
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,15 +27,30 @@
 extern "C" {
 #endif
 
-#define ANALY_FORECAST_DEFAULT_ROWS     10
-#define ANALY_FORECAST_DEFAULT_CONF     95
-#define ANALY_FORECAST_DEFAULT_WNCHECK  1
-#define ANALY_FORECAST_MAX_HISTORY_ROWS 40000
-#define ANALY_MAX_FC_ROWS               1024
-#define ANALY_ANOMALY_WINDOW_MAX_ROWS   40000
+#define ALGO_OPT_ALGO_NAME        "algo"
+#define ALGO_OPT_TIMEOUT_NAME     "timeout"
+#define ALGO_OPT_WNCHECK_NAME     "wncheck"
+
+#define ANALY_FORECAST_DEFAULT_ROWS      10
+#define ANALY_FORECAST_DEFAULT_CONF      0.95
+#define ANALY_DEFAULT_WNCHECK            1
+#define ANALY_FORECAST_MAX_ROWS          40000
+#define ANALY_FORECAST_MIN_ROWS          10
+#define ANALY_FORECAST_RES_MAX_ROWS      1024
+#define ANALY_ANOMALY_WINDOW_MAX_ROWS    8192
+#define ANALY_ANOMALY_WINDOW_MIN_ROWS    10
+#define ANALY_IMPUTATION_INPUT_MAX_ROWS  8192
+#define ANALY_IMPUTATION_INPUT_MIN_ROWS  10
+#define ANALY_IMPUTATION_OUTPUT_MAX_ROWS 16384
+#define ANALY_GENERIC_INPUT_MAX_ROWS     10240
+#define ANALY_GENERIC_OUTPUT_MAX_ROWS    20480
+#define ANALY_DEFAULT_TIMEOUT            60  // 60sec
+#define ANALY_MAX_TIMEOUT                1200
+#define ANALY_MAX_IMPUT_ROWS             2048
+#define ANALY_TDTSFM_FORECAST_MIN_ROWS   96
 
 typedef struct {
-  EAnalAlgoType type;
+  EAnalyAlgoType type;
   int32_t       anode;
   int32_t       urlLen;
   char         *url;
@@ -48,7 +65,7 @@ typedef enum {
 typedef enum {
   ANALYTICS_HTTP_TYPE_GET = 0,
   ANALYTICS_HTTP_TYPE_POST,
-} EAnalHttpType;
+} EAnalyHttpType;
 
 typedef struct {
   TdFilePtr filePtr;
@@ -57,24 +74,25 @@ typedef struct {
 } SAnalyticsColBuf;
 
 typedef struct {
-  EAnalBufType bufType;
-  TdFilePtr    filePtr;
-  char         fileName[TSDB_FILENAME_LEN];
-  int32_t      numOfCols;
+  EAnalBufType      bufType;
+  TdFilePtr         filePtr;
+  char              fileName[TSDB_FILENAME_LEN];
+  int32_t           numOfCols;
   SAnalyticsColBuf *pCols;
+  const char *      pid;
 } SAnalyticBuf;
 
 int32_t taosAnalyticsInit();
 void    taosAnalyticsCleanup();
-SJson  *taosAnalySendReqRetJson(const char *url, EAnalHttpType type, SAnalyticBuf *pBuf);
+SJson  *taosAnalySendReqRetJson(const char *url, EAnalyHttpType type, SAnalyticBuf *pBuf, int64_t timeout, const char* id);
 
-int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalAlgoType type, char *url, int32_t urlLen);
+int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url, int32_t urlLen);
+int32_t taosAnalyGetOpts(const char *pOption, SHashObj **pOptHash);
 bool    taosAnalyGetOptStr(const char *option, const char *optName, char *optValue, int32_t optMaxLen);
-bool    taosAnalyGetOptInt(const char *option, const char *optName, int64_t *optValue);
 int64_t taosAnalyGetVersion();
 void    taosAnalyUpdate(int64_t newVer, SHashObj *pHash);
 
-int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols);
+int32_t tsosAnalyBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols, const char* pId);
 int32_t taosAnalyBufWriteOptStr(SAnalyticBuf *pBuf, const char *optName, const char *optVal);
 int32_t taosAnalyBufWriteOptInt(SAnalyticBuf *pBuf, const char *optName, int64_t optVal);
 int32_t taosAnalyBufWriteOptFloat(SAnalyticBuf *pBuf, const char *optName, float optVal);
@@ -87,9 +105,14 @@ int32_t taosAnalyBufWriteDataEnd(SAnalyticBuf *pBuf);
 int32_t taosAnalyBufClose(SAnalyticBuf *pBuf);
 void    taosAnalyBufDestroy(SAnalyticBuf *pBuf);
 
-const char   *taosAnalysisAlgoType(EAnalAlgoType algoType);
-EAnalAlgoType taosAnalyAlgoInt(const char *algoName);
-const char   *taosAnalyAlgoUrlStr(EAnalAlgoType algoType);
+int32_t taosAnalysisParseAlgo(const char *pOpt, char *pAlgoName, char *pUrl, int32_t type, int32_t len,
+                              SHashObj *pHashMap, const char *id);
+int64_t taosAnalysisParseTimout(SHashObj* pHashMap, const char* id);
+int8_t  taosAnalysisParseWncheck(SHashObj* pHashMap, const char* id);
+
+const char   *taosAnalysisAlgoType(EAnalyAlgoType algoType);
+EAnalyAlgoType taosAnalyAlgoInt(const char *algoName);
+const char   *taosAnalyAlgoUrlStr(EAnalyAlgoType algoType);
 
 #ifdef __cplusplus
 }

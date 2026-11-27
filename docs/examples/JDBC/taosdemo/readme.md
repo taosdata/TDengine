@@ -1,4 +1,4 @@
-```
+```shell
 cd tests/examples/JDBC/taosdemo
 mvn clean package -Dmaven.test.skip=true
 # Create tables first, then insert data

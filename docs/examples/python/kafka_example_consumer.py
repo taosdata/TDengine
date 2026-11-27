@@ -1,4 +1,20 @@
 #! encoding = utf-8
+
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import json
 import logging
 import time
@@ -182,7 +198,7 @@ def test_json_to_taos(consumer: Consumer):
                                              'voltage': 105,
                                              'phase': 0.02027, }),
                            partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
-                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None, leader_epoch=0),
             ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
                            value=json.dumps({'table_name': 'd1',
                                              'ts': '2022-12-06 15:13:39.643',
@@ -190,7 +206,7 @@ def test_json_to_taos(consumer: Consumer):
                                              'voltage': 102,
                                              'phase': 0.02027, }),
                            partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
-                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None,leader_epoch=0 ),
         ]
     ]
 
@@ -203,11 +219,11 @@ def test_line_to_taos(consumer: Consumer):
             ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
                            value="d0 values('2023-01-01 00:00:00.001', 3.49, 109, 0.02737)".encode('utf-8'),
                            partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
-                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None,leader_epoch=0 ),
             ConsumerRecord(checksum=None, headers=None, offset=1, key=None,
                            value="d1 values('2023-01-01 00:00:00.002', 6.19, 112, 0.09171)".encode('utf-8'),
                            partition=1, topic='test', serialized_key_size=None, serialized_header_size=None,
-                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None),
+                           serialized_value_size=None, timestamp=time.time(), timestamp_type=None,leader_epoch=0 ),
         ]
     ]
     consumer._line_to_taos(messages=records)

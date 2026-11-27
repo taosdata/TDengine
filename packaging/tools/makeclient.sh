@@ -1,6 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate tar.gz package for linux client in all os system
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 set -x
 
@@ -26,7 +40,6 @@ clientName="taos"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 
 benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
@@ -78,12 +91,20 @@ if [ "$osType" != "Darwin" ]; then
         ${script_dir}/set_core.sh \
         ${script_dir}/get_client.sh"
   fi
-  lib_files="${build_dir}/lib/libtaos.so.${version}"
+  lib_files="${build_dir}/lib/libtaos.so"
+  nativelib_files="${build_dir}/lib/libtaosnative.so"
   wslib_files="${build_dir}/lib/libtaosws.so"
+  pkg_lib_files="libtaos.so.${version}"
+  pkg_nativelib_files="libtaosnative.so.${version}"
+  pkg_wslib_files="libtaosws.so.${version}"
 else
   bin_files="${build_dir}/bin/${clientName} ${script_dir}/remove_client.sh"
-  lib_files="${build_dir}/lib/libtaos.${version}.dylib"
+  lib_files="${build_dir}/lib/libtaos.dylib"
+  nativelib_files="${build_dir}/lib/libtaosnative.dylib"
   wslib_files="${build_dir}/lib/libtaosws.dylib"
+  pkg_lib_files="libtaos.${version}.dylib"
+  pkg_nativelib_files="libtaosnative.${version}.dylib"
+  pkg_wslib_files="libtaosws.${version}.dylib"
 fi
 
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
@@ -138,17 +159,6 @@ if [ -f ${build_dir}/bin/jemalloc-config ]; then
   fi
 fi
 
-cd ${install_dir}
-
-if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f ${tarName} * --remove-files || :
-else
-  tar -zcv -f ${tarName} * || :
-  mv ${tarName} ..
-  rm -rf ./*
-  mv ../${tarName} .
-fi
-
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 cp ${install_dir}/install_client.sh install_client_temp.sh
@@ -179,20 +189,40 @@ fi
 chmod a+x ${install_dir}/install_client.sh
 
 if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
-  # Copy example code
+  # Copy example code. The sources were consolidated into docs/examples, but the
+  # layout inside the package is frozen: the shipped subset and the historical
+  # directory names (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
   mkdir -p ${install_dir}/examples
-  examples_dir="${top_dir}/examples"
-  new_example_dir="${top_dir}/docs/examples"
-  cp -r ${examples_dir}/c ${install_dir}/examples
+  examples_dir="${top_dir}/docs/examples"
+  examples_manifest="${top_dir}/packaging/examples-manifest.txt"
+
+  examples_skip_optional=false
+  if [[ "$pagMode" == "lite" ]] || [[ "$cpuType" == "aarch32" ]]; then
+    examples_skip_optional=true
+  fi
+
+  while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    [ "${ex_group}" = all ] || continue
+    # `c` ships in every package; the other languages are dropped from lite and
+    # aarch32 packages, matching the pre-change behaviour.
+    if [ "${examples_skip_optional}" = true ] && [ "${ex_dst}" != c ]; then
+      continue
+    fi
+    if [ ! -f "${examples_dir}/${ex_src}" ]; then
+      echo "ERROR: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+      exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p "${install_dir}/examples/${ex_dst}/$(dirname "${ex_rel}")"
+    cp "${examples_dir}/${ex_src}" "${install_dir}/examples/${ex_dst}/${ex_rel}"
+  done < "${examples_manifest}"
+
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
-    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
-    cp -r ${examples_dir}/python ${install_dir}/examples ||:
-    cp -r ${examples_dir}/R ${install_dir}/examples ||:
-    cp -r ${examples_dir}/go ${install_dir}/examples ||:
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
-    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples ||:
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${top_dir}/tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ]; then
@@ -223,12 +253,13 @@ if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver
-cp ${lib_files} ${install_dir}/driver
+cp ${lib_files} ${install_dir}/driver/${pkg_lib_files}
+cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files}
 
 # Copy connector
 connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
-[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver
+cp ${wslib_files} ${install_dir}/driver/${pkg_wslib_files}
 
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if [ "$osType" != "Darwin" ]; then
@@ -237,7 +268,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
     cp -r ${connector_dir}/go ${install_dir}/connector
   else
-    echo "WARNING: go connector not found, please check if want to use it!"
+    echo "WARNING: go connector not found, skipping it!"
   fi
   cp -r ${connector_dir}/python ${install_dir}/connector || :
   cp -r ${connector_dir}/nodejs ${install_dir}/connector || :
@@ -275,10 +306,10 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 if [ "$osType" != "Darwin" ]; then
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) --remove-files || :
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) --remove-files || :
 else
-  tar -zcv -f "$(basename ${pkg_name}).tar.gz" $(basename ${install_dir}) || :
-#  mv "$(basename ${pkg_name}).tar.gz" ..
+  tar -Jcv -f "$(basename ${pkg_name}).tar.xz" $(basename ${install_dir}) || :
+#  mv "$(basename ${pkg_name}).tar.xz" ..
   rm -rf ${install_dir} ||:
-#  mv ../"$(basename ${pkg_name}).tar.gz" .
+#  mv ../"$(basename ${pkg_name}).tar.xz" .
 fi

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -42,14 +44,12 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
   // remove attached object such as trans
   SdbDeleteFp deleteFp = pSdb->deleteFps[pRow->type];
   if (deleteFp != NULL) {
-    mInfo("vgId:1, deleteFp:%p, type:%s", deleteFp, sdbTableName(pRow->type));
+    mDebug("vgId:1, deleteFp:%p, type:%s, row:%p", deleteFp, sdbTableName(pRow->type), pRow);
     (void)(*deleteFp)(pSdb, pRow->pObj, callFunc);
   }
 
   sdbPrintOper(pSdb, pRow, "free");
 
-#if 1
   mTrace("row:%p, is freed", pRow->pObj);
-#endif
   taosMemoryFreeClear(pRow);
 }

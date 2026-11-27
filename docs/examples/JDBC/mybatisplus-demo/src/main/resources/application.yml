@@ -1,16 +1,32 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 spring:
   datasource:
     driver-class-name: com.taosdata.jdbc.ws.WebSocketDriver
-    url: jdbc:TAOS-WS://localhost:6041/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8
+    url: jdbc:TAOS-WS://localhost:6041/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8&varcharAsString=true
     username: root
     password: taosdata
 
     druid:
-      initial-size: 5
+      initial-size: 10
       min-idle: 5
-      max-active: 5
+      max-active: 50
 
 mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: false
 
@@ -21,4 +37,3 @@ logging:
         example:
           mybatisplusdemo:
             mapper: debug
-

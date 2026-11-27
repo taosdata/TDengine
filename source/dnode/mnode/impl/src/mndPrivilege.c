@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,30 +19,224 @@
 #include "mndPrivilege.h"
 #include "mndDb.h"
 #include "mndUser.h"
+#include "mndDef.h"
+#include "mndToken.h"
+#include "tpriv.h"
 
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
 void    mndCleanupPrivilege(SMnode *pMnode) {}
-int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, EOperType operType) { return 0; }
-int32_t mndCheckAlterUserPrivilege(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) { return 0; }
-int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, EShowType showType, const char *dbname) { return 0; }
-int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, EOperType operType, SDbObj *pDb) { return 0; }
-int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, EOperType operType, const char *dbname) {
+
+
+int32_t mndCheckConnectPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, const SLoginInfo *pLoginInfo) {
+  if ((!pUser->superUser) && (!pUser->enable)) {
+    return TSDB_CODE_MND_USER_DISABLED;
+  }
   return 0;
 }
 
-int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, EOperType operType, SMqTopicObj *pTopic) { return 0; }
 
-int32_t mndSetUserWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserWhiteListRsp *pWhiteListRsp) {
+int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType) {
+  int32_t   code = 0;
+  SUserObj *pUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), NULL, _OVER);
+
+  if ((!pUser->superUser) && (!pUser->enable)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
+  }
+
+  if (operType == MND_OPER_CREATE_FUNC || operType == MND_OPER_DROP_FUNC) {
+    bool hasSysdba = taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA)) != NULL;
+    if (!hasSysdba) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
+  // FLUSH MNODE triggers a WAL-truncating snapshot on the mnode leader; per FS section 4.1/section 6
+  // FLUSH MNODE requires sysinfo privileges to prevent ordinary users from restarting the cluster; it is gated on the sysinfo
+  // flag, same as SHOW MNODES/SHOW DNODES visibility elsewhere in this file's siblings.
+  if (operType == MND_OPER_FLUSH_MNODE) {
+    if ((!pUser->superUser) && (!pUser->sysInfo)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
+  // Killing another user's queries/connections and altering roles (granting or
+  // revoking privileges) are cluster-management operations that must be performed
+  // by the superuser only. In the community build mndCheckOperPrivilege previously
+  // only special-cased CREATE_FUNC/DROP_FUNC/FLUSH_MNODE, so any enabled account
+  // could kill arbitrary sessions (denial of service) or rewrite role grants
+  // (privilege escalation) -- the KILL/ALTER ROLE gaps reported in item 282.
+  if (operType == MND_OPER_KILL_QUERY || operType == MND_OPER_KILL_CONN ||
+      operType == MND_OPER_ALTER_ROLE) {
+    if (!pUser->superUser) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
+  // ASSIGN LEADER FORCE (security finding 270) is a cluster-wide disaster-recovery operation:
+  // it hands leadership of every 2-replica vgroup to an arbitrary online member with force=true,
+  // which on the vnode side bypasses the arbitrator member-token comparison and makes the forced
+  // replica commit without quorum. Like FLUSH MNODE it must be limited to cluster administrators,
+  // so it is gated on the sysinfo flag (super users always pass). Note that merely reaching this
+  // point already proves the asserted user exists and is enabled (mndAcquireUser above), which
+  // the previously unprotected TDMT_MND_ARB_ASSIGN_LEADER handler did not even require.
+  if (operType == MND_OPER_ASSIGN_LEADER) {
+    if ((!pUser->superUser) && (!pUser->sysInfo)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
+_OVER:
+  mndReleaseUser(pMnode, pUser);
+  TAOS_RETURN(code);
+}
+
+int32_t mndCheckSysObjPrivilege(SMnode *pMnode, SUserObj *pUser, const char *token, EPrivType privType,
+                                EPrivObjType objType, int64_t ownerId, const char *objFName, const char *tbName) {
+  if (!pUser->enable) {
+    TAOS_RETURN(TSDB_CODE_MND_USER_DISABLED);
+  }
+  if (pUser->superUser) TAOS_RETURN(0);
+  TAOS_RETURN(TSDB_CODE_MND_NO_RIGHTS);
+}
+
+uint64_t mndBuildSysPrivBatchMask(SMnode *pMnode, SUserObj *pUser, const char *token,
+                                  const EPrivType *privTypes, int32_t numPrivTypes) {
+  if (numPrivTypes <= 0) {
+    return 0;
+  }
+  return numPrivTypes >= 64 ? UINT64_MAX : ((1ULL << numPrivTypes) - 1);
+}
+int32_t mndCheckObjPrivilegeRec(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
+                                int64_t ownerId, int32_t acctId, const char *objName, const char *tbName) {
+  return 0;
+}
+int32_t mndCheckObjPrivilegeRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType,
+                                 int64_t ownerId, const char *objFName, const char *tbName) {
+  return 0;
+}
+int32_t mndCheckAlterUserPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, SUserObj *pUser,
+                                   SAlterUserReq *pAlter) {
+  int32_t   code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+  if (pAlter->hasPassword) {
+    if (strncmp(pUser->user, pOperUser->user, TSDB_USER_LEN) == 0) {
+      if (pAlter->numIpRanges > 0 || pAlter->numDropIpRanges > 0) {
+        // user can not alter its own ip white list
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+      }
+      goto _OVER;
+    }
+  }
+
+  TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndCheckAlterUserPrivilege failed at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) {
+  int32_t   code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  // A TOTP secret is a per-principal second factor. In the community build this
+  // helper used to unconditionally return success, so ANY enabled account could
+  // rotate or drop ANOTHER user's TOTP secret (disabling that principal's 2FA or
+  // taking over its binding). Enforce the documented model: a superuser may
+  // manage any principal's TOTP secret; a non-superuser may only manage their
+  // own (mirroring the self-only password-change rule in mndCheckAlterUserPrivilege).
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+  if (strncmp(opUser, pUser->user, TSDB_USER_LEN) == 0) {
+    // operator manages its own TOTP secret
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndCheckTotpSecretPrivilege failed at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
+int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
+int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
+int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
+                                  const char *dbname, bool skipExists) {
+  return 0;
+}
+int32_t mndCheckDbPrivilegeByNameRecF(SMnode *pMnode, SUserObj *pUser, EPrivType privType, EPrivObjType objType, const char *objFName,
+                                      const char *tbName) {
+  return 0;
+}
+int32_t mndCheckStbPrivilege(SMnode *pMnode, SUserObj *pUser, const char* token, EOperType operType, SStbObj *pStb) { return 0; }
+int32_t mndCheckTopicPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SMqTopicObj *pTopic) { return 0; }
+int32_t mndCheckTokenPrivilege(SMnode *pMnode, const char *opUser, const char *opToken, const char *user,
+                               const char *token, EPrivType privType) {
+  return 0;
+}
+
+int32_t mndSetUserIpWhiteListDualRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
+  int32_t code = 0;
   memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
-  pWhiteListRsp->numWhiteLists = 1;
-  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
-  if (pWhiteListRsp->pWhiteLists == NULL) {
+
+  pWhiteListRsp->numWhiteLists = 2;
+  pWhiteListRsp->pWhiteListsDual = taosMemoryMalloc(pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  if (pWhiteListRsp->pWhiteListsDual == NULL) {
     return terrno;
   }
-  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpV4Range));
+  memset(pWhiteListRsp->pWhiteListsDual, 0, pWhiteListRsp->numWhiteLists * sizeof(SIpRange));
+  pWhiteListRsp->pWhiteListsDual[0].type = 0;  //
+  pWhiteListRsp->pWhiteListsDual[1].type = 1;
 
   return 0;
+}
+
+int32_t mndSetUserDateTimeWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SUserDateTimeWhiteList *pWhiteListRsp) {
+  (void)memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+  pWhiteListRsp->ver = 0;
+  pWhiteListRsp->numWhiteLists = 0;
+  TAOS_RETURN(0);
+}
+
+int32_t mndSetUserIpWhiteListRsp(SMnode *pMnode, SUserObj *pUser, SGetUserIpWhiteListRsp *pWhiteListRsp) {
+  int32_t code = 0;
+  memcpy(pWhiteListRsp->user, pUser->user, TSDB_USER_LEN);
+  pWhiteListRsp->numWhiteLists = 1;
+
+  SIpWhiteList *pWhiteList = NULL;
+  code = cvtIpWhiteListDualToV4(pUser->pIpWhiteListDual, &pWhiteList);
+  if (code != 0) {
+    return code;
+  }
+  pWhiteListRsp->pWhiteLists = taosMemoryMalloc(pWhiteList->num * sizeof(SIpV4Range));
+  if (pWhiteListRsp->pWhiteLists == NULL) {
+    taosMemoryFreeClear(pWhiteList);
+    return terrno;
+  }
+  memset(pWhiteListRsp->pWhiteLists, 0, pWhiteList->num * sizeof(SIpV4Range));
+  taosMemoryFreeClear(pWhiteList);
+  return code;
 }
 
 int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
@@ -51,10 +247,23 @@ int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp
   pRsp->version = pUser->authVersion;
   pRsp->passVer = pUser->passVersion;
   pRsp->whiteListVer = pMnode->ipWhiteVer;
-  return 0;
+  pRsp->userId = pUser->uid;
+  pRsp->minSecLevel = TSDB_MIN_SECURITY_LEVEL;
+  pRsp->maxSecLevel = TSDB_MAX_SECURITY_LEVEL;
+
+  SUserSessCfg sessCfg = {.sessPerUser = pUser->sessionPerUser,
+                          .sessConnTime = pUser->connectTime,
+                          .sessConnIdleTime = pUser->connectIdleTime,
+                          .sessMaxConcurrency = pUser->callPerSession,
+                          .sessMaxCallVnodeNum = pUser->vnodePerCall};
+  memcpy(&pRsp->sessCfg, &sessCfg, sizeof(SUserSessCfg));
+  pRsp->timeWhiteListVer = pMnode->timeWhiteVer;
+
+  return mndGetUserTokenStatuses(pUser->user, &pRsp->tokens);
 }
 
 int32_t mndEnableIpWhiteList(SMnode *pMnode) { return 0; }
+int32_t mndEnableTimeWhiteList(SMnode *pMnode) { return 0; }
 
 int32_t mndFetchIpWhiteList(SIpWhiteList *ipList, char **buf) {
   *buf = NULL;

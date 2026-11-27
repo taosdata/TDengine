@@ -1,0 +1,32 @@
+use text_nots_db;
+DROP TABLE IF EXISTS ref_ts;
+CREATE TABLE ref_ts (ts TIMESTAMP, id INT, label VARCHAR(32));
+INSERT INTO ref_ts VALUES ('2024-01-01 00:00:00',1,'alpha')('2024-01-02 00:00:00',2,'beta')('2024-01-03 00:00:00',3,'gamma');
+# A1: no-ts TEXT SELECT ORDER BY id (now rejected — first col must be TIMESTAMP)
+SELECT id, score FROM TEXT(id INT, score FLOAT) VALUES (2,2.5)(1,1.5)(3,3.5) t ORDER BY id;
+# A2: no-ts TEXT GROUP BY (now rejected)
+SELECT grp, COUNT(id) FROM TEXT(id INT, grp VARCHAR(4)) VALUES (1,'a')(2,'a')(3,'b') t GROUP BY grp ORDER BY grp;
+# B1: unsorted-ts TEXT auto-sorts rows by ts
+SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t ORDER BY ts;
+# B2: unsorted-ts TEXT JOIN real table
+SELECT t.id, r.label FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t JOIN ref_ts r ON t.ts=r.ts ORDER BY t.ts;
+# B3: unsorted-ts TEXT INTERVAL in subquery
+SELECT _wstart, COUNT(*) FROM (SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-05 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-02 00:00:00',2) t) INTERVAL(3d);
+# B4: unsorted-ts TEXT LEFT JOIN real table
+SELECT t.id, r.label FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-03 00:00:00',3)('2024-01-01 00:00:00',1)('2024-01-04 00:00:00',4) t LEFT JOIN ref_ts r ON t.ts=r.ts ORDER BY t.ts;
+# C2: NULL in non-ts column is accepted
+SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00', NULL) t;
+# D1: non-first TIMESTAMP col — SELECT, ORDER BY (now rejected)
+SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) VALUES (2, '2026-01-01 00:00:02')(1, '2026-01-01 00:00:01') t ORDER BY ts ASC;
+# D1b: non-first TIMESTAMP col — WHERE (now rejected)
+SELECT id FROM TEXT(id INT, ts TIMESTAMP) VALUES (1, '2026-01-01 00:00:01')(2, '2026-01-01 00:00:02') t WHERE ts > '2026-01-01 00:00:01';
+# D2: NULL in non-first TIMESTAMP col (now rejected)
+SELECT id, ts FROM TEXT(id INT, ts TIMESTAMP) VALUES (1, NULL)(2, '2026-01-01 00:00:02') t ORDER BY id;
+# E1: duplicate timestamps are preserved in TEXT
+SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00', 1)('2024-01-01 00:00:00', 2)('2024-01-02 00:00:00', 3) t ORDER BY ts, id;
+# E2: COUNT includes duplicate-ts rows
+SELECT COUNT(*) FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00', 1)('2024-01-01 00:00:00', 2)('2024-01-02 00:00:00', 3) t;
+# E3: GROUP BY ts with duplicates
+SELECT ts, COUNT(*), SUM(id) FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-01 00:00:00', 1)('2024-01-01 00:00:00', 2)('2024-01-02 00:00:00', 3) t GROUP BY ts ORDER BY ts;
+# E4: unsorted duplicate timestamps auto-sorted
+SELECT ts, id FROM TEXT(ts TIMESTAMP, id INT) VALUES ('2024-01-02 00:00:00', 3)('2024-01-01 00:00:00', 2)('2024-01-01 00:00:00', 1) t ORDER BY ts, id;

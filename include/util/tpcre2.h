@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #ifndef _TD_ULIT_PCRE2_H_
 #define _TD_ULIT_PCRE2_H_
 
+#ifdef USE_PCRE2
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include "pcre2.h"
 
@@ -31,4 +34,5 @@ void    destroyRegexes(pcre2_code* pWktRegex, pcre2_match_data* pWktMatchData);
 }
 #endif
 
+#endif  // USE_PCRE2
 #endif  // _TD_UTIL_PAGEDBUF_H_

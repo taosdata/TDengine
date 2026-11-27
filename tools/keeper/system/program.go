@@ -1,13 +1,29 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package system
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
 
+	"github.com/gin-contrib/cors"
+	"github.com/gin-gonic/gin"
 	"github.com/kardianos/service"
 	"github.com/taosdata/go-utils/web"
 	"github.com/taosdata/taoskeeper/api"
@@ -21,6 +37,9 @@ import (
 
 var logger = log.GetLogger("PRG")
 
+// Global memoryStore reference for cleanup on shutdown
+var memoryStore *process.MemoryStore
+
 func Init() *http.Server {
 	conf := config.InitConfig()
 	log.ConfigLog()
@@ -32,7 +51,7 @@ func Init() *http.Server {
 		return nil
 	}
 
-	router := web.CreateRouter(false, &conf.Cors, false)
+	router := CreateRouter(false, &conf.Cors)
 	router.Use(log.GinLog())
 	router.Use(log.GinRecoverLog())
 
@@ -40,12 +59,28 @@ func Init() *http.Server {
 	reporter.Init(router)
 	monitor.StartMonitor(conf.Metrics.Cluster, conf, reporter)
 
+	// v2: Create memory store and parser (must be before route registration)
+	// Use configurable TTL from config file (convert seconds to duration)
+	var err error
+	memoryStore, err = process.NewMemoryStore(time.Duration(conf.Prometheus.CacheTTL) * time.Second)
+	if err != nil {
+		logger.Errorf("Failed to create memory store: %v", err)
+		panic(err)
+	}
+	metricParser := api.NewMetricParser(memoryStore, conf.Prometheus.IncludeTables)
+	router.Use(api.MetricCacheMiddleware(metricParser))
+	if len(conf.Prometheus.IncludeTables) > 0 {
+		logger.Infof("Memory cache mode (v2) enabled, additional tables: %v", conf.Prometheus.IncludeTables)
+	} else {
+		logger.Info("Memory cache mode (v2) enabled")
+	}
+
 	go func() {
 		// wait for monitor to all metric received
 		time.Sleep(time.Second * 35)
 
 		processor := process.NewProcessor(conf)
-		node := api.NewNodeExporter(processor)
+		node := api.NewNodeExporter(processor, memoryStore, reporter)
 		node.Init(router)
 
 		if version.IsEnterprise == "true" {
@@ -59,19 +94,9 @@ func Init() *http.Server {
 
 	if version.IsEnterprise == "true" {
 		if conf.Audit.Enable {
-			audit, err := api.NewAudit(conf)
-			if err != nil {
-				panic(err)
-			}
-			if err = audit.Init(router); err != nil {
-				panic(err)
-			}
+			audit := api.NewAudit(conf)
+			audit.Init(router)
 		}
-	}
-
-	adapter := api.NewAdapter(conf)
-	if err := adapter.Init(router); err != nil {
-		panic(err)
 	}
 
 	gen_metric := api.NewGeneralMetric(conf)
@@ -79,9 +104,15 @@ func Init() *http.Server {
 		panic(err)
 	}
 
+	adapter := api.NewAdapter(conf, gen_metric)
+	if err := adapter.Init(router); err != nil {
+		panic(err)
+	}
+
 	server := &http.Server{
-		Addr:    ":" + strconv.Itoa(conf.Port),
-		Handler: router,
+		Addr:              conf.Host + ":" + strconv.Itoa(conf.Port),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
 	return server
@@ -98,8 +129,7 @@ func Start(server *http.Server) {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	err = s.Run()
-	if err != nil {
+	if err := s.Run(); err != nil {
 		logger.Fatal(err)
 	}
 }
@@ -121,8 +151,23 @@ func (p *program) Start(s service.Service) error {
 
 	server := p.server
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			panic(fmt.Errorf("taoskeeper start up fail! %v", err))
+		fail := func(err error) {
+			if err == nil || err == http.ErrServerClosed {
+				return
+			}
+			logger.Errorf("taoskeeper start up fail: %v", err)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			log.Close(ctx)
+			cancel()
+			os.Exit(1)
+		}
+
+		if ssl := config.Conf.SSL; ssl.Enable {
+			logger.Infof("Starting HTTPS service at %s", server.Addr)
+			fail(server.ListenAndServeTLS(ssl.CertFile, ssl.KeyFile))
+		} else {
+			logger.Infof("Starting HTTP service at %s", server.Addr)
+			fail(server.ListenAndServe())
 		}
 	}()
 	return nil
@@ -137,10 +182,23 @@ func (p *program) Stop(s service.Service) error {
 		logger.Println("WebServer Shutdown error:", err)
 	}
 
+	// Stop memoryStore cleanup goroutine
+	if memoryStore != nil {
+		logger.Println("Stopping memory store cleanup goroutine")
+		memoryStore.Close()
+	}
+
 	logger.Println("Server exiting")
 	ctxLog, cancelLog := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancelLog()
 	logger.Println("Flushing Log")
 	log.Close(ctxLog)
 	return nil
+}
+
+func CreateRouter(debug bool, corsConf *web.CorsConfig) *gin.Engine {
+	gin.SetMode(gin.ReleaseMode)
+	router := gin.New()
+	router.Use(cors.New(corsConf.GetConfig()))
+	return router
 }

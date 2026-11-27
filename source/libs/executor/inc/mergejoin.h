@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,8 +14,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_MERGEJOIN_H
 #define TDENGINE_MERGEJOIN_H
+
+#include "executorInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +44,13 @@ typedef enum EJoinTableType {
   E_JOIN_TB_BUILD = 1,
   E_JOIN_TB_PROBE
 } EJoinTableType;
+
+typedef enum EPrimExprType {
+  E_PRIM_TIMETRUNCATE = 1,
+  E_PRIM_VALUE,
+  E_PRIM_TIMESTAMP_SCALE,
+  E_PRIM_SCALAR
+} EPrimExprType;
 
 
 #define MJOIN_TBTYPE(_type) (E_JOIN_TB_BUILD == (_type) ? "BUILD" : "PROBE")
@@ -85,11 +97,23 @@ typedef struct SMJoinNMatchCtx {
   int32_t grpIdx;
 } SMJoinNMatchCtx;
 
-// for now timetruncate only
+// for now timetruncate and timestamp_scale
 typedef struct SMJoinPrimExprCtx {
-  int64_t truncateUnit;
-  int64_t timezoneUnit;
-  int32_t targetSlotId;
+  EPrimExprType type;
+
+  // FOR TIMETRUNCATE
+  int64_t       truncateUnit;
+  int64_t       timezoneUnit; /* fixed offset like "+0800" */
+  timezone_t    tz;           /* DST-aware IANA handle, NULL  ->  fixed offset */
+  int8_t        fdow;         /* firstDayOfWeek 0-6, for week trunc alignment */
+  int32_t       precision;
+  int32_t       targetSlotId;
+
+  // FOR VALUE
+  int64_t       constTs;
+
+  // FOR TIMESTAMP_SCALE
+  int8_t        targetPrec;
 } SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {
@@ -100,8 +124,10 @@ typedef struct SMJoinTableCtx {
   bool               dsFetchDone;
   SNode*             primExpr;
   SMJoinPrimExprCtx  primCtx;
+  SExprSupp          primExprSupp;
+  SExecTaskInfo*     taskInfo;
 
-  int32_t            blkId;
+  int64_t            blkId;
   SQueryStat         inputStat;
 
   uint64_t           lastInGid;
@@ -117,6 +143,7 @@ typedef struct SMJoinTableCtx {
   int32_t            keyNullSize;
   SMJoinColInfo*     keyCols;
   char*              keyBuf;
+  size_t             keyBufCap;
   char*              keyData;
 
   bool               newBlk;
@@ -323,6 +350,9 @@ typedef struct SMJoinOperatorInfo {
   joinResetFp       grpResetFp;
   SMJoinCtx         ctx;
   SMJoinExecInfo    execInfo;
+#if defined(BUILD_TEST)
+  bool              testMatchSelected;
+#endif
 } SMJoinOperatorInfo;
 
 #define MJOIN_DS_REQ_INIT(_pOp) ((_pOp)->pOperatorGetParam && ((SSortMergeJoinOperatorParam*)(_pOp)->pOperatorGetParam->value)->initDownstream)
@@ -337,6 +367,8 @@ typedef struct SMJoinOperatorInfo {
 #define PROBE_TS_NREACH(_asc, _pts, _bts) (((_asc) && (_pts) > (_bts)) || (!(_asc) && (_pts) < (_bts)))
 #define MJOIN_BUILD_BLK_OOR(_asc, _pts, _pidx, _bts, _bnum) (((_asc) && (*((int64_t*)(_pts) + (_pidx)) > *((int64_t*)(_bts) + (_bnum) - 1))) || ((!(_asc)) && (*((int64_t*)(_pts) + (_pidx)) < *((int64_t*)(_bts) + (_bnum) - 1))))
 
+#define MJOIN_PRIM_EXPR_GOT(_pJoin) ((_pJoin)->probe->primCtx.type > 0 || (_pJoin)->build->primCtx.type > 0)
+
 #define GRP_REMAIN_ROWS(_grp) ((_grp)->endIdx - (_grp)->readIdx + 1)
 #define GRP_DONE(_grp) ((_grp)->readIdx > (_grp)->endIdx)
 
@@ -347,7 +379,7 @@ typedef struct SMJoinOperatorInfo {
 
 #define BLK_IS_FULL(_blk) ((_blk)->info.rows == (_blk)->info.capacity)
 
-#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!colDataIsNull_f((_b + _base), _idx))
+#define MJOIN_ROW_BITMAP_SET(_b, _base, _idx) (!BMIsNull((_b + _base), _idx))
 #define MJOIN_SET_ROW_BITMAP(_b, _base, _idx) colDataClearNull_f((_b + _base), _idx)
 
 #define ASOF_EQ_ROW_INCLUDED(_op) (OP_TYPE_GREATER_EQUAL == (_op) || OP_TYPE_LOWER_EQUAL == (_op) || OP_TYPE_EQUAL == (_op))
@@ -459,7 +491,7 @@ void mWinJoinGroupReset(SMJoinOperatorInfo* pJoin);
 bool mJoinRetrieveBlk(SMJoinOperatorInfo* pJoin, int32_t* pIdx, SSDataBlock** ppBlk, SMJoinTableCtx* pTb);
 void mJoinSetDone(SOperatorInfo* pOperator);
 bool mJoinIsDone(SOperatorInfo* pOperator);
-bool mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen);
+int32_t mJoinCopyKeyColsDataToBuf(SMJoinTableCtx* pTable, int32_t rowIdx, size_t *pBufLen, bool* pNullKey);
 int32_t mJoinBuildEqGroups(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, bool restart);
 int32_t mJoinRetrieveEqGrpRows(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable, int64_t timestamp);
 int32_t mJoinCreateFullBuildTbHash(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable);
@@ -472,13 +504,15 @@ int32_t mJoinHandleMidRemains(SMJoinMergeCtx* pCtx);
 int32_t mJoinNonEqGrpCart(SMJoinOperatorInfo* pJoin, SSDataBlock* pRes, bool append, SMJoinGrpRows* pGrp, bool probeGrp);
 int32_t mJoinNonEqCart(SMJoinCommonCtx* pCtx, SMJoinGrpRows* pGrp, bool probeGrp, bool singleProbeRow);
 int32_t mJoinCopyMergeMidBlk(SMJoinMergeCtx* pCtx, SSDataBlock** ppMid, SSDataBlock** ppFin);
-int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startGrpIdx, int32_t startRowIdx);
-int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build, int32_t startRowIdx);
+int32_t mJoinFilterAndMarkRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build,
+                               int32_t startGrpIdx, int32_t startRowIdx, SExecTaskInfo* pTaskInfo);
+int32_t mJoinFilterAndMarkHashRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SMJoinTableCtx* build,
+                                   int32_t startRowIdx, SExecTaskInfo* pTaskInfo);
 int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t *rowBitmapOffset);
 int32_t mJoinProcessLowerGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
 int32_t mJoinProcessGreaterGrp(SMJoinMergeCtx* pCtx, SMJoinTableCtx* pTb, SColumnInfoData* pCol,  int64_t* probeTs, int64_t* buildTs);
-int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
-int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo);
+int32_t mJoinFilterAndKeepSingleRow(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
+int32_t mJoinFilterAndNoKeepRows(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
 int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp);
 
 

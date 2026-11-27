@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -66,7 +68,9 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 
   int32_t code = TDB_INIT_PAGE_LOCK(pPage);
   if (code) {
+    // TODO: memory leak here as we don't have xFree to free the allocated memory
     tdbError("tdb/page-create: init page lock failed.");
+    return code;
   }
   pPage->pageSize = pageSize;
   pPage->pData = ptr;
@@ -87,8 +91,8 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
 
   tdbTrace("tdb/page-destroy: %p/%d %p", pPage, pPage->id, xFree);
 
-  if (pPage->isDirty) {
-    tdbError("tdb/page-destroy: dirty page: %" PRIu8 ".", pPage->isDirty);
+  if (tdbPageGetFlag(pPage, PAGE_FLAG_DIRTY)) {
+    tdbError("tdb/page-destroy: dirty page: %p", pPage);
     return;
   }
 
@@ -112,7 +116,7 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
   return;
 }
 
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *)) {
   tdbTrace("page/zero: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
@@ -132,7 +136,7 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   }
 }
 
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int *)) {
   tdbTrace("page/init: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
   if (TDB_PAGE_NCELLS(pPage) == 0) {
@@ -183,6 +187,10 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   lidx = idx - iOvfl;
 
   if (asOvfl || nFree < szCell + TDB_PAGE_OFFSET_SIZE(pPage)) {
+    if (pPage->nOverflow >= tListLen(pPage->apOvfl)) {
+      tdbError("tdb/page-insert-cell: overflow array full, nOverflow: %d.", pPage->nOverflow);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     // TODO: make it extensible
     // add the cell as an overflow cell
     for (int i = pPage->nOverflow; i > iOvfl; i--) {
@@ -245,7 +253,7 @@ int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn
 int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   int    lidx;
   SCell *pCell;
-  int    szCell;
+  int    szCell, szFull;
   int    nCells;
   int    iOvfl;
   int    ret;
@@ -261,8 +269,8 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     if (pPage->aiOvfl[iOvfl] == idx) {
       // remove the over flow cell
-      tdbOsFree(pPage->apOvfl[iOvfl]);
       tdbTrace("tdbPage/drop/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
+      tdbOsFree(pPage->apOvfl[iOvfl]);
       for (; (++iOvfl) < pPage->nOverflow;) {
         pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
         pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
@@ -277,7 +285,14 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
 
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
-  szCell = (*pPage->xCellSize)(pPage, pCell, 1, pTxn, pBt);
+  szCell = (*pPage->xCellSize)(pPage, pCell, &szFull);
+  // free overflow pages of the cell
+  if (szFull > szCell) {
+    SPgno  pgno = *(SPgno *)(pCell + szCell - sizeof(SPgno));
+    int    nLeft = szFull - szCell + sizeof(SPgno);
+    (void)tdbFreeOvflPage(pgno, nLeft, pTxn, pBt);
+  }
+
   ret = tdbPageFree(pPage, lidx, pCell, szCell);
   if (ret) {
     tdbError("tdb/page-drop-cell: free cell failed, idx: %d, lidx: %d, szCell: %d", idx, lidx, szCell);
@@ -310,7 +325,7 @@ int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   memcpy(pToPage->pFreeEnd, pFromPage->pFreeEnd, (u8 *)pFromPage->pPageFtr - pFromPage->pFreeEnd);
 
   if (TDB_PAGE_CCELLS(pToPage) != pToPage->pFreeEnd - pToPage->pData) {
-    tdbError("tdb/page-copy: invalid to page, cell body: %d, range: %ld", TDB_PAGE_CCELLS(pToPage),
+    tdbError("tdb/page-copy: invalid to page, cell body: %d, range: %td", TDB_PAGE_CCELLS(pToPage),
              pToPage->pFreeEnd - pToPage->pData);
     return TSDB_CODE_INVALID_DATA_FMT;
   }
@@ -325,7 +340,7 @@ int32_t tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   for (int iOvfl = 0; iOvfl < pFromPage->nOverflow; iOvfl++) {
     SCell *pNewCell = pFromPage->apOvfl[iOvfl];
     if (deepCopyOvfl) {
-      int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], 0, NULL, NULL);
+      int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], NULL);
       pNewCell = (SCell *)tdbOsMalloc(szCell);
       if (pNewCell == NULL) {
         tdbError("tdb/page-copy: out of memory, size: %d", szCell);
@@ -464,6 +479,8 @@ _alloc_finish:
   pPage->pFreeStart += TDB_PAGE_OFFSET_SIZE(pPage);
   TDB_PAGE_NFREE_SET(pPage, nFree - szCell - TDB_PAGE_OFFSET_SIZE(pPage));
   *ppCell = pCell;
+  ASSERT_CORE(pCell - pPage->pData >= 0 && pCell - pPage->pData <= pPage->pageSize, "pCell: %p, pData: %p, pageSize: %d", pCell, pPage->pData, pPage->pageSize);
+  ASSERT_CORE(pCell + szCell - pPage->pData > 0 && pCell + szCell - pPage->pData <= pPage->pageSize, "pCell: %p, pData: %p, pageSize: %d", pCell, pPage->pData, pPage->pageSize);
   return 0;
 }
 
@@ -491,15 +508,13 @@ static int tdbPageFree(SPage *pPage, int idx, SCell *pCell, int szCell) {
   if (pCell == pPage->pFreeEnd) {
     pPage->pFreeEnd += szCell;
     TDB_PAGE_CCELLS_SET(pPage, pPage->pFreeEnd - pPage->pData);
+  } else if (szCell >= TDB_PAGE_FREE_CELL_SIZE(pPage)) {
+    cellFree = TDB_PAGE_FCELL(pPage);
+    pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
+    TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
   } else {
-    if (szCell >= TDB_PAGE_FREE_CELL_SIZE(pPage)) {
-      cellFree = TDB_PAGE_FCELL(pPage);
-      pPage->pPageMethods->setFreeCellInfo(pCell, szCell, cellFree);
-      TDB_PAGE_FCELL_SET(pPage, pCell - pPage->pData);
-    } else {
-      tdbError("tdb/page-free: invalid cell size: %d", szCell);
-      return TSDB_CODE_INVALID_PARA;
-    }
+    tdbError("tdb/page-free: invalid cell size: %d", szCell);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   dest = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * idx;
@@ -542,9 +557,10 @@ static int tdbPageDefragment(SPage *pPage) {
   SCell *pNextCell = (u8 *)pPage->pPageFtr;
   for (int32_t iCell = nCell - 1; iCell >= 0; iCell--) {
     SCell  *pCell = TDB_PAGE_CELL_AT(pPage, aCellIdx[iCell].iCell);
-    int32_t szCell = pPage->xCellSize(pPage, pCell, 0, NULL, NULL);
+    int32_t szCell = pPage->xCellSize(pPage, pCell, NULL);
 
     if (pNextCell - szCell < pCell) {
+      tdbOsFree(aCellIdx);
       return TSDB_CODE_INTERNAL_ERROR;
     }
 

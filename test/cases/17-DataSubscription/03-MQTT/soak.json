@@ -1,0 +1,60 @@
+{
+    "filetype": "insert",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "connection_pool_size": 8,
+    "num_of_records_per_req": 2000,
+    "thread_count": 2,
+    "create_table_thread_count": 1,
+    "confirm_parameter_prompt": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "power",
+                "drop": "no",
+                "vgroups": 64,
+                "replica": 3,
+                "duration":"100d",
+                "precision": "ms",
+                "keep": "3650d"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 4000,
+                    "insert_rows": 1000000,
+                    "childtable_prefix": "d",
+                    "insert_mode": "taosc",
+                    "timestamp_step": 1000,
+                    "start_timestamp":"now-4d",
+                    "columns": [
+                        { "type": "bool",        "name": "c1"},
+                        { "type": "tinyint",     "name": "c2", "values":["1"]},
+                        { "type": "smallint",     "name": "c3"},
+                        { "type": "int",     "name": "c4"},
+                        { "type": "bigint",     "name": "c5"},
+                        { "type": "float",     "name": "c6"},
+                        { "type": "double",     "name": "c7"},
+                        { "type": "binary",      "name": "c8", "len": 255},
+                        { "type": "timestamp",     "name": "c9"},
+                        { "type": "nchar",      "name": "c10", "len": 255},
+                        { "type": "tinyint unsigned",     "name": "c11", "values":["1"]},
+                        { "type": "smallint unsigned",     "name": "c12"},
+                        { "type": "int unsigned",     "name": "c13"},
+                        { "type": "bigint unsigned",     "name": "c14"},
+                        { "type": "varbinary",      "name": "c15", "len": 255},
+                        { "type": "varchar",      "name": "c17", "len": 255},
+                        { "type": "geometry",      "name": "c18", "len": 10240}
+                    ],
+                    "tags": [
+                        {"type": "json", "name": "t1","values": ["{{'k1': 'v1'}}"]}
+                    ]
+                }
+            ]
+        }
+    ]
+}

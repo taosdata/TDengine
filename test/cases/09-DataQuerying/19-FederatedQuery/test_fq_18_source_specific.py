@@ -1,0 +1,1093 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""
+test_fq_18_source_specific.py
+
+Source-specific and library-behavior-inconsistent federated query cases.
+
+Consolidates cases from fq_04, fq_05, and fq_06 that exhibit behavior
+unique to a specific external source library or expose incompatibilities
+between source versions/protocols:
+
+  - test_fq_sql_influxdb_tags_partition  (fq_04): InfluxDB DISTINCT tags
+                                                  + PARTITION BY tag (InfluxDB-only)
+  - test_fq_sql_infoschema               (fq_04): MySQL INFORMATION_SCHEMA
+                                                  (MySQL-only system catalog)
+  - test_fq_local_033                    (fq_05): InfluxDB 1.x protocol
+                                                  incompatibility (1.8 vs 3.x)
+  - test_fq_push_s04_influx_partition_tbname_to_groupby_tags (fq_06):
+                                                  InfluxDB PARTITION BY TBNAME
+                                                  → GROUP BY all tags (positive);
+                                                  MySQL/PG reject with
+                                                  EXT_SYNTAX_UNSUPPORTED
+
+Test structure
+--------------
+A single module-level array ``_CASES`` drives all tests.  SQL templates use
+brace-token placeholders substituted at runtime with the actual external
+source names created in ``setup_method``.
+
+Each entry has the form::
+
+    (case_id, sql_template, positive, expected_errno, opts)
+
+  positive=True,  expected_errno=None : positive query case;
+    opts may contain ``float_cols``, ``ordered``, or ``min_count``.
+    Cases with ``min_count`` assert result[0][0] ≥ N instead of baseline
+    comparison; all others are compared against the baseline file.
+  positive=False, expected_errno=CODE : error case, errno verified inline.
+
+Entries are grouped by target source (InfluxDB → MySQL → PostgreSQL).
+
+Catalog: - Query:FederatedSourceSpecific
+
+Since: v3.4.0.0
+
+Labels: common,ci
+"""
+from typing import List, Tuple
+
+
+import os
+import shutil
+import time as _time
+
+from new_test_framework.utils import tdLog, tdSql
+
+from federated_query_common import (
+    ExtSrcEnv,
+    FederatedQueryCaseHelper,
+    FederatedQueryVersionedMixin,
+    QueryError,
+    TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    TSDB_CODE_OPS_NOT_SUPPORT,
+    TSDB_CODE_PAR_INVALID_COLUMN,
+    TSDB_CODE_PAR_INVALID_TAGS_PC,
+    TSDB_CODE_PAR_SYNTAX_ERROR,
+    parity_serialize_case,
+    parity_serialize_cell,
+)
+
+
+# ---------------------------------------------------------------------------
+# Module-level data constants
+# ---------------------------------------------------------------------------
+
+_BASE_TS = 1_704_067_200_000  # 2024-01-01 00:00:00 UTC (ms)
+
+# ── InfluxDB tags-partition data (itag group) ────────────────────────────────
+# cpu measurement: 4 rows, 2 host/region combinations
+#   h1/us: usage=30 and usage=50  → AVG = 40.0
+#   h2/eu: usage=10 and usage=20  → AVG = 15.0
+_INFLUX_ITAG_DB    = "fq18_itag_db"
+_INFLUX_ITAG_LINES = [
+    "cpu,host=h1,region=us usage=30i 1704067200000000000",
+    "cpu,host=h1,region=us usage=50i 1704067260000000000",
+    "cpu,host=h2,region=eu usage=10i 1704067320000000000",
+    "cpu,host=h2,region=eu usage=20i 1704067380000000000",
+]
+
+# ── InfluxDB CPU s04 data (i04 / PARTITION BY TBNAME group) ─────────────────
+# cpu measurement: 4 rows, 2 host tag values
+#   host=a: usage_idle=80.0 and 75.0  → AVG = 77.5
+#   host=b: usage_idle=90.0 and 85.0  → AVG = 87.5
+_INFLUX_S04_DB    = "fq18_s04_cpu"
+_INFLUX_S04_LINES = [
+    f"cpu,host=a usage_idle=80.0 {_BASE_TS}000000",
+    f"cpu,host=a usage_idle=75.0 {_BASE_TS + 60000}000000",
+    f"cpu,host=b usage_idle=90.0 {_BASE_TS}000000",
+    f"cpu,host=b usage_idle=85.0 {_BASE_TS + 60000}000000",
+]
+
+# ── MySQL push_t data (m04 / PARTITION BY TBNAME error group) ───────────────
+_MYSQL_PUSH_T_SQLS = [
+    "CREATE TABLE IF NOT EXISTS push_t "
+    "(val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1), status VARCHAR(16))",
+    "DELETE FROM push_t",
+    "INSERT INTO push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ── PostgreSQL push_t data (p04 / PARTITION BY TBNAME error group) ──────────
+_PG_PUSH_T_SQLS = [
+    "CREATE TABLE IF NOT EXISTS push_t "
+    "(val INT, score FLOAT8, name TEXT, flag INT, status TEXT)",
+    "DELETE FROM push_t",
+    "INSERT INTO push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ── MySQL VIEW data (vw group) ────────────────────────────────────────────────────
+_MYSQL_VIEW_DB   = "fq18_view_mdb"
+_MYSQL_VIEW_SQLS = [
+    "DROP TABLE IF EXISTS users",
+    "DROP TABLE IF EXISTS orders",
+    "CREATE TABLE users (id INT, name VARCHAR(50))",
+    "CREATE TABLE orders (id INT, user_id INT, amount INT, status INT)",
+    "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
+    "INSERT INTO orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+    "DROP VIEW IF EXISTS v_summary",
+    "DROP VIEW IF EXISTS v_users",
+    "CREATE VIEW v_summary AS "
+    "  SELECT status, sum(amount) as total FROM orders GROUP BY status",
+    "CREATE VIEW v_users AS SELECT id, name FROM users WHERE id <= 10",
+]
+
+# ── PostgreSQL VIEW data (vw group) ────────────────────────────────────────────────
+_PG_VIEW_DB   = "fq18_view_pdb"
+_PG_VIEW_SQLS = [
+    "DROP TABLE IF EXISTS users CASCADE",
+    "DROP TABLE IF EXISTS orders CASCADE",
+    "CREATE TABLE users (id INT, name TEXT)",
+    "CREATE TABLE orders (id INT, user_id INT, amount INT, status INT)",
+    "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob')",
+    "INSERT INTO orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+    "DROP VIEW IF EXISTS v_summary",
+    "DROP VIEW IF EXISTS v_users",
+    "CREATE VIEW v_summary AS "
+    "  SELECT status, sum(amount) as total FROM orders GROUP BY status",
+    "CREATE VIEW v_users AS SELECT id, name FROM users WHERE id <= 10",
+]
+
+
+# ── SQL Server push_t data (s04 / PARTITION BY TBNAME error group) ───────────
+_SQLSERVER_PUSH_DB = "fq18_push_sdb"
+_SQLSERVER_PUSH_SQLS = [
+    "IF OBJECT_ID('dbo.push_t') IS NOT NULL DROP TABLE dbo.push_t",
+    "CREATE TABLE dbo.push_t "
+    "(val INT, score FLOAT, name NVARCHAR(32), flag BIT, status NVARCHAR(16))",
+    "INSERT INTO dbo.push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ── SQL Server VIEW data (vw-s group) ───────────────────────────────────────
+_SQLSERVER_VIEW_DB = "fq18_view_sdb"
+_SQLSERVER_VIEW_SQLS = [
+    "IF OBJECT_ID('dbo.v_summary') IS NOT NULL DROP VIEW dbo.v_summary",
+    "IF OBJECT_ID('dbo.v_users') IS NOT NULL DROP VIEW dbo.v_users",
+    "IF OBJECT_ID('dbo.orders') IS NOT NULL DROP TABLE dbo.orders",
+    "IF OBJECT_ID('dbo.users') IS NOT NULL DROP TABLE dbo.users",
+    "CREATE TABLE dbo.users (id INT, name NVARCHAR(50))",
+    "CREATE TABLE dbo.orders (id INT, user_id INT, amount INT, status INT)",
+    "INSERT INTO dbo.users VALUES (1, 'Alice'), (2, 'Bob')",
+    "INSERT INTO dbo.orders VALUES (1, 1, 100, 1), (2, 1, 200, 2)",
+    "CREATE VIEW dbo.v_summary AS "
+    "  SELECT status, sum(amount) as total FROM dbo.orders GROUP BY status",
+    "CREATE VIEW dbo.v_users AS SELECT id, name FROM dbo.users WHERE id <= 10",
+]
+
+
+# ── Oracle identifier fixtures (oid group) ───────────────────────────────────
+# Objects that pin down DS 5.3.6 R1 from the TDengine side: TDengine resolves
+# an unquoted identifier to lower case and a backticked one to its literal
+# spelling, and Oracle metadata is matched byte for byte.
+#   "EMP"        upper-case object; only the backticked spelling reaches it
+#   "emp"        lower-case object; unquoted and `emp` both reach it
+#   "DATE"       reserved-word table name holding reserved-word column names
+#   "LC"         quoted table with a mixed-case column, reachable only exactly
+#   "only_lower" lower-case object; unquoted only_lower reaches it
+#   "CC"         VAL and val coexist; exact matching selects each one
+#   "MIX"        quoted mixed-case column
+#   QT / BT      literal double-quote / backtick column names (version-gated)
+# Oracle has no DROP ... IF EXISTS, so the fixture is dropped through the
+# existing idempotent helper before it is rebuilt.
+_O_OID_TABLES = ("EMP", "emp", "DATE", "LC", "only_lower", "CC", "QT", "BT", "MIX")
+_O_OID_SQLS = [
+    # Exact-case fixtures: every object and column is declared with double
+    # quotes so the stored spelling is the one written here.  TDengine resolves
+    # a reference with its native grammar (unquoted -> lower case, backtick ->
+    # literal), and Oracle matches the result byte for byte.
+    'CREATE TABLE "EMP" ("VAL" NUMBER(10), "NAME" VARCHAR2(32))',
+    'INSERT INTO "EMP" VALUES (1, \'upper\')',
+    'CREATE TABLE "emp" ("val" NUMBER(10), "name" VARCHAR2(32))',
+    'INSERT INTO "emp" VALUES (2, \'lower\')',
+    'CREATE TABLE "DATE" ("val" NUMBER(10), "LEVEL" VARCHAR2(32), "NUMBER" NUMBER(10))',
+    'INSERT INTO "DATE" VALUES (3, \'reserved\', 30)',
+    'CREATE TABLE "LC" ("val" NUMBER(10), "MiXeDCol" VARCHAR2(32))',
+    'INSERT INTO "LC" VALUES (9, \'mix\')',
+    'CREATE TABLE "only_lower" ("val" NUMBER(10))',
+    'INSERT INTO "only_lower" VALUES (4)',
+    # VAL and quoted val coexist; the exact match makes the choice independent
+    # of the catalog column order (defect 7160564810, scenario 4).
+    'CREATE TABLE "CC" ("val" NUMBER(10), "VAL" NUMBER(10))',
+    'INSERT INTO "CC" VALUES (22, 11)',
+    # Mixed-case quoted column: reachable only with the exact backticked
+    # spelling, never from an unquoted reference.
+    'CREATE TABLE "MIX" ("Val" NUMBER(10))',
+    'INSERT INTO "MIX" VALUES (5)',
+    "COMMIT",
+]
+
+# ---------------------------------------------------------------------------
+# Unified case array  (case_id, sql_template, positive, expected_errno, opts)
+# ---------------------------------------------------------------------------
+# SQL template tokens (substituted at runtime via _fmt):
+#   {I_TAG}     — InfluxDB tags-partition source
+#   {I_TAG_DB}  — InfluxDB tags-partition bucket
+#   {I_CPU}     — InfluxDB CPU s04 source
+#   {I18}       — InfluxDB 1.8 source (conditional; absent when not configured)
+#   {M_INFO}    — MySQL INFORMATION_SCHEMA source
+#   {M_INFO_DB} — MySQL INFORMATION_SCHEMA database name
+#   {M_PUSH}    — MySQL push_t source
+#   {P_PUSH}    — PostgreSQL push_t source
+#   {S_PUSH}    — SQL Server push_t source
+#   {S_VIEW}    — SQL Server view source
+#   {S_VIEW_DB} — SQL Server view database name
+#   {O_OID}     — Oracle identifier-semantics source
+#   {O_OID_SCHEMA} — Oracle schema owning the identifier fixtures
+#
+# opts keys:
+#   float_cols  — set of column indices compared as float (default empty)
+#   ordered     — False when row order is non-deterministic (default True)
+#   min_count   — int; assert result[0][0] >= N instead of baseline comparison
+_CASES = [
+    # ── InfluxDB: DISTINCT tags + PARTITION BY tag (itag, from fq_04) ────────
+    # 2 distinct host/region combinations; ORDER BY host ensures stable order.
+    ("itag-01",
+     "SELECT DISTINCT host, region FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY host",
+     True, None, {}),
+    # AVG(usage) per host: h1 → 40.0, h2 → 15.0; ORDER BY host is stable.
+    ("itag-02",
+     "SELECT AVG(usage) FROM {I_TAG}.{I_TAG_DB}.cpu PARTITION BY host ORDER BY host",
+     True, None, dict(float_cols={0})),
+    # _TAGS should expand to the InfluxDB tag set once the source is modeled as
+    # a super table; ORDER BY usage gives a stable row order.
+    ("itag-03",
+     "SELECT _TAGS, usage FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY usage",
+     True, None, {}),
+
+    # ── InfluxDB: PARTITION BY TBNAME → GROUP BY all tags (i04, from fq_06) ──
+    # cpu has 2 distinct host tags (a, b); partition order is hash-based → unordered.
+    ("i04-01",
+     "SELECT COUNT(*) FROM {I_CPU}.cpu PARTITION BY tbname",
+     True, None, dict(ordered=False)),
+    # host=a: avg(80.0, 75.0) = 77.5; host=b: avg(90.0, 85.0) = 87.5; unordered.
+    ("i04-02",
+     "SELECT AVG(usage_idle) FROM {I_CPU}.cpu PARTITION BY tbname",
+     True, None, dict(float_cols={0}, ordered=False)),
+    # SELECT TBNAME on InfluxDB is NOT the same as PARTITION BY TBNAME:
+    # bare SELECT TBNAME is unsupported even on InfluxDB.
+    ("i04-03",
+     "SELECT tbname FROM {I_CPU}.cpu LIMIT 5",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+
+    # ── InfluxDB 1.8: protocol incompatibility (i18, from fq_05 local_033) ───
+    # A source configured for 3.x must still reject the 1.8 HTTP endpoint.
+    # Skipped automatically when "1.8" is NOT in FQ_INFLUX_VERSIONS.
+    ("i18-01",
+     "SELECT * FROM {I18}.testdb.m",
+     False, TSDB_CODE_OPS_NOT_SUPPORT, {}),
+
+    # ── MySQL: INFORMATION_SCHEMA introspection (minfo, from fq_04) ──────────
+    # Count is ≥ 1 (not exact); INFORMATION_SCHEMA may contain extra system tables.
+    ("minfo-01",
+     "SELECT COUNT(*) FROM {M_INFO}.information_schema.TABLES "
+     "WHERE table_schema = '{M_INFO_DB}'",
+     True, None, dict(min_count=1)),
+
+    # ── MySQL: PARTITION BY / SELECT TBNAME → EXT_SYNTAX_UNSUPPORTED (m04) ────
+    ("m04-01",
+     "SELECT COUNT(*) FROM {M_PUSH}.push_t PARTITION BY tbname",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("m04-02",
+     "SELECT tbname FROM {M_PUSH}.push_t",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("m04-03",
+     "SELECT _TAGS FROM {M_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
+
+    # ── PostgreSQL: PARTITION BY / SELECT TBNAME → EXT_SYNTAX_UNSUPPORTED (p04) ─
+    ("p04-01",
+     "SELECT COUNT(*) FROM {P_PUSH}.push_t PARTITION BY tbname",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("p04-02",
+     "SELECT tbname FROM {P_PUSH}.push_t",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("p04-03",
+     "SELECT _TAGS FROM {P_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
+
+    # ── MySQL: VIEW query (vw-m group) ───────────────────────────────────────────
+    # v_summary: SELECT status, SUM(amount) FROM orders GROUP BY status
+    # status=1 -> total=100; status=2 -> total=200
+    ("vw-m-01",
+     "SELECT * FROM {M_VIEW}.{M_VIEW_DB}.v_summary ORDER BY status",
+     True, None, {}),
+    # v_users JOIN orders: ordinary-column JOIN is supported for external views
+    ("vw-m-02",
+     "SELECT v.id, v.name, SUM(o.amount) AS total "
+     "FROM {M_VIEW}.{M_VIEW_DB}.v_users v "
+     "JOIN {M_VIEW}.{M_VIEW_DB}.orders o ON v.id = o.user_id "
+     "GROUP BY v.id, v.name ORDER BY v.id",
+     True, None, {}),
+
+    # ── PostgreSQL: VIEW query (vw-p group) ────────────────────────────────────────
+    ("vw-p-01",
+     "SELECT * FROM {P_VIEW}.public.v_summary ORDER BY status",
+     True, None, {}),
+    ("vw-p-02",
+     "SELECT v.id, v.name, SUM(o.amount) AS total "
+     "FROM {P_VIEW}.public.v_users v "
+     "JOIN {P_VIEW}.public.orders o ON v.id = o.user_id "
+     "GROUP BY v.id, v.name ORDER BY v.id",
+     True, None, {}),
+
+    # ── SQL Server: PARTITION BY / SELECT TBNAME / _TAGS (s04 group) ─────────
+    # SQL Server (zero pushdown) still shares the TDengine-side rejection
+    # rules: PARTITION BY TBNAME and TBNAME/_TAGS pseudo columns are not
+    # defined for external relational sources.
+    ("s04-01",
+     "SELECT COUNT(*) FROM {S_PUSH}.push_t PARTITION BY tbname",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-02",
+     "SELECT tbname FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("s04-03",
+     "SELECT _TAGS FROM {S_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
+
+    # ── SQL Server: VIEW query (vw-s group) ──────────────────────────────────
+    # v_summary: status=1 -> total=100; status=2 -> total=200
+    ("vw-s-01",
+     "SELECT * FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_summary ORDER BY status",
+     True, None, {}),
+    ("vw-s-02",
+     "SELECT v.id, v.name, SUM(o.amount) AS total "
+     "FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_users v "
+     "JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id "
+     "GROUP BY v.id, v.name ORDER BY v.id",
+     True, None, {}),
+    # SQL Server collation/case: `name = '<literal>'` is pushed down as an
+    # exact comparison — COLLATE Latin1_General_BIN2 plus a payload-length
+    # check (DS 5.3.11 item 1) — so the remote column's case-insensitive
+    # default collation no longer applies.  'ALPHA' does not match 'alpha':
+    # s-coll-01 returns no rows and s-coll-02 returns one row, matching
+    # TDengine's case-sensitive NCHAR comparison.
+    ("s-coll-01",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val",
+     True, None, {}),
+    ("s-coll-02",
+     "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val",
+     True, None, {}),
+
+    # ── InfluxDB: "ts" column not found (i-neg group) ─────────────────────────
+    # InfluxDB primary key is always "time"; querying with "ts" must fail at
+    # parse time because the column does not exist in the external schema.
+    # Error: TSDB_CODE_PAR_INVALID_COLUMN (0x2602) — column name not found.
+    ("i-neg-01",
+     "SELECT ts FROM {I_CPU}.cpu LIMIT 1",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+    ("i-neg-02",
+     "SELECT usage_idle FROM {I_CPU}.cpu ORDER BY ts LIMIT 1",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+
+    # ── Oracle: TDengine identifier grammar + exact Oracle metadata ─────────
+    # TDengine resolves the reference before Oracle sees it: an unquoted
+    # identifier is lower-cased by the client, a backticked one keeps its
+    # spelling, and a double quote starts a string literal.  Oracle metadata is
+    # matched byte for byte, with no upper-case folding (DS 5.3.6 R1).
+    #
+    # Fixtures: "EMP" (1|upper), "emp" (2|lower), "DATE" (3|reserved|30),
+    # "LC" (9|mix), "only_lower" (4), "CC" (val=22, VAL=11), "MIX" (Val=5).
+    #
+    # FQOR-PATH-009: unquoted references are lower-cased and match the
+    # quoted-lower-case object exactly.
+    ("oid-01",
+     "SELECT val, name FROM {O_OID}.emp ORDER BY val",
+     True, None, {}),
+    ("oid-02",
+     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val",
+     True, None, {}),
+    # Writing EMP unquoted is still lower-cased to emp.
+    ("oid-03",
+     "SELECT val, name FROM {O_OID}.EMP ORDER BY val",
+     True, None, {}),
+    ("oid-04",
+     "SELECT val, name FROM {O_OID}.`emp` ORDER BY val",
+     True, None, {}),
+    # FQOR-PATH-010: the upper-case object is a different one; backticks
+    # preserve the spelling and select it, and its columns are upper-case too.
+    ("oid-05",
+     "SELECT `VAL`, `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
+     True, None, {}),
+    ("oid-06",
+     "SELECT `VAL`, `NAME` FROM {O_OID}.{O_OID_SCHEMA}.`EMP` ORDER BY `VAL`",
+     True, None, {}),
+    ("oid-07",
+     "SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
+     True, None, {}),
+    # Mixed-case quoted column: exact spelling only.
+    ("oid-08",
+     "SELECT `val`, `MiXeDCol` FROM {O_OID}.`LC`",
+     True, None, {}),
+    # FQOR-PATH-011: reserved words are exact uppercase names; TDengine uses
+    # backticks and the Oracle renderer double-quotes them.
+    ("oid-09",
+     "SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.`DATE` ORDER BY `val`",
+     True, None, {}),
+    ("oid-10",
+     "SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.{O_OID_SCHEMA}.`DATE` ORDER BY `val`",
+     True, None, {}),
+    # A double-quoted identifier position is a TDengine string literal, not a
+    # column: the result carries the text LEVEL (same as a local table).
+    ("oid-11",
+     'SELECT `val`, "LEVEL" FROM {O_OID}.`DATE` ORDER BY `val`',
+     True, None, {}),
+    # FQOR-PATH-016: EMP and emp are distinct, exactly addressable objects.
+    ("oid-12",
+     "SELECT name FROM {O_OID}.emp ORDER BY val",
+     True, None, {}),
+    ("oid-13",
+     "SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
+     True, None, {}),
+    ("oid-14",
+     "SELECT `MiXeDCol` FROM {O_OID}.`LC`",
+     True, None, {}),
+    ("oid-15",
+     "SELECT MiXeDCol FROM {O_OID}.`LC`",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+    ("oid-16",
+     "SELECT COUNT(*) FROM {O_OID}.`DATE`",
+     True, None, {}),
+    ("oid-17",
+     "SELECT COUNT(*) FROM {O_OID}.emp",
+     True, None, {}),
+    # A quoted-lower-case object is exactly reachable from the unquoted form;
+    # the all-upper-case backticked spelling is a different, absent object.
+    ("oid-18",
+     "SELECT val FROM {O_OID}.only_lower",
+     True, None, {}),
+    ("oid-19",
+     "SELECT val FROM {O_OID}.`ONLY_LOWER`",
+     False, TSDB_CODE_EXT_TABLE_NOT_EXIST, {}),
+    # The removed backtick-wrapped-double-quote convention now names a literal
+    # object containing quote characters, which does not exist.
+    ("oid-20",
+     'SELECT val FROM {O_OID}.`"emp"`',
+     False, TSDB_CODE_EXT_TABLE_NOT_EXIST, {}),
+    # VAL and quoted val coexist: unquoted val selects the lower-case column,
+    # backticked VAL selects the upper-case one, independent of column order.
+    ("oid-21",
+     "SELECT val FROM {O_OID}.`CC`",
+     True, None, {}),
+    ("oid-22",
+     "SELECT `VAL` FROM {O_OID}.`CC`",
+     True, None, {}),
+    ("oid-23",
+     "SELECT val, `VAL` FROM {O_OID}.`CC`",
+     True, None, {}),
+    # Quoted mixed-case column.
+    ("oid-24",
+     "SELECT `Val` FROM {O_OID}.`MIX`",
+     True, None, {}),
+    ("oid-25",
+     "SELECT Val FROM {O_OID}.`MIX`",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+]
+
+
+# ---------------------------------------------------------------------------
+# Test class
+# ---------------------------------------------------------------------------
+
+class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
+    """Source-specific and library-behavior-inconsistent federated query cases.
+
+    All cases are driven by the module-level ``_CASES`` array and grouped by
+    target source (InfluxDB → MySQL → PostgreSQL):
+
+      itag   — InfluxDB DISTINCT tags + PARTITION BY tag  (positive, baseline)
+      i04    — InfluxDB PARTITION BY TBNAME → positive; SELECT TBNAME → error
+      i18    — InfluxDB 1.8 protocol incompatibility  (negative, OPS_NOT_SUPPORT)
+      minfo  — MySQL INFORMATION_SCHEMA count ≥ 1  (positive, min_count assertion)
+      m04    — MySQL PARTITION BY / SELECT TBNAME  (negative, EXT_SYNTAX_UNSUPPORTED)
+      p04    — PostgreSQL PARTITION BY TBNAME  (negative, EXT_SYNTAX_UNSUPPORTED)
+    """
+
+
+    # ── External source names ────────────────────────────────────────────────
+    _SRC_I_TAG  = "fq18_itag"
+    _SRC_I_CPU  = "fq18_s04_i"
+    _SRC_M_INFO = "fq18_info_m"
+    _SRC_M_PUSH = "fq18_s04_m"
+    _SRC_P_PUSH = "fq18_s04_p"
+    _SRC_M_VIEW = "fq18_view_m"
+    _SRC_P_VIEW = "fq18_view_p"
+    _SRC_S_PUSH = "fq18_s04_s"
+    _SRC_S_VIEW = "fq18_view_s"
+    _SRC_I18    = "fq18_influx18"
+    _SRC_O_IDENT = "fq18_oid_o"
+
+    # ── Remote databases / buckets ───────────────────────────────────────────
+    _I_TAG_DB   = _INFLUX_ITAG_DB    # "fq18_itag_db"
+    _I_CPU_DB   = _INFLUX_S04_DB     # "fq18_s04_cpu"
+    _M_INFO_DB  = "fq18_info_mdb"
+    _M_PUSH_DB  = "fq18_s04_m_ext"
+    _P_PUSH_DB  = "fq18_s04_p_ext"
+    _M_VIEW_DB  = _MYSQL_VIEW_DB     # "fq18_view_mdb"
+    _P_VIEW_DB  = _PG_VIEW_DB        # "fq18_view_pdb"
+    _M_VIEW_DB  = _MYSQL_VIEW_DB     # "fq18_view_mdb"
+    _P_VIEW_DB  = _PG_VIEW_DB        # "fq18_view_pdb"
+
+    # ── Baseline file (same format as fq_14) ─────────────────────────────────
+    _BASELINE_FILE = os.path.join(
+        os.path.dirname(__file__), "ans", "test_fq_18_source_specific.txt")
+
+    # ── One-time setup guard ─────────────────────────────────────────────────
+    _class_setup_done = False
+    _i18_available    = False   # set to True in setup_method when 1.8 found
+    # Literal quote/backtick fixtures are server-version dependent: 11g raises
+    # ORA-03001 for a double quote inside an identifier, 19c accepts it, and
+    # 23ai+ rejects it with ORA-25716.  Set during setup.
+    _o_quote_ident_supported    = False
+    _o_backtick_ident_supported = False
+
+    # -----------------------------------------------------------------------
+    # Setup / teardown
+    # -----------------------------------------------------------------------
+
+    def setup_class(self):
+        tdLog.debug(f"start to execute {__file__}")
+        self.helper = FederatedQueryCaseHelper(__file__)
+        self.helper.require_external_source_feature()
+        ExtSrcEnv.ensure_env()
+
+    def teardown_class(self):
+        tmp = TestFq18SourceSpecific()
+        tmp._drop_influx_sources(tmp._SRC_I_TAG, tmp._SRC_I_CPU)
+        for cfg in ExtSrcEnv.influx_version_configs():
+            for bucket in (self._I_TAG_DB, self._I_CPU_DB):
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(cfg, bucket)
+                except Exception as exc:
+                    tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
+        self._cleanup_src(
+            self._SRC_I_TAG, self._SRC_I_CPU,
+            self._SRC_M_INFO, self._SRC_M_PUSH, self._SRC_P_PUSH,
+            self._SRC_M_VIEW, self._SRC_P_VIEW,
+            self._SRC_S_PUSH, self._SRC_S_VIEW,
+            self._SRC_I18,
+            self._SRC_O_IDENT,
+        )
+        for fn in [
+            lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_INFO_DB),
+            lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_PUSH_DB),
+            lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_PUSH_DB),
+            lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_VIEW_DB),
+            lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_VIEW_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_PUSH_DB),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_VIEW_DB),
+        ]:
+            try:
+                fn()
+            except Exception:
+                pass
+        TestFq18SourceSpecific._class_setup_done = False
+        TestFq18SourceSpecific._i18_available    = False
+        ExtSrcEnv.teardown_env()
+
+    def _setup_version_data(self, method):
+        """Create all external sources once (shared across all test methods)."""
+        if TestFq18SourceSpecific._class_setup_done:
+            self._mk_influx_sources(self._SRC_I_TAG, database=self._I_TAG_DB)
+            self._mk_influx_sources(self._SRC_I_CPU, database=self._I_CPU_DB)
+            return
+
+        # ── InfluxDB tags-partition source (itag group) ───────────────────────
+        self._cleanup_src(self._SRC_I_TAG)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, self._I_TAG_DB)
+            ExtSrcEnv.influx_write_cfg(
+                influx_cfg, self._I_TAG_DB, _INFLUX_ITAG_LINES)
+        self._mk_influx_sources(self._SRC_I_TAG, database=self._I_TAG_DB)
+
+        # ── InfluxDB CPU source (i04 / PARTITION BY TBNAME group) ────────────
+        self._cleanup_src(self._SRC_I_CPU)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, self._I_CPU_DB)
+            ExtSrcEnv.influx_write_cfg(
+                influx_cfg, self._I_CPU_DB, _INFLUX_S04_LINES)
+        self._mk_influx_sources(self._SRC_I_CPU, database=self._I_CPU_DB)
+
+        # ── MySQL INFORMATION_SCHEMA source (minfo group) ─────────────────────
+        self._cleanup_src(self._SRC_M_INFO)
+        ExtSrcEnv.mysql_kill_sleeping_connections_cfg(self._mysql_cfg())
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), self._M_INFO_DB)
+        ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), self._M_INFO_DB, [
+            "DROP TABLE IF EXISTS t1",
+            "CREATE TABLE t1 (id INT)",
+            "INSERT INTO t1 VALUES (1)",
+        ])
+        self._mk_mysql_real(self._SRC_M_INFO, database=self._M_INFO_DB)
+
+        # ── MySQL push_t source (m04 / PARTITION BY TBNAME error group) ───────
+        self._cleanup_src(self._SRC_M_PUSH)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), self._M_PUSH_DB)
+        ExtSrcEnv.mysql_exec_cfg(
+            self._mysql_cfg(), self._M_PUSH_DB, _MYSQL_PUSH_T_SQLS)
+        self._mk_mysql_real(self._SRC_M_PUSH, database=self._M_PUSH_DB)
+
+        # ── PostgreSQL push_t source (p04 / PARTITION BY TBNAME error group) ──
+        self._cleanup_src(self._SRC_P_PUSH)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), self._P_PUSH_DB)
+        ExtSrcEnv.pg_exec_cfg(
+            self._pg_cfg(), self._P_PUSH_DB, _PG_PUSH_T_SQLS)
+        self._mk_pg_real(self._SRC_P_PUSH, database=self._P_PUSH_DB)
+        # ── MySQL VIEW source (vw-m group) ──────────────────────────────────────────────
+        self._cleanup_src(self._SRC_M_VIEW)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), self._M_VIEW_DB)
+        ExtSrcEnv.mysql_exec_cfg(
+            self._mysql_cfg(), self._M_VIEW_DB, _MYSQL_VIEW_SQLS)
+        self._mk_mysql_real(self._SRC_M_VIEW, database=self._M_VIEW_DB)
+
+        # ── PostgreSQL VIEW source (vw-p group) ──────────────────────────────────────────
+        self._cleanup_src(self._SRC_P_VIEW)
+        ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), self._P_VIEW_DB)
+        ExtSrcEnv.pg_exec_cfg(
+            self._pg_cfg(), self._P_VIEW_DB, _PG_VIEW_SQLS)
+        self._mk_pg_real(self._SRC_P_VIEW, database=self._P_VIEW_DB)
+
+        # ── SQL Server push_t source (s04 group) ─────────────────────────────
+        self._cleanup_src(self._SRC_S_PUSH)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_PUSH_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_PUSH_DB, _SQLSERVER_PUSH_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_PUSH, database=_SQLSERVER_PUSH_DB, schema="dbo")
+
+        # ── SQL Server VIEW source (vw-s group) ──────────────────────────────
+        self._cleanup_src(self._SRC_S_VIEW)
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_VIEW_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_VIEW_DB, _SQLSERVER_VIEW_SQLS)
+        self._mk_sqlserver_real(self._SRC_S_VIEW, database=_SQLSERVER_VIEW_DB, schema="dbo")
+
+        # ── Oracle identifier source (oid group) ─────────────────────────────
+        # The default schema of the source is the test account's own schema,
+        # which is also the owner of the identifier fixtures (Oracle has one
+        # namespace level, DS 5.3.3).
+        self._cleanup_src(self._SRC_O_IDENT)
+        oracle_cfg = self._oracle_cfg()
+        for table in _O_OID_TABLES:
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, _O_OID_SQLS)
+        # Literal quote/backtick column names are gated on server support; the
+        # dedicated test method skips a leg the server cannot represent.
+        for table, col, row in (("QT", 'v"1', 7), ("BT", "v`1", 8)):
+            # Oracle doubles a quote inside a quoted identifier.
+            col_sql = col.replace('"', '""')
+            try:
+                ExtSrcEnv.oracle_exec_cfg(
+                    oracle_cfg,
+                    [f'CREATE TABLE "{table}" ("{col_sql}" NUMBER(10))',
+                     f'INSERT INTO "{table}" VALUES ({row})',
+                     "COMMIT"])
+                if table == "QT":
+                    TestFq18SourceSpecific._o_quote_ident_supported = True
+                else:
+                    TestFq18SourceSpecific._o_backtick_ident_supported = True
+            except RuntimeError as e:
+                if "ORA-03001" not in str(e) and "ORA-25716" not in str(e):
+                    raise
+                tdLog.info(
+                    f"[oid] server rejects identifier {table!r}: the literal "
+                    "quote/backtick leg is skipped on this version")
+        self._mk_oracle_real(self._SRC_O_IDENT,
+                             database=oracle_cfg.service,
+                             schema=ExtSrcEnv.ORACLE_USER.upper())
+
+        # ── InfluxDB 1.8 source (i18 group, conditional) ─────────────────────
+        # Only created when "1.8" is listed in FQ_INFLUX_VERSIONS.
+        # Keep this protocol-mismatch case explicitly configured for 3.x.
+        # The regular Influx sources above exercise native 1.8 when selected.
+        influx18_cfgs = [
+            c for c in ExtSrcEnv.influx_version_configs() if c.version == "1.8"
+        ]
+        if influx18_cfgs:
+            cfg18 = influx18_cfgs[0]
+            self._cleanup_src(self._SRC_I18)
+            tdSql.execute(
+                self._mk_influx_source_sql(
+                    self._SRC_I18,
+                    cfg18.host,
+                    cfg18.port,
+                    "",
+                    database=None,
+                    protocol="http",
+                    version="3",
+                )
+            )
+            TestFq18SourceSpecific._i18_available = True
+
+        TestFq18SourceSpecific._class_setup_done = True
+
+    # -----------------------------------------------------------------------
+    # SQL template substitution helper
+    # -----------------------------------------------------------------------
+
+    def _fmt(self, sql_template):
+        """Substitute source-name and db-name tokens in *sql_template*."""
+        return sql_template.format(
+            I_TAG=self._SRC_I_TAG,
+            I_TAG_DB=self._I_TAG_DB,
+            I_CPU=self._SRC_I_CPU,
+            M_INFO=self._SRC_M_INFO,
+            M_INFO_DB=self._M_INFO_DB,
+            M_PUSH=self._SRC_M_PUSH,
+            P_PUSH=self._SRC_P_PUSH,
+            M_VIEW=self._SRC_M_VIEW,
+            M_VIEW_DB=self._M_VIEW_DB,
+            P_VIEW=self._SRC_P_VIEW,
+            S_PUSH=self._SRC_S_PUSH,
+            S_VIEW=self._SRC_S_VIEW,
+            S_VIEW_DB=_SQLSERVER_VIEW_DB,
+            I18=self._SRC_I18,
+            O_OID=self._SRC_O_IDENT,
+            # The schema segment is a TDengine identifier: the Oracle login
+            # user is upper-case, so it must be backticked or the client
+            # lower-cases it and the exact dictionary lookup fails.
+            O_OID_SCHEMA=f"`{ExtSrcEnv.ORACLE_USER.upper()}`",
+        )
+
+    # -----------------------------------------------------------------------
+    # Case runners
+    # -----------------------------------------------------------------------
+
+    def _run_specific_cases(self, cases):
+        """Run positive source-specific cases; compare results against baseline.
+
+        Each case runs the substituted SQL, serializes the result into the
+        same ``### case_id POS`` block format as fq_14, writes a ``.tmp``
+        file, and then compares against the stable baseline file.
+
+        On the first run (no baseline file present), the tmp file is copied
+        to the baseline automatically.
+
+        Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
+        """
+        failed: List[Tuple[str, str, str]] = []
+        serialized_blocks: List[str] = []
+
+        case_filter = os.environ.get("FQ_CASE_FILTER", "")
+        for case_id, sql_template, opts in cases:
+            if case_filter and case_filter not in case_id:
+                continue
+            float_cols = opts.get("float_cols") or set()
+            ordered    = opts.get("ordered", True)
+            min_count  = opts.get("min_count")
+            sql        = self._fmt(sql_template)
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    t0         = _time.monotonic()
+
+                    rows      = None
+                    qerr      = None
+                    try:
+                        tdSql.query(sql, queryTimes=3)
+                        rows = list(tdSql.queryResult)
+                        if min_count is not None:
+                            actual = int(rows[0][0]) if rows else 0
+                            if actual < min_count:
+                                det = f"Expected count >= {min_count}, got {actual}"
+                                failed.append((case_id, sql_template, det))
+                                tdLog.info(
+                                    f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
+                                    f"[{_time.monotonic() - t0:.2f}s]  {det}"
+                                )
+                            else:
+                                tdLog.info(
+                                    f"[{case_id:<9s} POS] PASS  {sql_template[:70]}  "
+                                    f"[{_time.monotonic() - t0:.2f}s]  count={actual} >= {min_count}"
+                                )
+                            continue
+                        if not ordered:
+                            rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(
+                            f"[{case_id:<9s} POS] PASS  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]  rows={len(rows)}"
+                        )
+                    except Exception as exc:
+                        elapsed = _time.monotonic() - t0
+                        _ea = getattr(exc, "args", ())
+                        errno = (
+                            _ea[-1] if len(_ea) >= 2 and isinstance(_ea[-1], int) else
+                            getattr(exc, "errno", None)
+                        )
+                        qerr = QueryError(errno, str(_ea[0]) if _ea else str(exc), sql, exc)
+                        tdLog.info(
+                            f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]  {qerr.err_info}"
+                        )
+                        failed.append((case_id, sql_template, str(qerr)))
+
+                    serialized = parity_serialize_case(
+                        case_id, sql_template, True, rows, qerr, float_cols, ordered)
+                    serialized_blocks.append(serialized)
+
+        # ── baseline comparison ──────────────────────────────────────────────
+        baseline_file = self._BASELINE_FILE
+        if baseline_file:
+            tmp_file    = baseline_file + ".tmp"
+            tmp_content = ExtSrcEnv.baseline_environment("\n".join(serialized_blocks) + "\n")
+            os.makedirs(os.path.dirname(baseline_file), exist_ok=True)
+            with open(tmp_file, "w") as f:
+                f.write(tmp_content)
+            tdLog.info(f"Temp result file written: {tmp_file}")
+
+            if os.path.isfile(baseline_file):
+                with open(baseline_file, "r") as f:
+                    baseline_content = f.read()
+                baseline_content = self._expand_influx_baseline(baseline_content)
+                if tmp_content != baseline_content:
+                    tmp_lines  = tmp_content.splitlines()
+                    base_lines = baseline_content.splitlines()
+                    diff_line  = -1
+                    for li in range(max(len(tmp_lines), len(base_lines))):
+                        tl = tmp_lines[li]  if li < len(tmp_lines)  else "<EOF>"
+                        bl = base_lines[li] if li < len(base_lines) else "<EOF>"
+                        if tl != bl:
+                            diff_line = li + 1
+                            break
+                    baseline_err = (
+                        f"Regression baseline mismatch!\n"
+                        f"  baseline: {baseline_file}\n"
+                        f"  actual  : {tmp_file}\n"
+                        f"  first diff at line {diff_line}:\n"
+                        f"    baseline: {bl!r}\n"
+                        f"    actual  : {tl!r}\n"
+                        f"  Run: diff {baseline_file} {tmp_file}"
+                    )
+                    tdLog.info(f"BASELINE MISMATCH: {baseline_err}")
+                    failed.append(("<baseline>", "<baseline>", baseline_err))
+                else:
+                    tdLog.info("Baseline comparison: OK (matches static baseline)")
+                    try:
+                        os.remove(tmp_file)
+                    except OSError:
+                        pass
+            else:
+                shutil.copy(tmp_file, baseline_file)
+                tdLog.info(f"Baseline file created: {baseline_file}")
+                try:
+                    os.remove(tmp_file)
+                except OSError:
+                    pass
+
+        return failed
+
+    def _run_error_cases(self, cases):
+        """Run negative (error-expected) source-specific cases.
+
+        i18 cases are skipped automatically when InfluxDB 1.8 is not available.
+
+        Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
+        """
+        failed: List[Tuple[str, str, str]] = []
+        case_filter = os.environ.get("FQ_CASE_FILTER", "")
+        for case_id, sql_template, expected_errno in cases:
+            if case_filter and case_filter not in case_id:
+                continue
+            # i18 cases are conditional on InfluxDB 1.8 availability
+            if "{I18}" in sql_template and not self._i18_available:
+                tdLog.info(
+                    f"[{case_id:<9s} NEG] SKIP  InfluxDB 1.8 not configured "
+                    f"(set FQ_INFLUX_VERSIONS=1.8 to enable)"
+                )
+                continue
+
+            sql = self._fmt(sql_template)
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    t0  = _time.monotonic()
+                    try:
+                        tdSql.error(sql, expectedErrno=expected_errno)
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(
+                            f"[{case_id:<9s} NEG] PASS  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]"
+                        )
+                    except Exception as exc:
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(
+                            f"[{case_id:<9s} NEG] FAIL  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]  {exc}"
+                        )
+                        failed.append((case_id, sql_template, str(exc)))
+        return failed
+
+    # -----------------------------------------------------------------------
+    # Test methods
+    # -----------------------------------------------------------------------
+
+    def test_fq_source_specific_queries(self):
+        """Source-specific positive query cases.
+
+        Runs SQL templates against their respective external sources and compares
+        results against a stable baseline file (ans/test_fq_18_source_specific.txt).
+        The baseline is created automatically on the first run.
+        Cases with ``min_count`` use threshold assertion instead of baseline.
+
+        Cases:
+          itag-01   DISTINCT host, region from InfluxDB cpu → 2 rows (h1/us, h2/eu)
+          itag-02   AVG(usage) PARTITION BY host from InfluxDB → 40.0 / 15.0
+          itag-03   InfluxDB _TAGS expansion → host/region tags plus usage
+          i04-01    COUNT(*) PARTITION BY tbname from InfluxDB cpu → 2 rows of 2
+          i04-02    AVG(usage_idle) PARTITION BY tbname → {77.5, 87.5} (unordered)
+          minfo-01  MySQL INFORMATION_SCHEMA.TABLES count ≥ 1
+          vw-m-01   MySQL VIEW v_summary → 2 rows
+          vw-m-02   MySQL v_users JOIN orders with grouped totals
+          vw-p-01   PostgreSQL VIEW v_summary → 2 rows
+          vw-p-02   PostgreSQL v_users JOIN orders with grouped totals
+          vw-s-01   SQL Server VIEW v_summary → 2 rows
+          vw-s-02   SQL Server v_users JOIN orders with grouped totals
+          s-coll-01 SQL Server name = 'ALPHA' → no rows (binary-collated push)
+          s-coll-02 SQL Server name = 'alpha' → 1 row
+          oid-01..04 Oracle unquoted emp → lower-case exact match ("emp")
+          oid-05..07 Oracle `EMP` backticked upper-case object and columns
+          oid-08    Oracle quoted table with a mixed-case column
+          oid-09..11 Oracle reserved words as table and column names
+          oid-12..14 Oracle EMP vs emp split, mixed-case column
+          oid-16..17 Oracle COUNT(*) on a reserved-word table / emp
+          oid-18..20 Oracle only_lower exact match / absent upper-case name
+          oid-21..25 Oracle VAL vs val conflict matrix, quoted mixed case
+
+        Catalog: - Query:FederatedSourceSpecific
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-21 wpan  Refresh the s-coll-01 baseline for the BIN2 exact comparison
+            - 2026-09-24 Document vw-m-02/vw-p-02 positive view JOIN coverage
+            - 2026-06-xx wpan  Migrated from fq_04 test_fq_sql_influxdb_tags_partition,
+                                fq_04 test_fq_sql_infoschema,
+                                and fq_06 test_fq_push_s04_influx_partition_tbname_to_groupby_tags
+        """
+        failed = self._run_specific_cases(
+            [(cid, sql, opts)
+             for cid, sql, pos, _, opts in _CASES
+             if pos]
+        )
+        if failed:
+            all_errors = "\n".join(
+                f"\n[{cid}] {sql}\n  {det}" for cid, sql, det in failed
+            )
+            raise AssertionError(
+                f"{len(failed)} case(s) failed:\n{all_errors}"
+            )
+
+    def test_fq_oracle_identifier_literals(self):
+        """Oracle literal double-quote / backtick column names.
+
+        TDengine writes a literal double quote inside a backticked identifier
+        as ``v"1`` and a literal backtick as ``v``1``.  The fixture is created
+        only when the server can represent the spelling: 11g raises ORA-03001
+        for a double quote inside an identifier and 23ai+ raises ORA-25716.
+        Projection and WHERE both exercise the renderer's quote doubling.
+
+        Catalog: - Query:FederatedSourceSpecific
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+        """
+        quote_ok    = TestFq18SourceSpecific._o_quote_ident_supported
+        backtick_ok = TestFq18SourceSpecific._o_backtick_ident_supported
+        if not (quote_ok or backtick_ok):
+            tdLog.info("[oid] server cannot represent literal quote/backtick "
+                       "identifiers; the literal-name legs are skipped")
+            return
+
+        src = self._SRC_O_IDENT
+        if quote_ok:
+            tdSql.query(f'SELECT `v"1` FROM {src}.`QT`')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 7)
+            tdSql.query(f'SELECT `v"1` FROM {src}.`QT` WHERE `v"1` = 7')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 7)
+            tdSql.error(f'SELECT `v"2` FROM {src}.`QT`',
+                        expectedErrno=TSDB_CODE_PAR_INVALID_COLUMN)
+        if backtick_ok:
+            tdSql.query(f'SELECT `v``1` FROM {src}.`BT`')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 8)
+            tdSql.query(f'SELECT `v``1` FROM {src}.`BT` WHERE `v``1` = 8')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 8)
+
+    def test_fq_source_specific_errors(self):
+        """Source-specific error cases.
+
+        Cases:
+          i-neg-01 InfluxDB SELECT ts (column not found)      → error
+          i-neg-02 InfluxDB ORDER BY ts (column not found)    → error
+          m04-01   MySQL PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          m04-02   MySQL SELECT TBNAME       → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          m04-03   MySQL SELECT _TAGS        → TSDB_CODE_PAR_INVALID_TAGS_PC
+          p04-01   PG PARTITION BY TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          p04-02   PG SELECT TBNAME          → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          p04-03   PG SELECT _TAGS           → TSDB_CODE_PAR_INVALID_TAGS_PC
+          i04-03   InfluxDB SELECT TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          i18-01   InfluxDB 1.8 query        → TSDB_CODE_OPS_NOT_SUPPORT
+                   (skipped when "1.8" is not in FQ_INFLUX_VERSIONS)
+          oid-15   Oracle mixed-case column referenced unquoted
+                                              → TSDB_CODE_PAR_INVALID_COLUMN
+          oid-19   Oracle upper-case spelling of a lower-case object
+                                              → TSDB_CODE_EXT_TABLE_NOT_EXIST
+          oid-20   Oracle old backtick-wrapped-double-quote spelling
+                                              → TSDB_CODE_EXT_TABLE_NOT_EXIST
+          oid-25   Oracle mixed-case column referenced unquoted
+                                              → TSDB_CODE_PAR_INVALID_COLUMN
+
+        Catalog: - Query:FederatedSourceSpecific
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-xx wpan  Migrated from fq_06 test_fq_push_s04_influx_partition_tbname_to_groupby_tags
+                                and fq_05 test_fq_local_033
+        """
+        failed = self._run_error_cases(
+            [(cid, sql, errno)
+             for cid, sql, pos, errno, _ in _CASES
+             if not pos]
+        )
+        if failed:
+            all_errors = "\n".join(
+                f"\n[{cid}] {sql}\n  {det}" for cid, sql, det in failed
+            )
+            raise AssertionError(
+                f"{len(failed)} error case(s) failed:\n{all_errors}"
+            )

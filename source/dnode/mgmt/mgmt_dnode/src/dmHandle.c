@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,19 +12,47 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
 #include "audit.h"
 #include "dmInt.h"
+// #include "dmMgmt.h"
+#include "crypt.h"
+#include "osAtomic.h"  // atomic_store_32 for publishing tsEncryptKeysStatus
+#include "extConnector.h"
 #include "monitor.h"
+#include "stream.h"
 #include "systable.h"
 #include "tanalytics.h"
 #include "tchecksum.h"
+#include "tencrypt.h"
 #include "tutil.h"
+#include "vnode.h"
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+#include "taoskInt.h"
+#endif
 
 extern SConfig *tsCfg;
+extern void     setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId);
+
+#ifndef TD_ENTERPRISE
+void setAuditDbNameToken(char *pDb, char *pToken, SEpSet *ep, int32_t auditVgId) {}
+#endif
+
+extern void getAuditDbNameToken(char *pDb, char *pToken);
+
+#ifndef TD_ENTERPRISE
+void getAuditDbNameToken(char *pDb, char *pToken) {}
+#endif
+
+extern void getAuditEpSet(SEpSet *ep, int32_t *pVgId);
+
+#ifndef TD_ENTERPRISE
+void getAuditEpSet(SEpSet *ep, int32_t *pVgId) {}
+#endif
 
 SMonVloadInfo tsVinfo = {0};
 SMnodeLoad    tsMLoad = {0};
@@ -37,9 +67,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     pMgmt->pData->clusterId = pCfg->clusterId;
     monSetDnodeId(pCfg->dnodeId);
     auditSetDnodeId(pCfg->dnodeId);
+    vnodeSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
-      dInfo("failed to set local info, dnodeId:%d clusterId:%" PRId64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
+      dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
             tstrerror(code));
     }
     (void)taosThreadRwlockUnlock(&pMgmt->pData->lock);
@@ -48,10 +79,10 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
 
 static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   int32_t code = 0;
-  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+  dDebug("ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
   if (pMgmt->pData->ipWhiteVer == ver) {
     if (ver == 0) {
-      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64 "", pMgmt->pData->ipWhiteVer, ver);
+      dDebug("disable ip-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->ipWhiteVer, ver);
       if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
         dError("failed to disable ip white list on dnode");
       }
@@ -60,14 +91,14 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
   int64_t oldVer = pMgmt->pData->ipWhiteVer;
 
-  SRetrieveIpWhiteReq req = {.ipWhiteVer = oldVer};
-  int32_t             contLen = tSerializeRetrieveIpWhite(NULL, 0, &req);
+  SRetrieveWhiteListReq req = {.ver = oldVer};
+  int32_t             contLen = tSerializeRetrieveWhiteListReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize ip white list request since: %s", tstrerror(contLen));
     return;
   }
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveIpWhite(pHead, contLen, &req);
+  contLen = tSerializeRetrieveWhiteListReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize ip white list request since:%s", tstrerror(contLen));
@@ -76,7 +107,7 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
 
   SRpcMsg rpcMsg = {.pCont = pHead,
                     .contLen = contLen,
-                    .msgType = TDMT_MND_RETRIEVE_IP_WHITE,
+                    .msgType = TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL,
                     .info.ahandle = 0,
                     .info.notFreeAhandle = 1,
                     .info.refId = 0,
@@ -92,21 +123,71 @@ static void dmMayShouldUpdateIpWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
   }
 }
 
-static void dmMayShouldUpdateAnalFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
+
+
+static void dmMayShouldUpdateTimeWhiteList(SDnodeMgmt *pMgmt, int64_t ver) {
+  int32_t code = 0;
+  dDebug("time-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->timeWhiteVer, ver);
+  if (pMgmt->pData->timeWhiteVer == ver) {
+    if (ver == 0) {
+      dDebug("disable time-white-list on dnode ver: %" PRId64 ", status ver: %" PRId64, pMgmt->pData->timeWhiteVer, ver);
+      if (rpcSetIpWhite(pMgmt->msgCb.serverRpc, NULL) != 0) {
+        dError("failed to disable time white list on dnode");
+      }
+    }
+    return;
+  }
+  int64_t oldVer = pMgmt->pData->timeWhiteVer;
+
+  SRetrieveWhiteListReq req = {.ver = oldVer};
+  int32_t             contLen = tSerializeRetrieveWhiteListReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize datetime white list request since: %s", tstrerror(contLen));
+    return;
+  }
+  void *pHead = rpcMallocCont(contLen);
+  contLen = tSerializeRetrieveWhiteListReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize datetime white list request since:%s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_RETRIEVE_DATETIME_WHITELIST,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SEpSet  epset = {0};
+
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epset);
+
+  code = rpcSendRequest(pMgmt->msgCb.clientRpc, &epset, &rpcMsg, NULL);
+  if (code != 0) {
+    dError("failed to send retrieve datetime white list request since:%s", tstrerror(code));
+  }
+}
+
+
+
+static void dmMayShouldUpdateAnalyticsFunc(SDnodeMgmt *pMgmt, int64_t newVer) {
   int32_t code = 0;
   int64_t oldVer = taosAnalyGetVersion();
   if (oldVer == newVer) return;
   dDebug("analysis on dnode ver:%" PRId64 ", status ver:%" PRId64, oldVer, newVer);
 
-  SRetrieveAnalAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
-  int32_t              contLen = tSerializeRetrieveAnalAlgoReq(NULL, 0, &req);
+  SRetrieveAnalyticsAlgoReq req = {.dnodeId = pMgmt->pData->dnodeId, .analVer = oldVer};
+  int32_t              contLen = tSerializeRetrieveAnalyticAlgoReq(NULL, 0, &req);
   if (contLen < 0) {
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
     return;
   }
 
   void *pHead = rpcMallocCont(contLen);
-  contLen = tSerializeRetrieveAnalAlgoReq(pHead, contLen, &req);
+  contLen = tSerializeRetrieveAnalyticAlgoReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
     dError("failed to serialize analysis function ver request since %s", tstrerror(contLen));
@@ -138,7 +219,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
@@ -158,8 +239,10 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
         dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
         dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
       }
+      setAuditDbNameToken(statusRsp.auditDB, statusRsp.auditToken, &(statusRsp.auditEpSet), statusRsp.auditVgId);
       dmMayShouldUpdateIpWhiteList(pMgmt, statusRsp.ipWhiteVer);
-      dmMayShouldUpdateAnalFunc(pMgmt, statusRsp.analVer);
+      dmMayShouldUpdateTimeWhiteList(pMgmt, statusRsp.timeWhiteVer);
+      dmMayShouldUpdateAnalyticsFunc(pMgmt, statusRsp.analVer);
     }
     tFreeSStatusRsp(&statusRsp);
   }
@@ -172,13 +255,13 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.timestamp = taosGetTimestampMs();
   pMgmt->statusSeq++;
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to mgnt statusInfolock", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to mgnt statusInfolock, statusSeq:%d", pMgmt->statusSeq);
   if (taosThreadMutexLock(&pMgmt->pData->statusInfolock) != 0) {
     dError("failed to lock status info lock");
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get dnode info", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get dnode info, statusSeq:%d", pMgmt->statusSeq);
   req.sver = tsVersion;
   req.dnodeVer = tsDnodeData.dnodeVer;
   req.dnodeId = tsDnodeData.dnodeId;
@@ -195,7 +278,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tstrncpy(req.machineId, tsDnodeData.machineId, TSDB_MACHINE_ID_LEN + 1);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
-  req.clusterCfg.checkTime = 0;
+  req.clusterCfg.statusIntervalMs = tsStatusIntervalMs;
   req.clusterCfg.ttlChangeOnWrite = tsTtlChangeOnWrite;
   req.clusterCfg.enableWhiteList = tsEnableWhiteList ? 1 : 0;
   req.clusterCfg.encryptionKeyStat = tsEncryptionKeyStat;
@@ -205,38 +288,67 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.clusterCfg.monitorParas.tsSlowLogScope = tsSlowLogScope;
   req.clusterCfg.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   req.clusterCfg.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
-  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
-  char timestr[32] = "1970-01-01 00:00:00.00";
-  if (taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, NULL) !=
-      0) {
-    dError("failed to parse time since %s", tstrerror(code));
+  req.clusterCfg.checkTime = (int64_t)taosGetLocalTimezoneOffset(&code);
+  if (code != 0) {
+    dError("failed to get local timezone offset, since %s", tstrerror(code));
+    (void)taosThreadMutexUnlock(&pMgmt->pData->statusInfolock);
+    return;
   }
+
+  tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_CHARSET_LEN);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get vnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+  if (req.pVloads == NULL) {
+    // No fresh vnode loads available: either the status-info thread (dmUpdateStatusInfo()) has not
+    // refilled tsVinfo.pVloads yet (startup race with the status thread, or it is slower than the
+    // heartbeat period), or collecting the loads failed (e.g. taosArrayInit() in vmGetVnodeLoads()).
+    // The status req will then carry an empty vnode-load list, which tells mnode nothing about the
+    // vnodes; log it loudly so an empty heartbeat can be traced back to this dnode.
+    dWarn("send status req to mnode, no vnode loads collected, statusSeq:%d", pMgmt->statusSeq);
+  } else {
+    dTrace("send status req to mnode, numOfVloads:%d, statusSeq:%d", (int32_t)taosArrayGetSize(req.pVloads),
+           pMgmt->statusSeq);
+  }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get mnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    tFreeSStatusReq(&req);
     dError("failed to unlock status info lock");
     return;
   }
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to get qnode loads", pMgmt->statusSeq);
+  dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
+
+  // Collect idle txn keepalive queries from all VNodes
+  if (pMgmt->collectVnodeTxnIdleFp != NULL) {
+    (*pMgmt->collectVnodeTxnIdleFp)(&req.pTxnActiveQueries);
+  }
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
   req.analVer = taosAnalyGetVersion();
+  req.timeWhiteVer = pMgmt->pData->timeWhiteVer;
+
+  if (tsAuditUseToken) {
+    getAuditDbNameToken(req.auditDB, req.auditToken);
+  }
+
+  if (tsAuditSaveInSelf) {
+    getAuditEpSet(&req.auditEpSet, &req.auditVgId);
+  }
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -245,6 +357,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -260,17 +373,27 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
                     .info.handle = 0};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
+  dDebug("send status req to mnode, dnodeVer:%" PRId64 " statusSeq:%d", req.dnodeVer, req.statusSeq);
 
   SEpSet epSet = {0};
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
-  code =
-      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  if (dDebugFlag & DEBUG_TRACE) {
+    char tbuf[512];
+    dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+    dTrace("send status req to mnode, begin to send rpc msg, statusSeq:%d to %s", pMgmt->statusSeq, tbuf);
+  }
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
-    dError("failed to SendRecv with timeout %d status req since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
+    dError("failed to SendRecv status req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
+    if (code == TSDB_CODE_TIMEOUT_ERROR) {
+      dmRotateMnodeEpSet(pMgmt->pData);
+      char tbuf[512];
+      dmEpSetToStr(tbuf, sizeof(tbuf), &epSet);
+      dInfo("Rotate mnode ep set since failed to SendRecv status req %s, epSet:%s, inUse:%d", tstrerror(rpcRsp.code),
+            tbuf, epSet.inUse);
+    }
     return;
   }
 
@@ -296,7 +419,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode", pMgmt->pData->dnodeId);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
         dError("failed to write dnode file");
@@ -308,23 +431,6 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     bool needUpdate = false;
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSConfigRsp(pRsp->pCont, pRsp->contLen, &configRsp) == 0) {
-      // Try to use cfg file in current dnode.
-      if (configRsp.forceReadConfig) {
-        if (configRsp.isConifgVerified) {
-          uInfo("force read config and check config verified");
-          code = taosPersistGlobalConfig(taosGetGlobalCfg(tsCfg), pMgmt->path, configRsp.cver);
-          if (code != TSDB_CODE_SUCCESS) {
-            dError("failed to persist global config since %s", tstrerror(code));
-            goto _exit;
-          }
-          needUpdate = true;
-        } else {
-          // log the difference configurations
-          printConfigNotMatch(configRsp.array);
-          needStop = true;
-          goto _exit;
-        }
-      }
       // Try to use cfg from mnode sdb.
       if (!configRsp.isVersionVerified) {
         uInfo("config version not verified, update config");
@@ -362,12 +468,168 @@ _exit:
   }
 }
 
+int32_t dmProcessKeySyncRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  const STraceId *trace = &pRsp->info.traceId;
+  int32_t         code = 0;
+  SKeySyncRsp     keySyncRsp = {0};
+
+  if (pRsp->code != 0) {
+    dError("failed to sync keys from mnode since %s", tstrerror(pRsp->code));
+    code = pRsp->code;
+    goto _exit;
+  }
+
+  if (pRsp->pCont == NULL || pRsp->contLen <= 0) {
+    dError("invalid key sync response, empty content");
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  code = tDeserializeSKeySyncRsp(pRsp->pCont, pRsp->contLen, &keySyncRsp);
+  if (code != 0) {
+    dError("failed to deserialize key sync response since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received key sync response, mnode keyVersion:%d, local keyVersion:%d, needUpdate:%d", keySyncRsp.keyVersion,
+        tsLocalKeyVersion, keySyncRsp.needUpdate);
+  // NOTE: tsEncryptKeysStatus is intentionally NOT published here. It is published at the end
+  // of this function (see below) only AFTER all key material (tsMetaKey, tsCfgKey, ...) has been
+  // fully applied. Publishing it earlier would let a concurrent SDB snapshot writer observe
+  // status==LOADED while tsMetaKey is still empty, producing a mixed plaintext/ciphertext
+  // sdb.data file that cannot be read back uniformly.
+  if (keySyncRsp.needUpdate) {
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+    // Get encrypt file path from tsDataDir
+    char masterKeyFile[PATH_MAX] = {0};
+    char derivedKeyFile[PATH_MAX] = {0};
+    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+
+    dInfo("updating local encryption keys from mnode, key file is saved in %s and %s, keyVersion:%d -> %d",
+          masterKeyFile, derivedKeyFile, tsLocalKeyVersion, keySyncRsp.keyVersion);
+
+    // Save keys to master.bin and derived.bin
+    // Use the same algorithm for cfg and meta keys (backward compatible)
+    code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, keySyncRsp.svrKey, keySyncRsp.dbKey, keySyncRsp.cfgKey, keySyncRsp.metaKey,
+                                keySyncRsp.dataKey, keySyncRsp.algorithm, keySyncRsp.algorithm, keySyncRsp.algorithm,
+                                keySyncRsp.keyVersion, keySyncRsp.createTime,
+                                keySyncRsp.svrKeyUpdateTime, keySyncRsp.dbKeyUpdateTime);
+    if (code != 0) {
+      dError("failed to save encryption keys since %s", tstrerror(code));
+      goto _exit;
+    }
+
+    // Update global variables with synced keys
+    tstrncpy(tsSvrKey, keySyncRsp.svrKey, sizeof(tsSvrKey));
+    tstrncpy(tsDbKey, keySyncRsp.dbKey, sizeof(tsDbKey));
+    tstrncpy(tsCfgKey, keySyncRsp.cfgKey, sizeof(tsCfgKey));
+    tstrncpy(tsMetaKey, keySyncRsp.metaKey, sizeof(tsMetaKey));
+    tstrncpy(tsDataKey, keySyncRsp.dataKey, sizeof(tsDataKey));
+    tsEncryptAlgorithmType = keySyncRsp.algorithm;
+    tsEncryptKeyVersion = keySyncRsp.keyVersion;
+    tsEncryptKeyCreateTime = keySyncRsp.createTime;
+    tsSvrKeyUpdateTime = keySyncRsp.svrKeyUpdateTime;
+    tsDbKeyUpdateTime = keySyncRsp.dbKeyUpdateTime;
+
+    // Update local key version
+    tsLocalKeyVersion = keySyncRsp.keyVersion;
+    dInfo("successfully updated local encryption keys to version:%d", tsLocalKeyVersion);
+
+    // Encrypt existing plaintext config files
+    code = taosEncryptExistingCfgFiles(tsDataDir);
+    if (code != 0) {
+      dWarn("failed to encrypt existing config files since %s, will retry on next write", tstrerror(code));
+      // Don't fail the key sync, files will be encrypted on next write
+      code = 0;
+    }
+#else
+    dWarn("enterprise features not enabled, skipping key sync");
+#endif
+  } else {
+    dDebug("local keys are up to date, version:%d", tsLocalKeyVersion);
+  }
+
+  // Publish the encryption key status ONLY AFTER every key field (tsMetaKey included) has been
+  // persisted to disk and copied into the global variables above. The status is read by concurrent
+  // SDB snapshot writers via atomic_load_32 (see taosWaitCfgKeyLoaded), so we must publish it with a
+  // matching atomic store to establish the happens-before relation and avoid a data race / UB. This
+  // guarantees readers also see a fully-populated tsMetaKey, preventing SDB writers from encrypting
+  // with an empty key or mixing plaintext/ciphertext within a single sdb.data file.
+  atomic_store_32(&tsEncryptKeysStatus, keySyncRsp.encryptionKeyStatus);
+
+  code = TSDB_CODE_SUCCESS;
+
+_exit:
+  rpcFreeCont(pRsp->pCont);
+  return code;
+}
+
+void dmSendKeySyncReq(SDnodeMgmt *pMgmt) {
+  int32_t     code = 0;
+  SKeySyncReq req = {0};
+
+  req.dnodeId = pMgmt->pData->dnodeId;
+  req.keyVersion = tsLocalKeyVersion;
+  dDebug("send key sync req to mnode, dnodeId:%d keyVersion:%d", req.dnodeId, req.keyVersion);
+
+  int32_t contLen = tSerializeSKeySyncReq(NULL, 0, &req);
+  if (contLen < 0) {
+    dError("failed to serialize key sync req since %s", tstrerror(contLen));
+    return;
+  }
+
+  void *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    dError("failed to malloc cont since %s", tstrerror(contLen));
+    return;
+  }
+  contLen = tSerializeSKeySyncReq(pHead, contLen, &req);
+  if (contLen < 0) {
+    rpcFreeCont(pHead);
+    dError("failed to serialize key sync req since %s", tstrerror(contLen));
+    return;
+  }
+
+  SRpcMsg rpcMsg = {.pCont = pHead,
+                    .contLen = contLen,
+                    .msgType = TDMT_MND_KEY_SYNC,
+                    .info.ahandle = 0,
+                    .info.notFreeAhandle = 1,
+                    .info.refId = 0,
+                    .info.noResp = 0,
+                    .info.handle = 0};
+  SRpcMsg rpcRsp = {0};
+
+  SEpSet epSet = {0};
+  int8_t epUpdated = 0;
+  (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
+
+  dDebug("send key sync req to mnode, dnodeId:%d keyVersion:%d, begin to send rpc msg", req.dnodeId, req.keyVersion);
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
+  if (code != 0) {
+    dError("failed to SendRecv key sync req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
+    return;
+  }
+  if (rpcRsp.code != 0) {
+    dError("failed to send key sync req since %s", tstrerror(rpcRsp.code));
+    return;
+  }
+  code = dmProcessKeySyncRsp(pMgmt, &rpcRsp);
+  if (code != 0) {
+    dError("failed to process key sync rsp since %s", tstrerror(code));
+    return;
+  }
+}
+
 void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int32_t    code = 0;
   SConfigReq req = {0};
 
   req.cver = tsdmConfigVersion;
-  req.forceReadConfig = tsForceReadConfig;
+  req.forceReadConfig = true;
   req.array = taosGetGlobalCfg(tsCfg);
   dDebug("send config req to mnode, configVersion:%d", req.cver);
 
@@ -403,11 +665,10 @@ void dmSendConfigReq(SDnodeMgmt *pMgmt) {
   int8_t epUpdated = 0;
   (void)dmGetMnodeEpSet(pMgmt->pData, &epSet);
 
-  dDebug("send status req to mnode, statusSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
-  code =
-      rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusInterval * 5 * 1000);
+  dDebug("send config req to mnode, configSeq:%d, begin to send rpc msg", pMgmt->statusSeq);
+  code = rpcSendRecvWithTimeout(pMgmt->msgCb.statusRpc, &epSet, &rpcMsg, &rpcRsp, &epUpdated, tsStatusSRTimeoutMs);
   if (code != 0) {
-    dError("failed to SendRecv config req with timeout %d since %s", tsStatusInterval * 5 * 1000, tstrerror(code));
+    dError("failed to SendRecv config req with timeout %d since %s", tsStatusSRTimeoutMs, tstrerror(code));
     return;
   }
   if (rpcRsp.code != 0) {
@@ -453,7 +714,8 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
   } else {
-    taosArrayDestroy(vinfo.pVloads);
+    // Discard the freshly fetched loads; use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed too (avoid leak).
+    tFreeSVnodeLoadArray(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
 
@@ -505,6 +767,35 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+// cfgDumpItemValue prints string-like items with "%s", so a NULL str must not be snapshotted.
+// CFG_DTYPE_TIMEZONE is included because its case in cfgDumpItemValue falls through to the
+// string case.
+static bool dmIsNullStrCfgItem(const SConfigItem *pItem) {
+  switch (pItem->dtype) {
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+    case CFG_DTYPE_NONE:
+      return pItem->str == NULL;
+    default:
+      return false;
+  }
+}
+
+// Restore an item whose new value was committed to SConfig but then failed to apply, so the
+// rejected value is not left behind for the next successful request to persist.
+static void dmRollbackCfgItem(SConfig *pCfg, const char *name, const char *oldValue) {
+  SConfigItem *pItem = NULL;
+  int32_t      code = cfgGetAndSetItem(pCfg, &pItem, name, oldValue, CFG_STYPE_ALTER_SERVER_CMD, true);
+  if (code != 0) {
+    dError("failed to roll back option:%s to value:%s since %s", name, oldValue, tstrerror(code));
+  } else {
+    dInfo("option:%s rolled back to value:%s since it failed to apply", name, oldValue);
+  }
+}
+
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
@@ -520,6 +811,37 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
 
+  // The dnode cannot authenticate the sender of TDMT_DND_CONFIG_DNODE, so it must not assume the
+  // mnode already validated the request. Re-run the same dyn-scope and category checks here,
+  // before the value is committed to the SConfig item - cfgGetAndSetItem only range-checks and
+  // never consults dynScope, so without this a non-dynamic or client-only item (supportVnodes,
+  // audit, fqdn, logDir, ...) would be applied and persisted.
+  // "resetlog" is not a config item and (enterprise) "ssblocksize" is pre-validated by the
+  // mnode; both intentionally bypass cfgCheckRangeForDynUpdate there, so mirror that here.
+  if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) != 0 &&
+      strncasecmp(cfgReq.config, "ssblocksize", strlen("ssblocksize")) != 0) {
+    code = cfgCheckRangeForDynUpdate(pCfg, cfgReq.config, cfgReq.value, true, cfgReq.alterType);
+    if (code != 0) {
+      dError("failed to config option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      return code;
+    }
+  }
+
+  // Snapshot the current value so an item that passes the checks above but still fails to apply
+  // can be rolled back, instead of being left in SConfig for the next request to persist. Only
+  // the requested item is snapshotted: the derived items that a "syncTimeout" request fans out
+  // to below are not rolled back, but they are all CFG_DYN_SERVER and so already passed the
+  // dyn-scope gate.
+  char         oldValue[TSDB_DNODE_VALUE_LEN] = {0};
+  int32_t      oldValueLen = 0;
+  bool         canRollback = false;
+  SConfigItem *pOldItem = cfgGetItem(pCfg, cfgReq.config);
+  if (pOldItem != NULL && pOldItem->array == NULL && !dmIsNullStrCfgItem(pOldItem) &&
+      cfgDumpItemValue(pOldItem, oldValue, sizeof(oldValue), &oldValueLen) == 0 &&
+      oldValueLen < (int32_t)sizeof(oldValue)) {
+    canRollback = true;
+  }
+
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
     if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) == 0) {
@@ -532,8 +854,106 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pItem == NULL) {
     return TSDB_CODE_CFG_NOT_FOUND;
   }
+
+  if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+    char value[10] = {0};
+    if (sscanf(cfgReq.value, "%d", &tsSyncTimeout) != 1) {
+      tsSyncTimeout = 0;
+    }
+
+    if (tsSyncTimeout > 0) {
+      SConfigItem *pItemTmp = NULL;
+      char         tmp[10] = {0};
+
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbSetAssignedTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      snprintf(tmp, sizeof(tmp), "%d", tsSyncTimeout / 4);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbHeartBeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "arbCheckSyncIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 2);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeElectIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 4);
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusSRTimeoutMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      snprintf(tmp, sizeof(tmp), "%d", (tsSyncTimeout - tsSyncTimeout / 4) / 8);
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncVnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(
+          cfgGetAndSetItem(pCfg, &pItemTmp, "syncMnodeHeartbeatIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+      TAOS_CHECK_RETURN(cfgGetAndSetItem(pCfg, &pItemTmp, "statusIntervalMs", tmp, CFG_STYPE_ALTER_SERVER_CMD, true));
+      if (pItemTmp == NULL) {
+        return TSDB_CODE_CFG_NOT_FOUND;
+      }
+
+      dInfo("change syncTimeout, GetAndSetItem, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
+    }
+  }
+
   if (!isConifgItemLazyMode(pItem)) {
-    TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+    code = taosCfgDynamicOptions(pCfg, cfgReq.config, true);
+    if (code != 0) {
+      dError("failed to apply option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      if (canRollback) {
+        dmRollbackCfgItem(pCfg, cfgReq.config, oldValue);
+      }
+      return code;
+    }
+
+    if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbHeartBeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbCheckSyncIntervalMs", true));
+
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeElectIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeElectIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncVnodeHeartbeatIntervalMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "syncMnodeHeartbeatIntervalMs", true));
+
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusSRTimeoutMs", true));
+      TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "statusIntervalMs", true));
+
+      dInfo("change syncTimeout, DynamicOptions, option:%s, value:%s, tsSyncTimeout:%d", cfgReq.config, cfgReq.value,
+            tsSyncTimeout);
+    }
   }
 
   if (pItem->category == CFG_CATEGORY_GLOBAL) {
@@ -547,9 +967,41 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
       dError("failed to persist local config since %s", tstrerror(code));
     }
   }
+
+  if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
+    dInfo("finished change syncTimeout, option:%s, value:%s", cfgReq.config, cfgReq.value);
+
+    (*pMgmt->setMnodeSyncTimeoutFp)();
+    (*pMgmt->setVnodeSyncTimeoutFp)();
+  }
+
+  if (taosStrncasecmp(cfgReq.config, "syncVnodeElectIntervalMs", 128) == 0 ||
+      taosStrncasecmp(cfgReq.config, "syncVnodeHeartbeatIntervalMs", 128) == 0) {
+    (*pMgmt->setVnodeSyncTimeoutFp)();
+  }
+
+  if (taosStrncasecmp(cfgReq.config, "syncMnodeElectIntervalMs", 128) == 0 ||
+      taosStrncasecmp(cfgReq.config, "syncMnodeHeartbeatIntervalMs", 128) == 0) {
+    (*pMgmt->setMnodeSyncTimeoutFp)();
+  }
+
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
+
+  // Propagate federatedQuery* changes to the ext connector module so that
+  // pools created after this ALTER pick up the new values without restart.
+  if (taosStrncasecmp(cfgReq.config, "federatedQuery", 14) == 0) {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    extConnectorUpdateModuleCfg(&extConnCfg);
+  }
+
   return code;
 }
 
@@ -579,6 +1031,666 @@ _exit:
 #endif
 }
 
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+// Verification plaintext used to validate encryption keys
+#define KEY_VERIFY_PLAINTEXT "TDengine_Encryption_Key_Verification_v1.0"
+
+// Save key verification file with encrypted plaintext for each key
+static int32_t dmSaveKeyVerification(const char *svrKey, const char *dbKey, const char *cfgKey, const char *metaKey,
+                                     const char *dataKey, int32_t algorithm, int32_t cfgAlgorithm,
+                                     int32_t metaAlgorithm) {
+  char    verifyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(verifyFile, sizeof(verifyFile), "%s%sdnode%sconfig%skey_verify.dat", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(verifyFile)) {
+    dError("failed to build key verification file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  int32_t     code = 0;
+  const char *plaintext = KEY_VERIFY_PLAINTEXT;
+  int32_t     plaintextLen = strlen(plaintext);
+
+  // Array of keys and their algorithms
+  const char *keys[] = {svrKey, dbKey, cfgKey, metaKey, dataKey};
+  int32_t     algorithms[] = {algorithm, algorithm, cfgAlgorithm, metaAlgorithm, algorithm};
+  const char *keyNames[] = {"SVR_KEY", "DB_KEY", "CFG_KEY", "META_KEY", "DATA_KEY"};
+
+  // Calculate total buffer size
+  int32_t encryptedLen = ((plaintextLen + 15) / 16) * 16;                 // Padded length for CBC
+  int32_t headerSize = sizeof(uint32_t) + sizeof(uint16_t);               // magic + version
+  int32_t perKeySize = sizeof(int32_t) + sizeof(int32_t) + encryptedLen;  // algo + len + encrypted data
+  int32_t totalSize = headerSize + perKeySize * 5;
+
+  // Allocate buffer for all data
+  char *buffer = taosMemoryMalloc(totalSize);
+  if (buffer == NULL) {
+    dError("failed to allocate memory for key verification buffer");
+    return terrno;
+  }
+
+  char *ptr = buffer;
+
+  // Write magic number and version to buffer
+  uint32_t magic = 0x544B5659;  // "TKVY" in hex
+  uint16_t version = 1;
+  memcpy(ptr, &magic, sizeof(magic));
+  ptr += sizeof(magic);
+  memcpy(ptr, &version, sizeof(version));
+  ptr += sizeof(version);
+
+  // Encrypt all keys and write to buffer
+  char paddedPlaintext[512] = {0};
+  memcpy(paddedPlaintext, plaintext, plaintextLen);
+
+  for (int i = 0; i < 5; i++) {
+    char encrypted[512] = {0};
+
+    // Encrypt the verification plaintext with this key using CBC
+    SCryptOpts opts = {0};
+    opts.len = encryptedLen;
+    opts.source = paddedPlaintext;
+    opts.result = encrypted;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
+    tstrncpy(opts.key, keys[i], sizeof(opts.key));
+
+    int32_t count = CBC_Encrypt(&opts);
+    if (count != opts.len) {
+      code = terrno ? terrno : TSDB_CODE_FAILED;
+      dError("failed to encrypt verification for %s, count=%d, expected=%d, since %s", keyNames[i], count, opts.len,
+             tstrerror(code));
+      taosMemoryFree(buffer);
+      return code;
+    }
+
+    // Write to buffer: algorithm + encrypted length + encrypted data
+    memcpy(ptr, &algorithms[i], sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(ptr, &encryptedLen, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(ptr, encrypted, encryptedLen);
+    ptr += encryptedLen;
+
+    dDebug("prepared verification for %s: algorithm=%d, encLen=%d", keyNames[i], algorithms[i], encryptedLen);
+  }
+
+  // Write all data to file in one operation
+  TdFilePtr pFile = taosOpenFile(verifyFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
+  if (pFile == NULL) {
+    dError("failed to create key verification file:%s, errno:%d", verifyFile, errno);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int64_t written = taosWriteFile(pFile, buffer, totalSize);
+  (void)taosCloseFile(&pFile);
+  taosMemoryFree(buffer);
+
+  if (written != totalSize) {
+    dError("failed to write key verification file, written=%" PRId64 ", expected=%d", written, totalSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  dInfo("successfully saved key verification file:%s, size=%d", verifyFile, totalSize);
+  return 0;
+}
+
+// Verify all encryption keys by decrypting and comparing with original plaintext
+static int32_t dmVerifyEncryptionKeys(const char *svrKey, const char *dbKey, const char *cfgKey, const char *metaKey,
+                                      const char *dataKey, int32_t algorithm, int32_t cfgAlgorithm,
+                                      int32_t metaAlgorithm) {
+  char    verifyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(verifyFile, sizeof(verifyFile), "%s%sdnode%sconfig%skey_verify.dat", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(verifyFile)) {
+    dError("failed to build key verification file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Get file size
+  int64_t fileSize = 0;
+  if (taosStatFile(verifyFile, &fileSize, NULL, NULL) < 0) {
+    // File doesn't exist, create it with current keys
+    dInfo("key verification file not found, creating new one");
+    return dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, cfgAlgorithm, metaAlgorithm);
+  }
+
+  if (fileSize <= 0 || fileSize > 10240) {  // Max 10KB
+    dError("invalid key verification file size: %" PRId64, fileSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Allocate buffer and read entire file
+  char *buffer = taosMemoryMalloc(fileSize);
+  if (buffer == NULL) {
+    dError("failed to allocate memory for key verification buffer");
+    return terrno;
+  }
+
+  TdFilePtr pFile = taosOpenFile(verifyFile, TD_FILE_READ);
+  if (pFile == NULL) {
+    dError("failed to open key verification file:%s", verifyFile);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int64_t bytesRead = taosReadFile(pFile, buffer, fileSize);
+  (void)taosCloseFile(&pFile);
+
+  if (bytesRead != fileSize) {
+    dError("failed to read key verification file, read=%" PRId64 ", expected=%" PRId64, bytesRead, fileSize);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  int32_t     code = 0;
+  const char *plaintext = KEY_VERIFY_PLAINTEXT;
+  int32_t     plaintextLen = strlen(plaintext);
+  const char *ptr = buffer;
+
+  // Parse and verify header
+  uint32_t magic = 0;
+  uint16_t version = 0;
+  memcpy(&magic, ptr, sizeof(magic));
+  ptr += sizeof(magic);
+  memcpy(&version, ptr, sizeof(version));
+  ptr += sizeof(version);
+
+  if (magic != 0x544B5659) {
+    dError("invalid magic number in key verification file: 0x%x", magic);
+    taosMemoryFree(buffer);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
+  // Array of keys and their algorithms
+  const char *keys[] = {svrKey, dbKey, cfgKey, metaKey, dataKey};
+  int32_t     expectedAlgos[] = {algorithm, algorithm, cfgAlgorithm, metaAlgorithm, algorithm};
+  const char *keyNames[] = {"SVR_KEY", "DB_KEY", "CFG_KEY", "META_KEY", "DATA_KEY"};
+
+  // Verify each key from buffer
+  for (int i = 0; i < 5; i++) {
+    // Check if we have enough data remaining
+    if (ptr - buffer + sizeof(int32_t) * 2 > fileSize) {
+      dError("unexpected end of file while reading %s metadata", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    int32_t savedAlgo = 0;
+    int32_t encryptedLen = 0;
+
+    memcpy(&savedAlgo, ptr, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+    memcpy(&encryptedLen, ptr, sizeof(int32_t));
+    ptr += sizeof(int32_t);
+
+    if (encryptedLen <= 0 || encryptedLen > 512) {
+      dError("invalid encrypted length %d for %s", encryptedLen, keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    if (ptr - buffer + encryptedLen > fileSize) {
+      dError("unexpected end of file while reading %s encrypted data", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+
+    uint8_t encrypted[512] = {0};
+    memcpy(encrypted, ptr, encryptedLen);
+    ptr += encryptedLen;
+
+    // Decrypt with current key using CBC
+    char decrypted[512] = {0};
+
+    SCryptOpts opts = {0};
+    opts.len = encryptedLen;
+    opts.source = (char *)encrypted;
+    opts.result = decrypted;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = TSDB_ENCRYPT_ALGO_SM4_STR;
+    tstrncpy(opts.key, keys[i], sizeof(opts.key));
+
+    int32_t count = CBC_Decrypt(&opts);
+    if (count != opts.len) {
+      code = terrno ? terrno : TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+      dError("failed to decrypt verification for %s, count=%d, expected=%d, since %s - KEY IS INCORRECT", keyNames[i],
+             count, opts.len, tstrerror(code));
+      taosMemoryFree(buffer);
+      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    }
+
+    // Verify decrypted data matches original plaintext (compare only the plaintext length)
+    if (memcmp(decrypted, plaintext, plaintextLen) != 0) {
+      dError("%s verification FAILED: decrypted text does not match - KEY IS INCORRECT", keyNames[i]);
+      taosMemoryFree(buffer);
+      return TSDB_CODE_DNODE_INVALID_ENCRYPTKEY;
+    }
+
+    dInfo("%s verification passed (algorithm=%d)", keyNames[i], savedAlgo);
+  }
+
+  taosMemoryFree(buffer);
+  dInfo("all encryption keys verified successfully");
+  return 0;
+}
+
+// Public API: Verify and initialize encryption keys at startup
+int32_t dmVerifyAndInitEncryptionKeys(void) {
+  // Skip verification in dump sdb mode (taosd -s)
+  if (tsSkipKeyCheckMode) {
+    dInfo("skip encryption key verification in some special check mode");
+    return 0;
+  }
+
+  // Check if encryption keys are loaded
+  if (tsEncryptKeysStatus != TSDB_ENCRYPT_KEY_STAT_LOADED) {
+    dDebug("encryption keys not loaded, skipping verification");
+    return 0;
+  }
+
+  // Get key file paths
+  char    masterKeyFile[PATH_MAX] = {0};
+  char    derivedKeyFile[PATH_MAX] = {0};
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load encryption keys
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
+  int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey,
+                                      &algorithm, &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime,
+                                      &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Verify all keys
+  code = dmVerifyEncryptionKeys(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, cfgAlgorithm, metaAlgorithm);
+  if (code != 0) {
+    dError("encryption key verification failed, since %s", tstrerror(code));
+    return code;
+  }
+
+  dInfo("encryption keys verified and initialized successfully");
+  return 0;
+}
+#else
+int32_t dmVerifyAndInitEncryptionKeys(void) {
+  // Community edition or no TaosK support
+  return 0;
+}
+#endif
+
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+static int32_t dmUpdateSvrKey(const char *newKey) {
+  if (newKey == NULL || newKey[0] == '\0') {
+    dError("invalid new SVR_KEY, key is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
+
+  // Build path to key files
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load current keys
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
+  int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code =
+      taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                           &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                           &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update SVR_KEY
+  int64_t now = taosGetTimestampMs();
+  int32_t newKeyVersion = keyVersion + 1;
+
+  dInfo("updating SVR_KEY, old version:%d, new version:%d", keyVersion, newKeyVersion);
+  tstrncpy(svrKey, newKey, sizeof(svrKey));
+  svrKeyUpdateTime = now;
+
+  // Save updated keys (use algorithm for all keys for backward compatibility)
+  code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
+                              algorithm, algorithm, newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to save updated encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update key verification file with new SVR_KEY
+  code = dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, algorithm, algorithm);
+  if (code != 0) {
+    dWarn("failed to update key verification file, since %s", tstrerror(code));
+    // Don't fail the operation if verification file update fails
+  }
+
+  // Update global variables
+  tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+  tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+  tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+  tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+  tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+  tsEncryptAlgorithmType = algorithm;
+  tsEncryptFileVersion = fileVersion;
+  tsEncryptKeyVersion = newKeyVersion;
+  tsEncryptKeyCreateTime = createTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+  // Update encryption key status for backward compatibility
+  int keyLen = strlen(tsDataKey);
+  if (keyLen > ENCRYPT_KEY_LEN) {
+    keyLen = ENCRYPT_KEY_LEN;
+  }
+  memset(tsEncryptKey, 0, ENCRYPT_KEY_LEN + 1);
+  memcpy(tsEncryptKey, tsDataKey, keyLen);
+  tsEncryptKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
+
+  dInfo("successfully updated SVR_KEY to version:%d", newKeyVersion);
+  return 0;
+}
+
+static int32_t dmUpdateKeyExpiration(int32_t days, const char *strategy) {
+  if (days < 0) {
+    dError("invalid days value:%d, must be >= 0", days);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (strategy == NULL || strategy[0] == '\0') {
+    dError("invalid strategy, strategy is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Validate strategy value
+  if (strcmp(strategy, "ALARM") != 0) {
+    dWarn("unknown strategy:%s, supported values: ALARM. Will use it anyway.", strategy);
+  }
+
+  // Update global variables directly
+  tsKeyExpirationDays = days;
+  tstrncpy(tsKeyExpirationStrategy, strategy, sizeof(tsKeyExpirationStrategy));
+
+  dInfo("successfully updated key expiration config: days=%d, strategy=%s", days, strategy);
+  return 0;
+}
+
+static int32_t dmUpdateDbKey(const char *newKey) {
+  if (newKey == NULL || newKey[0] == '\0') {
+    dError("invalid new DB_KEY, key is empty");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  char masterKeyFile[PATH_MAX] = {0};
+  char derivedKeyFile[PATH_MAX] = {0};
+
+  // Build path to key files
+  int32_t nBytes = snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP,
+                            TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(masterKeyFile)) {
+    dError("failed to build master key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  nBytes = snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP,
+                    TD_DIRSEP, TD_DIRSEP);
+  if (nBytes <= 0 || nBytes >= sizeof(derivedKeyFile)) {
+    dError("failed to build derived key file path");
+    return TSDB_CODE_OUT_OF_BUFFER;
+  }
+
+  // Load current keys
+  char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
+  int32_t algorithm = 0;
+  int32_t cfgAlgorithm = 0;
+  int32_t metaAlgorithm = 0;
+  int32_t fileVersion = 0;
+  int32_t keyVersion = 0;
+  int64_t createTime = 0;
+  int64_t svrKeyUpdateTime = 0;
+  int64_t dbKeyUpdateTime = 0;
+
+  int32_t code =
+      taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                           &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                           &svrKeyUpdateTime, &dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to load encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update DB_KEY
+  int64_t now = taosGetTimestampMs();
+  int32_t newKeyVersion = keyVersion + 1;
+
+  dInfo("updating DB_KEY, old version:%d, new version:%d", keyVersion, newKeyVersion);
+  tstrncpy(dbKey, newKey, sizeof(dbKey));
+  dbKeyUpdateTime = now;
+
+  // Save updated keys (use algorithm for all keys for backward compatibility)
+  code = taoskSaveEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm,
+                              algorithm, algorithm, newKeyVersion, createTime, svrKeyUpdateTime, dbKeyUpdateTime);
+  if (code != 0) {
+    dError("failed to save updated encryption keys, since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update key verification file with new DB_KEY
+  code = dmSaveKeyVerification(svrKey, dbKey, cfgKey, metaKey, dataKey, algorithm, algorithm, algorithm);
+  if (code != 0) {
+    dWarn("failed to update key verification file, since %s", tstrerror(code));
+    // Don't fail the operation if verification file update fails
+  }
+
+  // Update global variables
+  tstrncpy(tsSvrKey, svrKey, sizeof(tsSvrKey));
+  tstrncpy(tsDbKey, dbKey, sizeof(tsDbKey));
+  tstrncpy(tsCfgKey, cfgKey, sizeof(tsCfgKey));
+  tstrncpy(tsMetaKey, metaKey, sizeof(tsMetaKey));
+  tstrncpy(tsDataKey, dataKey, sizeof(tsDataKey));
+  tsEncryptAlgorithmType = algorithm;
+  tsEncryptFileVersion = fileVersion;
+  tsEncryptKeyVersion = newKeyVersion;
+  tsEncryptKeyCreateTime = createTime;
+  tsSvrKeyUpdateTime = svrKeyUpdateTime;
+  tsDbKeyUpdateTime = dbKeyUpdateTime;
+
+  // Update encryption key status for backward compatibility
+  int keyLen = strlen(tsDataKey);
+  if (keyLen > ENCRYPT_KEY_LEN) {
+    keyLen = ENCRYPT_KEY_LEN;
+  }
+  memset(tsEncryptKey, 0, ENCRYPT_KEY_LEN + 1);
+  memcpy(tsEncryptKey, tsDataKey, keyLen);
+  tsEncryptKey[ENCRYPT_KEY_LEN] = '\0';
+  tsEncryptionKeyChksum = taosCalcChecksum(0, (const uint8_t *)tsEncryptKey, strlen(tsEncryptKey));
+
+  dInfo("successfully updated DB_KEY to version:%d", newKeyVersion);
+  return 0;
+}
+#endif
+
+int32_t dmProcessAlterEncryptKeyReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  int32_t              code = 0;
+  SMAlterEncryptKeyReq alterKeyReq = {0};
+  if (tDeserializeSMAlterEncryptKeyReq(pMsg->pCont, pMsg->contLen, &alterKeyReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    dError("failed to deserialize alter encrypt key req, since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received alter encrypt key req, keyType:%d", alterKeyReq.keyType);
+
+  // Update the specified key (svr_key or db_key)
+  if (alterKeyReq.keyType == 0) {
+    // Update SVR_KEY
+    code = dmUpdateSvrKey(alterKeyReq.newKey);
+    if (code == 0) {
+      dInfo("successfully updated SVR_KEY");
+    } else {
+      dError("failed to update SVR_KEY, since %s", tstrerror(code));
+    }
+  } else if (alterKeyReq.keyType == 1) {
+    // Update DB_KEY
+    code = dmUpdateDbKey(alterKeyReq.newKey);
+    if (code == 0) {
+      dInfo("successfully updated DB_KEY");
+    } else {
+      dError("failed to update DB_KEY, since %s", tstrerror(code));
+    }
+  } else {
+    dError("invalid keyType:%d, must be 0 (SVR_KEY) or 1 (DB_KEY)", alterKeyReq.keyType);
+    code = TSDB_CODE_INVALID_PARA;
+  }
+
+_exit:
+  tFreeSMAlterEncryptKeyReq(&alterKeyReq);
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  dError("encryption key management is only available in enterprise edition");
+  pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int32_t dmProcessAlterKeyExpirationReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  int32_t                 code = 0;
+  SMAlterKeyExpirationReq alterReq = {0};
+  if (tDeserializeSMAlterKeyExpirationReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    dError("failed to deserialize alter key expiration req, since %s", tstrerror(code));
+    goto _exit;
+  }
+
+  dInfo("received alter key expiration req, days:%d, strategy:%s", alterReq.days, alterReq.strategy);
+
+  // Update key expiration configuration
+  code = dmUpdateKeyExpiration(alterReq.days, alterReq.strategy);
+  if (code == 0) {
+    dInfo("successfully updated key expiration: %d days, strategy: %s", alterReq.days, alterReq.strategy);
+  } else {
+    dError("failed to update key expiration, since %s", tstrerror(code));
+  }
+
+_exit:
+  tFreeSMAlterKeyExpirationReq(&alterReq);
+  pMsg->code = code;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return code;
+#else
+  dError("key expiration management is only available in enterprise edition");
+  pMsg->code = TSDB_CODE_OPS_NOT_SUPPORT;
+  pMsg->info.rsp = NULL;
+  pMsg->info.rspLen = 0;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int32_t dmProcessReloadTlsConfig(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMsgCb *msgCb = &pMgmt->msgCb;
+  void *pTransCli = msgCb->clientRpc;
+  void *pTransStatus = msgCb->statusRpc;  
+  void *pTransSync = msgCb->syncRpc; 
+  void *pTransServer = msgCb->serverRpc;
+
+  code = rpcReloadTlsConfig(pTransServer, TAOS_CONN_SERVER);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "server", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransCli, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "cli", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransStatus, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "status-cli", tstrerror(code));
+    goto _error;
+  }
+
+  code = rpcReloadTlsConfig(pTransSync, TAOS_CONN_CLIENT);
+  if (code != 0) {
+    dError("failed to reload tls config for transport %s since %s", "sync-cli", tstrerror(code));
+    goto _error;
+  }
+
+_error:
+  
+  return code;
+}
+
 static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
@@ -604,7 +1716,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
     }
   }
 
-  taosArrayDestroy(vinfo.pVloads);
+  // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+  tFreeSVnodeLoadArray(vinfo.pVloads);
 }
 
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -690,7 +1803,7 @@ _exit:
 }
 
 int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
-  int32_t code = dumpConfToDataBlock(pBlock, 1);
+  int32_t code = dumpConfToDataBlock(pBlock, 1, NULL, SHOW_VAR_PRIV_ALL);
   if (code != 0) {
     return code;
   }
@@ -700,7 +1813,130 @@ int32_t dmAppendVariablesToBlock(SSDataBlock *pBlock, int32_t dnodeId) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, false);
+  return colDataSetNItems(pColInfo, 0, (const char *)&dnodeId, pBlock->info.rows, 1, false);
+}
+
+static int32_t dmBuildCpuAllocationBlock(SSDataBlock **ppBlock) {
+  int32_t      code = 0;
+  SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pBlock == NULL) return terrno;
+
+  size_t               size = 0;
+  const SSysTableMeta *pMeta = NULL;
+  getInfosDbMeta(&pMeta, &size);
+
+  int32_t index = -1;
+  for (int32_t i = 0; i < (int32_t)size; ++i) {
+    if (strcmp(pMeta[i].name, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+      index = i;
+      break;
+    }
+  }
+  if (index < 0) {
+    taosMemoryFree(pBlock);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  pBlock->pDataBlock = taosArrayInit(pMeta[index].colNum, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    code = terrno;
+    goto _exit_cpu;
+  }
+
+  for (int32_t i = 0; i < pMeta[index].colNum; ++i) {
+    SColumnInfoData colInfoData = {0};
+    colInfoData.info.colId = i + 1;
+    colInfoData.info.type = pMeta[index].schema[i].type;
+    colInfoData.info.bytes = pMeta[index].schema[i].bytes;
+    if (taosArrayPush(pBlock->pDataBlock, &colInfoData) == NULL) {
+      code = terrno;
+      goto _exit_cpu;
+    }
+  }
+
+  pBlock->info.hasVarCol = true;
+_exit_cpu:
+  if (code != 0) {
+    blockDataDestroy(pBlock);
+  } else {
+    *ppBlock = pBlock;
+  }
+  return code;
+}
+
+static int32_t dmAppendCpuAllocationRow(SSDataBlock *pBlock, int32_t dnodeId, const char *category, int32_t cores,
+                                        const char *coreIds, bool enabled) {
+  int32_t code = 0;
+  int32_t row = pBlock->info.rows;
+
+  // column 0: dnode_id (INT)
+  SColumnInfoData *pCol0 = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pCol0 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol0, row, (const char *)&dnodeId, false);
+  if (code) return code;
+
+  // column 1: thread_category (VARCHAR)
+  SColumnInfoData *pCol1 = taosArrayGet(pBlock->pDataBlock, 1);
+  if (pCol1 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char catBuf[16 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(catBuf, category);
+  code = colDataSetVal(pCol1, row, catBuf, false);
+  if (code) return code;
+
+  // column 2: cores (INT)
+  SColumnInfoData *pCol2 = taosArrayGet(pBlock->pDataBlock, 2);
+  if (pCol2 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  code = colDataSetVal(pCol2, row, (const char *)&cores, false);
+  if (code) return code;
+
+  // column 3: core_ids (VARCHAR)
+  SColumnInfoData *pCol3 = taosArrayGet(pBlock->pDataBlock, 3);
+  if (pCol3 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  char idsBuf[256 + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(idsBuf, coreIds);
+  code = colDataSetVal(pCol3, row, idsBuf, false);
+  if (code) return code;
+
+  // column 4: enabled (BOOL)
+  SColumnInfoData *pCol4 = taosArrayGet(pBlock->pDataBlock, 4);
+  if (pCol4 == NULL) return TSDB_CODE_OUT_OF_RANGE;
+  int8_t boolVal = enabled ? 1 : 0;
+  code = colDataSetVal(pCol4, row, (const char *)&boolVal, false);
+  if (code) return code;
+
+  pBlock->info.rows++;
+  return 0;
+}
+
+static int32_t dmFillCpuAllocationBlock(SSDataBlock *pBlock, int32_t dnodeId) {
+  int32_t                code = 0;
+  const SCpuAllocStatus *status = taosGetCpuAllocStatus();
+  const char            *catNames[] = {"management", "write", "read"};
+
+  code = blockDataEnsureCapacity(pBlock, THREAD_CAT_COUNT);
+  if (code) return code;
+
+  for (int32_t c = 0; c < THREAD_CAT_COUNT; c++) {
+    char    coreIdsBuf[256] = {0};
+    int32_t cores = 0;
+    bool    enabled = false;
+
+    if (status->enabled) {
+      cores = status->sets[c].count;
+      enabled = true;
+      int off = 0;
+      for (int32_t i = 0; i < status->sets[c].count && off < (int)sizeof(coreIdsBuf) - 8; i++) {
+        off +=
+            snprintf(coreIdsBuf + off, sizeof(coreIdsBuf) - off, "%s%d", i > 0 ? "," : "", status->sets[c].coreIds[i]);
+      }
+    } else {
+      tstrncpy(coreIdsBuf, "-", sizeof(coreIdsBuf));
+    }
+
+    code = dmAppendCpuAllocationRow(pBlock, dnodeId, catNames[c], cores, coreIdsBuf, enabled);
+    if (code) return code;
+  }
+  return 0;
 }
 
 int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -711,25 +1947,39 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (tDeserializeSRetrieveTableReq(pMsg->pCont, pMsg->contLen, &retrieveReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
+  dInfo("retrieve table:%s, user:%s, compactId:%" PRId64, retrieveReq.tb, retrieveReq.user, retrieveReq.compactId);
 #if 0
   if (strcmp(retrieveReq.user, TSDB_DEFAULT_USER) != 0) {
     code = TSDB_CODE_MND_NO_RIGHTS;
     return code;
   }
 #endif
-  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES)) {
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_DNODE_VARIABLES) != 0 &&
+      strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
 
   SSDataBlock *pBlock = NULL;
-  if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
-    return code;
-  }
 
-  code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
-  if (code != 0) {
-    blockDataDestroy(pBlock);
-    return code;
+  if (strcasecmp(retrieveReq.tb, TSDB_INS_TABLE_CPU_ALLOCATION) == 0) {
+    if ((code = dmBuildCpuAllocationBlock(&pBlock)) != 0) {
+      return code;
+    }
+    code = dmFillCpuAllocationBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
+  } else {
+    if ((code = dmBuildVariablesBlock(&pBlock)) != 0) {
+      return code;
+    }
+
+    code = dmAppendVariablesToBlock(pBlock, pMgmt->pData->dnodeId);
+    if (code != 0) {
+      blockDataDestroy(pBlock);
+      return code;
+    }
   }
 
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -778,6 +2028,46 @@ int32_t dmProcessRetrieve(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SMStreamHbRspMsg rsp = {0};
+  int32_t          code = 0;
+  SDecoder         decoder;
+  int64_t          currTs = taosGetTimestampMs();
+
+  if (pMsg->code) {
+    return streamHbHandleRspErr(pMsg->code, currTs);
+  }
+
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(header));
+  int32_t len = pMsg->contLen - sizeof(header);
+  tDecoderInit(&decoder, (uint8_t*)msg, len);
+  code = tDecodeStreamHbRsp(&decoder, &rsp);
+  if (code < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    tDecoderClear(&decoder);
+    dError("fail to decode stream hb rsp msg, error:%s", tstrerror(code));
+    return streamHbHandleRspErr(code, currTs);
+  }
+
+  tDecoderClear(&decoder);
+
+  if (header.streamGid != rsp.streamGId) {
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  return streamHbProcessRspMsg(&rsp);
+}
+
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -791,12 +2081,27 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_QNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_SNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#ifdef TD_ENTERPRISE
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP_PROGRESS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_KILL_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#endif
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  // Second hop: DNODE consumes DND messages broadcast by mnode and updates local keys and expiry times.
+  // Do not register TDMT_MND_ALTER_* here. It belongs to the client-to-mnode first hop and is already
+  // registered by the MNODE module in mmHandle.c; registering it here would conflict with MNODE routing.
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_RELOAD_DNODE_TLS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;

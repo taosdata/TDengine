@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,9 +19,11 @@
 
 #include <algorithm>
 #include <array>
+#include <mutex>
 #include <thread>
 
 #include "catalog.h"
+#include "catalogInt.h"
 #include "mockCatalogService.h"
 #include "parInt.h"
 
@@ -52,6 +56,7 @@ int32_t g_skipSql = 0;
 int32_t g_limitSql = 0;
 
 void setAsyncFlag(const char* pArg) { g_testAsyncApis = stoi(pArg) > 0 ? true : false; }
+bool getAsyncFlag() { return g_testAsyncApis; }
 void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
 void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
 
@@ -63,15 +68,33 @@ void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
+void initKeywordsTableOnce() {
+  static once_flag once;
+  call_once(once, []() {
+    int32_t code = qInitKeywordsTable();
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == code);
+  });
+}
+
+// Dummy catalog object for parser tests. Kept non-NULL for privilege checks.
+// Must be a fully-sized, zero-initialized SCatalog: the enterprise
+// federated-query path (preParseTargetTableName -> catalogIsExtSource ->
+// ctgAcquireExtSource) dereferences catalog fields (pExtSourceHash, extHashLatch).
+// A zeroed SCatalog makes pExtSourceHash == NULL so that path safely returns
+// "not an ext source"; a truncated stub would read those fields out of bounds.
+static SCatalog g_dummyCatalog = {};
+
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase), sqlNo_(0), sqlNum_(0) {
-    assert(TSDB_CODE_SUCCESS == qInitKeywordsTable());
+    initKeywordsTableOnce();
     caseEnv_.numOfSkipSql_ = g_skipSql;
     caseEnv_.numOfLimitSql_ = g_limitSql;
   }
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
+
+  int32_t getLastExecMode() const { return lastExecMode_; }
 
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
@@ -98,6 +121,56 @@ class ParserTestBaseImpl {
     }
   }
 
+  void runClonedAst(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
+      return;
+    }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
+
+    runClonedAstInternalFuncs(sql, expect, checkStage);
+  }
+
+  // Skips the two sync interfaces (which can never see the SParseMetaCache
+  // populated by MockCatalogService.catalogGetAllMeta).  Used by tests that
+  // rely on EXT source / EXT table metadata being routed through the cache.
+  void runAsyncOnly(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
+      return;
+    }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
+    runAsyncInternalFuncs(sql, expect, checkStage);
+    runAsyncApis(sql, expect, checkStage);
+  }
+
+  // Pure parse check: builds the AST via parse() only — no authenticate, no
+  // translate, no catalog access. Use to validate grammar/AST shape for statements
+  // whose later stages can't be exercised under the unit-test mock catalog.
+  void runParseOnly(const string& sql, int32_t expect) {
+    reset(expect, PARSER_STAGE_PARSE, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParse(&cxt, query.get());
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
  private:
   struct caseEnv {
     string  acctId_;
@@ -114,6 +187,7 @@ class ParserTestBaseImpl {
     array<char, 1024> msgBuf_;
     int32_t           expect_;
     string            checkFunc_;
+    ParserStage       checkStage_;
   };
 
   struct stmtRes {
@@ -193,6 +267,7 @@ class ParserTestBaseImpl {
     stmtEnv_.msgBuf_.fill(0);
     stmtEnv_.expect_ = expect;
     stmtEnv_.checkFunc_ = stageFunc(checkStage, type);
+    stmtEnv_.checkStage_ = checkStage;
 
     res_.parsedAst_.clear();
     res_.translatedAst_.clear();
@@ -224,12 +299,20 @@ class ParserTestBaseImpl {
     pCxt->pUser = caseEnv_.user_.c_str();
     pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->enableSysInfo = true;
+    pCxt->privInfo = UINT16_MAX;
+    pCxt->macMode = 0;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
     pCxt->async = async;
     pCxt->svrVer = "3.0.0.0";
+    pCxt->pCatalog = (SCatalog*)&g_dummyCatalog;  // non-NULL dummy catalog for privilege checks
+    // Non-NULL transporter so that normal/virtual-normal table RENAME COLUMN /
+    // RENAME TAG reaches the (stubbed) catalogChkColRefByPriv mnode round trip
+    // instead of failing closed with "catalog or transporter is not set". The
+    // stub simulates an mnode with no privilege rule referencing the column.
+    pCxt->pTransporter = (void*)&g_dummyCatalog;
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {
@@ -242,7 +325,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
-  void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+  void doBuildCatalogReq(SParseContext* pCxt, SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
     DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
   }
 
@@ -250,7 +333,7 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
   }
 
-  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
@@ -266,6 +349,8 @@ class ParserTestBaseImpl {
 
   void doCalculateConstant(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(calculateConstant, pCxt, pQuery);
+    checkQuery(pQuery, PARSER_STAGE_CALC_CONST);
+    lastExecMode_ = pQuery->execMode;
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
@@ -283,9 +368,10 @@ class ParserTestBaseImpl {
     }
   }
 
-  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
+  void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
                             SQuery* pQuery) {
     DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
+    checkQuery(pQuery, PARSER_STAGE_CALC_CONST);
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
@@ -312,7 +398,13 @@ class ParserTestBaseImpl {
     return str;
   }
 
-  void checkQuery(const SQuery* pQuery, ParserStage stage) { pBase_->checkDdl(pQuery, stage); }
+  void checkQuery(const SQuery* pQuery, ParserStage stage) {
+    // Keep existing DDL checks at translation unless constant checks are requested.
+    if (PARSER_STAGE_CALC_CONST == stage && PARSER_STAGE_CALC_CONST != stmtEnv_.checkStage_) {
+      return;
+    }
+    pBase_->checkDdl(pQuery, stage);
+  }
 
   void runInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_INTERNAL);
@@ -334,6 +426,46 @@ class ParserTestBaseImpl {
 
         doCalculateConstant(&cxt, pQuery);
       }
+
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
+  void doCloneRoot(SQuery* pQuery) {
+    SNode* pClone = NULL;
+    DO_WITH_THROW(nodesCloneNode, pQuery->pRoot, &pClone);
+    ASSERT_NE(pClone, nullptr);
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = pClone;
+  }
+
+  // Same pipeline as runInternalFuncs, with the clone step the view and the
+  // prepared statement paths insert between parse and translate.
+  void runClonedAstInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage, TEST_INTERFACE_INTERNAL);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt);
+
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParse(&cxt, query.get());
+      SQuery* pQuery = *(query.get());
+
+      doCloneRoot(pQuery);
+
+      doAuthenticate(&cxt, pQuery, nullptr);
+
+      doTranslate(&cxt, pQuery, nullptr);
+
+      doCalculateConstant(&cxt, pQuery);
 
       if (g_dump) {
         dump();
@@ -482,7 +614,7 @@ class ParserTestBaseImpl {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_API);
     try {
       unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
-      setParseContext(sql, cxt.get());
+      setParseContext(sql, cxt.get(), true);
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
@@ -540,6 +672,7 @@ class ParserTestBaseImpl {
   caseEnv         caseEnv_;
   stmtEnv         stmtEnv_;
   stmtRes         res_;
+  int32_t         lastExecMode_ = -1;
   ParserTestBase* pBase_;
   int32_t         sqlNo_;
   int32_t         sqlNum_;
@@ -556,6 +689,20 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
 }
+
+void ParserTestBase::runParseOnly(const std::string& sql, int32_t expect) {
+  return impl_->runParseOnly(sql, expect);
+}
+
+void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runAsyncOnly(sql, expect, checkStage);
+}
+
+void ParserTestBase::runClonedAst(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runClonedAst(sql, expect, checkStage);
+}
+
+int32_t ParserTestBase::getLastExecMode() const { return impl_->getLastExecMode(); }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }
 

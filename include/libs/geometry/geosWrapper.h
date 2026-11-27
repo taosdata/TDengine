@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,7 @@ extern "C" {
 #include <stdint.h>
 #include "os.h"
 
+#ifdef USE_GEOS
 #include "tgeosctx.h"
 
 void geosFreeBuffer(void *buffer);
@@ -54,6 +57,13 @@ int32_t doContainsProperly(const GEOSGeometry *geom1, const GEOSPreparedGeometry
 int32_t readGeometry(const unsigned char *input, GEOSGeometry **outputGeom,
                      const GEOSPreparedGeometry **outputPreparedGeom);
 void    destroyGeometry(GEOSGeometry **geom, const GEOSPreparedGeometry **preparedGeom);
+
+#else
+int32_t initCtxAsText();
+int32_t doAsText(const unsigned char *inputGeom, size_t size, char **outputWKT);
+int32_t checkWKB(const unsigned char *wkb, size_t size);
+
+#endif
 
 #ifdef __cplusplus
 }

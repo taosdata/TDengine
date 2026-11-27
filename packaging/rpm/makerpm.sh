@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate rpm package for centos
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -13,11 +26,11 @@ cpuType=$4
 osType=$5
 verMode=$6
 verType=$7
+product_name=$8
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/rpmworkroom"
-taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
 spec_file="${script_dir}/tdengine.spec"
 
 #echo "curr_dir: ${curr_dir}"
@@ -28,9 +41,42 @@ echo "pkg_dir: ${pkg_dir}"
 echo "spec_file: ${spec_file}"
 
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -eq 0 ]; then
+    csudo=""
+elif command -v sudo > /dev/null; then
     csudo="sudo "
+else
+    echo "makerpm.sh requires root or a working sudo" >&2
+    exit 1
 fi
+
+resolve_existing_dir() {
+    local label="$1"
+    shift
+    for candidate in "$@"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo "Missing ${label} root. Tried: $*" >&2
+    return 1
+}
+
+community_packaging_dir="$(resolve_existing_dir \
+    "community packaging" \
+    "$(readlink -f "${script_dir}/..")" \
+    "$(readlink -f "${compile_dir}/../packaging")")"
+
+internal_packaging_dir="$(resolve_existing_dir \
+    "internal packaging" \
+    "$(readlink -f "${top_dir}/../taos-internal/packaging")" \
+    "$(readlink -f "${top_dir}/../enterprise/packaging")")"
+
+taosx_dir="$(resolve_existing_dir \
+    "taosx" \
+    "$(readlink -f "${top_dir}/../taos-xservice")" \
+    "$(readlink -f "${script_dir}/../../../../taosx")")"
 
 function cp_rpm_package() {
     local cur_dir
@@ -77,7 +123,7 @@ cd ${pkg_dir}
 
 ${csudo}mkdir -p BUILD BUILDROOT RPMS SOURCES SPECS SRPMS
 
-${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_taosxdir ${taosx_dir}"   -bb ${spec_file}
+${csudo}rpmbuild --define="_version ${tdengine_ver}" --define="_topdir ${pkg_dir}" --define="_compiledir ${compile_dir}" --define="_communitypackagingdir ${community_packaging_dir}" --define="_communitysourcedir ${top_dir}" --define="_internalpackagingdir ${internal_packaging_dir}" --define="_taosxdir ${taosx_dir}"  --define="product_name ${product_name}"  -bb ${spec_file}
 
 # copy rpm package to output_dir, and modify package name, then clean temp dir
 #${csudo}cp -rf RPMS/* ${output_dir}
@@ -85,18 +131,18 @@ cp_rpm_package ${pkg_dir}/RPMS
 
 
 if [ "$verMode" == "cluster" ]; then
-  rpmname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+  rpmname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 elif [ "$verMode" == "edge" ]; then
-  rpmname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
+  rpmname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 
 if [ "$verType" == "beta" ]; then
-  rpmname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".rpm"
+  rpmname="${product_name}-oss-${tdengine_ver}-${verType}-${osType}-${cpuType}.rpm"
 elif [ "$verType" == "stable" ]; then
-  rpmname=${rpmname}".rpm"
+  rpmname="${rpmname}.rpm"
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

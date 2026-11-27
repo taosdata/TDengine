@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,15 +22,17 @@
 // support OEM
 //
 #ifndef TD_PRODUCT_NAME
-#ifdef TD_ENTERPRISE
-#define TD_PRODUCT_NAME "TDengine Enterprise Edition"
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+#define TD_PRODUCT_NAME "TDengine TSDB-Enterprise"
 #else
-#define TD_PRODUCT_NAME "TDengine Community Edition"
+#define TD_PRODUCT_NAME "TDengine TSDB-OSS"
 #endif
 #endif
 
 #ifndef CUS_NAME
-#define CUS_NAME    "TDengine"
+// CUS_NAME should only be defined by the build system, define it here results in
+// bugs like TD-37744.
+// #define CUS_NAME "TDengine TSDB"
 #endif
 
 #ifndef CUS_PROMPT
@@ -36,7 +40,7 @@
 #endif
 
 #ifndef CUS_EMAIL
-#define CUS_EMAIL   "<support@taosdata.com>"
+#define CUS_EMAIL "<support@taosdata.com>"
 #endif
 
 #endif  // _CUS_NAME_H_

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -92,7 +94,20 @@ int32_t tfsGetLevel(STfs *pTfs);
  * @param pDiskId The disk ID after allocation.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId);
+int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *pDiskId);
+
+enum { TFS_DISK_ALLOC_ROUND_ROBIN = 0, TFS_DISK_ALLOC_LEAST_USED = 1 };
+/**
+ * Allocate a disk starting at expLevel and proceeding to lower levels.
+ * The label selects the round-robin cursor; least-used compares cached used/total
+ * ratios and uses that cursor to break ties. strategy must be one of the
+ * TFS_DISK_ALLOC_* constants. Returns 0 on success, TSDB_CODE_INVALID_PARA
+ * for invalid arguments, or TSDB_CODE_FS_NO_VALID_DISK if no disk is available.
+ */
+int32_t tfsAllocDiskWithStrategy(STfs *pTfs, int32_t expLevel, const char *label, int32_t strategy,
+                                 SDiskID *pDiskId);
+
+int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId);
 
 /**
  * @brief Get the primary path.
@@ -103,11 +118,13 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId);
 const char *tfsGetPrimaryPath(STfs *pTfs);
 
 /**
- * @brief Get the disk path.
+ * @brief Get the disk path. The diskId is treated as untrusted input: an
+ * out-of-range level/id or an unmounted disk slot yields NULL rather than an
+ * invalid memory access, so callers MUST check the result before using it.
  *
  * @param pTfs The fs object.
  * @param diskId The diskId.
- * @return const char * The primary path.
+ * @return const char * The disk path, or NULL if the diskId is not valid.
  */
 const char *tfsGetDiskPath(STfs *pTfs, SDiskID diskId);
 

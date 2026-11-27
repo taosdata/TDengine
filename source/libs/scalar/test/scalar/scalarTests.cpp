@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
 
 #include <gtest/gtest.h>
 #include <iostream>
@@ -27,24 +36,24 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 #include "os.h"
 
 #include "filterInt.h"
+#include "filter.h"
+#include "functionMgt.h"
 #include "nodes.h"
 #include "parUtil.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "stub.h"
 #include "taos.h"
+#include "tconv.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tvariant.h"
-#include "tcompare.h"
 
 #define _DEBUG_PRINT_ 0
 
@@ -159,12 +168,23 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   vnode->node.resType.type = dataType;
 
   if (IS_VAR_DATA_TYPE(dataType)) {
+    if (IS_STR_DATA_BLOB(dataType)) {
+    vnode->datum.p = (char *)taosMemoryMalloc(blobDataTLen(value));
+    if (NULL == vnode->datum.p) {
+      SCL_ERR_RET(terrno);
+    }
+    blobDataCopy(vnode->datum.p, value);
+    vnode->node.resType.bytes = blobDataTLen(value);
+
+    } else {
     vnode->datum.p = (char *)taosMemoryMalloc(varDataTLen(value));
     if (NULL == vnode->datum.p) {
       SCL_ERR_RET(terrno);
     }
     varDataCopy(vnode->datum.p, value);
     vnode->node.resType.bytes = varDataTLen(value);
+
+    }
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
     (void)assignVal((char *)nodesGetValueFromNode(vnode), (const char *)value, 0, dataType);
@@ -172,6 +192,201 @@ int32_t scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 
   *pNode = (SNode *)vnode;
   SCL_RET(TSDB_CODE_SUCCESS);
+}
+
+SStreamAncestorContext *scltMakeAncestorContext(int64_t gid, int32_t paramIndex) {
+  auto *context = static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  EXPECT_NE(context, nullptr);
+  if (context == nullptr) return nullptr;
+  context->pParamContexts = taosArrayInit(1, sizeof(SStreamAncestorParamContext));
+  EXPECT_NE(context->pParamContexts, nullptr);
+  if (context->pParamContexts == nullptr) return context;
+
+  SStreamAncestorParamContext param = {};
+  param.paramIndex = paramIndex;
+  param.leafIdentity.gid = gid;
+  param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  param.leafIdentity.lineage.pScopes = taosArrayInit(2, sizeof(SScopeInstanceId));
+  EXPECT_NE(param.leafIdentity.lineage.pScopes, nullptr);
+  SScopeInstanceId root = {};
+  root.layerIndex = 0;
+  root.triggerType = WINDOW_TYPE_SESSION;
+  root.openingTs = 100;
+  root.nativeDiscriminator = 1;
+  SScopeInstanceId parent = {};
+  parent.layerIndex = 1;
+  parent.triggerType = WINDOW_TYPE_COUNT;
+  parent.openingTs = 200;
+  parent.nativeDiscriminator = 2;
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &root), nullptr);
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &parent), nullptr);
+  param.pSnapshots = taosArrayInit(2, sizeof(SWindowAncestorSnapshot));
+  EXPECT_NE(param.pSnapshots, nullptr);
+  SWindowAncestorSnapshot rootSnapshot = {};
+  rootSnapshot.layerIndex = 0;
+  rootSnapshot.triggerType = WINDOW_TYPE_SESSION;
+  rootSnapshot.placeholderMask = PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND;
+  rootSnapshot.values.window.start = 100;
+  rootSnapshot.values.window.end = 149;
+  SWindowAncestorSnapshot parentSnapshot = {};
+  parentSnapshot.layerIndex = 1;
+  parentSnapshot.triggerType = WINDOW_TYPE_COUNT;
+  parentSnapshot.placeholderMask = PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND;
+  parentSnapshot.values.window.start = 200;
+  parentSnapshot.values.window.end = 249;
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &rootSnapshot), nullptr);
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &parentSnapshot), nullptr);
+  EXPECT_NE(taosArrayPush(context->pParamContexts, &param), nullptr);
+  return context;
+}
+
+SStreamContextPolicy *scltMakeAncestorPolicy(int64_t gid, int32_t paramIndex) {
+  auto *policy = static_cast<SStreamContextPolicy *>(taosMemoryCalloc(1, sizeof(SStreamContextPolicy)));
+  EXPECT_NE(policy, nullptr);
+  if (policy == nullptr) return nullptr;
+  policy->pEntries = taosArrayInit(1, sizeof(SStreamContextPolicyEntry));
+  EXPECT_NE(policy->pEntries, nullptr);
+  if (policy->pEntries == nullptr) return policy;
+  SStreamContextPolicyEntry entry = {};
+  entry.gid = gid;
+  entry.paramIndex = paramIndex;
+  entry.contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR;
+  EXPECT_NE(taosArrayPush(policy->pEntries, &entry), nullptr);
+  return policy;
+}
+
+int32_t scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight);
+
+SNode *scltMakeStreamPlaceholder(const char *name, int32_t layerIndex = -1,
+                                 int32_t resType = TSDB_DATA_TYPE_TIMESTAMP) {
+  const int32_t funcId = fmGetFuncId(name);
+  EXPECT_GE(funcId, 0);
+
+  SFunctionNode *func = nullptr;
+  EXPECT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)), TSDB_CODE_SUCCESS);
+  if (func == nullptr) return nullptr;
+  func->funcId = funcId;
+  func->funcType = fmGetFuncTypeFromId(funcId);
+  func->node.resType.type = resType;
+  func->node.resType.bytes = tDataTypes[resType].bytes;
+
+  SValueNode *result = nullptr;
+  EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+  if (result == nullptr) {
+    nodesDestroyNode(reinterpret_cast<SNode *>(func));
+    return nullptr;
+  }
+  result->node.resType = func->node.resType;
+  EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+
+  if (layerIndex >= 0) {
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    if (layer == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = layerIndex;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+  }
+  return reinterpret_cast<SNode *>(func);
+}
+
+SNode *scltMakePrimaryTimestamp() {
+  SColumnNode *column = nullptr;
+  EXPECT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)), TSDB_CODE_SUCCESS);
+  if (column == nullptr) return nullptr;
+  column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  column->node.resType.bytes = sizeof(int64_t);
+  column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  return reinterpret_cast<SNode *>(column);
+}
+
+SNode *scltMakeTypedTimestampOffset(const char *name, int32_t layerIndex, EOperatorType opType, int32_t offsetType,
+                                    const void *offset) {
+  SNode *value = nullptr;
+  EXPECT_EQ(scltMakeValueNode(&value, offsetType, const_cast<void *>(offset)), TSDB_CODE_SUCCESS);
+  SNode *result = nullptr;
+  EXPECT_EQ(
+      scltMakeOpNode(&result, opType, TSDB_DATA_TYPE_TIMESTAMP, scltMakeStreamPlaceholder(name, layerIndex), value),
+      TSDB_CODE_SUCCESS);
+  return result;
+}
+
+SNode *scltMakeTimestampOffset(const char *name, int32_t layerIndex, EOperatorType opType, int64_t offset) {
+  return scltMakeTypedTimestampOffset(name, layerIndex, opType, TSDB_DATA_TYPE_BIGINT, &offset);
+}
+
+SNode *scltMakeExternalBound(EOperatorType opType, SNode *right) {
+  SNode *result = nullptr;
+  EXPECT_EQ(scltMakeOpNode(&result, opType, TSDB_DATA_TYPE_BOOL, scltMakePrimaryTimestamp(), right), TSDB_CODE_SUCCESS);
+  return result;
+}
+
+SNode *scltMakeAndCondition(std::initializer_list<SNode *> nodes) {
+  SLogicConditionNode *condition = nullptr;
+  EXPECT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, reinterpret_cast<SNode **>(&condition)), TSDB_CODE_SUCCESS);
+  if (condition == nullptr) return nullptr;
+  condition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  condition->node.resType.bytes = sizeof(bool);
+  condition->condType = LOGIC_COND_TYPE_AND;
+  for (SNode *node : nodes) {
+    EXPECT_EQ(nodesListMakeStrictAppend(&condition->pParameterList, node), TSDB_CODE_SUCCESS);
+  }
+  return reinterpret_cast<SNode *>(condition);
+}
+
+SNode *scltMakeDurationComparison(EOperatorType opType, int64_t bound) {
+  SNode *value = nullptr;
+  EXPECT_EQ(scltMakeValueNode(&value, TSDB_DATA_TYPE_BIGINT, &bound), TSDB_CODE_SUCCESS);
+  if (value == nullptr) return nullptr;
+
+  SNode *comparison = nullptr;
+  EXPECT_EQ(scltMakeOpNode(&comparison, opType, TSDB_DATA_TYPE_BOOL,
+                           scltMakeStreamPlaceholder("_twduration", -1, TSDB_DATA_TYPE_BIGINT), value),
+            TSDB_CODE_SUCCESS);
+  return comparison;
+}
+
+struct ScltBoolResult {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t rows = 0;
+  int8_t  type = TSDB_DATA_TYPE_NULL;
+  bool    isNull = true;
+  bool    value = false;
+};
+
+ScltBoolResult scltEvaluateRuntimeBool(SNode *root, SStreamRuntimeFuncInfo *runtime) {
+  ScltBoolResult result;
+  SScalarParam   output = {};
+  output.columnData = static_cast<SColumnInfoData *>(taosMemoryCalloc(1, sizeof(SColumnInfoData)));
+  if (output.columnData == nullptr) {
+    result.code = terrno;
+    return result;
+  }
+  output.columnData->info = createColumnInfo(0, TSDB_DATA_TYPE_BOOL, sizeof(bool));
+  output.colAlloced = true;
+  result.code = colInfoDataEnsureCapacity(output.columnData, 1, true);
+  if (result.code == TSDB_CODE_SUCCESS) {
+    SScalarExtraInfo extra = {};
+    extra.pStreamInfo = runtime;
+    extra.isStream = true;
+    result.code = scalarCalculate(root, nullptr, &output, &extra);
+  }
+  if (result.code == TSDB_CODE_SUCCESS && output.columnData != nullptr) {
+    result.rows = output.numOfRows;
+    result.type = output.columnData->info.type;
+    if (result.rows > 0) {
+      result.isNull = colDataIsNull_s(output.columnData, 0);
+      if (!result.isNull) {
+        result.value = *reinterpret_cast<bool *>(colDataGetData(output.columnData, 0));
+      }
+    }
+  }
+  sclFreeParam(&output);
+  return result;
 }
 
 int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum,
@@ -228,7 +443,12 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     for (int32_t i = 0; i < rowNum; ++i) {
       SCL_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
+        if (IS_STR_DATA_BLOB(dataType)) {
+        value = (char *)value + blobDataTLen(value);
+        } else {
         value = (char *)value + varDataTLen(value);
+
+        }
       } else {
         value = (char *)value + dataBytes;
       }
@@ -261,7 +481,12 @@ int32_t scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType,
     for (int32_t i = 0; i < rowNum; ++i) {
       SCL_ERR_RET(colDataSetVal(pColumn, i, (const char *)value, false));
       if (IS_VAR_DATA_TYPE(dataType)) {
+        if (IS_STR_DATA_BLOB(dataType)) {
+        value = (char *)value + blobDataTLen(value);
+        } else {
         value = (char *)value + varDataTLen(value);
+
+        }
       } else {
         value = (char *)value + dataBytes;
       }
@@ -355,7 +580,7 @@ int32_t scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nod
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+int32_t scltMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, SNode *snode) {
   SNode       *node = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_TARGET, &node);
   if (NULL == node) {
@@ -370,6 +595,510 @@ int32_t scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, S
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 }  // namespace
+
+TEST(ScalarCompareTest, EmptyColumnsDoNotBroadcastAgainstConstants) {
+  const int32_t leftTypes[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_BIGINT};
+  const int32_t rightTypes[] = {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_VARCHAR};
+  const int32_t rowCounts[][2] = {{0, 1}, {1, 0}, {0, 0}, {0, 3}, {3, 0}, {1, 3}, {3, 1}};
+  for (int32_t leftType : leftTypes) {
+    for (int32_t rightType : rightTypes) {
+      for (const auto &rows : rowCounts) {
+        SCOPED_TRACE(::testing::Message() << leftType << "," << rightType << " rows=" << rows[0] << "," << rows[1]);
+        SColumnInfoData leftCol = createColumnInfoData(leftType, 8, 0);
+        SColumnInfoData rightCol = createColumnInfoData(rightType, 8, 1);
+        SColumnInfoData resultCol = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 2);
+        SScalarParam    left = {}, right = {}, output = {};
+        left.columnData = &leftCol;
+        left.numOfRows = rows[0];
+        right.columnData = &rightCol;
+        right.numOfRows = rows[1];
+        output.columnData = &resultCol;
+        ASSERT_EQ(colInfoDataEnsureCapacity(&leftCol, rows[0], true), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(colInfoDataEnsureCapacity(&rightCol, rows[1], true), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(colInfoDataEnsureCapacity(&resultCol, 3, true), TSDB_CODE_SUCCESS);
+        leftCol.hasNull = rightCol.hasNull = false;
+        int64_t value = 1;
+        char    text[VARSTR_HEADER_SIZE + 1] = {};
+        varDataSetLen(text, 1);
+        varDataVal(text)[0] = '1';
+        for (int32_t row = 0; row < rows[0]; ++row) {
+          ASSERT_EQ(
+              colDataSetVal(&leftCol, row,
+                            leftType == TSDB_DATA_TYPE_VARCHAR ? text : reinterpret_cast<const char *>(&value), false),
+              0);
+        }
+        for (int32_t row = 0; row < rows[1]; ++row) {
+          ASSERT_EQ(
+              colDataSetVal(&rightCol, row,
+                            rightType == TSDB_DATA_TYPE_VARCHAR ? text : reinterpret_cast<const char *>(&value), false),
+              0);
+        }
+        ASSERT_EQ(vectorCompareImpl(&left, &right, &output, -1, -1, OP_TYPE_EQUAL), TSDB_CODE_SUCCESS);
+        const int32_t expectedRows = rows[0] == 0 || rows[1] == 0 ? 0 : 3;
+        EXPECT_EQ(output.numOfRows, expectedRows);
+        EXPECT_EQ(output.numOfQualified, expectedRows);
+        for (int32_t row = 0; row < expectedRows; ++row) {
+          EXPECT_EQ(*colDataGetData(&resultCol, row), 1);
+        }
+        colDataDestroy(&leftCol);
+        colDataDestroy(&rightCol);
+        colDataDestroy(&resultCol);
+      }
+    }
+  }
+}
+
+TEST(ScalarCompareTest, EmptySetsStillProduceOneResultPerInputRow) {
+  for (bool remote : {false, true}) {
+    for (bool negated : {false, true}) {
+      SColumnInfoData leftCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0);
+      SColumnInfoData rightCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+      SColumnInfoData resultCol = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 2);
+      ASSERT_EQ(colInfoDataEnsureCapacity(&leftCol, 3, true), 0);
+      ASSERT_EQ(colInfoDataEnsureCapacity(&resultCol, 3, true), 0);
+      SScalarParam left = {}, right = {}, output = {};
+      left.columnData = &leftCol;
+      left.numOfRows = 3;
+      right.columnData = &rightCol;
+      right.hashParam.hasHashParam = !remote;
+      right.remoteParam.hasRemoteParam = remote;
+      right.remoteParam.isMinVal = !negated;
+      output.columnData = &resultCol;
+      const int32_t op = remote ? OP_TYPE_GREATER_THAN : negated ? OP_TYPE_NOT_IN : OP_TYPE_IN;
+      ASSERT_EQ(vectorCompareImpl(&left, &right, &output, -1, -1, op), 0);
+      EXPECT_EQ(output.numOfRows, 3);
+      EXPECT_EQ(output.numOfQualified, negated ? 3 : 0);
+      for (int32_t row = 0; row < 3; ++row) {
+        EXPECT_EQ(*colDataGetData(&resultCol, row), negated);
+      }
+      colDataDestroy(&leftCol);
+      colDataDestroy(&rightCol);
+      colDataDestroy(&resultCol);
+    }
+  }
+}
+
+TEST(constantTest, ncharComparisonKeepsLiteralUntouched) {
+  char ncharValue[VARSTR_HEADER_SIZE + 2 * TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, 2 * TSDB_NCHAR_SIZE);
+  TdUcs4 expected[] = {0x4e2d, 0x6587};
+  memcpy(varDataVal(ncharValue), expected, sizeof(expected));
+
+  char gbkValue[VARSTR_HEADER_SIZE + 4] = {0};
+  varDataSetLen(gbkValue, 4);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0\xce\xc4", 4);
+
+  SSDataBlock *block = NULL;
+  SNode *left = NULL, *right = NULL, *op = NULL;
+  ASSERT_EQ(scltMakeColumnNode(&left, &block, TSDB_DATA_TYPE_NCHAR,
+                               sizeof(ncharValue), 1, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&right, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)right)->charsetCxt = taosConvInit("GBK");
+  ASSERT_NE(((SValueNode *)right)->charsetCxt, nullptr);
+  ASSERT_EQ(scltMakeOpNode(&op, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, left,
+                           right),
+            TSDB_CODE_SUCCESS);
+
+  SNode *rewritten = NULL;
+  ASSERT_EQ(scalarCalculateConstants(op, &rewritten), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(rewritten, op);
+  SValueNode *value = (SValueNode *)((SOperatorNode *)rewritten)->pRight;
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(varDataLen(value->datum.p), 4);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_BOOL,
+                                         sizeof(bool));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&rewritten, dataBlockId, slotId, rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  // The coercion happens at the parameter level: the comparison matches
+  // (GBK bytes decode to the column's UCS-4 value) while the literal node
+  // keeps its original VARCHAR type and bytes.
+  SSDataBlock     *resBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resCol =
+      (SColumnInfoData *)taosArrayGetLast(resBlock->pDataBlock);
+  EXPECT_TRUE(*(bool *)colDataGetData(resCol, 0));
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(varDataLen(value->datum.p), 4);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  // A second execution sees the same untouched literal and still matches.
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(*(bool *)colDataGetData(resCol, 0));
+  ASSERT_EQ(value->node.resType.type, TSDB_DATA_TYPE_VARCHAR);
+  ASSERT_EQ(memcmp(varDataVal(value->datum.p), "\xd6\xd0\xce\xc4", 4), 0);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(rewritten);
+}
+
+TEST(constantTest, pureNcharComparisonStillFolds) {
+  char ncharValue[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharValue) = 0x4e2d;
+  char gbkValue[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkValue, 2);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0", 2);
+
+  SNode *left = NULL, *right = NULL, *op = NULL;
+  ASSERT_EQ(scltMakeValueNode(&left, TSDB_DATA_TYPE_NCHAR, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&right, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)right)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeOpNode(&op, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, left,
+                           right),
+            TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(op, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)result)->datum.b);
+  nodesDestroyNode(result);
+}
+
+TEST(constantTest, simpleCaseKeepsLiteralUntouched) {
+  char ncharValue[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharValue, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharValue) = 0x4e2d;
+  char gbkValue[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkValue, 2);
+  memcpy(varDataVal(gbkValue), "\xd6\xd0", 2);
+  int32_t one = 1, zero = 0;
+
+  SSDataBlock *block = NULL;
+  SNode *caseExpr = NULL, *whenValue = NULL, *thenValue = NULL,
+        *elseValue = NULL, *whenThenNode = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeColumnNode(&caseExpr, &block, TSDB_DATA_TYPE_NCHAR,
+                               sizeof(ncharValue), 1, ncharValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenValue, TSDB_DATA_TYPE_VARCHAR, gbkValue),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)whenValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&thenValue, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &whenThenNode),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)whenThenNode)->pWhen = whenValue;
+  ((SWhenThenNode *)whenThenNode)->pThen = thenValue;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseExpr;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, whenThenNode),
+            TSDB_CODE_SUCCESS);
+
+  SNode *rewritten = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(((SValueNode *)whenValue)->node.resType.type,
+            TSDB_DATA_TYPE_VARCHAR);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&rewritten, dataBlockId, slotId, rewritten),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(rewritten, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  // The comparison uses the CASE charset context while the literal keeps
+  // its original VARCHAR type and bytes.
+  SSDataBlock     *resBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resCol =
+      (SColumnInfoData *)taosArrayGetLast(resBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resCol, 0), one);
+  EXPECT_EQ(((SValueNode *)whenValue)->node.resType.type,
+            TSDB_DATA_TYPE_VARCHAR);
+  EXPECT_EQ(memcmp(varDataVal(((SValueNode *)whenValue)->datum.p),
+                   "\xd6\xd0", 2),
+            0);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(rewritten);
+}
+
+TEST(constantTest, simpleCaseEvaluatesLaterColumnAfterMiss) {
+  int32_t caseValue = 5;
+  int32_t firstWhenValue = 0;
+  int32_t secondWhenValue = 5;
+  int32_t one = 1;
+  int32_t two = 2;
+  int32_t elseValue = 99;
+
+  SSDataBlock *block = NULL;
+  SNode *caseExpr = NULL;
+  SNode *firstWhen = NULL;
+  SNode *secondWhen = NULL;
+  SNode *thenOne = NULL;
+  SNode *thenTwo = NULL;
+  SNode *elseNode = NULL;
+  SNode *firstBranch = NULL;
+  SNode *secondBranch = NULL;
+  SNode *caseNode = NULL;
+
+  ASSERT_EQ(scltMakeColumnNode(&caseExpr, &block, TSDB_DATA_TYPE_INT,
+                               sizeof(int32_t), 1, &caseValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeColumnNode(&firstWhen, &block, TSDB_DATA_TYPE_INT,
+                               sizeof(int32_t), 1, &firstWhenValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeColumnNode(&secondWhen, &block,
+                               TSDB_DATA_TYPE_INT, sizeof(int32_t), 1,
+                               &secondWhenValue),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseNode, TSDB_DATA_TYPE_INT, &elseValue),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = firstWhen;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = secondWhen;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->pCase = caseExpr;
+  caseWhen->pElse = elseNode;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch),
+            TSDB_CODE_SUCCESS);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0;
+  int16_t slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&caseNode, dataBlockId, slotId, caseNode),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(caseNode, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  SSDataBlock *resultBlock =
+      *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resultColumn =
+      (SColumnInfoData *)taosArrayGetLast(resultBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resultColumn, 0), two);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(caseNode);
+}
+
+TEST(constantTest, simpleCaseMixedWhenCharsetsUseCaseContext) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char asciiWhen[VARSTR_HEADER_SIZE + 1] = {0};
+  varDataSetLen(asciiWhen, 1);
+  *varDataVal(asciiWhen) = 'x';
+  char ncharWhen[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharWhen, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharWhen) = 0x4e2d;
+  int32_t one = 1, two = 2, zero = 0;
+
+  SNode *caseValue = NULL, *whenVarchar = NULL, *thenOne = NULL;
+  SNode *whenNchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR, gbkCase), TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&whenVarchar, TSDB_DATA_TYPE_VARCHAR, asciiWhen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR, ncharWhen), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode), TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch), TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_EQ(((SValueNode *)result)->datum.i, two);
+  nodesDestroyNode(result);
+}
+
+TEST(constantTest, simpleCaseVarcharColumnKeepsOriginalComparisonType) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char utf8Column[VARSTR_HEADER_SIZE + 3] = {0};
+  varDataSetLen(utf8Column, 3);
+  memcpy(varDataVal(utf8Column), "\xe4\xb8\xad", 3);
+  char ncharWhen[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharWhen, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharWhen) = 0x4e2d;
+  int32_t one = 1, two = 2, zero = 0;
+
+  SSDataBlock *block = NULL;
+  SNode *caseValue = NULL, *whenVarchar = NULL, *thenOne = NULL;
+  SNode *whenNchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR,
+                              gbkCase),
+            TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeColumnNode(&whenVarchar, &block,
+                               TSDB_DATA_TYPE_VARCHAR,
+                               sizeof(utf8Column), 1, utf8Column),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR,
+                              ncharWhen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch),
+            TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode),
+            TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch),
+            TSDB_CODE_SUCCESS);
+
+  SArray *blocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(blocks, nullptr);
+  ASSERT_NE(taosArrayPush(blocks, &block), nullptr);
+  SColumnInfo colInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT,
+                                         sizeof(int32_t));
+  int16_t dataBlockId = 0, slotId = 0;
+  ASSERT_EQ(scltAppendReservedSlot(blocks, &dataBlockId, &slotId, true, 1,
+                                   &colInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeTargetNode(&caseNode, dataBlockId, slotId, caseNode),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculate(caseNode, blocks, NULL, NULL),
+            TSDB_CODE_SUCCESS);
+
+  SSDataBlock *resultBlock = *(SSDataBlock **)taosArrayGetLast(blocks);
+  SColumnInfoData *resultColumn =
+      (SColumnInfoData *)taosArrayGetLast(resultBlock->pDataBlock);
+  EXPECT_EQ(*(int32_t *)colDataGetData(resultColumn, 0), two);
+
+  taosArrayDestroyEx(blocks, scltFreeDataBlock);
+  nodesDestroyNode(caseNode);
+}
+
+TEST(constantTest, simpleCaseNcharMissThenVarcharMatchUsesOriginalCaseParam) {
+  char gbkCase[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkCase, 2);
+  memcpy(varDataVal(gbkCase), "\xd6\xd0", 2);
+  char ncharMiss[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+  varDataSetLen(ncharMiss, TSDB_NCHAR_SIZE);
+  *(TdUcs4 *)varDataVal(ncharMiss) = 0x4e16;
+  char gbkMatch[VARSTR_HEADER_SIZE + 2] = {0};
+  varDataSetLen(gbkMatch, 2);
+  memcpy(varDataVal(gbkMatch), "\xd6\xd0", 2);
+  int32_t one = 1, two = 2, zero = 0;
+
+  SNode *caseValue = NULL, *whenNchar = NULL, *thenOne = NULL;
+  SNode *whenVarchar = NULL, *thenTwo = NULL, *elseValue = NULL;
+  SNode *firstBranch = NULL, *secondBranch = NULL, *caseNode = NULL;
+  ASSERT_EQ(scltMakeValueNode(&caseValue, TSDB_DATA_TYPE_VARCHAR, gbkCase), TSDB_CODE_SUCCESS);
+  ((SValueNode *)caseValue)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&whenNchar, TSDB_DATA_TYPE_NCHAR, ncharMiss), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&thenOne, TSDB_DATA_TYPE_INT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&whenVarchar, TSDB_DATA_TYPE_VARCHAR, gbkMatch), TSDB_CODE_SUCCESS);
+  ((SValueNode *)whenVarchar)->charsetCxt = taosConvInit("GBK");
+  ASSERT_EQ(scltMakeValueNode(&thenTwo, TSDB_DATA_TYPE_INT, &two), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&elseValue, TSDB_DATA_TYPE_INT, &zero), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &firstBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)firstBranch)->pWhen = whenNchar;
+  ((SWhenThenNode *)firstBranch)->pThen = thenOne;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &secondBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)secondBranch)->pWhen = whenVarchar;
+  ((SWhenThenNode *)secondBranch)->pThen = thenTwo;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &caseNode), TSDB_CODE_SUCCESS);
+  SCaseWhenNode *caseWhen = (SCaseWhenNode *)caseNode;
+  caseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  caseWhen->node.resType.bytes = sizeof(int32_t);
+  caseWhen->charsetCxt = taosConvInit("GBK");
+  caseWhen->pCase = caseValue;
+  caseWhen->pElse = elseValue;
+  ASSERT_EQ(nodesMakeList(&caseWhen->pWhenThenList), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, firstBranch), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListAppend(caseWhen->pWhenThenList, secondBranch), TSDB_CODE_SUCCESS);
+
+  SNode *result = NULL;
+  ASSERT_EQ(scalarCalculateConstants(caseNode, &result), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodeType(result), QUERY_NODE_VALUE);
+  EXPECT_EQ(((SValueNode *)result)->datum.i, two);
+  nodesDestroyNode(result);
+}
 
 TEST(constantTest, bigint_add_bigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
@@ -1324,6 +2053,77 @@ TEST(constantTest, greater_and_lower) {
   nodesDestroyNode(res);
 }
 
+TEST(constantTest, null_boolean_three_valued_logic) {
+  struct TestCase {
+    ELogicConditionType type;
+    bool                other;
+    bool                expectedNull;
+    bool                expectedValue;
+  } cases[] = {
+      {LOGIC_COND_TYPE_AND, false, false, false},
+      {LOGIC_COND_TYPE_AND, true, true, false},
+      {LOGIC_COND_TYPE_OR, false, true, false},
+      {LOGIC_COND_TYPE_OR, true, false, true},
+  };
+
+  for (const TestCase &tc : cases) {
+    SNode *nullValue = NULL, *boolValue = NULL, *logicNode = NULL, *res = NULL;
+    bool   placeholder = false;
+    bool   other = tc.other;
+    ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BOOL, &placeholder), TSDB_CODE_SUCCESS);
+    ((SValueNode *)nullValue)->isNull = true;
+    ASSERT_EQ(scltMakeValueNode(&boolValue, TSDB_DATA_TYPE_BOOL, &other), TSDB_CODE_SUCCESS);
+    SNode *params[] = {nullValue, boolValue};
+    ASSERT_EQ(scltMakeLogicNode(&logicNode, tc.type, params, 2), TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(scalarCalculateConstants(logicNode, &res), TSDB_CODE_SUCCESS);
+    ASSERT_NE(res, nullptr);
+    ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+    SValueNode *value = (SValueNode *)res;
+    EXPECT_EQ(value->isNull, tc.expectedNull);
+    if (!tc.expectedNull) EXPECT_EQ(value->datum.b, tc.expectedValue);
+    nodesDestroyNode(res);
+  }
+}
+
+TEST(constantTest, null_operator_and_function_propagation) {
+  int64_t placeholder = 0;
+  int64_t one = 1;
+
+  SNode *nullValue = NULL, *oneValue = NULL, *opNode = NULL, *res = NULL;
+  ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BIGINT, &placeholder), TSDB_CODE_SUCCESS);
+  ((SValueNode *)nullValue)->isNull = true;
+  ASSERT_EQ(scltMakeValueNode(&oneValue, TSDB_DATA_TYPE_BIGINT, &one), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_BIGINT, nullValue, oneValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scalarCalculateConstants(opNode, &res), TSDB_CODE_SUCCESS);
+  ASSERT_NE(res, nullptr);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)res)->isNull);
+  EXPECT_EQ(((SValueNode *)res)->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  nodesDestroyNode(res);
+
+  SFunctionNode *func = NULL;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&func), TSDB_CODE_SUCCESS);
+  ASSERT_NE(func, nullptr);
+  func->funcId = fmGetFuncId("abs");
+  ASSERT_GE(func->funcId, 0);
+  func->funcType = fmGetFuncTypeFromId(func->funcId);
+  func->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  func->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  nullValue = NULL;
+  ASSERT_EQ(scltMakeValueNode(&nullValue, TSDB_DATA_TYPE_BIGINT, &placeholder), TSDB_CODE_SUCCESS);
+  ((SValueNode *)nullValue)->isNull = true;
+  ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, nullValue), TSDB_CODE_SUCCESS);
+
+  res = NULL;
+  ASSERT_EQ(scalarCalculateConstants((SNode *)func, &res), TSDB_CODE_SUCCESS);
+  ASSERT_NE(res, nullptr);
+  ASSERT_EQ(nodeType(res), QUERY_NODE_VALUE);
+  EXPECT_TRUE(((SValueNode *)res)->isNull);
+  EXPECT_EQ(((SValueNode *)res)->node.resType.type, TSDB_DATA_TYPE_BIGINT);
+  nodesDestroyNode(res);
+}
+
 TEST(constantTest, column_and_value1) {
   scltInitLogFile();
 
@@ -1517,7 +2317,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
 
   SCL_ERR_RET(makeOperator(&opNode, blockList, opType, rightType, rightData, isReverse));
 
-  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL));
+  SCL_ERR_RET(scalarCalculate(opNode, blockList, NULL, NULL));
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
   if (res->info.rows != 1) {
@@ -1526,7 +2326,7 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
   }
   SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
 
-  if (colDataIsNull_f(column->nullbitmap, 0)) {
+  if (colDataIsNull_f(column, 0)) {
     if (DBL_MAX != exceptValue) {
       (void)printf("expect value = DBL_MAX, but got %d\n", exceptValue);
       SCL_ERR_RET(TSDB_CODE_FAILED);
@@ -1564,6 +2364,49 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
   SCL_RET(TSDB_CODE_SUCCESS);
+}
+
+TEST(columnTest, json_bounded_lookup) {
+  char json[] = "{\"a\":4,\"b\":null,\"c\":\"hello\"}";
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  ASSERT_NE(tags, nullptr);
+  STag *tag = nullptr;
+  ASSERT_EQ(parseJsontoTagData(json, tags, &tag, nullptr, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tag, nullptr);
+
+  bool found = false;
+  STagVal value = {};
+  value.pKey = const_cast<char *>("a");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_DOUBLE);
+
+  value.pKey = const_cast<char *>("b");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_NULL);
+
+  value.pKey = const_cast<char *>("c");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_NCHAR);
+
+  value.pKey = const_cast<char *>("missing");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_FALSE(found);
+  EXPECT_FALSE(tTagGetJsonBounded(tag, tag->len - 1, &value, &found));
+
+  STag *malformed = static_cast<STag *>(taosMemoryMalloc(tag->len));
+  ASSERT_NE(malformed, nullptr);
+  memcpy(malformed, tag, tag->len);
+  malformed->idx[1] = malformed->idx[2];
+  value.pKey = const_cast<char *>("b");
+  EXPECT_FALSE(tTagGetJsonBounded(malformed, malformed->len, &value, &found));
+  EXPECT_FALSE(found);
+
+  taosMemoryFree(malformed);
+  taosArrayDestroy(tags);
+  taosMemoryFree(tag);
 }
 
 TEST(columnTest, json_column_arith_op) {
@@ -1806,14 +2649,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("--------------------json null---null {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k3";  // (null is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes2[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes2[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_2[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_2[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes2[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
@@ -1956,14 +2798,13 @@ TEST(columnTest, json_column_logic_op) {
   (void)printf("---------------------json not exist-- NULL {1, 8, 2, 2, 3, 0, 0, 0, 0}------------------\n");
 
   key = "k10";  // (NULL is true) return NULL, so use DBL_MAX represent NULL
-  bool eRes9[len + len1] = {false, false, false, false, false, false, true, false, false, false, false, false, false};
+  double eRes9[len + len1] = {DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 1, 0, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX};
   for (int i = 0; i < len; i++) {
     code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], false);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
-  bool eRes_9[len0] = {false, false, false, false, false, false};
   for (int i = 0; i < len0; i++) {
-    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes_9[i], op[i], true);
+    code = makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes9[i], op[i], true);
     ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   }
 
@@ -2005,7 +2846,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2014,7 +2855,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -2049,7 +2890,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2058,7 +2899,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -2094,7 +2935,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2134,7 +2975,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2174,7 +3015,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2214,7 +3055,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2269,7 +3110,7 @@ TEST(columnTest, int_column_in_double_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2343,7 +3184,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2394,7 +3235,7 @@ TEST(columnTest, binary_column_like_binary) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2438,7 +3279,7 @@ TEST(columnTest, binary_column_is_true) {
   code = scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2489,7 +3330,7 @@ TEST(columnTest, binary_column_is_null) {
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2539,7 +3380,7 @@ TEST(columnTest, binary_column_is_not_null) {
   code = scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(opNode, blockList, NULL);
+  code = scalarCalculate(opNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2592,7 +3433,7 @@ TEST(columnTest, greater_and_lower) {
   code = scltMakeTargetNode(&logicNode, dataBlockId, slotId, logicNode);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-  code = scalarCalculate(logicNode, blockList, NULL);
+  code = scalarCalculate(logicNode, blockList, NULL, NULL);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
   SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
@@ -2665,6 +3506,937 @@ void scltDestroyDataBlock(SScalarParam *pInput) {
   colDataDestroy(pInput->columnData);
   taosMemoryFree(pInput->columnData);
   taosMemoryFree(pInput);
+}
+
+extern "C" int32_t regexpInSetFunction(SScalarParam *pInput,
+                                       int32_t inputNum,
+                                       SScalarParam *pOutput);
+
+// Build a 1-row string SScalarParam holding bytes in the parameter's charset.
+static void scltMakeRawStringParam(SScalarParam *pParam, int32_t type,
+                                   const void *bytes, int32_t len) {
+  char *buf = (char *)taosMemoryCalloc(1, VARSTR_HEADER_SIZE + len);
+  ASSERT_NE(buf, nullptr);
+  varDataSetLen(buf, len);
+  if (len > 0) memcpy(varDataVal(buf), bytes, len);
+
+  pParam->columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(pParam->columnData, nullptr);
+  pParam->columnData->info =
+      createColumnInfo(0, type, VARSTR_HEADER_SIZE + len);
+  ASSERT_EQ(colInfoDataEnsureCapacity(pParam->columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pParam->columnData, 0, buf, false),
+            TSDB_CODE_SUCCESS);
+  pParam->numOfRows = 1;
+  taosMemoryFree(buf);
+}
+
+static void scltMakeRawStringRows(SScalarParam *pParam, int32_t type,
+                                  const char *const *values,
+                                  const int32_t *lengths, int32_t rows) {
+  pParam->columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(pParam->columnData, nullptr);
+  pParam->columnData->info =
+      createColumnInfo(0, type, VARSTR_HEADER_SIZE + 64);
+  ASSERT_EQ(colInfoDataEnsureCapacity(pParam->columnData, rows, true),
+            TSDB_CODE_SUCCESS);
+
+  for (int32_t i = 0; i < rows; ++i) {
+    char *buf =
+        (char *)taosMemoryCalloc(1, VARSTR_HEADER_SIZE + lengths[i]);
+    ASSERT_NE(buf, nullptr);
+    varDataSetLen(buf, lengths[i]);
+    memcpy(varDataVal(buf), values[i], lengths[i]);
+    ASSERT_EQ(colDataSetVal(pParam->columnData, i, buf, false),
+              TSDB_CODE_SUCCESS);
+    taosMemoryFree(buf);
+  }
+  pParam->numOfRows = rows;
+}
+
+TEST(ScalarFunctionTest, streamDerivativeDurationUnits) {
+  for (int32_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    for (int32_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+      for (const char *text : {"1s",          "2s",
+                               "1m",          "1h",
+                               "1d",          "1w",
+                               "1000a",       "1000000u",
+                               "1000000000b", "",
+                               "1000",        "0s",
+                               "-1s",         "999a",
+                               "1n",          "1y",
+                               "1S",          "1sX",
+                               "1.5s",        "9223372036854775807w",
+                               "1000000001b", "9223372036854775000000b"}) {
+        SCOPED_TRACE(::testing::Message() << precision << ":" << type << ":" << text);
+        SScalarParam          input[3] = {};
+        std::vector<uint32_t> wide;
+        const char           *data = text;
+        int32_t               len = static_cast<int32_t>(strlen(text));
+        if (type == TSDB_DATA_TYPE_NCHAR) {
+          for (const char *ch = text; *ch != '\0'; ++ch) wide.push_back(static_cast<uint32_t>(*ch));
+          data = reinterpret_cast<const char *>(wide.data());
+          len *= TSDB_NCHAR_SIZE;
+        }
+        scltMakeRawStringParam(&input[0], type, data, len);
+        SScalarParam *precisionParam = nullptr;
+        SScalarParam *output = nullptr;
+        SScalarParam *rate = nullptr;
+        double        one = 1;
+        double        zero = 0;
+        ASSERT_EQ(0, scltMakeDataBlock(&precisionParam, TSDB_DATA_TYPE_INT, &precision, 1, true));
+        ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+        ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+        input[1] = *precisionParam;
+        input[2] = *rate;
+        ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+        double expected = 0;
+        if (strcmp(text, "1s") == 0 || strcmp(text, "1000a") == 0 || strcmp(text, "1000000u") == 0 ||
+            strcmp(text, "1000000000b") == 0)
+          expected = 1;
+        if (strcmp(text, "2s") == 0) expected = 2;
+        if (strcmp(text, "1m") == 0) expected = 60;
+        if (strcmp(text, "1h") == 0) expected = 3600;
+        if (strcmp(text, "1d") == 0) expected = 86400;
+        if (strcmp(text, "1w") == 0) expected = 604800;
+        if (strcmp(text, "1000000001b") == 0 && precision == TSDB_TIME_PRECISION_NANO) expected = 1.000000001;
+        if (strcmp(text, "9223372036854775000000b") == 0 && precision != TSDB_TIME_PRECISION_NANO) {
+          expected = 9223372036854.775;
+        }
+        EXPECT_EQ(expected == 0, colDataIsNull_s(output->columnData, 0));
+        if (expected != 0) EXPECT_DOUBLE_EQ(expected, *reinterpret_cast<double *>(output->columnData->pData));
+        if (strcmp(text, "1m") == 0) {
+          double largeRate = 1e308;
+          ASSERT_EQ(0, colDataSetVal(rate->columnData, 0, reinterpret_cast<const char *>(&largeRate), false));
+          ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+          EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+        }
+        colDataDestroy(input[0].columnData);
+        taosMemoryFree(input[0].columnData);
+        scltDestroyDataBlock(precisionParam);
+        scltDestroyDataBlock(output);
+        scltDestroyDataBlock(rate);
+      }
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativeBroadcastDuration) {
+  for (int32_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    SCOPED_TRACE(type);
+    // Long but valid durations must also broadcast over every rate in a batch.
+    std::string text(type == TSDB_DATA_TYPE_NCHAR ? 2046 : 8190, '0');
+    text += "2s";
+    std::vector<uint32_t> wide(text.begin(), text.end());
+    const void* data = type == TSDB_DATA_TYPE_NCHAR ? static_cast<const void*>(wide.data()) : text.data();
+    SScalarParam input[3] = {};
+    scltMakeRawStringParam(&input[0], type, data, 8192);
+    int32_t ms = TSDB_TIME_PRECISION_MILLI;
+    std::vector<double> values(512), zeros(512, 0);
+    for (size_t i = 0; i < values.size(); ++i) values[i] = static_cast<double>(i) - 256;
+    SScalarParam *precision = nullptr, *rates = nullptr, *output = nullptr;
+    ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+    ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, values.data(), 512, true));
+    ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, zeros.data(), 512, true));
+    for (int32_t i = 0; i < 512; ++i) {
+      ASSERT_EQ(0, colDataSetVal(rates->columnData, i, reinterpret_cast<const char*>(&values[i]), false));
+    }
+    colDataSetNULL(rates->columnData, 3);
+    input[1] = *precision;
+    input[2] = *rates;
+    ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+    EXPECT_EQ(512, output->numOfRows);
+    for (int32_t i = 0; i < 512; ++i) {
+      EXPECT_EQ(i == 3, colDataIsNull_s(output->columnData, i));
+      if (i != 3) EXPECT_DOUBLE_EQ(values[i] * 2, *reinterpret_cast<double*>(colDataGetData(output->columnData, i)));
+    }
+    colDataSetNULL(input[0].columnData, 0);
+    ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+    for (int32_t i = 0; i < 512; ++i) EXPECT_TRUE(colDataIsNull_s(output->columnData, i));
+    colDataDestroy(input[0].columnData);
+    taosMemoryFree(input[0].columnData);
+    scltDestroyDataBlock(precision);
+    scltDestroyDataBlock(rates);
+    scltDestroyDataBlock(output);
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativePerRowDuration) {
+  SScalarParam input[3] = {};
+  const char* units[] = {"2s", "1s", "999a", "1m", "", "3s"};
+  int32_t lengths[] = {2, 2, 4, 2, 0, 2};
+  scltMakeRawStringRows(&input[0], TSDB_DATA_TYPE_VARCHAR, units, lengths, 6);
+  colDataSetNULL(input[0].columnData, 4);
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double values[] = {1, 2, 3, 4, 5, 6}, zeros[6] = {};
+  SScalarParam *precision = nullptr, *rates = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, values, 6, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, zeros, 6, true));
+  for (int32_t i = 0; i < 6; ++i) {
+    ASSERT_EQ(0, colDataSetVal(rates->columnData, i, reinterpret_cast<const char*>(&values[i]), false));
+  }
+  input[1] = *precision;
+  input[2] = *rates;
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+  EXPECT_EQ(6, output->numOfRows);
+  double expected[] = {2, 2, 0, 240, 0, 18};
+  for (int32_t i = 0; i < 6; ++i) {
+    EXPECT_EQ(i == 2 || i == 4, colDataIsNull_s(output->columnData, i));
+    if (i != 2 && i != 4) EXPECT_DOUBLE_EQ(expected[i], *reinterpret_cast<double*>(colDataGetData(output->columnData, i)));
+  }
+  colDataDestroy(input[0].columnData);
+  taosMemoryFree(input[0].columnData);
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rates);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeSessionDiagnostics) {
+  static std::vector<std::string> messages;
+  messages.clear();
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char* text) { messages.emplace_back(text); };
+  qDebugFlag |= DEBUG_ERROR;
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+
+  auto evaluate = [&](int64_t sessionId, const char* unit, int64_t epoch = 100, bool grouped = false) {
+    SFunctionNode* func = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode**>(&func)));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> nodeGuard(reinterpret_cast<SNode*>(func), nodesDestroyNode);
+    func->funcId = fmGetFuncId("_stream_derivative_factor");
+    ASSERT_GE(func->funcId, 0);
+    func->funcType = fmGetFuncTypeFromId(func->funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    func->node.resType.bytes = sizeof(double);
+    const char* text[] = {unit, nullptr, nullptr, "unit_text", "db.rate_stream", "d1"};
+    int32_t ms = TSDB_TIME_PRECISION_MILLI;
+    double one = 1, zero = 0;
+    for (int32_t i = 0; i < 6; ++i) {
+      SNode* param = nullptr;
+      if (i == 1) {
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_INT, &ms));
+      } else if (i == 2) {
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_DOUBLE, &one));
+      } else {
+        char buffer[128] = {};
+        varDataSetLen(buffer, strlen(text[i]));
+        memcpy(varDataVal(buffer), text[i], strlen(text[i]));
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_VARCHAR, buffer));
+      }
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&func->pParameterList, param));
+    }
+    SStreamRuntimeFuncInfo runtime = {};
+    runtime.sessionId = sessionId;
+    SSTriggerGroupCalcInfo group = {};
+    group.derivativeLogEpoch = epoch;
+    runtime.derivativeLogEpoch = grouped ? 0 : epoch;
+    runtime.isMultiGroupCalc = grouped;
+    runtime.curGrpCalc = grouped ? &group : nullptr;
+    runtime.pDerivativeLogState = state;
+    SScalarExtraInfo extra = {};
+    extra.isStream = true;
+    extra.pStreamInfo = &runtime;
+    SScalarParam* output = nullptr;
+    ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+    std::unique_ptr<SScalarParam, decltype(&scltDestroyDataBlock)> outputGuard(output, scltDestroyDataBlock);
+    ASSERT_EQ(0, scalarCalculate(reinterpret_cast<SNode*>(func), nullptr, output, &extra));
+    EXPECT_EQ(strcmp(unit, "1s") != 0, colDataIsNull_s(output->columnData, 0));
+    if (strcmp(unit, "1s") == 0) EXPECT_DOUBLE_EQ(1, *reinterpret_cast<double*>(output->columnData->pData));
+  };
+  // The trigger uses session 1 for realtime and session 2 for history/recalculation.
+  evaluate(2, "999a");
+  ASSERT_EQ(1U, messages.size());
+  evaluate(1, "1s");
+  evaluate(2, "999a");
+  EXPECT_EQ(1U, messages.size());
+  evaluate(1, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(2, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(1, "1s");
+  evaluate(2, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(1, "999a");
+  EXPECT_EQ(3U, messages.size());
+  // A completed history round must not suppress a later manual recalculation.
+  evaluate(1, "1s");
+  evaluate(2, "999a", 200);
+  EXPECT_EQ(4U, messages.size());
+  evaluate(2, "999a", 200);
+  EXPECT_EQ(4U, messages.size());
+  for (bool grouped : {false, true}) {
+    messages.clear();
+    int64_t first = grouped ? 401 : 301;
+    // A remains in flight while B restores the unit and C becomes invalid.
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "1s", first + 1, grouped);
+    evaluate(1, "999a", first, grouped);
+    EXPECT_EQ(1U, messages.size());
+    evaluate(1, "999a", first + 2, grouped);
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "1s", first + 1, grouped);
+    evaluate(1, "999a", first + 2, grouped);
+    EXPECT_EQ(2U, messages.size());
+    evaluate(1, "oops", first + 3, grouped);
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "999a", first + 2, grouped);
+    evaluate(1, "oops", first + 3, grouped);
+    EXPECT_EQ(3U, messages.size());
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativePreScaledRates) {
+  SScalarParam input[7] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_VARCHAR, "10s", 3);
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+  int32_t preScaled = 1;
+  double rate = -std::numeric_limits<double>::denorm_min();
+  double zero = 0;
+  SScalarParam *unitPrecision = nullptr, *rates = nullptr, *flag = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&unitPrecision, TSDB_DATA_TYPE_INT, &precision, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, &rate, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&flag, TSDB_DATA_TYPE_INT, &preScaled, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *unitPrecision;
+  input[2] = *rates;
+  input[6] = *flag;
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 7, output));
+  EXPECT_EQ(rate, *reinterpret_cast<double*>(output->columnData->pData));
+  // Stored three/six-argument plans keep their original per-second conversion.
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+  EXPECT_EQ(rate * 10, *reinterpret_cast<double*>(output->columnData->pData));
+  colDataDestroy(input[0].columnData);
+  taosMemoryFree(input[0].columnData);
+  scltDestroyDataBlock(unitPrecision);
+  scltDestroyDataBlock(rates);
+  scltDestroyDataBlock(flag);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeDiagnosticCacheIsBounded) {
+  static int32_t errors;
+  errors = 0;
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char*) { ++errors; };
+  qDebugFlag |= DEBUG_ERROR;
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = 1;
+  runtime.pDerivativeLogState = state;
+  SScalarParam input[6] = {};
+  std::string unit(8190, '0');
+  unit += "0s";
+  const char* strings[] = {unit.c_str(), "unit_text", "db.rate_stream", "point"};
+  for (int32_t i = 0; i < 4; ++i) {
+    scltMakeRawStringParam(&input[i == 0 ? 0 : i + 2], TSDB_DATA_TYPE_VARCHAR, strings[i], strlen(strings[i]));
+  }
+  input[0].param = &runtime;
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double one = 1, zero = 0;
+  SScalarParam *precision = nullptr, *rate = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *precision;
+  input[2] = *rate;
+  // Simulate distinct invalid points being created and retired without recovery.
+  for (int32_t pass = 0; pass < 2; ++pass) {
+    int32_t before = errors;
+    for (int32_t point = 0; point < 1025; ++point) {
+      char name[64] = {};
+      int32_t len = snprintf(varDataVal(name), sizeof(name) - VARSTR_HEADER_SIZE, "point_%d", point);
+      varDataSetLen(name, len);
+      ASSERT_EQ(0, colDataSetVal(input[5].columnData, 0, name, false));
+      ASSERT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+      EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+    }
+    // A bounded cache must have evicted at least one old point by the second pass.
+    EXPECT_GT(errors, before);
+  }
+  for (int32_t i : {0, 3, 4, 5}) {
+    colDataDestroy(input[i].columnData);
+    taosMemoryFree(input[i].columnData);
+  }
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rate);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeDiagnosticContext) {
+  static std::vector<std::string> messages;
+  messages.clear();
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char* text) { messages.emplace_back(text); };
+  qDebugFlag |= DEBUG_ERROR;
+  SScalarParam input[6] = {};
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = 1;
+  runtime.pDerivativeLogState = state;
+  input[0].param = &runtime;
+  const char* text[] = {"999a", "unit_text", "db.rate_stream", "d1"};
+  for (int32_t i = 0; i < 4; ++i) {
+    scltMakeRawStringParam(&input[i == 0 ? 0 : i + 2], TSDB_DATA_TYPE_VARCHAR,
+                           text[i], static_cast<int32_t>(strlen(text[i])));
+  }
+  SScalarParam *precision = nullptr, *rate = nullptr, *output = nullptr;
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double one = 1, zero = 0;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *precision;
+  input[2] = *rate;
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+  ASSERT_EQ(1U, messages.size());
+  for (const char* expected : {"stream:db.rate_stream", "point:d1", "tag:unit_text", "value:999a",
+                                "reason:duration is less than one second"}) {
+    EXPECT_NE(std::string::npos, messages[0].find(expected));
+  }
+  messages.clear();
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+    EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+  }
+  EXPECT_TRUE(messages.empty());
+  colDataSetNULL(input[0].columnData, 0);
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  ASSERT_EQ(1U, messages.size());
+  EXPECT_NE(std::string::npos, messages[0].find("value:NULL, reason:NULL duration tag"));
+  messages.clear();
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_TRUE(messages.empty());
+  char valid[VARSTR_HEADER_SIZE + 2] = {};
+  varDataSetLen(valid, 2);
+  memcpy(varDataVal(valid), "1s", 2);
+  ASSERT_EQ(0, colDataSetVal(input[0].columnData, 0, valid, false));
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_DOUBLE_EQ(1.0, *reinterpret_cast<double*>(output->columnData->pData));
+  EXPECT_TRUE(messages.empty());
+  colDataSetNULL(input[0].columnData, 0);
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_EQ(1U, messages.size());
+  for (int32_t i : {0, 3, 4, 5}) {
+    colDataDestroy(input[i].columnData);
+    taosMemoryFree(input[i].columnData);
+  }
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rate);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeIntegerTicks) {
+  for (int32_t type : {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT}) {
+    for (int64_t value : {INT64_C(-1), INT64_C(0), INT64_C(999), INT64_C(1000), INT64_C(2000), INT64_MAX}) {
+      SScalarParam *ticks = nullptr;
+      SScalarParam *precision = nullptr;
+      SScalarParam *output = nullptr;
+      SScalarParam *rate = nullptr;
+      double        one = 1;
+      int32_t       ms = TSDB_TIME_PRECISION_MILLI;
+      double        zero = 0;
+      ASSERT_EQ(0, scltMakeDataBlock(&ticks, TSDB_DATA_TYPE_BIGINT, &value, 1, true));
+      ticks->columnData->info.type = type;
+      ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+      ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+      ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+      SScalarParam input[] = {*ticks, *precision, *rate};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+      EXPECT_EQ(value < 1000, colDataIsNull_s(output->columnData, 0));
+      if (value >= 1000) {
+        EXPECT_DOUBLE_EQ(static_cast<double>(value) / 1000, *reinterpret_cast<double *>(output->columnData->pData));
+      }
+      colDataSetNULL(ticks->columnData, 0);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+      EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+      scltDestroyDataBlock(ticks);
+      scltDestroyDataBlock(precision);
+      scltDestroyDataBlock(output);
+      scltDestroyDataBlock(rate);
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, repeatActualLength) {
+  for (int type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (uint64_t count : {uint64_t(0), uint64_t(1), uint64_t(2), uint64_t(INT32_MAX),
+                           uint64_t(4294967297ULL), UINT64_MAX}) {
+      for (int len : {0, 4, 32756, 32760, 65516, 65517, 65518}) {
+        if (type == TSDB_DATA_TYPE_NCHAR && len % TSDB_NCHAR_SIZE != 0) continue;
+        SCOPED_TRACE(::testing::Message() << type << ":" << count << ":" << len);
+        std::string value(len, 'x');
+        SScalarParam input[2] = {}, output = {};
+        scltMakeRawStringParam(&input[0], type, value.data(), len);
+        input[0].columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+        SScalarParam *counts = nullptr;
+        ASSERT_EQ(scltMakeDataBlock(&counts, TSDB_DATA_TYPE_BIGINT, &count, 1, true), 0);
+        counts->columnData->info.type = TSDB_DATA_TYPE_UBIGINT;
+        input[1] = *counts;
+        scltMakeRawStringParam(&output, type, "", 0);
+        output.columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+        bool overflow = len > 0 && count > (TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / len;
+        EXPECT_EQ(repeatFunction(input, 2, &output),
+                  overflow ? TSDB_CODE_FUNC_INVALID_RES_LENGTH : TSDB_CODE_SUCCESS);
+        if (!overflow) {
+          char *result = colDataGetData(output.columnData, 0);
+          EXPECT_EQ(varDataLen(result), len * count);
+          EXPECT_EQ(std::string(varDataVal(result), varDataLen(result)),
+                    std::string(len * count, 'x'));
+        }
+        colDataDestroy(input[0].columnData);
+        taosMemoryFree(input[0].columnData);
+        scltDestroyDataBlock(counts);
+        colDataDestroy(output.columnData);
+        taosMemoryFree(output.columnData);
+      }
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, repeatBroadcastAndNull) {
+  for (int stringRows : {1, 3}) {
+    for (int countRows : {1, 3}) {
+      SScalarParam input[2] = {}, output = {};
+      const char *values[] = {"ab", "x", "z"};
+      int lengths[] = {2, 1, 1};
+      scltMakeRawStringRows(&input[0], TSDB_DATA_TYPE_VARCHAR, values, lengths, stringRows);
+      input[0].columnData->info.bytes = TSDB_MAX_FIELD_LEN;
+      if (stringRows == 3) colDataSetNULL(input[0].columnData, 2);
+      int64_t count = 2;
+      SScalarParam *counts = nullptr;
+      ASSERT_EQ(scltMakeDataBlock(&counts, TSDB_DATA_TYPE_BIGINT, &count, countRows, true), 0);
+      if (countRows == 3) {
+        int64_t negative = -1;
+        ASSERT_EQ(colDataSetVal(counts->columnData, 1, (const char *)&negative, false), 0);
+        colDataSetNULL(counts->columnData, 2);
+      }
+      input[1] = *counts;
+      scltMakeRawStringRows(&output, TSDB_DATA_TYPE_VARCHAR, values, lengths, 3);
+      ASSERT_EQ(repeatFunction(input, 2, &output), TSDB_CODE_SUCCESS);
+      /* Parenthesised: <windows.h> defines min/max as macros, see the note in
+       * common/test/readerFetchBenchmarkTest.h. */
+      EXPECT_EQ(output.numOfRows, (std::max)(stringRows, countRows));
+      char *first = colDataGetData(output.columnData, 0);
+      EXPECT_EQ(std::string(varDataVal(first), varDataLen(first)), "abab");
+      if (output.numOfRows == 3) {
+        char *second = colDataGetData(output.columnData, 1);
+        EXPECT_EQ(std::string(varDataVal(second), varDataLen(second)), countRows == 3 ? "" : "xx");
+        EXPECT_TRUE(colDataIsNull_s(output.columnData, 2));
+      }
+      colDataDestroy(input[0].columnData);
+      taosMemoryFree(input[0].columnData);
+      scltDestroyDataBlock(counts);
+      colDataDestroy(output.columnData);
+      taosMemoryFree(output.columnData);
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, repeatTranslateCapacity) {
+  for (int type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (int bytes : {34, TSDB_MAX_FIELD_LEN}) {
+      for (uint64_t count : {uint64_t(0), uint64_t(2), UINT64_MAX}) {
+        SFunctionNode *func = nullptr;
+        SColumnNode *column = nullptr;
+        SValueNode *times = nullptr;
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode **)&func), 0);
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, (SNode **)&column), 0);
+        ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&times), 0);
+        tstrncpy(func->functionName, "repeat", sizeof(func->functionName));
+        column->node.resType.type = type;
+        column->node.resType.bytes = bytes;
+        times->node.resType.type = TSDB_DATA_TYPE_UBIGINT;
+        times->node.resType.bytes = sizeof(uint64_t);
+        times->datum.u = count;
+        ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, (SNode *)column), 0);
+        ASSERT_EQ(nodesListMakeStrictAppend(&func->pParameterList, (SNode *)times), 0);
+        char error[256] = {};
+        ASSERT_EQ(fmGetFuncInfo(func, error, sizeof(error)), TSDB_CODE_SUCCESS) << error;
+        int expected = count == 0 ? VARSTR_HEADER_SIZE :
+                       bytes == 34 && count == 2 ? 66 : TSDB_MAX_FIELD_LEN;
+        EXPECT_EQ(func->node.resType.bytes, expected);
+        nodesDestroyNode((SNode *)func);
+      }
+    }
+  }
+}
+
+// Temporarily overrides the process-global tsCharsetCxt and guarantees it is
+// restored on every path (early return, fatal ASSERT, or normal exit), unlike
+// a hand-rolled save/set/restore that skips the restore on any early exit.
+struct CharsetCxtGuard {
+  explicit CharsetCxtGuard(void *cxt) : saved_(tsCharsetCxt) {
+    tsCharsetCxt = cxt;
+  }
+  ~CharsetCxtGuard() { tsCharsetCxt = saved_; }
+  void *saved_;
+};
+
+// GBK character 0x81 0x5C contains the ASCII backslash separator byte as its
+// trail byte. Character-aware splitting must ignore that byte and split only
+// at the following standalone backslash.
+TEST(ScalarFunctionTest, regexpInSetDoesNotSplitInsideGbkCharacter) {
+  const char setBytes[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+  const char sepBytes[] = {'\\'};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, sepBytes,
+                         sizeof(sepBytes));
+
+  // Make the server UTF-8 and the set argument's connection GBK.
+  void *utf8Cxt = taosConvInit("UTF-8");
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  int64_t result;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+    result = code == TSDB_CODE_SUCCESS
+                 ? *(int64_t *)colDataGetData(output.columnData, 0)
+                 : 0;
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, 2)
+      << "the GBK trail byte must not be mistaken for a separator";
+
+  colDataDestroy(pInput[0].columnData);
+  taosMemoryFree(pInput[0].columnData);
+  colDataDestroy(pInput[1].columnData);
+  taosMemoryFree(pInput[1].columnData);
+  colDataDestroy(pInput[2].columnData);
+  taosMemoryFree(pInput[2].columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+// NCHAR operands already have code-point boundaries and are split in UCS-4.
+TEST(ScalarFunctionTest, regexpInSetNcharUsesConvertedServerCharset) {
+  const TdUcs4 setChars[] = {0x0080, ',', 'x'};
+  const char   sepBytes[] = {','};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_NCHAR, setChars,
+                         sizeof(setChars));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, sepBytes,
+                         sizeof(sepBytes));
+
+  void *utf8Cxt = taosConvInit("UTF-8");
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  int64_t result;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+    result = code == TSDB_CODE_SUCCESS
+                 ? *(int64_t *)colDataGetData(output.columnData, 0)
+                 : 0;
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, 2);
+
+  colDataDestroy(pInput[0].columnData);
+  taosMemoryFree(pInput[0].columnData);
+  colDataDestroy(pInput[1].columnData);
+  taosMemoryFree(pInput[1].columnData);
+  colDataDestroy(pInput[2].columnData);
+  taosMemoryFree(pInput[2].columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetAcceptsUtf8Alias) {
+  const char setBytes[] = {"\xE4\xB8\xAD,x"};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes) - 1);
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, ",", 1);
+
+  void *utf8AliasCxt = taosConvInit("UTF8");
+  ASSERT_NE(utf8AliasCxt, nullptr);
+  pInput[1].charsetCxt = utf8AliasCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code = regexpInSetFunction(pInput, 3, &output);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+
+  for (auto &param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetReusesBroadcastGbkTokensAcrossRows) {
+  const char *patterns[] = {"x", "^no$", "x"};
+  const int32_t patternLens[] = {1, 4, 1};
+  const char setBytes[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringRows(&pInput[0], TSDB_DATA_TYPE_VARCHAR, patterns,
+                        patternLens, 3);
+  scltMakeRawStringParam(&pInput[1], TSDB_DATA_TYPE_VARCHAR, setBytes,
+                         sizeof(setBytes));
+  scltMakeRawStringParam(&pInput[2], TSDB_DATA_TYPE_VARCHAR, "\\", 1);
+
+  void *gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 3, true),
+            TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(regexpInSetFunction(pInput, 3, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 1), 0);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 2), 2);
+
+  for (auto &param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, regexpInSetHandlesNonBroadcastCharsetSafeSets) {
+  const char set0[] = {(char)0x81, (char)0x5C, '\\', 'x'};
+  const char set1[] = {'a', ':', ':', ':', ':', 'x'};
+  const char* sets[] = {set0, set1};
+  const int32_t setLens[] = {sizeof(set0), sizeof(set1)};
+  const char* seps[] = {"\\", "::"};
+  const int32_t sepLens[] = {1, 2};
+
+  SScalarParam pInput[3] = {0};
+  scltMakeRawStringParam(&pInput[0], TSDB_DATA_TYPE_VARCHAR, "x", 1);
+  scltMakeRawStringRows(&pInput[1], TSDB_DATA_TYPE_VARCHAR, sets, setLens, 2);
+  scltMakeRawStringRows(&pInput[2], TSDB_DATA_TYPE_VARCHAR, seps, sepLens, 2);
+
+  void* utf8Cxt = taosConvInit("UTF-8");
+  void* gbkCxt = taosConvInit("GBK");
+  ASSERT_NE(utf8Cxt, nullptr);
+  ASSERT_NE(gbkCxt, nullptr);
+  pInput[1].charsetCxt = gbkCxt;
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info =
+      createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 2, true),
+            TSDB_CODE_SUCCESS);
+
+  int32_t code;
+  {
+    CharsetCxtGuard guard(utf8Cxt);
+    code = regexpInSetFunction(pInput, 3, &output);
+  }
+
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 0), 2);
+  EXPECT_EQ(*(int64_t *)colDataGetData(output.columnData, 1), 3);
+
+  for (auto& param : pInput) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest, castToJsonShouldReturnConvertError) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SScalarParam input = {0};
+  SScalarParam output = {0};
+
+  input.numOfRows = 1;
+  input.columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(input.columnData, nullptr);
+  input.columnData->info = createColumnInfo(1, TSDB_DATA_TYPE_INT, (int32_t)sizeof(int32_t));
+  code = colInfoDataEnsureCapacity(input.columnData, 1, true);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  int32_t v = 43;
+  code = colDataSetVal(input.columnData, 0, (const char *)&v, false);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  output.numOfRows = 1;
+  output.columnData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info = createColumnInfo(2, TSDB_DATA_TYPE_JSON, TSDB_MAX_JSON_TAG_LEN);
+  code = colInfoDataEnsureCapacity(output.columnData, 1, true);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  code = castFunction(&input, 1, &output);
+  ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_ERROR);
+
+  colDataDestroy(input.columnData);
+  taosMemoryFree(input.columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+TEST(ScalarFunctionTest,
+     castNcharUnencodableInQueryCharsetReturnsNcharConvertError) {
+  const TdUcs4 emoji = 0x1F600;
+
+  SScalarParam input = {0};
+  scltMakeRawStringParam(&input, TSDB_DATA_TYPE_NCHAR, &emoji, sizeof(emoji));
+  input.charsetCxt = taosConvInit("GBK");
+  ASSERT_NE(input.charsetCxt, nullptr);
+
+  SScalarParam output = {0};
+  output.columnData =
+      (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  ASSERT_NE(output.columnData, nullptr);
+  output.columnData->info = createColumnInfo(
+      0, TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+  ASSERT_EQ(colInfoDataEnsureCapacity(output.columnData, 1, true),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(castFunction(&input, 1, &output),
+            TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+
+  colDataDestroy(input.columnData);
+  taosMemoryFree(input.columnData);
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+}
+
+// ncharTobinary is the conversion used when an NCHAR column/tag is compared with a string
+// (e.g. "tag1 = 'aaaa'"). It is not declared in any public header, so forward declare it here.
+extern "C" int32_t ncharTobinary(void *buf, void **out, void *charsetCxt);
+
+TEST(ScalarFunctionTest, ncharToBinaryInvalidDataShouldReturnNcharConvertError) {
+  scltInitLogFile();
+
+  /* Build an NCHAR (UCS-4LE) vardata buffer holding an invalid code point (0xFFFFFFFF) that
+   * cannot be converted to the target charset. This simulates a corrupted / illegal NCHAR
+   * value being converted to string during comparison, which used to be misreported as
+   * "Operation not supported between data types" (TSDB_CODE_SCALAR_CONVERT_ERROR). */
+  char     buf[VARSTR_HEADER_SIZE + sizeof(uint32_t)] = {0};
+  uint32_t invalidUcs4 = 0xFFFFFFFF;
+  (void)memcpy(varDataVal(buf), &invalidUcs4, sizeof(invalidUcs4));
+  varDataSetLen(buf, sizeof(invalidUcs4));
+
+  void   *out = NULL;
+  int32_t code = ncharTobinary(buf, &out, NULL);
+  ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+  // on failure ncharTobinary frees the output buffer internally, so do not free it here.
+
+  /* Sanity check: a valid NCHAR value still converts successfully. */
+  void *validNchar = prepareNchar((char *)"abc");
+  ASSERT_NE(validNchar, nullptr);
+  out = NULL;
+  code = ncharTobinary(validNchar, &out, NULL);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(out, nullptr);
+  taosMemoryFree(out);
+  taosMemoryFree(validNchar);
+}
+
+TEST(ScalarFunctionTest, lowerFunction_reassigned_varchar_column) {
+  const int32_t rowNum = 2;
+  const char    text[] = "AbCd";
+  char          value[VARSTR_HEADER_SIZE + sizeof(text) - 1] = {0};
+  SScalarParam *pInput = NULL;
+  SScalarParam *pOutput = NULL;
+
+  varDataSetLen(value, sizeof(text) - 1);
+  (void)memcpy(varDataVal(value), text, sizeof(text) - 1);
+
+  ASSERT_EQ(scltMakeDataBlock(&pInput, TSDB_DATA_TYPE_VARCHAR, NULL, rowNum, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeDataBlock(&pOutput, TSDB_DATA_TYPE_VARCHAR, NULL, rowNum, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pInput->columnData, 0, value, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(pInput->columnData, 1, 0, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pInput->columnData->reassigned);
+  ASSERT_EQ(colDataGetLength(pInput->columnData, rowNum), rowNum * varDataTLen(value));
+
+  ASSERT_EQ(lowerFunction(pInput, 1, pOutput), TSDB_CODE_SUCCESS);
+  for (int32_t row = 0; row < rowNum; ++row) {
+    const char *output = colDataGetData(pOutput->columnData, row);
+    ASSERT_EQ(varDataLen(output), sizeof(text) - 1);
+    ASSERT_EQ(memcmp(varDataVal(output), "abcd", sizeof(text) - 1), 0);
+  }
+
+  scltDestroyDataBlock(pInput);
+  scltDestroyDataBlock(pOutput);
 }
 
 TEST(ScalarFunctionTest, absFunction_constant) {
@@ -2838,7 +4610,7 @@ TEST(ScalarFunctionTest, absFunction_constant) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double);
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -2852,7 +4624,7 @@ TEST(ScalarFunctionTest, absFunction_constant) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -val_double);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -val_double);
   }
   scltDestroyDataBlock(pInput);
   scltDestroyDataBlock(pOutput);
@@ -3051,7 +4823,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double + i);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), val_double + i);
     PRINTF("double after ABS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3072,7 +4844,7 @@ TEST(ScalarFunctionTest, absFunction_column) {
   code = absFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -(val_double + i));
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), -(val_double + i));
     PRINTF("double after ABS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3100,7 +4872,7 @@ TEST(ScalarFunctionTest, sinFunction_constant) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3118,7 +4890,7 @@ TEST(ScalarFunctionTest, sinFunction_constant) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3150,7 +4922,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3172,7 +4944,7 @@ TEST(ScalarFunctionTest, sinFunction_column) {
   code = sinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after SIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3200,7 +4972,7 @@ TEST(ScalarFunctionTest, cosFunction_constant) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3218,7 +4990,7 @@ TEST(ScalarFunctionTest, cosFunction_constant) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3250,7 +5022,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3272,7 +5044,7 @@ TEST(ScalarFunctionTest, cosFunction_column) {
   code = cosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after COS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3300,7 +5072,7 @@ TEST(ScalarFunctionTest, tanFunction_constant) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3318,7 +5090,7 @@ TEST(ScalarFunctionTest, tanFunction_constant) {
   code = tanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after TAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3400,7 +5172,7 @@ TEST(ScalarFunctionTest, asinFunction_constant) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3418,7 +5190,7 @@ TEST(ScalarFunctionTest, asinFunction_constant) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3450,7 +5222,7 @@ TEST(ScalarFunctionTest, asinFunction_column) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3471,7 +5243,7 @@ TEST(ScalarFunctionTest, asinFunction_column) {
   code = asinFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ASIN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3517,7 +5289,7 @@ TEST(ScalarFunctionTest, acosFunction_constant) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3548,7 +5320,7 @@ TEST(ScalarFunctionTest, acosFunction_column) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3569,7 +5341,7 @@ TEST(ScalarFunctionTest, acosFunction_column) {
   code = acosFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ACOS:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3597,7 +5369,7 @@ TEST(ScalarFunctionTest, atanFunction_constant) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3615,7 +5387,7 @@ TEST(ScalarFunctionTest, atanFunction_constant) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3646,7 +5418,7 @@ TEST(ScalarFunctionTest, atanFunction_column) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -3667,7 +5439,7 @@ TEST(ScalarFunctionTest, atanFunction_column) {
   code = atanFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after ATAN:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -3983,7 +5755,7 @@ TEST(ScalarFunctionTest, sqrtFunction_constant) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -4001,7 +5773,7 @@ TEST(ScalarFunctionTest, sqrtFunction_constant) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4032,7 +5804,7 @@ TEST(ScalarFunctionTest, sqrtFunction_column) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(pInput);
@@ -4053,7 +5825,7 @@ TEST(ScalarFunctionTest, sqrtFunction_column) {
   code = sqrtFunction(pInput, 1, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after SQRT:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4086,7 +5858,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4108,7 +5880,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4131,7 +5903,7 @@ TEST(ScalarFunctionTest, logFunction_constant) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int,float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4170,7 +5942,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4196,7 +5968,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4228,7 +6000,7 @@ TEST(ScalarFunctionTest, logFunction_column) {
   code = logFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int,float after LOG:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4263,7 +6035,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4285,7 +6057,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4308,7 +6080,7 @@ TEST(ScalarFunctionTest, powFunction_constant) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result);
     PRINTF("tiny_int,float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4347,7 +6119,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4374,7 +6146,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
   scltDestroyDataBlock(input[0]);
@@ -4406,7 +6178,7 @@ TEST(ScalarFunctionTest, powFunction_column) {
   code = powFunction(pInput, 2, pOutput);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
+    ASSERT_DOUBLE_EQ(*((double *)colDataGetData(pOutput->columnData, i)), result[i]);
     PRINTF("tiny_int,float after POW:%f\n", *((double *)colDataGetData(pOutput->columnData, i)));
   }
 
@@ -4416,6 +6188,1522 @@ TEST(ScalarFunctionTest, powFunction_column) {
   taosMemoryFree(pInput);
 }
 
+TEST(ScalarStreamPlaceholderTest, runtimeAndEvaluatesSingleDurationConditionWithoutDataBlock) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam param = {};
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &param), nullptr);
+
+  SNode *root = scltMakeAndCondition({scltMakeDurationComparison(OP_TYPE_LOWER_EQUAL, 30000)});
+  ASSERT_NE(root, nullptr);
+
+  struct {
+    int64_t duration;
+    bool    expected;
+  } cases[] = {{30000, true}, {30001, false}};
+  for (const auto &testCase : cases) {
+    auto *runtimeParam = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, runtime.curIdx));
+    ASSERT_NE(runtimeParam, nullptr);
+    runtimeParam->wduration = testCase.duration;
+
+    const ScltBoolResult result = scltEvaluateRuntimeBool(root, &runtime);
+    ASSERT_EQ(result.code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(result.rows, 1);
+    ASSERT_EQ(result.type, TSDB_DATA_TYPE_BOOL);
+    ASSERT_FALSE(result.isNull);
+    EXPECT_EQ(result.value, testCase.expected);
+  }
+
+  nodesDestroyNode(root);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, runtimeAndEvaluatesBothDurationConditionsWithoutDataBlock) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam param = {};
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &param), nullptr);
+
+  SNode *root = scltMakeAndCondition({scltMakeDurationComparison(OP_TYPE_GREATER_EQUAL, 10000),
+                                      scltMakeDurationComparison(OP_TYPE_LOWER_EQUAL, 30000)});
+  ASSERT_NE(root, nullptr);
+
+  struct {
+    int64_t duration;
+    bool    expected;
+  } cases[] = {{20000, true}, {9999, false}, {30001, false}};
+  for (const auto &testCase : cases) {
+    auto *runtimeParam = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, runtime.curIdx));
+    ASSERT_NE(runtimeParam, nullptr);
+    runtimeParam->wduration = testCase.duration;
+
+    const ScltBoolResult result = scltEvaluateRuntimeBool(root, &runtime);
+    ASSERT_EQ(result.code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(result.rows, 1);
+    ASSERT_EQ(result.type, TSDB_DATA_TYPE_BOOL);
+    ASSERT_FALSE(result.isNull);
+    EXPECT_EQ(result.value, testCase.expected);
+  }
+
+  nodesDestroyNode(root);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, readsQualifiedAncestorByLayerIndex) {
+  const int32_t funcId = fmGetFuncId("_twstart");
+  ASSERT_GE(funcId, 0);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 300;
+  leaf.wend = 399;
+  leaf.notifyType = BIT_FLAG_MASK(0);
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pContextPolicy = scltMakeAncestorPolicy(runtime.groupId, runtime.curIdx);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+
+  auto evaluate = [&](int32_t targetFuncId, int32_t layerIndex, int64_t *value) {
+    SNodeList  *params = nullptr;
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    result->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    result->node.resType.bytes = sizeof(int64_t);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = layerIndex;
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+
+    const int32_t code = fmSetStreamPseudoFuncParamVal(targetFuncId, params, &runtime);
+    if (code == TSDB_CODE_SUCCESS) *value = result->datum.i;
+    nodesDestroyList(params);
+    return code;
+  };
+
+  int64_t value = 0;
+  ASSERT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 100);
+  ASSERT_EQ(evaluate(funcId, 2, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 300);
+  ASSERT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 2, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 300);
+  EXPECT_EQ(evaluate(funcId, 3, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  auto *param = static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(param, nullptr);
+  auto *rootScope = static_cast<SScopeInstanceId *>(taosArrayGet(param->leafIdentity.lineage.pScopes, 0));
+  auto *rootSnapshot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+  ASSERT_NE(rootScope, nullptr);
+  ASSERT_NE(rootSnapshot, nullptr);
+  rootScope->triggerType = WINDOW_TYPE_INTERVAL;
+  rootSnapshot->triggerType = WINDOW_TYPE_INTERVAL;
+  rootSnapshot->placeholderMask = PLACE_HOLDER_PREV_TS;
+  rootSnapshot->values.sliding.prevTs = 50;
+  ASSERT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 0, &value), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(value, 50);
+  EXPECT_EQ(evaluate(fmGetFuncId("_twend"), 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  rootSnapshot->triggerType = WINDOW_TYPE_PERIOD;
+  EXPECT_EQ(evaluate(fmGetFuncId("_tprev_ts"), 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  rootSnapshot->triggerType = WINDOW_TYPE_INTERVAL;
+  param->paramIndex = 1;
+  EXPECT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  param->paramIndex = runtime.curIdx;
+  ASSERT_NE(taosArrayPush(runtime.pAncestorContext->pParamContexts, param), nullptr);
+  EXPECT_EQ(evaluate(funcId, 0, &value), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  ASSERT_NE(taosArrayPop(runtime.pAncestorContext->pParamContexts), nullptr);
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, readsQualifiedPreviousWindowAndPreservesNull) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pContextPolicy = scltMakeAncestorPolicy(runtime.groupId, runtime.curIdx);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+
+  auto *param = static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(param, nullptr);
+  auto *root = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+  ASSERT_NE(root, nullptr);
+  root->placeholderMask = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+
+  auto evaluate = [&](const char *name, int32_t layerIndex, bool *isNull, int64_t *value) {
+    SNodeList  *params = nullptr;
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    result->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    result->node.resType.bytes = sizeof(int64_t);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeValueNodeFromInt32(layerIndex, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+
+    const int32_t code = fmSetStreamPseudoFuncParamVal(fmGetFuncId(name), params, &runtime);
+    *isNull = result->isNull;
+    *value = result->datum.i;
+    nodesDestroyList(params);
+    return code;
+  };
+
+  bool    isNull = false;
+  int64_t value = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 0, &isNull, &value));
+  EXPECT_TRUE(isNull);
+
+  root->values.window.hasPrevWindow = true;
+  root->values.window.prevStart = 100;
+  root->values.window.prevEnd = 199;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 0, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(100, value);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wend", 0, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(199, value);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 2, &isNull, &value));
+  EXPECT_TRUE(isNull);
+  auto *leafParam = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0));
+  ASSERT_NE(leafParam, nullptr);
+  leafParam->hasPrevWindow = true;
+  leafParam->prevWstart = 300;
+  leafParam->prevWend = 399;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wend", 2, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(399, value);
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowRangeReadsQualifiedAncestor) {
+  const int32_t funcId = fmGetFuncId("_twstart");
+  ASSERT_GE(funcId, 0);
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 300;
+  leaf.wend = 399;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  SSTriggerCalcParam secondLeaf = {};
+  secondLeaf.wstart = 600;
+  secondLeaf.wend = 699;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &secondLeaf), nullptr);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+  SStreamAncestorContext *secondContext = scltMakeAncestorContext(runtime.groupId, 1);
+  ASSERT_NE(secondContext, nullptr);
+  auto *secondParam = static_cast<SStreamAncestorParamContext *>(taosArrayGet(secondContext->pParamContexts, 0));
+  ASSERT_NE(secondParam, nullptr);
+  auto *secondRoot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(secondParam->pSnapshots, 0));
+  ASSERT_NE(secondRoot, nullptr);
+  secondRoot->values.window.start = 400;
+  ASSERT_NE(taosArrayPush(runtime.pAncestorContext->pParamContexts, secondParam), nullptr);
+  ASSERT_NE(taosArrayPop(secondContext->pParamContexts), nullptr);
+  tDestroyStreamAncestorContext(&secondContext);
+
+  auto makePlaceholder = [&]() -> SNode * {
+    SFunctionNode *func = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)), TSDB_CODE_SUCCESS);
+    if (func == nullptr) return nullptr;
+    func->funcId = funcId;
+    func->funcType = fmGetFuncTypeFromId(funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    func->node.resType.bytes = sizeof(int64_t);
+
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    if (result == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    result->node.resType = func->node.resType;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    if (layer == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    layer->node.resType.type = TSDB_DATA_TYPE_INT;
+    layer->node.resType.bytes = sizeof(int32_t);
+    layer->datum.i = 0;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+    return reinterpret_cast<SNode *>(func);
+  };
+
+  auto makePrimaryTs = []() -> SNode * {
+    SColumnNode *column = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)), TSDB_CODE_SUCCESS);
+    if (column == nullptr) return nullptr;
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    return reinterpret_cast<SNode *>(column);
+  };
+
+  SNode *start = nullptr;
+  SNode *end = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&start, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&end, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow wins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, wins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(wins[0].tw.skey, 100);
+  EXPECT_EQ(wins[0].tw.ekey, 101);
+  EXPECT_EQ(wins[1].tw.skey, 400);
+  EXPECT_EQ(wins[1].tw.ekey, 401);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, autoTwendJoinRangeIncludesOnlyDegenerateStart) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam degenerate = {};
+  degenerate.wstart = 100;
+  degenerate.wend = 100;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &degenerate), nullptr);
+  SSTriggerCalcParam nondegenerate = {};
+  nondegenerate.wstart = 200;
+  nondegenerate.wend = 201;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &nondegenerate), nullptr);
+
+  auto makePlaceholder = [](const char *name) -> SNode * {
+    const int32_t funcId = fmGetFuncId(name);
+    EXPECT_GE(funcId, 0);
+
+    SFunctionNode *func = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&func)), TSDB_CODE_SUCCESS);
+    if (func == nullptr) return nullptr;
+    func->funcId = funcId;
+    func->funcType = fmGetFuncTypeFromId(funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    func->node.resType.bytes = sizeof(int64_t);
+
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    if (result == nullptr) {
+      nodesDestroyNode(reinterpret_cast<SNode *>(func));
+      return nullptr;
+    }
+    result->node.resType = func->node.resType;
+    EXPECT_EQ(nodesListMakeStrictAppend(&func->pParameterList, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    return reinterpret_cast<SNode *>(func);
+  };
+
+  auto makePrimaryTs = []() -> SNode * {
+    SColumnNode *column = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)), TSDB_CODE_SUCCESS);
+    if (column == nullptr) return nullptr;
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    return reinterpret_cast<SNode *>(column);
+  };
+
+  SNode *start = nullptr;
+  SNode *end = nullptr;
+  ASSERT_EQ(
+      scltMakeOpNode(&start, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder("_twstart")),
+      TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeOpNode(&end, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, makePrimaryTs(), makePlaceholder("_twend")),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  reinterpret_cast<SOperatorNode *>(start)->flag = OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE;
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow autoWins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, autoWins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(autoWins[0].tw.skey, 100);
+  EXPECT_EQ(autoWins[0].tw.ekey, 101);
+  EXPECT_EQ(autoWins[1].tw.skey, 201);
+  EXPECT_EQ(autoWins[1].tw.ekey, 202);
+
+  reinterpret_cast<SOperatorNode *>(start)->flag = 0;
+  SExtWinTimeWindow explicitWins[2] = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, explicitWins), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(explicitWins[0].tw.skey, 101);
+  EXPECT_EQ(explicitWins[0].tw.ekey, 101);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowUsesMaxLowerAndMinUpper) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 100;
+  leaf.wend = 200;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+
+  SNode *start = scltMakeAndCondition(
+      {scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeTimestampOffset("_twstart", -1, OP_TYPE_SUB, 10)),
+       scltMakeExternalBound(OP_TYPE_GREATER_THAN, scltMakeTimestampOffset("_twstart", -1, OP_TYPE_SUB, 5))});
+  SNode *end = scltMakeAndCondition(
+      {scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeTimestampOffset("_twend", -1, OP_TYPE_ADD, 10)),
+       scltMakeExternalBound(OP_TYPE_LOWER_EQUAL, scltMakeTimestampOffset("_twend", -1, OP_TYPE_ADD, 5))});
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow win = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(win.tw.skey, 96);
+  EXPECT_EQ(win.tw.ekey, 206);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowAllowsLeafAncestorLayerMixing) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 125;
+  leaf.wend = 399;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+
+  SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeStreamPlaceholder("_twstart", -1));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_EQUAL, scltMakeStreamPlaceholder("_twend", 1));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow win = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(win.tw.skey, 125);
+  EXPECT_EQ(win.tw.ekey, 250);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowAppliesRepresentableUnsignedOffset) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 100;
+  leaf.wend = 200;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+
+  const uint64_t offset = 7;
+  SNode         *start =
+      scltMakeExternalBound(OP_TYPE_GREATER_EQUAL,
+                            scltMakeTypedTimestampOffset("_twstart", -1, OP_TYPE_ADD, TSDB_DATA_TYPE_UBIGINT, &offset));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend"));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow win = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(win.tw.skey, 107);
+  EXPECT_EQ(win.tw.ekey, 200);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowRejectsUnsignedOffsetBeyondTimestampRange) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 0;
+  leaf.wend = 200;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+
+  const uint64_t offset = static_cast<uint64_t>(INT64_MAX) + 1;
+  SNode         *start =
+      scltMakeExternalBound(OP_TYPE_GREATER_EQUAL,
+                            scltMakeTypedTimestampOffset("_twstart", -1, OP_TYPE_ADD, TSDB_DATA_TYPE_UBIGINT, &offset));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend"));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow win = {};
+  EXPECT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_QRY_INVALID_INPUT);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowRejectsDifferentParamContext) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam first = {};
+  first.wstart = 300;
+  first.wend = 399;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &first), nullptr);
+  SSTriggerCalcParam second = {};
+  second.wstart = 600;
+  second.wend = 699;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &second), nullptr);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, 0);
+
+  SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeStreamPlaceholder("_twstart", 0));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend", 0));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow wins[2] = {};
+  EXPECT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, wins), TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowPreservesEmptyHalfOpenRange) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 200;
+  leaf.wend = 100;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+
+  SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeStreamPlaceholder("_twstart"));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend"));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+  SExtWinTimeWindow win = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(win.tw.skey, 200);
+  EXPECT_EQ(win.tw.ekey, 100);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowRejectsBoundaryOverflow) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  auto *param = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0));
+  ASSERT_NE(param, nullptr);
+
+  auto expectInvalid = [&](const char *scenario, SNode *start, SNode *end) {
+    SCOPED_TRACE(scenario);
+    ASSERT_NE(start, nullptr);
+    ASSERT_NE(end, nullptr);
+    STimeRangeNode range = {};
+    range.type = QUERY_NODE_TIME_RANGE;
+    range.pStart = start;
+    range.pEnd = end;
+    range.needCalc = true;
+    SExtWinTimeWindow win = {};
+    EXPECT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &win), TSDB_CODE_QRY_INVALID_INPUT);
+    nodesDestroyNode(start);
+    nodesDestroyNode(end);
+  };
+
+  param->wstart = INT64_MAX;
+  param->wend = 0;
+  expectInvalid("offset addition overflow",
+                scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeTimestampOffset("_twstart", -1, OP_TYPE_ADD, 1)),
+                scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend")));
+  expectInvalid("lower tick overflow",
+                scltMakeExternalBound(OP_TYPE_GREATER_THAN, scltMakeStreamPlaceholder("_twstart")),
+                scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend")));
+
+  param->wstart = 0;
+  param->wend = INT64_MAX;
+  expectInvalid("upper tick overflow",
+                scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeStreamPlaceholder("_twstart")),
+                scltMakeExternalBound(OP_TYPE_LOWER_EQUAL, scltMakeStreamPlaceholder("_twend")));
+  expectInvalid(
+      "INT64_MIN subtraction",
+      scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeTimestampOffset("_twstart", -1, OP_TYPE_SUB, INT64_MIN)),
+      scltMakeExternalBound(OP_TYPE_LOWER_THAN, scltMakeStreamPlaceholder("_twend")));
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarStreamPlaceholderTest, externalWindowEvaluatesEachGroupLineageSeparately) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  leaf.wstart = 300;
+  leaf.wend = 399;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pAncestorContext = scltMakeAncestorContext(101, 0);
+
+  SStreamAncestorContext *secondContext = scltMakeAncestorContext(202, 0);
+  ASSERT_NE(secondContext, nullptr);
+  auto *secondParam = static_cast<SStreamAncestorParamContext *>(taosArrayGet(secondContext->pParamContexts, 0));
+  ASSERT_NE(secondParam, nullptr);
+  auto *secondRoot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(secondParam->pSnapshots, 0));
+  ASSERT_NE(secondRoot, nullptr);
+  secondRoot->values.window.start = 400;
+  secondRoot->values.window.end = 499;
+  ASSERT_NE(taosArrayPush(runtime.pAncestorContext->pParamContexts, secondParam), nullptr);
+  ASSERT_NE(taosArrayPop(secondContext->pParamContexts), nullptr);
+  tDestroyStreamAncestorContext(&secondContext);
+
+  SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_EQUAL, scltMakeStreamPlaceholder("_twstart", 0));
+  SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_EQUAL, scltMakeStreamPlaceholder("_twend", 0));
+  ASSERT_NE(start, nullptr);
+  ASSERT_NE(end, nullptr);
+  STimeRangeNode range = {};
+  range.type = QUERY_NODE_TIME_RANGE;
+  range.pStart = start;
+  range.pEnd = end;
+  range.needCalc = true;
+
+  SExtWinTimeWindow firstWin = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &firstWin), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(firstWin.tw.skey, 100);
+  EXPECT_EQ(firstWin.tw.ekey, 150);
+
+  runtime.groupId = 202;
+  SExtWinTimeWindow secondWin = {};
+  ASSERT_EQ(scalarCalculateExtWinsTimeRange(&range, &runtime, &secondWin), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(secondWin.tw.skey, 400);
+  EXPECT_EQ(secondWin.tw.ekey, 500);
+
+  nodesDestroyNode(start);
+  nodesDestroyNode(end);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+constexpr int32_t kMaxCorrelationMockCalls = 8;
+
+struct CorrelationScalarMock {
+  int32_t seen[kMaxCorrelationMockCalls] = {};
+  int32_t seenOther[kMaxCorrelationMockCalls] = {};
+  int32_t calls = 0;
+  int32_t expectedParamCount = 1;
+  int32_t failOnCall = 0;
+  int32_t nullOnValue = 0;
+  const void *sourceData = nullptr;
+  bool copiedParams = true;
+  int64_t chargedBytes = 0;
+  int64_t peakBytes = 0;
+  int64_t limitBytes = 0;
+  const SArray *pInheritedParams = nullptr;
+  const SArray *expectedSources = nullptr;
+  bool sourcesMatch = true;
+  uint64_t recordedRows = 0;
+  uint64_t recordedCalls = 0;
+  int64_t recordedElapsedUs = 0;
+  const void *varSources[kMaxCorrelationMockCalls] = {};
+  bool varCopied = true;
+};
+
+static int32_t recordCorrelationStatsMock(void *pContext, int32_t templateId, bool called, int64_t elapsedUs) {
+  auto *pMock = static_cast<CorrelationScalarMock *>(pContext);
+  if (0 != templateId) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  ++pMock->recordedRows;
+  pMock->recordedCalls += called ? 1 : 0;
+  pMock->recordedElapsedUs += elapsedUs;
+  return TSDB_CODE_SUCCESS;
+}
+
+static const SArray *getInheritedCorrelationParamsMock(const SCorrelationTaskSession *pSession) {
+  auto *pMock = reinterpret_cast<const CorrelationScalarMock *>(pSession);
+  return pMock->pInheritedParams;
+}
+
+static int32_t reserveCorrelationResultMock(SCorrelationTaskSession *pSession, int64_t bytes) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  if (pMock->limitBytes > 0 && pMock->chargedBytes + bytes > pMock->limitBytes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pMock->chargedBytes += bytes;
+  pMock->peakBytes = TMAX(pMock->peakBytes, pMock->chargedBytes);
+  return TSDB_CODE_SUCCESS;
+}
+
+static void releaseCorrelationResultMock(SCorrelationTaskSession *pSession, int64_t bytes) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  ASSERT_LE(bytes, pMock->chargedBytes);
+  pMock->chargedBytes -= bytes;
+}
+
+static int32_t invokeCorrelationScalarMock(SCorrelationTaskSession *pSession,
+                                           const SCorrelationScalarRequest *pRequest,
+                                           SValueNode **ppResult) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  pMock->sourcesMatch &= pRequest->pSubquerySources == pMock->expectedSources;
+  if (pRequest->templateId != 0 || nullptr == pRequest->pParams ||
+      taosArrayGetSize(pRequest->pParams) != pMock->expectedParamCount) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pMock->calls >= kMaxCorrelationMockCalls) {
+    ADD_FAILURE() << "CorrelationScalarMock call capacity exceeded";
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  auto *pValue = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 0));
+  if (nullptr == pValue || pValue->isNull || pValue->length != sizeof(int32_t) || nullptr == pValue->pData) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  pMock->copiedParams &= pValue->pData != pMock->sourceData;
+  int32_t value = 0;
+  memcpy(&value, pValue->pData, sizeof(value));
+  if (pMock->expectedParamCount == 2) {
+    auto *pOther = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 1));
+    if (nullptr == pOther || pOther->paramId != 1 || pOther->isNull ||
+        pOther->length != sizeof(int32_t) || nullptr == pOther->pData) {
+      return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+    }
+    memcpy(&pMock->seenOther[pMock->calls], pOther->pData, sizeof(int32_t));
+  }
+  pMock->seen[pMock->calls++] = value;
+  if (pMock->calls == pMock->failOnCall) {
+    return TSDB_CODE_QRY_SUBQ_EXEC_ERROR;
+  }
+
+  SNode *pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  auto *pResult = reinterpret_cast<SValueNode *>(pNode);
+  pResult->node.resType = {};
+  pResult->node.resType.type = TSDB_DATA_TYPE_INT;
+  pResult->node.resType.bytes = sizeof(int32_t);
+  pResult->isNull = value == pMock->nullOnValue;
+  pResult->typeData = value * 10;
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t invokeCorrelationVarMock(SCorrelationTaskSession *pSession,
+                                        const SCorrelationScalarRequest *pRequest,
+                                        SValueNode **ppResult) {
+  auto *pMock = reinterpret_cast<CorrelationScalarMock *>(pSession);
+  if (nullptr == pRequest->pParams || taosArrayGetSize(pRequest->pParams) != 1) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pMock->calls >= kMaxCorrelationMockCalls) {
+    ADD_FAILURE() << "CorrelationScalarMock call capacity exceeded";
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  auto *pValue = static_cast<const SCorrelationParamValue *>(taosArrayGet(pRequest->pParams, 0));
+  if (nullptr == pValue || pValue->dataType.type != TSDB_DATA_TYPE_VARCHAR) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  int32_t row = pMock->calls++;
+  if (!pValue->isNull) {
+    pMock->varCopied &= pValue->pData != pMock->varSources[row];
+  }
+  if (!pValue->isNull && (pValue->length <= VARSTR_HEADER_SIZE || nullptr == pValue->pData ||
+                          varDataTLen(pValue->pData) != pValue->length)) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  if (pValue->isNull && (pValue->length != 0 || nullptr != pValue->pData)) {
+    return TSDB_CODE_QRY_INVALID_CORRELATION_NODE;
+  }
+  SNode *pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  auto *pResult = reinterpret_cast<SValueNode *>(pNode);
+  pResult->node.resType = {};
+  pResult->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pResult->node.resType.bytes = 32;
+  pResult->isNull = pValue->isNull;
+  if (!pValue->isNull) {
+    pResult->datum.p = static_cast<char *>(taosMemoryMalloc(pValue->length));
+    if (nullptr == pResult->datum.p) {
+      nodesDestroyNode(pNode);
+      return terrno;
+    }
+    memcpy(pResult->datum.p, pValue->pData, pValue->length);
+  }
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SCorrelatedSubqueryNode *makeCorrelationScalarNode(int64_t blockId) {
+  SNode *pNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATED_SUBQUERY, &pNode)) {
+    return nullptr;
+  }
+  auto *pCall = reinterpret_cast<SCorrelatedSubqueryNode *>(pNode);
+  pCall->node.resType = {};
+  pCall->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCall->node.resType.bytes = sizeof(int32_t);
+  pCall->templateId = 0;
+  pCall->exprId = 1;
+  pCall->scopeId = 2;
+  pCall->parentScopeId = 1;
+
+  SNode *pBindingNode = nullptr;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pBindingNode)) {
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pBindingNode);
+  pBinding->paramId = 0;
+  pBinding->dataType = {};
+  pBinding->dataType.type = TSDB_DATA_TYPE_INT;
+  pBinding->dataType.bytes = sizeof(int32_t);
+  pBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pBinding->sourceBlockId = blockId;
+  pBinding->sourceSlotId = 0;
+  if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pCall->pParamBindings, pBindingNode)) {
+    nodesDestroyNode(pNode);
+    return nullptr;
+  }
+  return pCall;
+}
+
+TEST(CorrelationScalarTest, UsesExactBlockAndOriginalRows) {
+  SArray *pBlocks = taosArrayInit(2, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pFirst = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pSecond = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 1));
+  auto *pFirstCol = static_cast<SColumnInfoData *>(taosArrayGet(pFirst->pDataBlock, 0));
+  auto *pSecondCol = static_cast<SColumnInfoData *>(taosArrayGet(pSecond->pDataBlock, 0));
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t first = 100 + row, second = row + 1;
+    ASSERT_EQ(colDataSetVal(pFirstCol, row, reinterpret_cast<char *>(&first), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(pSecondCol, row, reinterpret_cast<char *>(&second), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pSecond->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pOtherNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pOtherNode), TSDB_CODE_SUCCESS);
+  auto *pOtherBinding = reinterpret_cast<SCorrelationParamBindingNode *>(pOtherNode);
+  pOtherBinding->paramId = 1;
+  pOtherBinding->dataType = {};
+  pOtherBinding->dataType.type = TSDB_DATA_TYPE_INT;
+  pOtherBinding->dataType.bytes = sizeof(int32_t);
+  pOtherBinding->sourceKind = CORRELATION_SOURCE_BLOCK;
+  pOtherBinding->sourceBlockId = pFirst->info.id.blockId;
+  pOtherBinding->sourceSlotId = 0;
+  ASSERT_EQ(nodesListStrictAppend(pCall->pParamBindings, pOtherNode), TSDB_CODE_SUCCESS);
+  CorrelationScalarMock mock = {};
+  mock.expectedParamCount = 2;
+  mock.sourceData = pSecondCol->pData;
+  mock.nullOnValue = 2;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_EQ(mock.seen[0], 1);
+  EXPECT_EQ(mock.seen[1], 2);
+  EXPECT_EQ(mock.seen[2], 3);
+  EXPECT_EQ(mock.seenOther[0], 100);
+  EXPECT_EQ(mock.seenOther[1], 101);
+  EXPECT_EQ(mock.seenOther[2], 102);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_GT(mock.peakBytes, 0);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  EXPECT_EQ(output.numOfRows, 3);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), 10);
+  EXPECT_TRUE(colDataIsNull(&result, 3, 1, nullptr));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 2)), 30);
+
+  mock.calls = 0;
+  correlation.hasRowRange = true;
+  correlation.rowStart = 0;
+  correlation.rowEnd = 0;
+  correlation.hasJoinRows = true;
+  correlation.leftBlockId = pFirst->info.id.blockId;
+  correlation.rightBlockId = pSecond->info.id.blockId;
+  correlation.leftRow = 1;
+  correlation.rightRow = 2;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 1);
+  EXPECT_EQ(mock.seen[0], 3);
+  EXPECT_EQ(mock.seenOther[0], 101);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, RangePreservesOtherRowsAndFailureStopsParent) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 4, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pSource = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < 4; ++row) {
+    int32_t value = row + 4;
+    ASSERT_EQ(colDataSetVal(pSource, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.hasRowRange = true;
+  correlation.rowStart = 1;
+  correlation.rowEnd = 1;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  ASSERT_EQ(colInfoDataEnsureCapacity(&result, 4, true), TSDB_CODE_SUCCESS);
+  for (int32_t row = 0; row < 4; ++row) {
+    int32_t value = 99;
+    ASSERT_EQ(colDataSetVal(&result, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+  SScalarParam output = {};
+  output.columnData = &result;
+  output.numOfRows = 4;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 1);
+  EXPECT_EQ(mock.seen[0], 5);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), 99);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 1)), 50);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 2)), 99);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 3)), 99);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  colDataDestroy(&result);
+
+  SColumnInfoData freshResult = {};
+  freshResult.info = columnInfo;
+  SScalarParam freshOutput = {};
+  freshOutput.columnData = &freshResult;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &freshOutput, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 0, nullptr));
+  EXPECT_FALSE(colDataIsNull(&freshResult, 4, 1, nullptr));
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 2, nullptr));
+  EXPECT_TRUE(colDataIsNull(&freshResult, 4, 3, nullptr));
+  colDataDestroy(&freshResult);
+
+  correlation.hasRowRange = false;
+  mock.calls = 0;
+  mock.nullOnValue = 5;
+  mock.failOnCall = 3;
+  SNode *pColumnNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
+  auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
+  pColumn->node.resType = {};
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
+  pColumn->dataBlockId = pBlock->info.id.blockId;
+  pColumn->slotId = 0;
+  SNode *pParent = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&pParent, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pColumnNode,
+                          reinterpret_cast<SNode *>(pCall)), TSDB_CODE_SUCCESS);
+  SColumnInfoData parentResult = {};
+  parentResult.info = createColumnInfo(2, TSDB_DATA_TYPE_BOOL, sizeof(bool));
+  SScalarParam parentOutput = {};
+  parentOutput.columnData = &parentResult;
+  EXPECT_EQ(scalarCalculate(pParent, pBlocks, &parentOutput, &extra), TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_EQ(mock.seen[0], 4);
+  EXPECT_EQ(mock.seen[1], 5);
+  EXPECT_EQ(mock.seen[2], 6);
+  EXPECT_EQ(parentOutput.numOfRows, 0);
+  EXPECT_EQ(parentResult.pData, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&parentResult);
+  nodesDestroyNode(pParent);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, EmptyBlockDoesNotInvoke) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 1, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  pBlock->info.rows = 0;
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  EXPECT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(output.numOfRows, 0);
+  EXPECT_EQ(mock.calls, 0);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, InheritedParameterIsCopiedForEachRow) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(
+      nodesListGetNode(pCall->pParamBindings, 0));
+  pBinding->sourceKind = CORRELATION_SOURCE_INHERITED;
+  pBinding->sourceBlockId = -1;
+  pBinding->sourceSlotId = -1;
+  pBinding->inheritedParamId = 7;
+  int32_t inheritedData = 42;
+  SCorrelationParamValue inherited = {};
+  inherited.paramId = 7;
+  inherited.dataType = {};
+  inherited.dataType.type = TSDB_DATA_TYPE_INT;
+  inherited.dataType.bytes = sizeof(int32_t);
+  inherited.length = sizeof(int32_t);
+  inherited.pData = &inheritedData;
+  SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
+  ASSERT_NE(pInherited, nullptr);
+  ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
+
+  CorrelationScalarMock mock = {};
+  mock.pInheritedParams = pInherited;
+  mock.sourceData = &inheritedData;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.getInheritedParams = getInheritedCorrelationParamsMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], 42);
+  EXPECT_EQ(mock.seen[1], 42);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  colDataDestroy(&result);
+  taosArrayDestroy(pInherited);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, CurrentRowAndAncestorUseChildParameterIds) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < 2; ++row) {
+    int32_t value = row + 1;
+    ASSERT_EQ(colDataSetVal(pColumn, row, reinterpret_cast<char *>(&value), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pAncestorNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CORRELATION_PARAM_BINDING, &pAncestorNode), TSDB_CODE_SUCCESS);
+  auto *pAncestor = reinterpret_cast<SCorrelationParamBindingNode *>(pAncestorNode);
+  pAncestor->paramId = 1;
+  pAncestor->dataType = {};
+  pAncestor->dataType.type = TSDB_DATA_TYPE_INT;
+  pAncestor->dataType.bytes = sizeof(int32_t);
+  pAncestor->sourceKind = CORRELATION_SOURCE_INHERITED;
+  pAncestor->inheritedParamId = 7;
+  ASSERT_EQ(nodesListStrictAppend(pCall->pParamBindings, pAncestorNode), TSDB_CODE_SUCCESS);
+
+  int32_t ancestorData = 42;
+  SCorrelationParamValue inherited = {};
+  inherited.paramId = 7;
+  inherited.dataType = {};
+  inherited.dataType.type = TSDB_DATA_TYPE_INT;
+  inherited.dataType.bytes = sizeof(int32_t);
+  inherited.length = sizeof(int32_t);
+  inherited.pData = &ancestorData;
+  SArray *pInherited = taosArrayInit(1, sizeof(SCorrelationParamValue));
+  ASSERT_NE(pInherited, nullptr);
+  ASSERT_NE(taosArrayPush(pInherited, &inherited), nullptr);
+  SArray *pSources = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pSources, nullptr);
+
+  CorrelationScalarMock mock = {};
+  mock.expectedParamCount = 2;
+  mock.pInheritedParams = pInherited;
+  mock.expectedSources = pSources;
+  mock.sourceData = pColumn->pData;
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.getInheritedParams = getInheritedCorrelationParamsMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.pSubquerySources = pSources;
+  correlation.pStatsContext = &mock;
+  correlation.recordStats = recordCorrelationStatsMock;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], 1);
+  EXPECT_EQ(mock.seen[1], 2);
+  EXPECT_EQ(mock.seenOther[0], 42);
+  EXPECT_EQ(mock.seenOther[1], 42);
+  EXPECT_TRUE(mock.copiedParams);
+  EXPECT_TRUE(mock.sourcesMatch);
+  EXPECT_EQ(mock.recordedRows, 2);
+  EXPECT_EQ(mock.recordedCalls, 2);
+  EXPECT_GE(mock.recordedElapsedUs, 0);
+
+  colDataDestroy(&result);
+  taosArrayDestroy(pSources);
+  taosArrayDestroy(pInherited);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, CaseCountsUnselectedBranchWithRepeatedParameters) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 2, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  int32_t repeated = 1;
+  ASSERT_EQ(colDataSetVal(pColumn, 0, reinterpret_cast<char *>(&repeated), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pColumn, 1, reinterpret_cast<char *>(&repeated), false), TSDB_CODE_SUCCESS);
+
+  SNode *pWhen = nullptr;
+  SNode *pThen = nullptr;
+  SNode *pBranch = nullptr;
+  SNode *pCase = nullptr;
+  bool trueValue = true;
+  int32_t selectedValue = 7;
+  ASSERT_EQ(scltMakeValueNode(&pWhen, TSDB_DATA_TYPE_BOOL, &trueValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltMakeValueNode(&pThen, TSDB_DATA_TYPE_INT, &selectedValue), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_WHEN_THEN, &pBranch), TSDB_CODE_SUCCESS);
+  ((SWhenThenNode *)pBranch)->pWhen = pWhen;
+  ((SWhenThenNode *)pBranch)->pThen = pThen;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_CASE_WHEN, &pCase), TSDB_CODE_SUCCESS);
+  auto *pCaseWhen = reinterpret_cast<SCaseWhenNode *>(pCase);
+  pCaseWhen->node.resType = {};
+  pCaseWhen->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCaseWhen->node.resType.bytes = sizeof(int32_t);
+  pCaseWhen->pElse = reinterpret_cast<SNode *>(makeCorrelationScalarNode(pBlock->info.id.blockId));
+  ASSERT_NE(pCaseWhen->pElse, nullptr);
+  ASSERT_EQ(nodesListMakeStrictAppend(&pCaseWhen->pWhenThenList, pBranch), TSDB_CODE_SUCCESS);
+
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  correlation.pStatsContext = &mock;
+  correlation.recordStats = recordCorrelationStatsMock;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+
+  ASSERT_EQ(scalarCalculate(pCase, pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 0)), selectedValue);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(&result, 1)), selectedValue);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(mock.seen[0], repeated);
+  EXPECT_EQ(mock.seen[1], repeated);
+  EXPECT_EQ(mock.recordedRows, 2);
+  EXPECT_EQ(mock.recordedCalls, 2);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(pCase);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, VariableInputAndResultOwnTheirBytes) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_VARCHAR, 32);
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData sourceColumn = {};
+  sourceColumn.info = columnInfo;
+  ASSERT_EQ(colInfoDataEnsureCapacity(&sourceColumn, 3, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &sourceColumn), TSDB_CODE_SUCCESS);
+  pBlock->info.rows = 3;
+  pBlock->info.capacity = 3;
+  pBlock->info.id.blockId = 0;
+  ASSERT_NE(taosArrayPush(pBlocks, &pBlock), nullptr);
+  auto *pSource = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  char first[VARSTR_HEADER_SIZE + 3] = {};
+  char last[VARSTR_HEADER_SIZE + 3] = {};
+  varDataSetLen(first, 3);
+  varDataSetLen(last, 3);
+  memcpy(varDataVal(first), "one", 3);
+  memcpy(varDataVal(last), "two", 3);
+  ASSERT_EQ(colDataSetVal(pSource, 0, first, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pSource, 1, nullptr, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(pSource, 2, last, false), TSDB_CODE_SUCCESS);
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  pCall->node.resType = {};
+  pCall->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pCall->node.resType.bytes = 32;
+  auto *pBinding = reinterpret_cast<SCorrelationParamBindingNode *>(
+      nodesListGetNode(pCall->pParamBindings, 0));
+  pBinding->dataType = pCall->node.resType;
+  CorrelationScalarMock mock = {};
+  mock.varSources[0] = colDataGetData(pSource, 0);
+  mock.varSources[2] = colDataGetData(pSource, 2);
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationVarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  SScalarExtraInfo extra = {};
+  extra.pCorrelation = &correlation;
+  SColumnInfoData result = {};
+  result.info = columnInfo;
+  SScalarParam output = {};
+  output.columnData = &result;
+  ASSERT_EQ(scalarCalculate(reinterpret_cast<SNode *>(pCall), pBlocks, &output, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mock.calls, 3);
+  EXPECT_TRUE(mock.varCopied);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  EXPECT_EQ(varDataTLen(colDataGetData(&result, 0)), sizeof(first));
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(&result, 0)), "one", 3), 0);
+  EXPECT_TRUE(colDataIsNull(&result, 3, 1, nullptr));
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(&result, 2)), "two", 3), 0);
+
+  colDataDestroy(&result);
+  nodesDestroyNode(reinterpret_cast<SNode *>(pCall));
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
+  SArray *pBlocks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pBlocks, nullptr);
+  SColumnInfo columnInfo = createColumnInfo(1, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+  int16_t blockId = -1, slotId = -1;
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, true, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(scltAppendReservedSlot(pBlocks, &blockId, &slotId, false, 3, &columnInfo), TSDB_CODE_SUCCESS);
+  auto *pBlock = static_cast<SSDataBlock *>(taosArrayGetP(pBlocks, 0));
+  auto *pParam = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  auto *pVoltage = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 1));
+  int32_t voltages[] = {15, 15, 35};
+  for (int32_t row = 0; row < 3; ++row) {
+    int32_t param = row + 1;
+    ASSERT_EQ(colDataSetVal(pParam, row, reinterpret_cast<char *>(&param), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(pVoltage, row, reinterpret_cast<char *>(&voltages[row]), false), TSDB_CODE_SUCCESS);
+  }
+
+  SCorrelatedSubqueryNode *pCall = makeCorrelationScalarNode(pBlock->info.id.blockId);
+  ASSERT_NE(pCall, nullptr);
+  SNode *pColumnNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pColumnNode), TSDB_CODE_SUCCESS);
+  auto *pColumn = reinterpret_cast<SColumnNode *>(pColumnNode);
+  pColumn->node.resType = {};
+  pColumn->node.resType.type = TSDB_DATA_TYPE_INT;
+  pColumn->node.resType.bytes = sizeof(int32_t);
+  pColumn->dataBlockId = pBlock->info.id.blockId;
+  pColumn->slotId = 1;
+  SNode *pCondition = nullptr;
+  ASSERT_EQ(scltMakeOpNode(&pCondition, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pColumnNode,
+                          reinterpret_cast<SNode *>(pCall)), TSDB_CODE_SUCCESS);
+
+  SFilterInfo *pFilter = nullptr;
+  ASSERT_EQ(filterInitFromNode(pCondition, &pFilter, 0, nullptr), TSDB_CODE_SUCCESS);
+  CorrelationScalarMock mock = {};
+  SCorrelationRuntimeOps ops = {};
+  ops.invokeScalar = invokeCorrelationScalarMock;
+  ops.reserveResultMemory = reserveCorrelationResultMock;
+  ops.releaseResultMemory = releaseCorrelationResultMock;
+  SCorrelationEvalContext correlation = {};
+  correlation.pSession = reinterpret_cast<SCorrelationTaskSession *>(&mock);
+  correlation.pOps = &ops;
+  SColumnInfoData *pMask = nullptr;
+  int32_t status = 0;
+  int32_t filterCode = filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation);
+  EXPECT_EQ(mock.calls, 3);
+  ASSERT_EQ(filterCode, TSDB_CODE_SUCCESS);
+  ASSERT_NE(pMask, nullptr);
+  EXPECT_EQ(status, FILTER_RESULT_PARTIAL_QUALIFIED);
+  EXPECT_TRUE(*reinterpret_cast<bool *>(colDataGetData(pMask, 0)));
+  EXPECT_FALSE(*reinterpret_cast<bool *>(colDataGetData(pMask, 1)));
+  EXPECT_TRUE(*reinterpret_cast<bool *>(colDataGetData(pMask, 2)));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pParam, 1)), 2);
+  EXPECT_EQ(mock.chargedBytes, 0);
+  colDataDestroy(pMask);
+  taosMemoryFree(pMask);
+
+  mock.calls = 0;
+  mock.failOnCall = 2;
+  pMask = nullptr;
+  EXPECT_EQ(filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation),
+            TSDB_CODE_QRY_SUBQ_EXEC_ERROR);
+  EXPECT_EQ(mock.calls, 2);
+  EXPECT_EQ(pMask, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  mock.calls = 0;
+  mock.failOnCall = 0;
+  mock.limitBytes = 1;
+  EXPECT_EQ(filterExecuteWithCorrelation(pFilter, pBlock, &pMask, nullptr, 2, &status, &correlation),
+            TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(mock.calls, 0);
+  EXPECT_EQ(pMask, nullptr);
+  EXPECT_EQ(mock.chargedBytes, 0);
+
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pCondition);
+  taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(ScalarValidationTest, AcceptsReservedFixedWidthAndRejectsUndersizedWidth) {
+  SScalarParam param = {};
+  SDataType reserved = {TSDB_DATA_TYPE_INT, 0, 0, static_cast<int32_t>(sizeof(int64_t))};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, sclCreateColumnInfoData(&reserved, 1, &param));
+  ASSERT_NE(nullptr, param.columnData);
+  EXPECT_EQ(sizeof(int64_t), param.columnData->info.bytes);
+  sclFreeParam(&param);
+
+  SDataType undersized = {TSDB_DATA_TYPE_INT, 0, 0, static_cast<int32_t>(sizeof(int16_t))};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersized, 1, &param));
+  EXPECT_EQ(nullptr, param.columnData);
+
+  SDataType undersizedNull = {TSDB_DATA_TYPE_NULL, 0, 0, 0};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT,
+            sclCreateColumnInfoData(&undersizedNull, 1, &param));
+  EXPECT_EQ(nullptr, param.columnData);
+
+  SDataType undersizedVarchar = {TSDB_DATA_TYPE_VARCHAR, 0, 0, VARSTR_HEADER_SIZE - 1};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersizedVarchar, 1, &param));
+  SDataType undersizedBlob = {TSDB_DATA_TYPE_BLOB, 0, 0, BLOBSTR_HEADER_SIZE - 1};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersizedBlob, 1, &param));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&reserved, -1, &param));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&reserved, 1, nullptr));
+}
+
+extern "C" int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Named-zone and day-fallback truncation must floor pre-epoch instants.
+TEST(ScalarFunctionTest, timeTruncateNamedZoneFloorsNegative) {
+  struct Case {
+    const char *zone;
+    int64_t     input;
+    int64_t     expected;
+    char        unit;
+    int32_t     precision;
+  };
+  const int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  const int32_t us = TSDB_TIME_PRECISION_MICRO;
+  const int32_t ns = TSDB_TIME_PRECISION_NANO;
+  const Case cases[] = {
+      {"+0500", -1, -3600000, 'h', ms},
+      {"America/New_York", -1, -3600000, 'h', ms},
+      {"America/New_York", -3599999, -3600000, 'h', ms},
+      {"America/New_York", -3600000, -3600000, 'h', ms},
+      {"America/New_York", 1, 0, 'h', ms},
+      {"America/St_Johns", -1, -1800000, 'h', ms},
+      {"America/New_York", -1, -1000000, 's', us},
+      {"America/New_York", -1, -60000000000LL, 'm', ns},
+      // A legacy display token without a rule exercises the day fallback.
+      {"System", -1, -86400000, 'd', ms},
+      {"System", -86400000, -86400000, 'd', ms},
+      {"System", -86400001, -172800000, 'd', ms},
+      {"System", -1, -86400000000LL, 'd', us},
+      // INT64_MIN is reserved for NULL timestamps.
+      {"UTC", INT64_MIN + 1, INT64_MIN, 's', ns},
+      {"UTC", -9223372036000000001LL, INT64_MIN, 's', ns},
+      {"UTC", -9223372036000000000LL, -9223372036000000000LL, 's', ns},
+      {"UTC", INT64_MIN + 1, INT64_MIN, 'm', ns},
+      {"UTC", -9223372020000000000LL, -9223372020000000000LL, 'm', ns},
+      {"UTC", INT64_MIN + 1, INT64_MIN, 'h', ns},
+      {"UTC", -9223369200000000000LL, -9223369200000000000LL, 'h', ns},
+      {"UTC+8", INT64_MIN + 1, INT64_MIN, 'h', ns},
+      {"UTC-8", INT64_MAX, 9223369200000000000LL, 'h', ns},
+      {"System", INT64_MIN + 1, INT64_MIN, 'd', ns},
+      {"System", -9223286400000000000LL, -9223286400000000000LL, 'd', ns},
+  };
+
+  for (const Case &c : cases) {
+    SCOPED_TRACE(::testing::Message() << c.zone << ":" << c.input << ":"
+                                    << c.unit << ":" << c.precision);
+    int64_t prec = c.precision, fdow = 1, unitCh = c.unit;
+    int64_t seconds = c.unit == 'd' ? 86400 : c.unit == 'h' ? 3600 :
+                      c.unit == 'm' ? 60 : 1;
+    int64_t unit = seconds * TSDB_TICK_PER_SECOND(prec);
+    bool    useCurrentTz = true;
+
+    SScalarParam *pTs = nullptr, *pUnit = nullptr, *pUseTz = nullptr, *pPrec = nullptr;
+    SScalarParam *pFdow = nullptr, *pUnitCh = nullptr, *pOut = nullptr;
+    ASSERT_EQ(scltMakeDataBlock(&pTs, TSDB_DATA_TYPE_BIGINT, (void *)&c.input, 1, true), 0);
+    pTs->columnData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
+    ASSERT_EQ(scltMakeDataBlock(&pUnit, TSDB_DATA_TYPE_BIGINT, &unit, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pUseTz, TSDB_DATA_TYPE_TINYINT, &useCurrentTz, 1, true), 0);
+    pUseTz->columnData->info.type = TSDB_DATA_TYPE_BOOL;
+    ASSERT_EQ(scltMakeDataBlock(&pPrec, TSDB_DATA_TYPE_BIGINT, &prec, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pFdow, TSDB_DATA_TYPE_BIGINT, &fdow, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pUnitCh, TSDB_DATA_TYPE_BIGINT, &unitCh, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pOut, TSDB_DATA_TYPE_BIGINT, nullptr, 1, false), 0);
+    pOut->columnData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
+
+    SScalarParam input[7] = {};
+    input[0] = *pTs;
+    input[1] = *pUnit;
+    input[2] = *pUseTz;
+    input[3] = *pPrec;
+    scltMakeRawStringParam(&input[4], TSDB_DATA_TYPE_VARCHAR, c.zone, (int32_t)strlen(c.zone));
+    input[5] = *pFdow;
+    input[6] = *pUnitCh;
+
+    ASSERT_EQ(timeTruncateFunction(input, 7, pOut), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colDataIsNull_s(pOut->columnData, 0), c.expected == INT64_MIN);
+    if (c.expected != INT64_MIN) {
+      EXPECT_EQ(c.expected, *(int64_t *)colDataGetData(pOut->columnData, 0));
+    }
+
+    colDataDestroy(input[4].columnData);
+    taosMemoryFree(input[4].columnData);
+    for (SScalarParam *p : {pTs, pUnit, pUseTz, pPrec, pFdow, pUnitCh, pOut}) {
+      scltDestroyDataBlock(p);
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);
@@ -4423,3 +7711,116 @@ int main(int argc, char **argv) {
 }
 
 #pragma GCC diagnostic pop
+
+TEST(ScalarStreamPlaceholderTest, ordinaryRangePreservesNullPredecessor) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam param = {};
+  param.wstart = 100;
+  param.wend = 200;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &param), nullptr);
+  auto *stored = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0));
+
+  // Exercise NULL in a direct function, an arithmetic expression, and either
+  // side of the extracted range. Reusing the expression must clear NULL later.
+  for (int variant = 0; variant < 3; ++variant) {
+    SCOPED_TRACE(variant);
+    SNode *previous = variant == 1 ? scltMakeTimestampOffset("_tpre_wend", -1, OP_TYPE_ADD, 1)
+                                  : scltMakeStreamPlaceholder("_tpre_wend");
+    SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_THAN,
+        variant == 2 ? scltMakeStreamPlaceholder("_twstart") : previous);
+    SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_EQUAL,
+        variant == 2 ? previous : scltMakeStreamPlaceholder("_twend"));
+    STimeRangeNode range = {};
+    range.type = QUERY_NODE_TIME_RANGE;
+    range.pStart = start;
+    range.pEnd = end;
+    range.needCalc = true;
+    STimeWindow result = {};
+    bool valid = false;
+    stored->hasPrevWindow = false;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, 3), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_GT(result.skey, result.ekey);
+    EXPECT_GT(result.ekey, INT64_MIN);  // Safe conversion to a closed reader range.
+
+    // The reader uses partial ranges as a conservative multi-window envelope.
+    const int partial = variant == 2 ? 2 : 1;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, partial), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(result.skey, INT64_MIN);
+    EXPECT_EQ(result.ekey, INT64_MAX);
+
+    stored->hasPrevWindow = true;
+    stored->prevWend = 150;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, 3), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(result.skey, variant == 2 ? 101 : variant == 1 ? 152 : 151);
+    EXPECT_EQ(result.ekey, variant == 2 ? 151 : 201);
+    nodesDestroyNode(start);
+    nodesDestroyNode(end);
+  }
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(ScalarFunctionTest, defaultSetSeparatorUsesConnectionCharset) {
+  void *utf8 = taosConvInit("UTF-8");
+  void *utf16 = taosConvInit("UTF-16LE");
+  ASSERT_NE(nullptr, utf8);
+  ASSERT_NE(nullptr, utf16);
+  // A one-byte comma cannot be decoded by the process UTF-16LE converter.
+  CharsetCxtGuard guard(utf16);
+  const TdUcs4 pattern[] = {'b'};
+  const TdUcs4 values[] = {'a', ',', 'b'};
+  SScalarParam input[2] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_NCHAR, pattern, sizeof(pattern));
+  scltMakeRawStringParam(&input[1], TSDB_DATA_TYPE_NCHAR, values, sizeof(values));
+  input[0].charsetCxt = utf8;
+  SColumnInfoData column = {};
+  column.info = createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(0, colInfoDataEnsureCapacity(&column, 1, true));
+  SScalarParam output = {};
+  output.columnData = &column;
+  EXPECT_EQ(0, findInSetFunction(input, 2, &output));
+  EXPECT_EQ(2, *(int64_t *)colDataGetData(&column, 0));
+  for (auto &param : input) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(&column);
+}
+
+TEST(ScalarFunctionTest, stringBoundariesUseConnectionCharset) {
+  void *gbk = taosConvInit("GBK");
+  void *utf8 = taosConvInit("UTF-8");
+  ASSERT_NE(nullptr, gbk);
+  ASSERT_NE(nullptr, utf8);
+  CharsetCxtGuard guard(utf8);
+  const char text[] = {(char)0x81, '@', '@', 'x'};
+  SScalarParam input[2] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_VARCHAR, "@", 1);
+  scltMakeRawStringParam(&input[1], TSDB_DATA_TYPE_VARCHAR, text, sizeof(text));
+  input[0].charsetCxt = gbk;
+  SColumnInfoData column = {};
+  column.info = createColumnInfo(0, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+  ASSERT_EQ(0, colInfoDataEnsureCapacity(&column, 1, true));
+  SScalarParam output = {};
+  output.columnData = &column;
+  EXPECT_EQ(0, positionFunction(input, 2, &output));
+  EXPECT_EQ(2, *(int64_t *)colDataGetData(&column, 0));
+  input[1].charsetCxt = gbk;
+  EXPECT_EQ(0, charLengthFunction(&input[1], 1, &output));
+  EXPECT_EQ(3, *(int64_t *)colDataGetData(&column, 0));
+  // The same bytes are invalid UTF-8; never silently fall back to byte mode.
+  input[1].charsetCxt = utf8;
+  EXPECT_NE(0, charLengthFunction(&input[1], 1, &output));
+  input[1].charsetCxt = gbk;
+  EXPECT_EQ(0, charLengthFunction(&input[1], 1, &output));
+  EXPECT_EQ(3, *(int64_t *)colDataGetData(&column, 0));
+  for (auto &param : input) {
+    colDataDestroy(param.columnData);
+    taosMemoryFree(param.columnData);
+  }
+  colDataDestroy(&column);
+}

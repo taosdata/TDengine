@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3 * or later ("AGPL"), as published by the Free
- * Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstring>
@@ -322,7 +325,7 @@ TEST_F(TransEnv, 01sendAndRec) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
 }
 
@@ -334,7 +337,7 @@ TEST_F(TransEnv, 02StopServer) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
   // SRpcMsg req = {0}, resp = {0};
   // req.info.ahandle = (void *)0x35;
@@ -344,7 +347,7 @@ TEST_F(TransEnv, 02StopServer) {
   // tr->StopSrv();
   // // tr->RestartSrv();
   // tr->cliSendAndRecv(&req, &resp);
-  // assert(resp.code != 0);
+  // TD_ALWAYS_ASSERT(resp.code != 0);
 }
 TEST_F(TransEnv, clientUserDefined) {
   // tr->RestartSrv();
@@ -354,7 +357,7 @@ TEST_F(TransEnv, clientUserDefined) {
   //   req.pCont = rpcMallocCont(10);
   //   req.contLen = 10;
   //   tr->cliSendAndRecv(&req, &resp);
-  //   assert(resp.code == 0);
+  //   TD_ALWAYS_ASSERT(resp.code == 0);
   // }
 
   //////////////////
@@ -618,7 +621,7 @@ TEST_F(TransEnv, http) {
 #if 1
     STelemAddrMgmt mgt;
     taosTelemetryMgtInit(&mgt, "telemetry.taosdata.com");
-    int32_t code = taosSendTelemReport(&mgt,tsTelemUri, tsTelemPort, "test", strlen("test"),HTTP_FLAT); 
+    code = taosSendTelemReport(&mgt, tsTelemUri, tsTelemPort, "test", strlen("test"), HTTP_FLAT);
     printf("old addr:%s new addr:%s\n",mgt.defaultAddr, mgt.cachedAddr); 
 
     taosMsleep(2000);

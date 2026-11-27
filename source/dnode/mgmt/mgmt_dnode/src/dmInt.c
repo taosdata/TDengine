@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -20,6 +22,7 @@
 
 static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   int32_t code = 0;
+
   if ((code = dmStartStatusThread(pMgmt)) != 0) {
     return code;
   }
@@ -27,6 +30,13 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartConfigThread(pMgmt)) != 0) {
     return code;
   }
+
+#if defined(TD_ENTERPRISE)
+  if ((code = dmStartKeySyncThread(pMgmt)) != 0) {
+    return code;
+  }
+#endif
+
   if ((code = dmStartStatusInfoThread(pMgmt)) != 0) {
     return code;
   }
@@ -44,6 +54,9 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
   if ((code = dmStartCrashReportThread(pMgmt)) != 0) {
     return code;
   }
+  if ((code = dmStartMetricsThread(pMgmt)) != 0) {
+    return code;
+  }
   return 0;
 }
 
@@ -53,11 +66,15 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
   dmStopAuditThread(pMgmt);
   dmStopStatusThread(pMgmt);
   dmStopConfigThread(pMgmt);
+#if defined(TD_ENTERPRISE)
+  dmStopKeySyncThread(pMgmt);
+#endif
   dmStopStatusInfoThread(pMgmt);
 #if defined(TD_ENTERPRISE)
   dmStopNotifyThread(pMgmt);
 #endif
   dmStopCrashReportThread(pMgmt);
+  dmStopMetricsThread(pMgmt);
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
@@ -67,28 +84,44 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return terrno;
   }
 
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+  // Verify encryption keys before any other node (e.g. vnode) is opened, so an
+  // incorrect key is reported here instead of surfacing as a vnode open failure.
+  if ((code = dmVerifyAndInitEncryptionKeys()) != 0) {
+    dError("failed to verify encryption keys, since %s", tstrerror(code));
+    taosMemoryFree(pMgmt);
+    return code;
+  }
+#endif
+
   pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->pTfs = pInput->pTfs;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
+  pMgmt->processAlterNodeFp = pInput->processAlterNodeFp;
   pMgmt->processAlterNodeTypeFp = pInput->processAlterNodeTypeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->sendMetricsReportFp = pInput->sendMetricsReportFp;
   pMgmt->monitorCleanExpiredSamplesFp = pInput->monitorCleanExpiredSamplesFp;
+  pMgmt->metricsCleanExpiredSamplesFp = pInput->metricsCleanExpiredSamplesFp;
   pMgmt->sendAuditRecordsFp = pInput->sendAuditRecordFp;
   pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
   pMgmt->getVnodeLoadsLiteFp = pInput->getVnodeLoadsLiteFp;
   pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
   pMgmt->getQnodeLoadsFp = pInput->getQnodeLoadsFp;
+  pMgmt->collectVnodeTxnIdleFp = pInput->collectVnodeTxnIdleFp;
+  pMgmt->setMnodeSyncTimeoutFp = pInput->setMnodeSyncTimeoutFp;
+  pMgmt->setVnodeSyncTimeoutFp = pInput->setVnodeSyncTimeoutFp;
 
   if ((code = dmStartWorker(pMgmt)) != 0) {
     return code;
   }
 
   if ((code = udfStartUdfd(pMgmt->pData->dnodeId)) != 0) {
-    dError("failed to start udfd since %s", tstrerror(code));
+    dError("failed to start taosudf since %s", tstrerror(code));
   }
 
   if ((code = taosAnalyticsInit()) != 0) {

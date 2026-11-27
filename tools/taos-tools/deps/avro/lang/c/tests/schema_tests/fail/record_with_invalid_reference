@@ -1,7 +1,0 @@
-{ "type": "record",
-  "name": "recursive",
-  "fields": [
-    { "name": "label", "type": "string" },
-    { "name": "children", "type": {"type": "array", "items": "foobar"} }
-  ]
-}

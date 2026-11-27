@@ -1,0 +1,93 @@
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+from new_test_framework.utils import tdLog, tdSql, etool
+import os
+from pathlib import Path
+
+
+class TestQueryJsonWithSqlfile:
+    def clean_query_results(self):
+        for filename in (
+            "rest_query_specified-0", "rest_query_super-0",
+            "taosc_query_specified-0", "taosc_query_super-0",
+        ):
+            Path(filename).unlink(missing_ok=True)
+
+    def caseDescription(self):
+        """
+        [TD-11510] taosBenchmark test cases
+        """
+    #
+    # ------------------- test_query_json_with_sqlfile.py ----------------
+    #
+    def do_query_json_with_sqlfile(self):
+        self.clean_query_results()
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
+        tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
+        tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
+        tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
+        tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query-sqlfile.json")
+        rlist = self.benchmark(f'-f "{json_file}"')
+        # check result
+        self.checkListString(rlist, "completed total queries: 2")
+
+        print("do query with sqlfile ................. [passed]")
+
+    #
+    # ------------------- test_query_json_with_error_sqlfile.py ----------------
+    #
+    def do_query_json_with_error_sqlfile(self):
+        self.clean_query_results()
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database if not exists db")
+        tdSql.execute("use db")
+        tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
+        tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
+        tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
+        tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query-error-sqlfile.json")
+        self.benchmark(f'-f "{json_file}"', checkRun=False)
+
+        print("do query with error sqlfile ........... [passed]")
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_benchmark_query_json(self):
+        """taosBenchmark query with json
+
+        1. taosBenchmark run with query sqlfile
+        2. Verify data correct after query sqlfile
+        3. taosBenchmark run with query error sqlfile
+        4. Verify handling of error sqlfile
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_query_json_with_sqlfile.py
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_query_json_with_error_sqlfile.py
+
+        """
+        self.do_query_json_with_sqlfile()
+        self.do_query_json_with_error_sqlfile()

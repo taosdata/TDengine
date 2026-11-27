@@ -1,0 +1,344 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sqlset import TDSetSql
+
+import platform
+import os
+import pytest
+if platform.system().lower() == 'windows':
+    from datetime import datetime
+    import tzlocal
+
+class TestFunTimezone:
+
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.setsql = TDSetSql()
+        cls.arithmetic_operators = ['+','-','*','/']
+        cls.arithmetic_values = [0,1,100,15.5]
+        cls.dbname = 'db'
+        cls.ntbname = f'{cls.dbname}.ntb'
+        cls.stbname = f'{cls.dbname}.stb'
+        cls.column_dict = {
+            'ts':'timestamp',
+            'c1':'int',
+            'c2':'float',
+            'c3':'double'
+        }
+        # structure of tag
+        cls.tag_dict = {
+            't0':'int'
+        }
+        # number of child tables
+        cls.tbnum = 2
+        # values of tag,the number of values should equal to tbnum
+        cls.tag_values = [
+            f'10',
+            f'100'
+        ]
+        # values of rows, structure should be same as column
+        cls.values_list = [
+            f'now,10,99.99,11.111111',
+            f'today(),100,11.111,22.222222'
+
+        ]
+        cls.error_param = [1,'now()']        
+
+    def get_system_timezone(self):
+        if platform.system().lower() == 'windows':
+            time_zone_1 = tzlocal.get_localzone_name()
+            # Use IANA rules for both the abbreviation and offset. Windows CRT
+            # names differ from the timezone database used by TDengine.
+            time_zone_2 = datetime.now(tzlocal.get_localzone()).strftime('(%Z, %z)')
+            time_zone = time_zone_1 + " " + time_zone_2
+        else:
+            time_zone_arr = os.popen('timedatectl | grep zone').read().strip().split(':')
+            if len(time_zone_arr) > 1:
+                time_zone = time_zone_arr[1].lstrip()
+            else:
+                # possibly in a docker container
+                time_zone_1 = os.popen('ls -l /etc/localtime|awk -F/ \'{print $(NF-1) "/" $NF}\'').read().strip()
+                time_zone_2 = os.popen('date "+(%Z, %z)"').read().strip()
+                time_zone = time_zone_1 + " " + time_zone_2
+        return time_zone
+
+    def tb_type_check(self,tb_type):
+        if tb_type in ['normal_table','child_table']:
+            tdSql.checkRows(len(self.values_list))
+        elif tb_type == 'stable':
+            tdSql.checkRows(len(self.values_list*self.tbnum))
+    def data_check(self,timezone,tbname,tb_type):
+        tdSql.query(f"select timezone() from {tbname}")
+        self.tb_type_check(tb_type)
+        tdSql.checkData(0,0,timezone)
+        for symbol in self.arithmetic_operators:
+            tdSql.query(f"select timezone(){symbol}null from {tbname}")
+            self.tb_type_check(tb_type)
+            tdSql.checkData(0,0,None)
+        for i in self.arithmetic_values:
+            for symbol in self.arithmetic_operators:
+                tdSql.query(f"select timezone(){symbol}{i} from {tbname}")
+                self.tb_type_check(tb_type)
+                if symbol == '+':
+                    tdSql.checkData(0,0,i)
+                elif symbol == '-':
+                    tdSql.checkData(0,0,-i)
+                elif symbol in ['*','/','%']:
+                    if i == 0 and symbol == '/':
+                        tdSql.checkData(0,0,None)
+                    else:
+                        tdSql.checkData(0,0,0)
+        for param in self.error_param:
+            tdSql.error(f'select timezone({param}) from {tbname}')
+        tdSql.query(f"select * from {tbname} where timezone()='{timezone}'")
+        self.tb_type_check(tb_type)
+    def timezone_check_ntb(self,timezone):  
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
+        for value in self.values_list:
+            tdSql.execute(
+                f'insert into {self.ntbname} values({value})')
+        self.data_check(timezone,self.ntbname,'normal_table')
+        tdSql.execute('drop database db')
+    def timezone_check_stb(self,timezone):
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
+        for i in range(self.tbnum):
+            tdSql.execute(f'create table if not exists {self.stbname}_{i} using {self.stbname} tags({self.tag_values[i]})')
+            for j in self.values_list:
+                tdSql.execute(f'insert into {self.stbname}_{i} values({j})')
+        self.data_check(timezone,self.stbname,'stable')
+        for i in range(self.tbnum):
+            self.data_check(timezone,f'{self.stbname}_{i}','child_table')
+        tdSql.execute(f'drop database {self.dbname}')
+
+    def timezone_format_test(self):
+        tdSql.execute(f'create database {self.dbname}')
+        tdSql.execute(self.setsql.set_create_stable_sql(f'{self.dbname}.stb', {'ts':'timestamp','id':'int'}, {'status':'int'}))
+
+        tdSql.execute(f"insert into {self.dbname}.d0 using {self.dbname}.stb tags (1) values ('2021-07-01 00:00:00.000',0);")
+        tdSql.query(f"select ts from {self.dbname}.d0;")
+        tdSql.checkData(0, 0, "2021-07-01 00:00:00.000")
+
+        tdSql.execute(f"insert into {self.dbname}.d1 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+07:50',1)")
+        tdSql.query(f"select ts from {self.dbname}.d1")
+        tdSql.checkData(0, 0, "2021-07-01 00:10:00.000")
+
+        tdSql.execute(f"insert into {self.dbname}.d2 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d2")
+        tdSql.checkData(0, 0, "2021-06-30 20:00:00.000")
+
+        tdSql.execute(f"insert into {self.dbname}.d3 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-00:10',1)")
+        tdSql.query(f"select ts from {self.dbname}.d3")
+        tdSql.checkData(0, 0, "2021-07-01 08:10:00.000")
+
+        tdSql.execute(f"insert into {self.dbname}.d4 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-12:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d4")
+        tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
+
+        tdSql.execute(f"insert into {self.dbname}.d5 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1200',1)")
+        tdSql.query(f"select ts from {self.dbname}.d5")
+        tdSql.checkData(0, 0, "2021-07-01 20:00:00.000")
+
+        tdSql.error(f"insert into {self.dbname}.d6 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-115',1)")
+
+        tdSql.execute(f"insert into {self.dbname}.d7 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1105',1)")
+        tdSql.query(f"select ts from {self.dbname}.d7")
+        tdSql.checkData(0, 0, "2021-07-01 19:05:00.000")
+
+        # +12:10 is now valid (hour <= 14)
+        tdSql.execute(f"insert into {self.dbname}.d21 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+12:10',1)")
+        tdSql.query(f"select ts from {self.dbname}.d21")
+        tdSql.checkData(0, 0, "2021-06-30 19:50:00.000")
+
+        # -1210 is now valid (compact format, 12h10m < 14h)
+        tdSql.execute(f"insert into {self.dbname}.d22 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-1210',1)")
+        tdSql.query(f"select ts from {self.dbname}.d22")
+        tdSql.checkData(0, 0, "2021-07-01 20:10:00.000")
+
+        # +13:00 (e.g., Pacific/Tongatapu)
+        tdSql.execute(f"insert into {self.dbname}.d23 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+13:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d23")
+        tdSql.checkData(0, 0, "2021-06-30 19:00:00.000")
+
+        # +14:00 (e.g., Pacific/Kiritimati)
+        tdSql.execute(f"insert into {self.dbname}.d24 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+14:00',1)")
+        tdSql.query(f"select ts from {self.dbname}.d24")
+        tdSql.checkData(0, 0, "2021-06-30 18:00:00.000")
+
+        # +05:30 (e.g., Asia/Kolkata)
+        tdSql.execute(f"insert into {self.dbname}.d25 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+05:30',1)")
+        tdSql.query(f"select ts from {self.dbname}.d25")
+        tdSql.checkData(0, 0, "2021-07-01 02:30:00.000")
+
+        # +05:45 (e.g., Asia/Kathmandu)
+        tdSql.execute(f"insert into {self.dbname}.d26 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+05:45',1)")
+        tdSql.query(f"select ts from {self.dbname}.d26")
+        tdSql.checkData(0, 0, "2021-07-01 02:15:00.000")
+
+        # -24:10 still errors (hour > 14)
+        tdSql.error(f"insert into {self.dbname}.d27 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000-24:10',1)")
+        # +14:01 errors (hour == 14, minute != 0)
+        tdSql.error(f"insert into {self.dbname}.d28 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+14:01',1)")
+        # +15:00 errors (hour > 14)
+        tdSql.error(f"insert into {self.dbname}.d29 using {self.dbname}.stb tags (1) values ('2021-07-01T00:00:00.000+15:00',1)")
+
+        tdSql.execute(f'drop database {self.dbname}')
+
+    # def timezone_check(self, cursor, timezone):
+    #     cursor.execute("show local variables")
+    #     res = cursor.fetchall()
+    #     for i in range(cursor.rowcount):
+    #         if res[i][0] == "timezone" :
+    #             if res[i][1].find(timezone) == -1:
+    #                 tdLog.exit("show timezone:%s != %s"%(res[i][1],timezone))
+    #
+    # def timezone_check_set_options(self):
+    #     buildPath = tdCom.getBuildPath()
+    #     cmdStr = '%s/build/bin/timezone_test'%(buildPath)
+    #     print("cmdStr:", cmdStr)
+    #     tdLog.info(cmdStr)
+    #     ret = os.system(cmdStr)
+    #     if ret != 0:
+    #         tdLog.exit("timezone_test error")
+    #
+    # def timezone_check_conf(self, timezone):
+    #     updateCfgDict = ({"clientCfg" : {'timezone': 'UTC'} },)
+    #     tdDnodes.sim.deploy(updateCfgDict)
+    #     conn = taos.connect(config=tdDnodes.getSimCfgPath())
+    #     cursor = conn.cursor()
+    #     self.timezone_check(cursor, 'UTC')
+    #     cursor.close()
+
+    def timezone_check(self, sql, timezone):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "timezone" :
+                value = str(tdSql.getData(i, 1))
+                # The abbreviation inside the parentheses comes from the platform
+                # timezone database, so it legitimately differs: 'CST' where an
+                # abbreviation is available (Linux, and Windows with the registry
+                # data), 'UTC' where the backend has none, a localized name
+                # elsewhere.  Compare the zone name and the numeric offset, which
+                # are the parts the session timezone actually defines.
+                name, _, tail = value.partition(" (")
+                expected_name, _, expected_tail = timezone.partition(" (")
+                actual_offset = tail.rstrip(")").rsplit(",", 1)[-1].strip() if tail else ""
+                expected_offset = expected_tail.rstrip(")").rsplit(",", 1)[-1].strip() if expected_tail else ""
+                if name != expected_name or (expected_offset and actual_offset != expected_offset):
+                    tdLog.exit("show timezone:%s != %s"%(value, timezone))
+
+    def charset_check(self, sql, charset):
+        tdSql.query(sql)
+        rows = tdSql.getRows()
+        for i in range(rows):
+            if tdSql.getData(i, 0) == "charset" :
+                if tdSql.getData(i, 1).find(charset) == -1:
+                    tdLog.exit("show charset:%s != %s"%(tdSql.getData(i, 1), charset))
+
+    def test_fun_sca_timezone(self):
+        """ Fun: timezone()
+
+        1. Check show local/dnode variables timezone
+        2. Check timezone() function on normal table/stable/child table
+        3. Check timezone format when insert data
+   
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_timezone.py
+        """
+        timezone = self.get_system_timezone()
+        # timezone = "Asia/Shanghai"
+        self.charset_check("show local variables", "UTF-8")
+        self.charset_check("show dnode 1 variables", "UTF-8")
+        self.timezone_check("show local variables", timezone)
+        self.timezone_check("show dnode 1 variables", timezone)
+
+        self.timezone_check_ntb(timezone)
+        self.timezone_check_stb(timezone)
+        self.timezone_format_test()
+
+        #tdSql.close()
+
+    def test_fun_sca_timezone_set_fixed_offset(self):
+        """summary: SET TIMEZONE with a fixed offset → TIMEZONE() returns fixed-offset representation.
+
+        description: After SET TIMEZONE '+08:00', SELECT TIMEZONE() must return a string
+                     whose prefix matches the original fixed-offset spec (e.g. '+08:00'),
+                     not an IANA name such as 'Asia/Shanghai'.  This verifies that the
+                     L2 session timezone is correctly reflected by TIMEZONE() when the
+                     caller uses a numeric fixed-offset rather than an IANA name.
+
+        Since: v3.4.2.0
+
+        Labels: timezone,common
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-06-01: Tony Zhang created
+        """
+        for offset in ['+08:00', '+05:30', '-05:00']:
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query("SELECT TIMEZONE()")
+            tdSql.checkRows(1)
+            result = str(tdSql.queryResult[0][0])
+            assert result.startswith(offset), (
+                f"TIMEZONE() after SET TIMEZONE '{offset}' should start with "
+                f"'{offset}', got: {result!r}"
+            )
+
+        # A bare fixed offset follows the POSIX sign convention (+ = west), so
+        # SET TIMEZONE '+08:00' must render the ISO offset '-08:00'.  This is the
+        # cross-platform consistency check: the Windows backend used to flip the
+        # sign a second time and produce '+08:00' here, i.e. a 16 hour difference
+        # from Linux for the very same session setting.
+        dbname = 'db_tz_fixed_offset'
+        tdSql.execute(f'create database if not exists {dbname}')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute('create table if not exists tz_fixed_offset (ts timestamp, c1 int)')
+        tdSql.execute('insert into tz_fixed_offset values (1640966400000, 1)')
+        iso_cases = {
+            '+08:00': '-08:00',
+            '+05:30': '-05:30',
+            '-05:00': '+05:00',
+            'Z': 'Z',
+        }
+        for offset, expected in iso_cases.items():
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query('select to_iso8601(ts) from tz_fixed_offset')
+            tdSql.checkRows(1)
+            rendered = str(tdSql.queryResult[0][0])
+            assert expected in rendered, (
+                f"SET TIMEZONE '{offset}' should render ISO offset '{expected}', "
+                f"got: {rendered!r}"
+            )
+        tdSql.execute('drop database if exists db_tz_fixed_offset')
+
+        tdSql.connect()
+

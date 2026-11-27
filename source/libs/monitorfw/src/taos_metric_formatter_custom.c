@@ -26,7 +26,7 @@
 #include "taos_collector_t.h"
 #include "taos_log.h"
 
-int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_metric_sample_t *sample, 
+int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, const char *l_value, double value,
                                       char *ts, char *format, char *metricName, int32_t metric_type,
                                       SJson *arrayMetricGroups) {
   TAOS_TEST_PARA(self != NULL);
@@ -34,8 +34,8 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
 
   int r = 0;
 
-  char* start = strstr(sample->l_value, "{");
-  char* end = strstr(sample->l_value, "}");
+  char* start = strstr(l_value, "{");
+  char* end = strstr(l_value, "}");
 
   int32_t len = end -start;
 
@@ -67,9 +67,29 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
     char* str = *(keyvalue + i);
 
     char** pair = arr + i * 2;
-    taos_monitor_split_str(pair, str, "=");
+    // Split the label token on '=' into at most two slots (pair[0] = key,
+    // pair[1] = value). The original code called taos_monitor_split_str(pair, str, "=")
+    // which wrote one pointer per strsep token into the fixed 2-slot 'pair', so a
+    // value containing multiple '=' characters (e.g. an untrusted RPC username such
+    // as "a=b=c=d=e") overflowed 'arr' with out-of-bounds heap pointer writes and
+    // corrupted the root taosd process. Bound the split to two slots and ignore any
+    // extra '=' so the write can never escape 'arr' (malloc'd as (count + 1) * 2).
+    char* lasts = NULL;
+    char* token = strsep(&str, "=");
+    pair[0] = token;
+    token = strsep(&str, "=");
+    pair[1] = token;  // NULL when the token has no '=' (a malformed label)
 
-    taos_monitor_strip(pair[1]);
+    // A label value that contains the ',' delimiter (e.g. RPC username "a,b") makes
+    // the outer ',' split emit a token without '=', leaving pair[1] == NULL. The
+    // original code passed that NULL straight into taos_monitor_strip -> strlen(NULL)
+    // and crashed taosd. Guard against NULL and fall back to an empty value so the
+    // monitor report is built safely instead of segfaulting.
+    if (pair[1] != NULL) {
+      taos_monitor_strip(pair[1]);
+    } else {
+      pair[1] = (char*)"";
+    }
   }
 
   int32_t table_size = tjsonGetArraySize(arrayMetricGroups);
@@ -150,14 +170,10 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
   SJson* metric = tjsonCreateObject();
   if ((r = tjsonAddStringToObject(metric, "name", metricName)) != 0) return r;
 
-  double old_value = 0;
-#define USE_EXCHANGE
-#ifdef USE_EXCHANGE
-  if ((r = taos_metric_sample_exchange(sample, 0, &old_value)) != 0) return r;
-#else
-  old_value = sample->r_value;
-  taos_metric_sample_set(sample, 0);
-#endif
+  // [TD-SEC-2026-ITEM84] The value was already atomically exchanged (and the counter reset) while the
+  // sample was still protected by metric->samples->rwlock, during the snapshot phase in
+  // taos_metric_formatter_load_metric_new. We must NOT touch the live sample here, so just use it.
+  double old_value = value;
 
   if ((r = tjsonAddDoubleToObject(metric, "value", old_value)) != 0) return r;
   if ((r = tjsonAddDoubleToObject(metric, "type", metric_type)) != 0) return r;
@@ -165,6 +181,15 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
 
   return 0;
 }
+
+// [TD-SEC-2026-ITEM84] Per-sample snapshot captured under metric->samples->rwlock so the report can be
+// built fully lock-free afterwards. Holds an independent copy of the label string plus the atomically
+// exchanged counter value, so it does not depend on the live sample object's lifetime (a concurrent
+// taos_map_delete with free_value_fn = taos_metric_sample_free_generic would otherwise free it -> UAF).
+typedef struct {
+  char  *l_value;  // copy of taos_metric_sample_t::l_value (freed after the report)
+  double value;    // value taken via taos_metric_sample_exchange under the lock
+} taos_monitor_sample_snapshot_t;
 
 int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_metric_t *metric, char *ts, char *format, 
                                           SJson* tableArray) {
@@ -190,7 +215,8 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
     SJson* table = tjsonGetArrayItem(tableArray, i);
 
     char tableName[MONITOR_TABLENAME_LEN] = {0};
-    if ((r = tjsonGetStringValue(table, "name", tableName)) != 0) {
+    if ((r = tjsonGetStringValue1(table, "name", tableName, sizeof(tableName))) != 0) {
+      if (!isFound && table != NULL) tjsonDelete(table);
       taosMemoryFreeClear(name);
       return r;
     }
@@ -211,34 +237,120 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
 
     arrayMetricGroups = tjsonCreateArray();
     if ((r = tjsonAddItemToObject(table, "metric_groups", arrayMetricGroups)) != 0) {
+      if (!isFound && table != NULL) tjsonDelete(table);
       taosMemoryFreeClear(name);
       return r;
     }
   }
   
   int32_t sample_count = 0;
+
+  // [TD-SEC-2026-ITEM84] Fix use-after-free (CWE-416) from security finding "item84".
+  //
+  // Root cause: the reporter walked metric->samples->keys while holding only the collector's
+  // metrics->rwlock, never the sample map's own rwlock. Writers
+  // (taos_counter_add -> taos_metric_sample_from_labels -> taos_map_set) take metric->samples->rwlock
+  // (as a WRITE lock) and, past the rehash threshold, taos_map_ensure_space frees and replaces
+  // metric->samples->keys -> UAF when the reporter reads freed nodes / key strings.
+  //
+  // The sample OBJECTS must also be protected: a concurrent delete
+  // (dmMetricsCleanExpiredSamples -> ... -> taos_counter_delete -> taos_map_delete, whose free_value_fn
+  // is taos_metric_sample_free_generic) frees a sample on another thread. Touching the sample after
+  // dropping the lock would be a UAF on the value, not just the key.
+  //
+  // Fix: take metric->samples->rwlock (READ) FIRST, then read keys->size and allocate the snapshot
+  // (no TOCTOU: size and the list walked are both observed under the same lock, and writers need the
+  // WRITE lock so the list cannot change mid-snapshot). While holding the lock we copy, per sample,
+  // BOTH its label string (strdup) AND its value (via taos_metric_sample_exchange, which also resets
+  // the counter). The critical section is therefore only "O(n) string/value copies". After releasing
+  // the lock we build the JSON purely from the snapshot, never touching the live map or sample
+  // objects -> no UAF, and writers are only briefly contended during the snapshot copy, not for the
+  // whole formatting cycle.
+  r = pthread_rwlock_rdlock(metric->samples->rwlock);
+  if (r) {
+    TAOS_LOG("failed to rdlock metric samples in monitor report");
+    if (!isFound && table != NULL) tjsonDelete(table);
+    taosMemoryFreeClear(name);
+    return r;
+  }
+
+  int32_t key_count = (int32_t)metric->samples->keys->size;  // read UNDER the lock -> no TOCTOU
+  taos_monitor_sample_snapshot_t *snap =
+      (taos_monitor_sample_snapshot_t *)taosMemoryMalloc((key_count + 1) * sizeof(taos_monitor_sample_snapshot_t));
+  if (snap == NULL) {
+    TAOS_LOG("failed to alloc sample snapshot in monitor report");
+    pthread_rwlock_unlock(metric->samples->rwlock);
+    if (!isFound && table != NULL) tjsonDelete(table);
+    taosMemoryFreeClear(name);
+    return 1;
+  }
+  for (int32_t j = 0; j < key_count + 1; j++) snap[j].l_value = NULL;
+
+  int32_t snap_idx = 0;
   for (taos_linked_list_node_t *current_node = metric->samples->keys->head; current_node != NULL;
        current_node = current_node->next) {
     const char *key = (const char *)current_node->item;
-    if (metric->type == TAOS_HISTOGRAM) {
+    taos_metric_sample_t *sample = (taos_metric_sample_t *)taos_map_get_withoutlock(metric->samples, key);
+    if (sample == NULL) continue;  // cannot happen while holding the lock, but be safe
+    double val = 0;
+    if (taos_metric_sample_exchange(sample, 0, &val) != 0) continue;  // read + reset counter under lock
+    char *lval_copy = (char *)taosMemoryMalloc(strlen(sample->l_value) + 1);
+    if (lval_copy == NULL) {
+      for (int32_t j = 0; j < snap_idx; j++) taosMemoryFree(snap[j].l_value);
+      taosMemoryFree(snap);
+      pthread_rwlock_unlock(metric->samples->rwlock);
+      if (!isFound && table != NULL) tjsonDelete(table);
+      taosMemoryFreeClear(name);
+      return 1;
+    }
+    memcpy(lval_copy, sample->l_value, strlen(sample->l_value) + 1);
+    snap[snap_idx].l_value = lval_copy;
+    snap[snap_idx].value = val;
+    snap_idx++;
+  }
 
+  r = pthread_rwlock_unlock(metric->samples->rwlock);
+  if (r) {
+    TAOS_LOG("failed to unlock metric samples in monitor report");
+    for (int32_t j = 0; j < snap_idx; j++) taosMemoryFree(snap[j].l_value);
+    taosMemoryFree(snap);
+    if (!isFound && table != NULL) tjsonDelete(table);
+    taosMemoryFreeClear(name);
+    return r;
+  }
+
+  // Build the report fully lock-free from the snapshot. No live map / sample is touched here, so there
+  // is no UAF and writers are never stalled.
+  for (int32_t i = 0; i < snap_idx; i++) {
+    if (metric->type == TAOS_HISTOGRAM) {
     } else {
-      taos_metric_sample_t *sample = (taos_metric_sample_t *)taos_map_get(metric->samples, key);
-      if (sample == NULL) return 1;
-      r = taos_metric_formatter_load_sample_new(self, sample, ts, format, arr[1], metric->type, arrayMetricGroups);
-      if (r) return r;
+      r = taos_metric_formatter_load_sample_new(self, snap[i].l_value, snap[i].value, ts, format, arr[1],
+                                                metric->type, arrayMetricGroups);
+      if (r) {
+        for (int32_t j = 0; j < snap_idx; j++) taosMemoryFree(snap[j].l_value);
+        taosMemoryFree(snap);
+        if (!isFound && table != NULL) tjsonDelete(table);
+        taosMemoryFreeClear(name);
+        return r;
+      }
     }
     sample_count++;
   }
 
+  for (int32_t j = 0; j < snap_idx; j++) taosMemoryFree(snap[j].l_value);
+  taosMemoryFree(snap);
+
   if(!isFound && sample_count > 0){
     if ((r = tjsonAddItemToArray(tableArray, table)) != 0) {
+      if (!isFound && table != NULL) tjsonDelete(table);  // created but not added -> free it
       taosMemoryFreeClear(name);
       return r;
     }
   }
   else{
-    if(table != NULL) tjsonDelete(table);
+    // Only delete the table we created (when !isFound). When isFound it is an existing element of
+    // tableArray and must NOT be deleted (would corrupt / drop the array entry).
+    if(!isFound && table != NULL) tjsonDelete(table);
   }
 
   taosMemoryFreeClear(name);
@@ -280,7 +392,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
         if (metric == NULL) {
 #ifdef TAOS_LOG_ENABLE
           char tmp[200] = {0};
-          sprintf(tmp, "fail to get metric(%d):%s", count, metric_name);
+          snprintf(tmp, sizeof(tmp), "fail to get metric(%d):%s", count, metric_name);
           TAOS_LOG(tmp);
 #endif
           continue;;
@@ -294,7 +406,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
 
 #ifdef TAOS_LOG_ENABLE
       char tmp[20] = {0};
-      sprintf(tmp, "list count:%d", count);
+      snprintf(tmp, sizeof(tmp), "list count:%d", count);
       TAOS_LOG(tmp);
 #endif
       r = pthread_rwlock_unlock(metrics->rwlock);

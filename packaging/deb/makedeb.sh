@@ -1,6 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate deb package for ubuntu
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set -e
 # set -x
 
@@ -12,11 +26,39 @@ cpuType=$4
 osType=$5
 verMode=$6
 verType=$7
+product_name=$8
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
 pkg_dir="${top_dir}/debworkroom"
-taosx_dir="$(readlink -f ${script_dir}/../../../../taosx)"
+
+resolve_existing_dir() {
+    local label="$1"
+    shift
+    for candidate in "$@"; do
+        if [ -n "$candidate" ] && [ -d "$candidate" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    echo "Missing ${label} root. Tried: $*" >&2
+    return 1
+}
+
+community_packaging_dir="$(resolve_existing_dir \
+    "community packaging" \
+    "$(readlink -f "${script_dir}/..")" \
+    "$(readlink -f "${compile_dir}/../packaging")")"
+
+internal_packaging_dir="$(resolve_existing_dir \
+    "internal packaging" \
+    "$(readlink -f "${top_dir}/../taos-internal/packaging")" \
+    "$(readlink -f "${top_dir}/../enterprise/packaging")")"
+
+taosx_dir="$(resolve_existing_dir \
+    "taosx" \
+    "$(readlink -f "${top_dir}/../taos-xservice")" \
+    "$(readlink -f "${script_dir}/../../../../taosx")")"
 
 #echo "curr_dir: ${curr_dir}"
 #echo "top_dir: ${top_dir}"
@@ -30,8 +72,14 @@ fi
 mkdir -p ${pkg_dir}
 cd ${pkg_dir}
 
-libfile="libtaos.so.${tdengine_ver}"
+libfile="libtaos.so"
+pkg_libfile="libtaos.so.${tdengine_ver}"
+nativelibfile="libtaosnative.so"
+pkg_nativelibfile="libtaosnative.so.${tdengine_ver}"
 wslibfile="libtaosws.so"
+pkg_wslibfile="libtaosws.so.${tdengine_ver}"
+pyudflibfile="libtaospyudf.so"
+pkg_pyudflibfile="libtaospyudf.so.${tdengine_ver}"
 
 # create install dir
 install_home_path="/usr/local/taos"
@@ -67,8 +115,8 @@ mkdir -p ${pkg_dir}${install_home_path}/script
 # cp $(dirname ${taoskeeper_binary})/config/taoskeeper.toml ${pkg_dir}${install_home_path}/cfg
 # cp $(dirname ${taoskeeper_binary})/taoskeeper.service ${pkg_dir}${install_home_path}/cfg
 
-cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
-cp ${compile_dir}/../packaging/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
+cp ${community_packaging_dir}/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
+cp ${community_packaging_dir}/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.toml		${pkg_dir}${install_home_path}/cfg || :
@@ -91,21 +139,24 @@ fi
 
 # cp ${taoskeeper_binary}                      ${pkg_dir}${install_home_path}/bin
 #cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
-cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
-cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
-cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
-cp ${top_dir}/../enterprise/packaging/start-all.sh  ${pkg_dir}${install_home_path}/bin
-cp ${top_dir}/../enterprise/packaging/stop-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/post.sh        ${pkg_dir}${install_home_path}/script
+cp ${community_packaging_dir}/tools/preun.sh       ${pkg_dir}${install_home_path}/script
+cp ${community_packaging_dir}/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
+cp ${community_packaging_dir}/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/start-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/reconcile-tsdb-nodes.sh  ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/stop-all.sh  ${pkg_dir}${install_home_path}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/stop-all.sh
 
 
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosudf                 ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump               ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/taosmqtt                ${pkg_dir}${install_home_path}/bin
+cp "${compile_dir}/build/bin/taosgen"               "${pkg_dir}${install_home_path}/bin"
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
     cp ${compile_dir}/build/bin/taosadapter                    ${pkg_dir}${install_home_path}/bin ||:
@@ -114,20 +165,49 @@ if [ -f "${compile_dir}/build/bin/taoskeeper" ]; then
     cp ${compile_dir}/build/bin/taoskeeper                    ${pkg_dir}${install_home_path}/bin ||:
 fi
 
-if [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
+# taos-explorer: prefer package_inputs (stripped), then taosx cargo, then cmake output
+pkg_inputs_explorer=$(find "${compile_dir}/taos-xservice/package_inputs" -path "*/taosx/bin/taos-explorer" 2>/dev/null | head -1)
+if [ -n "${pkg_inputs_explorer}" ] && [ -f "${pkg_inputs_explorer}" ]; then
+    cp ${pkg_inputs_explorer} ${pkg_dir}${install_home_path}/bin ||:
+elif [ -f "${taosx_dir}/target/release/taos-explorer" ]; then
     cp ${taosx_dir}/target/release/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
+elif [ -f "${compile_dir}/build/bin/taos-explorer" ]; then
+    cp ${compile_dir}/build/bin/taos-explorer ${pkg_dir}${install_home_path}/bin ||:
 fi
 
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
-[ -f ${compile_dir}/build/lib/${wslibfile} ] && cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver ||:
-cp ${compile_dir}/../include/client/taos.h          ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/util/tdef.h       ${pkg_dir}${install_home_path}/include
-cp ${compile_dir}/../include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver/${pkg_libfile}     
+cp ${compile_dir}/build/lib/${nativelibfile}        ${pkg_dir}${install_home_path}/driver/${pkg_nativelibfile}
+cp ${compile_dir}/build/lib/${wslibfile}            ${pkg_dir}${install_home_path}/driver/${pkg_wslibfile} ||:
+if [ -f "${compile_dir}/build/lib/${pyudflibfile}" ]; then
+    cp ${compile_dir}/build/lib/${pyudflibfile}     ${pkg_dir}${install_home_path}/driver/${pkg_pyudflibfile} ||:
+fi
+cp ${top_dir}/include/client/taos.h          ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/common/taosdef.h       ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/util/taoserror.h       ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/util/tdef.h            ${pkg_dir}${install_home_path}/include
+cp ${top_dir}/include/libs/function/taosudf.h       ${pkg_dir}${install_home_path}/include
 [ -f ${compile_dir}/build/include/taosws.h ] && cp ${compile_dir}/build/include/taosws.h            ${pkg_dir}${install_home_path}/include ||:
-cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
+# Example code was consolidated into docs/examples, but the layout inside the
+# package is frozen: the shipped subset and the historical directory names
+# (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
+examples_dir="${top_dir}/docs/examples"
+examples_manifest="${top_dir}/packaging/examples-manifest.txt"
+while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    if [ "${ex_group}" != all ] && [ "${ex_group}" != debrpm ]; then
+        continue
+    fi
+    if [ ! -f "${examples_dir}/${ex_src}" ]; then
+        echo "ERROR: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+        exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p ${pkg_dir}${install_home_path}/examples/${ex_dst}/$(dirname "${ex_rel}")
+    cp "${examples_dir}/${ex_src}" ${pkg_dir}${install_home_path}/examples/${ex_dst}/${ex_rel}
+done < "${examples_manifest}"
 #cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
 #cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
@@ -168,27 +248,29 @@ if [ -f ${compile_dir}/build/bin/jemalloc-config ]; then
     fi
 fi
 
-cp -r ${compile_dir}/../packaging/deb/DEBIAN        ${pkg_dir}/
+cp -r ${community_packaging_dir}/deb/DEBIAN        ${pkg_dir}/
 chmod 755 ${pkg_dir}/DEBIAN/*
 
 # modify version of control
-debver="Version: "$tdengine_ver
-sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
+debver="Version: ${tdengine_ver}"
+package="Package: ${product_name}"
+sed -i "2c$debver" "${pkg_dir}/DEBIAN/control"
+sed -i "1c$package" "${pkg_dir}/DEBIAN/control"
 
 #get taos version, then set deb name
 if [ "$verMode" == "cluster" ]; then
-  debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
+  debname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 elif [ "$verMode" == "edge" ]; then
-  debname="TDengine-server"-${tdengine_ver}-${osType}-${cpuType}
+  debname="${product_name}-oss-${tdengine_ver}-${osType}-${cpuType}"
 else
   echo "unknow verMode, nor cluster or edge"
   exit 1
 fi
 
 if [ "$verType" == "beta" ]; then
-  debname="TDengine-server-"${tdengine_ver}-${verType}-${osType}-${cpuType}".deb"
+  debname="${product_name}-oss-${tdengine_ver}-${verType}-${osType}-${cpuType}.deb"
 elif [ "$verType" == "stable" ]; then
-  debname=${debname}".deb"
+  debname="${debname}.deb"
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

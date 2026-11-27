@@ -1,19 +1,26 @@
-use taos_query::common::SchemalessPrecision;
-use taos_query::common::SchemalessProtocol;
-use taos_query::common::SmlDataBuilder;
+// Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-use crate::AsyncQueryable;
-use crate::AsyncTBuilder;
-use crate::TaosBuilder;
+use taos::{
+    taos_query::common::{SchemalessPrecision, SchemalessProtocol, SmlDataBuilder},
+    *,
+};
 
-async fn put_json() -> anyhow::Result<()> {
-    // std::env::set_var("RUST_LOG", "taos=trace");
-    std::env::set_var("RUST_LOG", "taos=debug");
-    pretty_env_logger::init();
-    let dsn =
-        std::env::var("TDENGINE_ClOUD_DSN").unwrap_or("http://localhost:6041".to_string());
-    log::debug!("dsn: {:?}", &dsn);
-
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let dsn = "taos://localhost:6030";
     let client = TaosBuilder::from_dsn(dsn)?.build().await?;
 
     let db = "demo_schemaless_ws";

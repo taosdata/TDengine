@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -95,25 +97,41 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   bool               accepted = false;
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
-  const STraceId*    trace = &pRpcMsg->info.traceId;
-  char               tbuf[40] = {0};
 
-  // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvAppendEntries(ths, pMsg, "not in my config");
+  // GHSA-q86r-32wm-qwpg (CWE-125): the RPC dispatch path (vmWorker.c /
+  // mmWorker.c) only guarantees contLen >= sizeof(SMsgHead) (8 bytes), which is
+  // far smaller than the full SyncAppendEntries header (~90 bytes). The handler
+  // below dereferences pMsg->srcId, pMsg->term and pMsg->prevLogIndex, all of
+  // which sit inside that header. Reading those fields from a frame shorter than
+  // the header would be a heap out-of-bounds read. The finding (item 261) requires
+  // contLen >= sizeof(SyncAppendEntries) *before any field access*, so reject a
+  // too-short frame here, before dereferencing anything. A legitimate
+  // SyncAppendEntries always carries contLen >= sizeof(SyncAppendEntries)
+  // (syncBuildAppendEntriesFromRaftEntry sets contLen = sizeof + dataLen, with
+  // dataLen >= 0), so this never rejects a well-formed message.
+  if ((uint32_t)pRpcMsg->contLen < (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries frame too short for header. contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncAppendEntries));
     goto _IGNORE;
   }
 
-  int32_t nRef = atomic_add_fetch_32(&ths->recvCount, 1);
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntries(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
+    goto _IGNORE;
+  }
+
+  int64_t nRef = atomic_add_fetch_64(&ths->recvCount, 1);
   if (nRef <= 0) {
-    sError("vgId:%d, recv count is %d", ths->vgId, nRef);
+    sError("vgId:%d, recv count is %" PRId64, ths->vgId, nRef);
   }
 
   int32_t code = syncBuildAppendEntriesReply(&rpcRsp, ths->vgId);
   if (code != 0) {
-    syncLogRecvAppendEntries(ths, pMsg, "build rsp error");
+    syncLogRecvAppendEntries(ths, pMsg, "build rsp error", &pRpcMsg->info.traceId);
     goto _IGNORE;
   }
+  rpcRsp.info.traceId = pRpcMsg->info.traceId;
 
   SyncAppendEntriesReply* pReply = rpcRsp.pCont;
   // prepare response msg
@@ -124,6 +142,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->startTime = ths->startTime;
+  pReply->appliedIndex = ths->pFsm->FpAppliedIndexCb(ths->pFsm);
 
   if (pMsg->term < raftStoreGetTerm(ths)) {
     goto _SEND_RESPONSE;
@@ -134,13 +153,35 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   }
 
   if(ths->raftCfg.cfg.nodeInfo[ths->raftCfg.cfg.myIndex].nodeRole != TAOS_SYNC_ROLE_LEARNER){
-    syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
+    syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "appendEntry");
     resetElect = true;
   }
 
+  // GHSA-q86r-32wm-qwpg (CWE-125): the declared entry length must fit inside the
+  // actual RPC receive buffer. Otherwise syncEntryBuildFromAppendEntries() would
+  // memcpy beyond the RPC buffer (heap out-of-bounds read) or even crash.
+  // The message embeds a 'bytes' field that must equal the real RPC buffer length.
   if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+    goto _IGNORE;
+  }
+
+  // Reject when the declared entry data does not fit in the received RPC buffer,
+  // or when the embedded 'bytes' field is inconsistent with the real buffer size.
+  // Note: contLen >= sizeof(SyncAppendEntries) is already guaranteed by the early
+  // header-size check at the top of this function, so the subtraction below
+  // cannot underflow and the first clause of the original check is now redundant.
+  if (pMsg->dataLen > (uint32_t)pRpcMsg->contLen - (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries dataLen overflows RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", datalen:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pRpcMsg->contLen);
+    goto _IGNORE;
+  }
+  if (pMsg->bytes != (uint32_t)pRpcMsg->contLen) {
+    sError("vgId:%d, append entries 'bytes' field mismatch with RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", bytes:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->bytes, pRpcMsg->contLen);
     goto _IGNORE;
   }
 
@@ -157,7 +198,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     goto _IGNORE;
   }
 
-  sGTrace("vgId:%d, recv append entries msg. index:%" PRId64 ", term:%" PRId64 ", preLogIndex:%" PRId64
+  sGDebug(&pRpcMsg->info.traceId,
+          "vgId:%d, index:%" PRId64 ", recv append entries msg, term:%" PRId64 ", preLogIndex:%" PRId64
           ", prevLogTerm:%" PRId64 " commitIndex:%" PRId64 " entryterm:%" PRId64,
           pMsg->vgId, pMsg->prevLogIndex + 1, pMsg->term, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->commitIndex,
           pEntry->term);
@@ -177,26 +219,31 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
 _SEND_RESPONSE:
   pEntry = NULL;
-  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn");
+  pReply->matchIndex = syncLogBufferProceed(ths->pLogBuf, ths, &pReply->lastMatchTerm, "OnAppn", pRpcMsg);
   bool matched = (pReply->matchIndex >= pReply->lastSendIndex);
   if (accepted && matched) {
     pReply->success = true;
     // update commit index only after matching
     SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, TMIN(pMsg->commitIndex, pReply->lastSendIndex));
-    sTrace("vgId:%d, update commit return index %" PRId64 "", ths->vgId, returnIndex);
+    sGDebug(&rpcRsp.info.traceId, "vgId:%d, index:%" PRId64 ", last commit index:%" PRId64, ths->vgId,
+           pMsg->prevLogIndex + 1, returnIndex);
   }
 
   TRACE_SET_MSGID(&(rpcRsp.info.traceId), tGenIdPI64());
-  trace = &(rpcRsp.info.traceId);
-  sGTrace("vgId:%d, send append reply matchIndex:%" PRId64 " term:%" PRId64 " lastSendIndex:%" PRId64
-          " to dest: 0x%016" PRIx64,
-          ths->vgId, pReply->matchIndex, pReply->term, pReply->lastSendIndex, pReply->destId.addr);
+  {
+    sGDebug(&rpcRsp.info.traceId,
+            "vgId:%d, index:%" PRId64 ", send append entries reply, matchIndex:%" PRId64 " term:%" PRId64
+            " lastSendIndex:%" PRId64 " to dest addr:0x%016" PRIx64,
+            ths->vgId, pMsg->prevLogIndex + 1, pReply->matchIndex, pReply->term, pReply->lastSendIndex,
+            pReply->destId.addr);
+  }
   // ack, i.e. send response
   TAOS_CHECK_RETURN(syncNodeSendMsgById(&pReply->destId, ths, &rpcRsp));
 
   // commit index, i.e. leader notice me
-  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE && syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex) < 0) {
-    sError("vgId:%d, failed to commit raft fsm log since %s.", ths->vgId, terrstr());
+  if (ths->fsmState != SYNC_FSM_STATE_INCOMPLETE &&
+      syncLogBufferCommit(ths->pLogBuf, ths, ths->commitIndex, &pRpcMsg->info.traceId, "sync-append-entries") < 0) {
+    sGError(&pRpcMsg->info.traceId, "vgId:%d, failed to commit raft fsm log since %s", ths->vgId, terrstr());
   }
 
   if (resetElect) syncNodeResetElectTimer(ths);

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,6 +20,7 @@
 #include "dmUtil.h"
 #include "monitor.h"
 #include "audit.h"
+#include "vnode.h"
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
@@ -39,11 +42,20 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     return code;
   }
   dInfo("node:%s, has been opened", pWrapper->name);
-  pWrapper->deployed = true;
 
+  // Publish the management handle before flagging the wrapper as deployed.
+  // dmProcessRpcMsg() dispatches a message as soon as dmMarkWrapper() observes
+  // `deployed`, and the node handlers dereference pWrapper->pMgmt without checking
+  // it. If `deployed` became visible first, a sync message (e.g. an mnode heartbeat
+  // or snapshot response arriving while `create mnode` is still opening the node)
+  // would dereference a NULL pMgmt and crash taosd. Writing both fields under the
+  // wrapper lock makes the reader's rdlock in dmMarkWrapper() order them.
+  (void)taosThreadRwlockWrlock(&pWrapper->lock);
   if (output.pMgmt != NULL) {
     pWrapper->pMgmt = output.pMgmt;
   }
+  pWrapper->deployed = true;
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   dmReportStartup(pWrapper->name, "opened");
   return 0;
@@ -55,6 +67,14 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, start to start", pWrapper->name);
     if ((code = (*pWrapper->func.startFp)(pWrapper->pMgmt)) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, tstrerror(code));
+      // dmOpenNode() published pMgmt and marked the wrapper deployed before this call.
+      // startFp must not free the management handle (the wrapper owns it), so a failure
+      // here would otherwise leave the wrapper dispatchable with a half-started node,
+      // or with a dangling pMgmt if startFp tore itself down. Roll back the same way
+      // dmRunDnode() does when dmStartNodes() fails: stop and close the node so
+      // `deployed` is cleared and pMgmt is released exactly once via closeFp.
+      dmStopNode(pWrapper);
+      dmCloseNode(pWrapper);
       return code;
     }
     dDebug("node:%s, has been started", pWrapper->name);
@@ -103,6 +123,7 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
 
   auditSetDnodeId(dmGetDnodeId(&pDnode->data));
   monSetDnodeId(dmGetDnodeId(&pDnode->data));
+  vnodeSetDnodeId(dmGetDnodeId(&pDnode->data));
 
   dmSetStatus(pDnode, DND_STAT_RUNNING);
   return 0;
@@ -141,10 +162,21 @@ static void dmCloseNodes(SDnode *pDnode) {
 int32_t dmRunDnode(SDnode *pDnode) {
   int32_t code = 0;
   int32_t count = 0;
+
+  tsDndStartOsUptime = taosGetOsUptime();
+
   if ((code = dmOpenNodes(pDnode)) != 0) {
     dError("failed to open nodes since %s", tstrerror(code));
     dmCloseNodes(pDnode);
     return code;
+  }
+
+  if (dmRepairFlowEnabled()) {
+    dInfo("repair flow finished, the process will exit without entering service mode");
+    dmSetStatus(pDnode, DND_STAT_STOPPED);
+    dmStopNodes(pDnode);
+    dmCloseNodes(pDnode);
+    return 0;
   }
 
   if ((code = dmStartNodes(pDnode)) != 0) {
@@ -154,6 +186,8 @@ int32_t dmRunDnode(SDnode *pDnode) {
     dmCloseNodes(pDnode);
     return code;
   }
+  tsDndStart = taosGetTimestampMs();  // also used to wait for dnode to start
+  if (tsDndStart == 0) ++tsDndStart;  // avoid 0
 
   while (1) {
     if (pDnode->stop) {

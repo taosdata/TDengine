@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate tar.gz package for all os system
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -23,12 +36,12 @@ cusEmail2="${13}"
 
 script_dir="$(dirname $(readlink -f $0))"
 top_dir="$(readlink -f ${script_dir}/../..)"
+internal_dir="$(readlink -f ${top_dir}/../taos-internal)"
 
 productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -49,8 +62,8 @@ else
   install_dir="${release_dir}/${productName2}-server-${version}"
 fi
 
-if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
-  cd ${top_dir}/tools/taos-tools/packaging/deb
+if [ -d ${top_dir}/tools/taosBenchmark/packaging/deb ]; then
+  cd ${top_dir}/tools/taosBenchmark/packaging/deb
 
   taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
   [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
@@ -72,24 +85,26 @@ else
   if [ "$verMode" == "cloud" ]; then
     taostools_bin_files=" ${build_dir}/bin/taosBenchmark"
   else
-    wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
-      && echo "TDinsight.sh downloaded!" \
-      || echo "failed to download TDinsight.sh"
-    # download TDinsight caches
-    orig_pwd=$(pwd)
-    tdinsight_caches=""
-    cd ${build_dir}/bin/ && \
-      chmod +x TDinsight.sh
-    ./TDinsight.sh --download-only ||:
-    #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
-    cd $orig_pwd
-    echo "TDinsight caches: $tdinsight_caches"
+    # wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh -O ${build_dir}/bin/TDinsight.sh \
+    #   && echo "TDinsight.sh downloaded!" \
+    #   || echo "failed to download TDinsight.sh"
+    # # download TDinsight caches
+    # orig_pwd=$(pwd)
+    # tdinsight_caches=""
+    # cd ${build_dir}/bin/ && \
+    #   chmod +x TDinsight.sh
+    # ./TDinsight.sh --download-only ||:
+    # #  tdinsight_caches=$(./TDinsight.sh --download-only | xargs -I printf "${build_dir}/bin/{} ")
+    # cd $orig_pwd
+    # echo "TDinsight caches: $tdinsight_caches"
 
-    taostools_bin_files=" ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark \
-      ${build_dir}/bin/TDinsight.sh \
-      ${build_dir}/bin/tdengine-datasource.zip \
-      ${build_dir}/bin/tdengine-datasource.zip.md5"
+    # taostools_bin_files=" ${build_dir}/bin/taosdump \
+    #   ${build_dir}/bin/taosBenchmark \
+    #   ${build_dir}/bin/TDinsight.sh \
+    #   ${build_dir}/bin/tdengine-datasource.zip \
+    #   ${build_dir}/bin/tdengine-datasource.zip.md5"
+    # taostools only includes taosBenchmark and taosdump, as the branch is intended solely for full_long_time_test and will not be actively maintained
+    taostools_bin_files="${build_dir}/bin/taosBenchmark ${build_dir}/bin/taosdump"
   fi
 
 
@@ -98,7 +113,8 @@ else
       ${taostools_bin_files} \
       ${build_dir}/bin/${clientName}adapter \
       ${build_dir}/bin/${clientName}keeper \
-      ${build_dir}/bin/udfd \
+      ${build_dir}/bin/taosudf \
+      ${build_dir}/bin/taosmqtt \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
@@ -107,18 +123,39 @@ else
 fi
 
 if [ "$osType" == "Darwin" ]; then
-    lib_files="${build_dir}/lib/libtaos.${version}.dylib"
-    wslib_files="${build_dir}/lib/libtaosws.dylib"
+    lib_files="${build_dir}/lib/libtaos.dylib"
+    nativelib_files="${build_dir}/lib/libtaosnative.dylib"
+    wslib_files="${build_dir}/taos-connector-rust/output/libtaosws.dylib"
+
+    pkg_lib_files="libtaos.${version}.dylib"
+    pkg_nativelib_files="libtaosnative.${version}.dylib"
+    pkg_wslib_files="libtaosws.${version}.dylib"
 else
-    lib_files="${build_dir}/lib/libtaos.so.${version}"
-    wslib_files="${build_dir}/lib/libtaosws.so"
+    lib_files="${build_dir}/lib/libtaos.so"
+    nativelib_files="${build_dir}/lib/libtaosnative.so"
+    wslib_files="${build_dir}/taos-connector-rust/output/libtaosws.so"
+
+    pkg_lib_files="libtaos.so.${version}"
+    pkg_nativelib_files="libtaosnative.so.${version}"
+    pkg_wslib_files="libtaosws.so.${version}"
 fi
 header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/util/tdef.h ${code_dir}/include/libs/function/taosudf.h"
 
-wsheader_files="${build_dir}/include/taosws.h"
+wsheader_files="${build_dir}/taos-connector-rust/output/taosws.h"
+if [ ! -f "${wsheader_files}" ]; then
+  for candidate in \
+    "${build_dir}/include/taosws.h" \
+    "${build_dir}/taos-connector-rust/target/release/taosws.h" \
+    "${build_dir}/taos-connector-rust/target/debug/taosws.h"; do
+    if [ -f "${candidate}" ]; then
+      wsheader_files="${candidate}"
+      break
+    fi
+  done
+fi
 
 if [ "$dbName" != "taos" ]; then
-  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+  cfg_dir="${internal_dir}/packaging/cfg"
 else
   cfg_dir="${top_dir}/packaging/cfg"
 fi
@@ -132,7 +169,7 @@ init_file_rpm=${script_dir}/../rpm/taosd
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
 
-[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
+[ -f "${wsheader_files}" ] && cp "${wsheader_files}" "${install_dir}/inc" || :
 
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
@@ -157,7 +194,6 @@ fi
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
-# mkdir -p ${install_dir}/share && cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/${clientName2}adapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -179,8 +215,8 @@ fi
 #         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
 #         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/install-tools.sh \
 #             || echo -e "failed to copy install-tools.sh"
@@ -188,8 +224,8 @@ fi
 #         echo -e "install-tools.sh not found"
 #     fi
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
 #             || echo -e "failed to copy uninstall-tools.sh"
@@ -248,20 +284,6 @@ if [ "$verMode" == "cloud" ]; then
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
-cd ${install_dir}
-if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f ${tarName} * --remove-files || :
-    ls ${install_dir}
-else
-    tar -zcv -f ${tarName} * || :
-fi
-
-exitcode=$?
-if [ "$exitcode" != "0" ]; then
-  echo "tar ${tarName} error !!!"
-  exit $exitcode
-fi
-
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
@@ -284,56 +306,83 @@ fi
 chmod a+x ${install_dir}/install.sh
 
 if [[ $dbName == "taos" ]]; then  
-  cp ${top_dir}/../enterprise/packaging/start-all.sh ${install_dir}
-  cp ${top_dir}/../enterprise/packaging/stop-all.sh ${install_dir}
-  cp ${top_dir}/../enterprise/packaging/README.md ${install_dir}
+  cp ${internal_dir}/packaging/start-all.sh ${install_dir}
+  cp ${internal_dir}/packaging/reconcile-tsdb-nodes.sh ${install_dir}
+  chmod a+x ${install_dir}/reconcile-tsdb-nodes.sh
+  cp ${internal_dir}/packaging/stop-all.sh ${install_dir}
+  cp ${internal_dir}/packaging/README.md ${install_dir}
   chmod a+x ${install_dir}/start-all.sh
   chmod a+x ${install_dir}/stop-all.sh
-  # Copy example code  
+  # The sources were consolidated into docs/examples, but the layout inside the
+  # package is frozen: the shipped subset and the historical directory names
+  # (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
   mkdir -p ${install_dir}/examples
-  examples_dir="${top_dir}/examples"
-  new_example_dir="${top_dir}/docs/examples"
-  cp -r ${examples_dir}/c ${install_dir}/examples
+  examples_dir="${top_dir}/docs/examples"
+  examples_manifest="${top_dir}/packaging/examples-manifest.txt"
+
+  examples_skip_optional=false
+  if [[ "$pagMode" == "lite" ]] || [[ "$cpuType" == "aarch32" ]]; then
+    examples_skip_optional=true
+  fi
+
+  while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    [ "${ex_group}" = all ] || continue
+    if [ "${examples_skip_optional}" = true ] && [ "${ex_dst}" != c ]; then
+      continue
+    fi
+    if [ ! -f "${examples_dir}/${ex_src}" ]; then
+      echo "ERROR: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+      exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p "${install_dir}/examples/${ex_dst}/$(dirname "${ex_rel}")"
+    cp "${examples_dir}/${ex_src}" "${install_dir}/examples/${ex_dst}/${ex_rel}"
+  done < "${examples_manifest}"
+
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    if [ -d ${new_example_dir}/JDBC/connectionPools/target ]; then
-      rm -rf ${new_example_dir}/JDBC/connectionPools/target
+    if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
+      rm -rf ${examples_dir}/JDBC/connectionPools/target
     fi
-    if [ -d ${new_example_dir}/JDBC/JDBCDemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/JDBCDemo/target
+    if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/JDBCDemo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/mybatisplus-demo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/mybatisplus-demo/target
+    if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
+      rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/springbootdemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/springbootdemo/target
+    if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/springbootdemo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/SpringJdbcTemplate/target ]; then
-      rm -rf ${new_example_dir}/JDBC/SpringJdbcTemplate/target
+    if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
+      rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
     fi
-    if [ -d ${new_example_dir}/JDBC/taosdemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/taosdemo/target
+    if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/taosdemo/target
     fi
 
-    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
-    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
-    cp -r ${examples_dir}/python ${install_dir}/examples ||:
-    cp -r ${examples_dir}/R ${install_dir}/examples ||:
-    cp -r ${examples_dir}/go ${install_dir}/examples ||:
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
-    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples ||:
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${top_dir}/tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    
-    mkdir -p ${install_dir}/share/        
-    cp -rf ${build_dir}/share/{etc,srv} ${install_dir}/share ||:    
+    for share_subdir in etc srv; do
+      if [ -e "${build_dir}/share/${share_subdir}" ]; then
+        mkdir -p "${install_dir}/share"
+        cp -rf "${build_dir}/share/${share_subdir}" "${install_dir}/share"
+      fi
+    done
   fi
 
 fi
 
 # Copy driver
-mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
-[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
+mkdir -p ${install_dir}/driver
+cp ${lib_files}       ${install_dir}/driver/${pkg_lib_files} 
+cp ${nativelib_files} ${install_dir}/driver/${pkg_nativelib_files} 
+echo "${versionComp}" >${install_dir}/driver/vercomp.txt 
+cp ${wslib_files}     ${install_dir}/driver/${pkg_wslib_files} || :
 
 # Copy connector && taosx
 if [ "$verMode" == "cluster" ]; then    
@@ -346,7 +395,7 @@ if [ "$verMode" == "cluster" ]; then
           	git clone -b main --depth=1 https://github.com/taosdata/taos-connector-jdbc.git ||:
     	  fi
     	  cd taos-connector-jdbc
-    	  mvn clean package -Dmaven.test.skip=true
+    	  mvn clean package -DskipTests -DskipITs=true
     	  echo  ${build_dir}/lib/
     	  cp target/*.jar  ${build_dir}/lib/
     	  cd ${install_dir}/connector
@@ -370,10 +419,11 @@ if [ "$verMode" == "cluster" ]; then
         rm -rf ${install_dir}/connector/rust/.git ||:
 
         # copy taosx
-        if [ -d ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ]; then
-          cp -r ${top_dir}/../enterprise/src/plugins/taosx/release/taosx ${install_dir}          
-          cp ${top_dir}/../enterprise/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/taosx/uninstall_taosx.sh
-          sed -i "s/uninstall.sh/uninstall_taosx.sh/g" ${install_dir}/taosx/uninstall_taosx.sh
+        if [ -d ${internal_dir}/src/plugins/taosx/release/${clientName2}x ]; then
+          cp -r ${internal_dir}/src/plugins/taosx/release/${clientName2}x ${install_dir}
+          cp ${internal_dir}/src/plugins/taosx/packaging/uninstall.sh ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/uninstall.sh/uninstall_${clientName2}x.sh/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
+          sed -i "s/PREFIX=\"taos\"/PREFIX=\"${clientName2}\"/g" ${install_dir}/${clientName2}x/uninstall_${clientName2}x.sh
         fi
     fi
 fi
@@ -416,18 +466,15 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 
-if [ "$osType" != "Darwin" ]; then
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" --remove-files || :
-else
-    tar -zcv -f "$(basename ${pkg_name}).tar.gz" "$(basename ${install_dir})" || :
-    rm -rf ${install_dir} ||:
-    ([ -d build-taoskeeper ] && rm -rf build-taoskeeper ) ||:
+final_pkg_name="$(basename "${pkg_name}").tar.xz"
+rm -f "${final_pkg_name}"
+if ! tar -Jcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
+  echo "tar ${final_pkg_name} error !!!"
+  exit 1
 fi
-
-exitcode=$?
-if [ "$exitcode" != "0" ]; then
-  echo "tar ${pkg_name}.tar.gz error !!!"
-  exit $exitcode
+[ -n "${install_dir}" ] && [ "${install_dir}" != "/" ] && rm -rf "${install_dir}"
+if [ "$osType" == "Darwin" ]; then
+  [ -d build-taoskeeper ] && rm -rf build-taoskeeper ||:
 fi
 
 # if [ -n "${taostools_bin_files}" ] && [ "$verMode" != "cloud" ]; then

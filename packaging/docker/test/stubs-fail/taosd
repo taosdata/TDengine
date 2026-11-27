@@ -1,0 +1,16 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Scenario fixture: taosd exits one second after start-up, so the entrypoint
+# must notice the crash while it is still probing other services.
+
+if [ "$1" = "-C" ]; then
+    echo "                  dataDir /var/lib/taos"
+    echo "                     fqdn $(hostname)"
+    echo "                  firstEp localhost:6030"
+    exit 0
+fi
+sleep 1
+exit 1

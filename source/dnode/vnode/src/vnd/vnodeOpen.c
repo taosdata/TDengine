@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,19 +16,54 @@
  */
 
 #include "sync.h"
-#include "tcs.h"
+#include "tss.h"
+#include "tq.h"
 #include "tsdb.h"
+#include "streamReader.h"
 #include "vnd.h"
 
 void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {
-    SDiskID diskId = {0};
+    SDiskID     diskId = {0};
     diskId.id = diskPrimary;
-    snprintf(buf, bufLen - 1, "%s%s%s", tfsGetDiskPath(pTfs, diskId), TD_DIRSEP, relPath);
+    // diskPrimary may be stale after a disk-layout change. tfsGetDiskPath
+    // returns NULL for a disk that is not mounted locally, so fall back to
+    // the current primary disk instead of passing NULL to %s.
+    const char *diskPath = tfsGetDiskPath(pTfs, diskId);
+    if (diskPath == NULL) {
+      // WARNING: this function locates vnode metadata (meta/tsdb current.json/
+      // vnode.json ...). Silently switching disks here can open an empty
+      // directory (data appears lost) or fork metadata onto the wrong disk.
+      // The vnodeOpen path is protected by vnodeCheckDisk; for other callers
+      // this fallback is a last-resort recovery and MUST be loud so operators
+      // can detect a disk-layout mismatch.
+      vError("vnode primary disk id:%d is not mounted, falling back to current primary disk; "
+             "verify the vnode directory on the affected disks",
+             diskPrimary);
+      diskPath = tfsGetPrimaryPath(pTfs);
+    }
+    snprintf(buf, bufLen - 1, "%s%s%s", diskPath, TD_DIRSEP, relPath);
   } else {
     snprintf(buf, bufLen - 1, "%s", relPath);
   }
   buf[bufLen - 1] = '\0';
+}
+
+void vnodeGetPrimaryPath(SVnode *pVnode, bool mount, char *buf, size_t bufLen) {
+  if (pVnode->mounted) {
+    if (mount) {  // mount path
+      SDiskID diskId = {0};
+      diskId.id = pVnode->diskPrimary;
+      snprintf(buf, bufLen - 1, "%s%svnode%svnode%d", tfsGetDiskPath(pVnode->pMountTfs, diskId), TD_DIRSEP, TD_DIRSEP,
+               pVnode->config.mountVgId);
+    } else {  // host path
+      vnodeGetPrimaryDir(pVnode->path, 0, pVnode->pTfs, buf, bufLen);
+    }
+    buf[bufLen - 1] = '\0';
+
+  } else {
+    vnodeGetPrimaryDir(pVnode->path, pVnode->diskPrimary, pVnode->pTfs, buf, bufLen);
+  }
 }
 
 static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
@@ -40,7 +77,7 @@ static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs) {
   int32_t    code = 0;
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
 
   // check config
   if ((code = vnodeCheckCfg(pCfg)) < 0) {
@@ -50,10 +87,10 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
 
   // create vnode env
   if (vnodeMkDir(pTfs, path)) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(errno), path);
-    return TAOS_SYSTEM_ERROR(errno);
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(ERRNO), path);
+    return TAOS_SYSTEM_ERROR(ERRNO);
   }
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -72,7 +109,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
       vWarn("vgId:%d, vnode config info already exists at %s.", oldInfo.config.vgId, dir);
     } else {
       vError("vgId:%d, vnode config info already exists at %s. oldDbId:%" PRId64 "(%s) at cluster:%" PRId64
-             ", newDbId:%" PRId64 "(%s) at cluser:%" PRId64 ", code:%s",
+             ", newDbId:%" PRId64 "(%s) at cluster:%" PRId64 ", code:%s",
              oldInfo.config.vgId, dir, oldInfo.config.dbId, oldInfo.config.dbname,
              oldInfo.config.syncCfg.nodeInfo[oldInfo.config.syncCfg.myIndex].clusterId, info.config.dbId,
              info.config.dbname, info.config.syncCfg.nodeInfo[info.config.syncCfg.myIndex].clusterId, tstrerror(code));
@@ -94,10 +131,21 @@ bool vnodeShouldRemoveWal(SVnode *pVnode) { return pVnode->config.walCfg.clearFi
 
 int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  // [TD-SEC-2026-034] the loops below use replica/learnerReplica as bounds on the fixed-size
+  // syncCfg.nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA]. Callers in mgmt_vnode already reject
+  // out-of-range counters, this is the last line of defense against overflowing nodeInfo.
+  if (pReq == NULL || pReq->replica < 1 || pReq->replica > TSDB_MAX_REPLICA || pReq->learnerReplica < 0 ||
+      pReq->learnerReplica > TSDB_MAX_LEARNER_REPLICA) {
+    vError("vgId:%d, failed to alter replica since invalid replica:%d learnerReplica:%d", pReq ? pReq->vgId : -1,
+           pReq ? pReq->replica : -1, pReq ? pReq->learnerReplica : -1);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -167,8 +215,8 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
 }
 
 static int32_t vnodeVgroupIdLen(int32_t vgId) {
-  char tmp[TSDB_FILENAME_LEN];
-  (void)tsnprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
+  char tmp[TSDB_PATH_LEN];
+  (void)snprintf(tmp, TSDB_PATH_LEN, "%d", vgId);
   return strlen(tmp);
 }
 
@@ -178,10 +226,10 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 
   char oldRname[TSDB_FILENAME_LEN] = {0};
   char newRname[TSDB_FILENAME_LEN] = {0};
-  char tsdbPath[TSDB_FILENAME_LEN] = {0};
-  char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
-  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
-  snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+  char tsdbPath[TSDB_PATH_LEN] = {0};
+  char tsdbFilePrefix[TSDB_PATH_LEN] = {0};
+  snprintf(tsdbPath, TSDB_PATH_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
+  snprintf(tsdbFilePrefix, TSDB_PATH_LEN, "tsdb%sv", TD_DIRSEP);
   int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = NULL;
@@ -236,10 +284,10 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq,
                             int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -298,10 +346,10 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
                              int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    code = 0;
 
-  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
@@ -310,7 +358,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return dstVgId;
   }
 
-  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
   if ((code = vnodeLoadInfo(dir, &info)) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
     return code;
@@ -339,12 +387,19 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
     vError("failed to remove path:%s since %s", path, tstrerror(terrno));
   }
 
-  // int32_t nlevel = tfsGetLevel(pTfs);
-  if (nodeId > 0 && vgId > 0 /*&& nlevel > 1*/ && tsS3Enabled) {
-    char vnode_prefix[TSDB_FILENAME_LEN];
-    snprintf(vnode_prefix, TSDB_FILENAME_LEN, "%d/v%df", nodeId, vgId);
-    tcsDeleteObjectsByPrefix(vnode_prefix);
+#ifdef USE_SHARED_STORAGE
+  if (nodeId > 0 && vgId > 0 && tsSsEnabled) {
+    // we should only do this on the leader node, but it is ok to do this on all nodes
+    char prefix[TSDB_PATH_LEN];
+    snprintf(prefix, TSDB_PATH_LEN, "vnode%d/", vgId);
+    int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
+    if (code < 0) {
+      vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
+    } else {
+      vInfo("vgId:%d, removed vnode files from shared storage", vgId);
+    }
   }
+#endif
 }
 
 static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
@@ -359,19 +414,20 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
   return 0;
 }
 
-SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgCb, bool force) {
+SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
-  char       tdir[TSDB_FILENAME_LEN * 2] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
+  char       tdir[TSDB_PATH_LEN * 2] = {0};
   int32_t    ret = 0;
+  bool       mounted = pMountTfs != NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   if (vnodeCheckDisk(diskPrimary, pTfs)) {
     vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
     return NULL;
   }
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   info.config = vnodeCfgDefault;
 
@@ -384,8 +440,8 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     return NULL;
   }
 
-  if (vnodeMkDir(pTfs, path)) {
-    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(errno), path);
+  if (!mounted && vnodeMkDir(pTfs, path)) {
+    vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", info.config.vgId, strerror(ERRNO), path);
     return NULL;
   }
   // save vnode info on dnode ep changed
@@ -425,11 +481,16 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   pVnode->state.applied = info.state.committed;
   pVnode->state.applyTerm = info.state.commitTerm;
   pVnode->pTfs = pTfs;
+  pVnode->pMountTfs = pMountTfs;
+  pVnode->mounted = mounted;
   pVnode->diskPrimary = diskPrimary;
   pVnode->msgCb = msgCb;
   (void)taosThreadMutexInit(&pVnode->lock, NULL);
   pVnode->blocked = false;
   pVnode->disableWrite = false;
+  pVnode->closing = 0;
+  pVnode->vacuumRunning = 0;
+  (void)taosThreadMutexInit(&pVnode->backupSnapMutex, NULL);
 
   if (tsem_init(&pVnode->syncSem, 0, 0) != 0) {
     vError("vgId:%d, failed to init semaphore", TD_VID(pVnode));
@@ -437,6 +498,9 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
   (void)taosThreadMutexInit(&pVnode->mutex, NULL);
   (void)taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
+
+  vInfo("vgId:%d, finished vnode load info %s, vnode committed:%" PRId64, info.config.vgId, dir,
+        pVnode->state.committed);
 
   int8_t rollback = vnodeShouldRollback(pVnode);
 
@@ -448,6 +512,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open meta
+  (void)taosThreadRwlockInit(&pVnode->metaRWLock, NULL);
   vInfo("vgId:%d, start to open vnode meta", TD_VID(pVnode));
   if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -455,23 +520,79 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   vInfo("vgId:%d, start to upgrade meta", TD_VID(pVnode));
-  if (metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
+  if (!mounted && metaUpgrade(pVnode, &pVnode->pMeta) < 0) {
     vError("vgId:%d, failed to upgrade meta since %s", TD_VID(pVnode), tstrerror(terrno));
+  }
+
+  if (pVnode->config.rebuildVTableStats) {
+    vInfo("vgId:%d, rebuild virtual table stats since vnode config predates persisted vtable counters",
+          TD_VID(pVnode));
+    if (metaRebuildVTableStats(pVnode->pMeta) == 0) {
+      pVnode->config.rebuildVTableStats = false;
+      if (!mounted) {
+        info.config.rebuildVTableStats = false;
+        info.config.vndStats.numOfVTables = pVnode->config.vndStats.numOfVTables;
+        info.config.vndStats.numOfVCTables = pVnode->config.vndStats.numOfVCTables;
+        if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir) < 0) {
+          vError("vgId:%d, failed to save vnode info after virtual table stats rebuild since %s", TD_VID(pVnode),
+                 tstrerror(terrno));
+        }
+      }
+    } else {
+      vError("vgId:%d, failed to rebuild virtual table stats since %s", TD_VID(pVnode), tstrerror(terrno));
+    }
+  }
+
+  // init txn manager and rebuild in-memory txn state from B+ tree
+  vInfo("vgId:%d, start to init vnode txn manager", TD_VID(pVnode));
+  if (vnodeTxnInit(pVnode) < 0) {
+    vError("vgId:%d, failed to init txn manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  if (vnodeTxnRebuildFromMeta(pVnode) < 0) {
+    vError("vgId:%d, failed to rebuild txn state from meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
   }
 
   // open tsdb
   vInfo("vgId:%d, start to open vnode tsdb", TD_VID(pVnode));
-  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force) < 0) {
+  if ((terrno = tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback, force)) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
+  if (TSDB_CACHE_RESET(pVnode->config)) {
+    // flag vnode tsdb cache
+    vInfo("vgId:%d, start to flag vnode tsdb cache", TD_VID(pVnode));
+
+    if (metaFlagCache(pVnode) < 0) {
+      vError("vgId:%d, failed to flag tsdb cache since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
+  }
+
   // open wal
-  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
   vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
+  pVnode->config.walCfg.enableTxnFile = 1;  // vnode WAL: enable .txn files for CDC lazy load
+  // Bind the dnode-shared tfs handle *before* walOpen() so its one-time repair pass
+  // (walCheckAndRepairMeta/walCheckAndRepairIdx) already knows about every mount point a
+  // historical segment might live on -- binding after walOpen() returns is too late: that
+  // pass would only look under tdir (the primary mount) and drop every segment it can't
+  // find there, permanently losing WAL data on the next walSaveMeta(). No-op when
+  // pVnode->pTfs is NULL (single mount point).
+  // relDir must be the wal directory's path *relative to a mount point root*, i.e.
+  // "<path>/wal" (e.g. "vnode/vnode2/wal") -- NOT just VNODE_WAL_DIR ("wal") on its own,
+  // otherwise every vnode on this dnode would collide on the same "<mount>/wal/" directory
+  // and reuse the same version-numbered segment file names.
+  pVnode->config.walCfg.pTfs = pVnode->pTfs;
+  if (pVnode->pTfs != NULL) {
+    (void)snprintf(pVnode->config.walCfg.relDir, sizeof(pVnode->config.walCfg.relDir), "%s%s%s", path, TD_DIRSEP,
+                   VNODE_WAL_DIR);
+  }
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
@@ -479,16 +600,18 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open tq
-  (void)tsnprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
   ret = taosRealPath(tdir, NULL, sizeof(tdir));
   TAOS_UNUSED(ret);
 
   // open query
-  vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
-  if (vnodeQueryOpen(pVnode)) {
-    vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open vnode query", TD_VID(pVnode));
+    if (vnodeQueryOpen(pVnode)) {
+      vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
   }
 
   // sma required the tq is initialized before the vnode open
@@ -498,10 +621,42 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
     goto _err;
   }
 
-  // open sma
-  vInfo("vgId:%d, start to open vnode sma", TD_VID(pVnode));
-  if (smaOpen(pVnode, rollback, force)) {
-    vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
+  // open txn WAL manager (CDC txn-atomic cache)
+  vInfo("vgId:%d, start to open txn WAL manager", TD_VID(pVnode));
+  pVnode->pTxnWalMgr = txnMgrOpen(pVnode->pWal, pVnode, info.lastTxnConsumeTs);
+  if (pVnode->pTxnWalMgr == NULL) {
+    vError("vgId:%d, failed to open txn WAL manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  // Rebuild cache from WAL for any txns that were in-flight before restart.
+  {
+    int64_t minTxnVer = walGetFirstVer(pVnode->pWal);
+    int64_t appliedVer = pVnode->state.applied;
+    if (minTxnVer > 0 && minTxnVer <= appliedVer) {
+      (void)txnMgrReloadFromWal(pVnode->pTxnWalMgr, pVnode->pWal, minTxnVer, appliedVer);
+    }
+  }
+  // Set initial WAL keep-version based on slots loaded from WAL restart scan.
+  txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
+
+  // open blob store engine
+  vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
+  (void)snprintf(tdir, sizeof(tdir), "%s%s%s", dir, TD_DIRSEP, VNODE_BSE_DIR);
+
+  SBseCfg cfg = {
+      .vgId = pVnode->config.vgId,
+      .keepDays = pVnode->config.tsdbCfg.days,
+      .keeps = pVnode->config.tsdbCfg.keep0,
+      .retention = pVnode->config.tsdbCfg.retentions[0],
+      .precision = pVnode->config.tsdbCfg.precision,
+  };
+  tstrncpy(cfg.encryptAlgrName, pVnode->config.tdbEncryptData.encryptAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(cfg.encryptKey, tsDataKey, ENCRYPT_KEY_LEN + 1);
+
+  ret = bseOpen(tdir, &cfg, &pVnode->pBse);
+  if (ret != 0) {
+    vError("vgId:%d, failed to open blob store engine since %s", TD_VID(pVnode), tstrerror(ret));
+    terrno = ret;
     goto _err;
   }
 
@@ -514,10 +669,12 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
   }
 
   // open sync
-  vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
-  if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
-    vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    goto _err;
+  if (pVnode->msgCb.mgmt != NULL) {
+    vInfo("vgId:%d, start to open sync, changeVersion:%d", TD_VID(pVnode), info.config.syncCfg.changeVersion);
+    if (vnodeSyncOpen(pVnode, dir, info.config.syncCfg.changeVersion)) {
+      vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   if (rollback) {
@@ -533,17 +690,28 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, SMsgCb msgC
 _err:
   if (pVnode->pQuery) vnodeQueryClose(pVnode);
   if (pVnode->pTq) tqClose(pVnode->pTq);
+  if (pVnode->pTxnWalMgr) {
+    txnMgrClose(pVnode->pTxnWalMgr);
+    pVnode->pTxnWalMgr = NULL;
+  }
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-  if (pVnode->pSma) smaClose(pVnode->pSma);
+  vnodeTxnCleanup(pVnode);
   if (pVnode->pMeta) metaClose(&pVnode->pMeta);
+  if (pVnode->pBse) {
+    bseClose(pVnode->pBse);
+    pVnode->pBse = NULL;
+  }
   if (pVnode->freeList) vnodeCloseBufPool(pVnode);
 
+  (void)taosThreadRwlockDestroy(&pVnode->metaRWLock);
   taosMemoryFree(pVnode);
   return NULL;
 }
 
 void vnodePreClose(SVnode *pVnode) {
+  streamRemoveVnodeLeader(pVnode->config.vgId);
+  vnodeCloseBackupSnap(pVnode);
   vnodeSyncPreClose(pVnode);
   vnodeQueryPreClose(pVnode);
 }
@@ -552,21 +720,49 @@ void vnodePostClose(SVnode *pVnode) { vnodeSyncPostClose(pVnode); }
 
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
+    vInfo("start to close vnode");
+    atomic_store_8(&pVnode->closing, 1);
+    // Release vc_cols caches pinned for this vnode: once it is closing (drop db
+    // / migrate away) no further scan re-serves them and their blocks/budget
+    // would otherwise leak until process exit.
+    stStreamVcColsCacheCleanupVg(pVnode->config.vgId);
+    vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
-    vnodeSyncClose(pVnode);
+
+    // Vacuum may submit follow-up vacuum tasks (chained submission inside
+    // vnodeTxnVacuumExecute when more entries remain). Loop until vacuumRunning
+    // settles to 0 with no in-flight task. Bounded by the fact that
+    // vnodeTxnSubmitVacuumAsync rejects new submissions once closing==1, so
+    // at most one extra task can be queued past the closing barrier.
+    vnodeAWait(&pVnode->vacuumTask);
+    if (atomic_load_8(&pVnode->vacuumRunning)) {
+      vnodeAWait(&pVnode->vacuumTask);
+    }
+    if (pVnode->sync != 0) {
+      vnodeSyncClose(pVnode);
+    }
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
+    if (pVnode->pTxnWalMgr) {
+      txnMgrClose(pVnode->pTxnWalMgr);
+      pVnode->pTxnWalMgr = NULL;
+    }
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
-    smaClose(pVnode->pSma);
+    vnodeTxnCleanup(pVnode);
     if (pVnode->pMeta) metaClose(&pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+
+    if (pVnode->pBse) {
+      bseClose(pVnode->pBse);
+    }
 
     // destroy handle
     if (tsem_destroy(&pVnode->syncSem) != 0) {
       vError("vgId:%d, failed to destroy semaphore", TD_VID(pVnode));
     }
     (void)taosThreadCondDestroy(&pVnode->poolNotEmpty);
+    (void)taosThreadMutexDestroy(&pVnode->backupSnapMutex);
     (void)taosThreadMutexDestroy(&pVnode->mutex);
     (void)taosThreadMutexDestroy(&pVnode->lock);
     taosMemoryFree(pVnode);
@@ -587,6 +783,13 @@ ESyncRole vnodeGetRole(SVnode *pVnode) { return syncGetRole(pVnode->sync); }
 
 int32_t vnodeUpdateArbTerm(SVnode *pVnode, int64_t arbTerm) { return syncUpdateArbTerm(pVnode->sync, arbTerm); }
 int32_t vnodeGetArbToken(SVnode *pVnode, char *outToken) { return syncGetArbToken(pVnode->sync, outToken); }
+
+int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion) {
+  if (pVnode == NULL || pVnode->pWal == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return walSetKeepVersion(pVnode->pWal, keepVersion);
+}
 
 void vnodeStop(SVnode *pVnode) {}
 

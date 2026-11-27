@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -38,6 +40,8 @@ typedef struct TdCmd *TdCmdPtr;
 
 TdCmdPtr taosOpenCmd(const char *cmd);
 
+bool taosCmdIsValid(const char *cmd);
+
 int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf);
 
 int64_t taosGetLineCmd(TdCmdPtr pCmd, char **__restrict ptrBuf);
@@ -46,9 +50,19 @@ int32_t taosEOFCmd(TdCmdPtr pCmd);
 
 void    taosCloseCmd(TdCmdPtr *ppCmd);
 
-void *taosLoadDll(const char *filename);
+void *taosLoadDll(const char *fileName);
+
+void *taosLoadDllGlobal(const char *fileName);
 
 void taosCloseDll(void *handle);
+
+void *taosLoadDllFunc(void *handle, const char *funcName);
+
+int32_t taosGetEnv(const char *name, char *buf, int32_t bufLen);
+
+int32_t taosSetEnv(const char *name, const char *value);
+
+int32_t taosSetDllSearchPath(const char *path);
 
 int32_t taosSetConsoleEcho(bool on);
 
@@ -164,8 +178,8 @@ int32_t taosResetTerminalMode();
   }
 #else
 
+#include "osWindows.h"
 #include <dbghelp.h>
-#include <windows.h>
 
 #define taosLogTraceToBuf(buf, bufSize, ignoreNum)                                                                   \
   {                                                                                                                  \

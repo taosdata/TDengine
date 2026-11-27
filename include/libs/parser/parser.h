@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,10 +26,42 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
+#define PAR_ERR_RET(c)                \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
+#define PAR_RET(c)                    \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+#define PAR_ERR_JRET(c)              \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
+
+#define HAS_BIND_VALUE       ((uint8_t)0x1)
+#define IS_FIXED_VALUE       ((uint8_t)0x2)
+#define USING_CLAUSE         ((uint8_t)0x4)
+#define IS_FIXED_TAG         ((uint8_t)0x8)
+#define NO_DATA_USING_CLAUSE ((uint8_t)0x7)
+
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SName*, bool, SHashObj*, SHashObj*, const char*, bool);
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, SSHashObj**, SName*, bool, SHashObj*, SHashObj*, const char*,
+                       uint8_t);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
@@ -72,7 +106,6 @@ typedef struct SParseContext {
   int64_t          requestRid;
   int32_t          acctId;
   const char*      db;
-  bool             topicQuery;
   void*            pTransporter;
   SEpSet           mgmtEpSet;
   const char*      pSql;    // sql string
@@ -83,36 +116,116 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   const char*      pEffectiveUser;
+  int64_t          userId;
+  int64_t          effectiveUserId;
+  bool             topicQuery;
   bool             parseOnly;
   bool             isSuperUser;
   bool             enableSysInfo;
   bool             async;
   bool             hasInvisibleCol;
+  bool             hasDupQuoteChar;
   bool             isView;
   bool             isAudit;
   bool             nodeOffline;
-  bool             isStmtBind;
-  const char*      svrVer;
-  SArray*          pTableMetaPos;    // sql table pos => catalog data pos
-  SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
-  int64_t          allocatorId;
-  parseSqlFn       parseSqlFp;
-  void*            parseSqlParam;
+  uint8_t          stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   int8_t           biMode;
-  SArray*          pSubMetaList;
-  setQueryFn       setQueryFp;
-  timezone_t       timezone;
-  void            *charsetCxt;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasPrivCols : 1;  // user has priv columns
+      uint8_t hasMaskCols : 1;  // user has mask columns
+      uint8_t sodInitial  : 1;   // 0 stable, 1 initial
+      uint8_t reserved : 5;      // reserved bits for future use
+    };
+  };
+  union {
+    uint16_t privInfo;
+    struct {
+      // N.B. keep the order of the bit definition unchanged
+      uint16_t minSecLevel : 3;  // user min security level
+      uint16_t privInfoBasic : 1;
+      uint16_t privInfoPrivileged : 1;
+      uint16_t privInfoAudit : 1;
+      uint16_t privInfoSec : 1;
+      uint16_t privPerfBasic : 1;
+      uint16_t privPerfPrivileged : 1;
+      uint16_t maxSecLevel : 3;  // user max security level
+      uint16_t macMode : 1;      // 1 = MAC mandatory, propagates to executor
+      uint16_t reserved1 : 3;
+    };
+  };
+  const char* svrVer;
+  SArray*     pTableMetaPos;    // sql table pos => catalog data pos
+  SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t     allocatorId;
+  txn_id_t    txnId;
+  // Remaining per-txn DDL object budget (TSDB_TXN_MAX_DDL_OPS_PER_TXN - txnDdlCount) at the
+  // time this statement is parsed. Only consumed by the WHERE-based bulk tag update, whose
+  // object count is not knowable client-side; it is divided across the target db's vgroups
+  // and sent along so each vnode can abort its pre-scan instead of materialising an
+  // unbounded match set. 0 means "not in a txn" OR "in a txn but the budget is already
+  // exhausted" - use txnId, not this field, to tell whether a txn is active.
+  int32_t     txnDdlRemaining;
+  SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
+  SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
+  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid  ->  stbFullName for compact CTB assembly)
+  parseSqlFn  parseSqlFp;
+  void*       parseSqlParam;
+  SArray*     pSubMetaList;
+  setQueryFn  setQueryFp;
+  timezone_t  timezone;
+  char        timezoneName[TD_TIMEZONE_LEN]; // IANA name for serialization to taosd
+  void*       charsetCxt;
+  // External source context: set by client from STscObj when USE ext_source was called.
+  // These allow 1-seg table references to resolve against the active external source.
+  char        currentExtSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name (empty = none)
+  char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
+  char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
+  int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
+  // How the insert-target table name was spelled, a bit mask of
+  // HAS_BIND_VALUE / IS_FIXED_VALUE / USING_CLAUSE. Filled by parseInsertSql() so
+  // that the client can keep the legacy TSDB_CODE_TSC_STMT_TBNAME_ERROR mapping
+  // only for statements without a concrete table name.
+  uint8_t     stmtTbNameFlag;
 } SParseContext;
 
+// Fill the connection info used by catalog requests from the parse context, including the txn-local
+// state the catalog needs to tell which tables the current txn has touched (see ctgIsMetaTouchedByTxn).
+static FORCE_INLINE void parseCxtToConnInfo(const SParseContext* pCxt, SRequestConnInfo* pConn) {
+  pConn->pTrans = pCxt->pTransporter;
+  pConn->requestId = pCxt->requestId;
+  pConn->requestObjRefId = pCxt->requestRid;
+  pConn->mgmtEps = pCxt->mgmtEpSet;
+  pConn->txnId = pCxt->txnId;
+  pConn->pTxnTableMeta = pCxt->pTxnTableMeta;
+  pConn->pTxnSuidMap = pCxt->pTxnSuidMap;
+}
+
+typedef struct SPureInsertParserCtx {
+  int                    nr_params;
+
+  char                   buf[512];
+} SPureInsertParserCtx;
+
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
+bool    qIsLiteralSql(const char* pStr);
+
+// NOTE: only for insert into [db.]? (...) values (...)
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr);
+
 bool    qIsInsertValuesSql(const char* pStr, size_t length);
+bool    qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
+                        char* msgBuf, int32_t msgBufLen, int* pCode);
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
+                              char* msgBuf, int32_t msgBufLen);
+bool    qIsSelectFromSql(const char* pStr, size_t length);
 bool    qParseDbName(const char* pStr, size_t length, char** pDbName);
 
 // for async mode
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery);
+                            struct SMetaData* pMetaData, SQuery* pQuery);
 int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, const struct SMetaData* pMetaData,
                           SQuery* pQuery);
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock);
@@ -128,6 +241,8 @@ void    qCleanupKeywordsTable();
 
 int32_t qAppendStmtTableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                SStbInterlaceInfo* pBuildInfo);
+int32_t qAppendStmt2TableOutput(SQuery* pQuery, SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDataBlocks);
 // int32_t     qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx,
 // int32_t tbNum);
@@ -138,37 +253,50 @@ int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool 
 int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                                   bool rebuildCreateTb);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
+void        qDestroyStmtVgroupList(SArray* pVgroupList);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, void *charsetCxt);
-int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
+int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData);
 int32_t qBindStmtStbColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                               STSchema** pTSchema, SBindInfo* pBindInfos, void* charsetCxt);
 int32_t qBindStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
+int32_t qBindUpdateStmtColsValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                 void* charsetCxt, SSHashObj* parsedCols);
+int32_t qBindUpdateStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                  void* charsetCxt, SSHashObj* parsedCols);
+
 int32_t qBindStmtSingleColValue(void* pBlock, SArray* pCols, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen,
                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
 int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD_E** fields);
-int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, bool hasCtbName, int32_t* fieldNum,
-                               TAOS_FIELD_ALL** fields);
+int32_t qBuildStmtStbColFields(void* pBlock, void* boundTags, SSHashObj* parsedCols, uint8_t tbNameFlag,
+                               int32_t* fieldNum, TAOS_FIELD_ALL** fields, int32_t* placeholderOfTags,
+                               int32_t* placeholderOfCols);
 int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD_E** fields);
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
                            TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt);
-
+int32_t qBuildUpdateStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD_E** fields, SSHashObj* parsedCols);
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt);
-int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                               STSchema** pTSchema, SBindInfo2* pBindInfos, void *charsetCxt);
-int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
+int32_t qStmtRefreshQuery2(SQuery* pQuery);
+int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
+                               int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt,
+                               SBlobSet** ppBlob);
+int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
+                            int32_t msgBufLen, void* charsetCxt);
 int32_t qBindStmtSingleColValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
-                                 int32_t colIdx, int32_t rowNum, void *charsetCxt);
+                                 int32_t colIdx, int32_t rowNum, void* charsetCxt);
+int32_t qBindStmt2RowValue(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
+                           int32_t msgBufLen, STSchema** pTSchema, SBindInfo2* pBindInfos, void* charsetCxt);
 int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
-                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void *charsetCxt);
+                            TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen, void* charsetCxt,
+                            SVCreateTbReq* pCreateTbReq);
 
 void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);
-
-void qDestroyBoundColInfo(void* pInfo);
+int32_t qCreateSName2(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
+                      int32_t msgBufLen);
 
 int32_t smlInitHandle(SQuery** query);
 int32_t smlBuildRow(STableDataCxt* pTableCxt);
@@ -180,16 +308,48 @@ int32_t smlBindData(SQuery* handle, bool dataFormat, SArray* tags, SArray* colsS
                     STableMeta* pTableMeta, char* tableName, const char* sTableName, int32_t sTableNameLen, int32_t ttl,
                     char* msgBuf, int32_t msgBufLen, void* charsetCxt);
 int32_t smlBuildOutput(SQuery* handle, SHashObj* pVgHash);
+int32_t smlBuildOutputRaw(SQuery* handle, SHashObj* pVgHash);
+int     rawBlockBindRawData(SHashObj* pVgroupHash, SArray* pVgroupList, STableMeta* pTableMeta, void* data);
 int     rawBlockBindData(SQuery* query, STableMeta* pTableMeta, void* data, SVCreateTbReq* pCreateTb, void* fields,
                          int numFields, bool needChangeLength, char* errstr, int32_t errstrLen, bool raw);
+int32_t checkSchema(SSchema* pColSchema, SSchemaExt* pColExtSchema, int8_t* fields, char* errstr, int32_t errstrLen);
 
 int32_t rewriteToVnodeModifyOpStmt(SQuery* pQuery, SArray* pBufArray);
 int32_t serializeVgroupsCreateTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 int32_t serializeVgroupsDropTableBatch(SHashObj* pVgroupHashmap, SArray** pOut);
 void    destoryCatalogReq(SCatalogReq* pCatalogReq);
+typedef struct SParseMetaCache {
+  SHashObj* pTableMeta;    // key is tbFName, element is STableMeta*
+  SHashObj* pDbVgroup;     // key is dbFName, element is SArray<SVgroupInfo>*
+  SHashObj* pTableVgroup;  // key is tbFName, element is SVgroupInfo*
+  SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
+  SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
+  SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool
+  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
+  SHashObj* pTableCfg;     // key is tbFName, element is STableCfg*
+  SHashObj* pViews;        // key is viewFName, element is SViewMeta*
+  SHashObj* pTableTSMAs;   // key is tbFName, elements are SArray<STableTSMAInfo*>
+  SHashObj* pTSMAs;        // key is tsmaFName, elements are STableTSMAInfo*
+  SHashObj* pTableName;    // key is tbFUid, elements is STableMeta*(append with tbName)
+  SHashObj* pVStbRefDbs;   // key is tbFName, element is SArray<SVStbRefDbsRsp*>
+  const struct SParseMetaCache* pVStbRefParent;  // Borrowed while translating late-discovered VST leaves.
+  SArray*   pDnodes;       // element is SDNodeAddr
+  bool      dnodeRequired;
+  bool      forceFetchViewMeta;
+  // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
+  SHashObj* pExtSources;      // key is sourceName (varchar), element is SMetaRes* -> SExtSourceInfo*
+  SHashObj* pExtTableMetaReq; // key is ext-table composite key, element is SExtTableMetaReq
+  SHashObj* pExtTableMeta;    // key is ext-table composite key, element is SMetaRes* -> SExtTableMeta*
+} SParseMetaCache;
+
+int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
+int32_t buildCatalogReq(SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
+void    destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request);
 bool    isPrimaryKeyImpl(SNode* pExpr);
 int32_t insAppendStmtTableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
                                   SStbInterlaceInfo* pBuildInfo);
+int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData, STableDataCxt* pTbCtx,
+                                   SStbInterlaceInfo* pBuildInfo, SVCreateTbReq* ctbReq);
 
 #ifdef __cplusplus
 }

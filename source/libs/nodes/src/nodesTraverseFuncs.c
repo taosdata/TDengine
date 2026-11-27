@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #include "plannodes.h"
 #include "querynodes.h"
+#include "tmsg.h"
 
 typedef enum ETraversalOrder {
   TRAVERSAL_PREORDER = 1,
@@ -57,10 +60,19 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
   EDealRes res = DEAL_RES_CONTINUE;
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_TEMPLATE:  // Template ownership is not an expression traversal edge.
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
     case QUERY_NODE_LIMIT:
       // these node types with no subnodes
+      break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      res = walkExprs(((SCorrelatedSubqueryNode*)pNode)->pParamBindings, order, walker, pContext);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      res = walkExpr(((SCorrelationParamBindingNode*)pNode)->pSource, order, walker, pContext);
       break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
@@ -73,11 +85,19 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_LOGIC_CONDITION:
       res = walkExprs(((SLogicConditionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
-    case QUERY_NODE_FUNCTION:
-      res = walkExprs(((SFunctionNode*)pNode)->pParameterList, order, walker, pContext);
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      res = walkExprs(pFunc->pParameterList, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFunc->pOver, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
@@ -98,9 +118,18 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = walkExpr(pState->pExpr, order, walker, pContext);
+      res = walkExprs(pState->pExprList, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pState->pCol, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pState->pTrueForLimit, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pState->pExtend, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pState->pZerothList, order, walker, pContext);
       }
       break;
     }
@@ -112,6 +141,11 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       break;
     }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      res = walkExpr(pExternal->pCol, order, walker, pContext);
+      break;
+    }
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkExpr(pInterval->pInterval, order, walker, pContext);
@@ -120,6 +154,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pInterval->pSliding, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pInterval->pSOffset, order, walker, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pInterval->pFill, order, walker, pContext);
@@ -137,6 +174,9 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       res = walkExpr(pFill->pValues, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pFill->pWStartTs, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFill->pSurroundingTime, order, walker, pContext);
       }
       break;
     }
@@ -174,18 +214,122 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pEvent->pEndCond, order, walker, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pEvent->pTrueForLimit, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_START_LEAF: {
+      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+      res = walkExpr(pLeaf->pCond, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pLeaf->pTrueFor, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_WINDOW_SPEC: {
+      SWindowSpecNode* pWin = (SWindowSpecNode*)pNode;
+      res = walkExprs(pWin->pPartitionByList, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pWin->pOrderByList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pWin->pFrame, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_WINDOW_FRAME: {
+      SWindowFrameNode* pFrame = (SWindowFrameNode*)pNode;
+      res = walkExpr(pFrame->start.pOffset, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFrame->end.pOffset, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      res = walkExpr(((SNamedWindowNode*)pNode)->pSpec, order, walker, pContext);
+      break;
+    case QUERY_NODE_PERIOD_WINDOW: {
+      SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
+      res = walkExpr(pPeriod->pOffset, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pPeriod->pPeroid, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
-      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
-      res = walkExpr(pEvent->pCol, order, walker, pContext);
+      SCountWindowNode* pCount = (SCountWindowNode*)pNode;
+      res = walkExpr(pCount->pCol, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pCount->pColList, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
-      res = walkExpr(pAnomaly->pExpr, order, walker, pContext);
+      res = walkExprs(pAnomaly->pExpr, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pAnomaly->pCol, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TRIGGER: {
+      SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pNode;
+      res = walkExpr(pTrigger->pTriggerWindow, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pPartitionList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pTrigger->pRollupTagList, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrigger->pOptions, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = walkExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, walker, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = walkExpr(((SStreamWindowLayerNode*)pNode)->pWindow, order, walker, pContext);
+      break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      res = walkExpr(((STimeAlignTableNode*)pNode)->pRealTableNode, order, walker, pContext);
+      break;
+    case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
+      SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
+      res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      // max_delay may reference a Tag column; must be walked so createStreamReqBuildTriggerSelect
+      // collects it into the trigger scan projection (needed when PARTITION BY is only tbname and
+      // injectStreamDurationTagsIntoPartition appends the Tag later for group-col fetch).
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pMaxDelay, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pWaterMark, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pExpiredTime, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pFillHisStartTime, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pIdleTimeout, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pCount, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pStartLimit, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pEndLimit, order, walker, pContext);
       }
       break;
     }
@@ -231,11 +375,35 @@ void nodesWalkExprsPostOrder(SNodeList* pList, FNodeWalker walker, void* pContex
   res = walkExprs(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
+static void markOpLeftAndRightAsParam(SOperatorNode* pOp) {
+  if (NULL != pOp->pLeft) {
+    if (nodeType(pOp->pLeft) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pLeft)->node.asParam = true;
+    }
+    if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pLeft)->node.asParam = true;
+    }
+  }
+  if (NULL != pOp->pRight) {
+    if (nodeType(pOp->pRight) == QUERY_NODE_FUNCTION) {
+      ((SFunctionNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_COLUMN) {
+      ((SColumnNode*)pOp->pRight)->node.asParam = true;
+    }
+    if (nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
+      ((SValueNode*)pOp->pRight)->node.asParam = true;
+    }
+  }
+}
+
 static void checkParamIsFunc(SFunctionNode* pFunc) {
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
-    if (numOfParams > 1 && nodeType(pPara) == QUERY_NODE_FUNCTION) {
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
+    if (nodeType(pPara) == QUERY_NODE_FUNCTION) {
       ((SFunctionNode*)pPara)->node.asParam = true;
     }
     if (nodeType(pPara) == QUERY_NODE_COLUMN) {
@@ -265,13 +433,23 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
 
   SNode* pNode = *pRawNode;
   switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_TEMPLATE:  // Template ownership is not an expression traversal edge.
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
     case QUERY_NODE_LIMIT:
       // these node types with no subnodes
       break;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      res = rewriteExprs(((SCorrelatedSubqueryNode*)pNode)->pParamBindings, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      res = rewriteExpr(&((SCorrelationParamBindingNode*)pNode)->pSource, order, rewriter, pContext);
+      break;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      markOpLeftAndRightAsParam(pOpNode);
       res = rewriteExpr(&(pOpNode->pLeft), order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pOpNode->pRight), order, rewriter, pContext);
@@ -285,10 +463,16 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       SFunctionNode* pFunc = (SFunctionNode*)pNode;
       checkParamIsFunc(pFunc);
       res = rewriteExprs(pFunc->pParameterList, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pFunc->pOver, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
+    case QUERY_NODE_TEXT_TABLE:
+    case QUERY_NODE_FILE_TABLE:
+    case QUERY_NODE_VIRTUAL_TABLE:
       break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
@@ -309,9 +493,18 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_STATE_WINDOW: {
       SStateWindowNode* pState = (SStateWindowNode*)pNode;
-      res = rewriteExpr(&pState->pExpr, order, rewriter, pContext);
+      res = rewriteExprs(pState->pExprList, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pState->pCol, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pTrueForLimit, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pState->pExtend, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pState->pZerothList, order, rewriter, pContext);
       }
       break;
     }
@@ -320,6 +513,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       res = rewriteExpr((SNode**)&pSession->pCol, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr((SNode**)&pSession->pGap, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EXTERNAL_WINDOW: {
+      SExternalWindowNode* pExternal = (SExternalWindowNode*)pNode;
+      res = rewriteExpr(&pExternal->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pExternal->pFill, order, rewriter, pContext);
       }
       break;
     }
@@ -333,6 +534,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
         res = rewriteExpr(&(pInterval->pSliding), order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&(pInterval->pSOffset), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pInterval->pFill), order, rewriter, pContext);
       }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -340,6 +544,15 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_STREAM_WINDOW_PLAN:
+      res = rewriteExprs(((SStreamWindowPlanNode*)pNode)->pLayers, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_STREAM_WINDOW_LAYER:
+      res = rewriteExpr(&((SStreamWindowLayerNode*)pNode)->pWindow, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      res = rewriteExpr(&((STimeAlignTableNode*)pNode)->pRealTableNode, order, rewriter, pContext);
+      break;
     case QUERY_NODE_NODE_LIST:
       res = rewriteExprs(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);
       break;
@@ -348,6 +561,13 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       res = rewriteExpr(&pFill->pValues, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&(pFill->pWStartTs), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pTimeRange), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR!= res && DEAL_RES_END!= res) {
+        res = rewriteExpr(&(pFill->pSurroundingTime), order, rewriter,
+                          pContext);
       }
       break;
     }
@@ -385,6 +605,17 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pEvent->pEndCond, order, rewriter, pContext);
       }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pEvent->pTrueForLimit, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_EVENT_START_LEAF: {
+      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
+      res = rewriteExpr(&pLeaf->pCond, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pLeaf->pTrueFor, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_WINDOW_OFFSET: {
@@ -395,19 +626,80 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       }
       break;
     }
+    case QUERY_NODE_SQL_WINDOW_SPEC: {
+      SWindowSpecNode* pWin = (SWindowSpecNode*)pNode;
+      res = rewriteExprs(pWin->pPartitionByList, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pWin->pOrderByList, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWin->pFrame, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_WINDOW_FRAME: {
+      SWindowFrameNode* pFrame = (SWindowFrameNode*)pNode;
+      res = rewriteExpr(&pFrame->start.pOffset, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pFrame->end.pOffset, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      res = rewriteExpr(&((SNamedWindowNode*)pNode)->pSpec, order, rewriter, pContext);
+      break;
     case QUERY_NODE_COUNT_WINDOW: {
-      SCountWindowNode* pEvent = (SCountWindowNode*)pNode;
-      res = rewriteExpr(&pEvent->pCol, order, rewriter, pContext);
+      SCountWindowNode* pCount = (SCountWindowNode*)pNode;
+      res = rewriteExpr(&pCount->pCol, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pCount->pColList, order, rewriter, pContext);
+      }
       break;
     }
     case QUERY_NODE_ANOMALY_WINDOW: {
       SAnomalyWindowNode* pAnomaly = (SAnomalyWindowNode*)pNode;
-      res = rewriteExpr(&pAnomaly->pExpr, order, rewriter, pContext);
+      res = rewriteExprs(pAnomaly->pExpr, order, rewriter, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pAnomaly->pCol, order, rewriter, pContext);
       }
       break;
     }
+    case QUERY_NODE_PERIOD_WINDOW: {
+      SPeriodWindowNode* pPeriod = (SPeriodWindowNode*)pNode;
+      res = rewriteExpr(&pPeriod->pOffset, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pPeriod->pPeroid, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_STREAM_TAG_DEF: {
+      SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
+      res = rewriteExpr(&pTagDef->pTagExpr, order, rewriter, pContext);
+      break;
+    }
+    case QUERY_NODE_TIME_RANGE: {
+      STimeRangeNode* pTimeRange = (STimeRangeNode*)pNode;
+      res = rewriteExpr(&pTimeRange->pStart, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTimeRange->pEnd, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_TRUE_FOR: {
+      STrueForNode* pTrueFor = (STrueForNode*)pNode;
+      res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pCount, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pStartLimit, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pEndLimit, order, rewriter, pContext);
+      }
+      break;
+    }
+
     default:
       break;
   }
@@ -457,13 +749,20 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
-      nodesWalkExprs(pSelect->pTags, walker, pContext);
-      nodesWalkExpr(pSelect->pSubtable, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
+    case SQL_CLAUSE_EXT_WINDOW:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
+      nodesWalkExpr(pSelect->pFill, walker, pContext);
     case SQL_CLAUSE_WINDOW:
-      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-        nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
+      nodesWalkExprs(pSelect->pWindowList, walker, pContext);
+      if (NULL != pSelect->pWindow) {
+        if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, walker, pContext);
+        } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
+        } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, walker, pContext);
+        }
       }
     case SQL_CLAUSE_FILL:
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
@@ -475,6 +774,7 @@ void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalke
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
+      nodesWalkExprs(pSelect->pProjectionBindList, walker, pContext);
     default:
       break;
   }
@@ -491,19 +791,34 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     return;
   }
 
+  bool windowRewritten = false;
   switch (clause) {
     case SQL_CLAUSE_FROM:
       nodesRewriteExpr(&(pSelect->pFromTable), rewriter, pContext);
       nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pTimeRange), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
-      nodesRewriteExprs(pSelect->pTags, rewriter, pContext);
-      nodesRewriteExpr(&(pSelect->pSubtable), rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
+    case SQL_CLAUSE_EXT_WINDOW:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
+      windowRewritten = true;
     case SQL_CLAUSE_WINDOW:
-      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-        nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
+      nodesRewriteExprs(pSelect->pWindowList, rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pFill), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pRange), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pRangeAround), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pEvery), rewriter, pContext);
+      if (NULL != pSelect->pWindow) {
+        if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          SExternalWindowNode* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+          nodesRewriteExpr(&pExternal->pSubquery, rewriter, pContext);
+          nodesRewriteExpr(&pExternal->pTimeRange, rewriter, pContext);
+        } else if (!windowRewritten && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
+        } else if (!windowRewritten && QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+          nodesRewriteExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, rewriter, pContext);
+        }
       }
     case SQL_CLAUSE_FILL:
       nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
@@ -515,6 +830,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     case SQL_CLAUSE_ORDER_BY:
       nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pProjectionBindList, rewriter, pContext);
     default:
       break;
   }

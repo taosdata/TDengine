@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -48,29 +50,31 @@ typedef struct SStmtTableCache {
 } SStmtTableCache;
 
 typedef struct SStmtQueryResInfo {
-  TAOS_FIELD *fields;
+  TAOS_FIELD_E *fields;
   TAOS_FIELD *userFields;
   uint32_t    numOfCols;
   int32_t     precision;
 } SStmtQueryResInfo;
 
 typedef struct SStmtBindInfo {
-  bool     needParse;
-  bool     inExecCache;
-  uint64_t tbUid;
-  uint64_t tbSuid;
-  int32_t  tbVgId;
-  int32_t  sBindRowNum;
-  int32_t  sBindLastIdx;
-  int8_t   tbType;
-  bool     tagsCached;
-  bool     preCtbname;
-  void    *boundTags;
-  char     tbName[TSDB_TABLE_FNAME_LEN];
-  char     tbFName[TSDB_TABLE_FNAME_LEN];
-  char     stbFName[TSDB_TABLE_FNAME_LEN];
-  SName    sname;
-  char     statbName[TSDB_TABLE_FNAME_LEN];
+  bool       needParse;
+  bool       inExecCache;
+  uint64_t   tbUid;
+  uint64_t   tbSuid;
+  int32_t    tbVgId;
+  int32_t    sBindRowNum;
+  int32_t    sBindLastIdx;
+  int8_t     tbType;
+  bool       tagsCached;
+  bool       boundColsCached;
+  uint8_t    tbNameFlag;
+  void      *boundTags;
+  SSHashObj *fixedValueCols;  // SHash<SColVal>
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  char       tbFName[TSDB_TABLE_FNAME_LEN];
+  char       stbFName[TSDB_TABLE_FNAME_LEN];
+  SName      sname;
+  char       statbName[TSDB_TABLE_FNAME_LEN];
 } SStmtBindInfo;
 
 typedef struct SStmtAsyncParam {
@@ -101,6 +105,7 @@ typedef struct SStmtSQLInfo {
   bool              autoCreateTbl;
   SHashObj         *pVgHash;
   SBindInfo        *pBindInfo;
+  SSHashObj        *predicateCols;
 
   SStbInterlaceInfo siInfo;
 } SStmtSQLInfo;
@@ -118,11 +123,19 @@ typedef struct SStmtStatInfo {
   int64_t addBatchUs;
   int64_t execWaitUs;
   int64_t execUseUs;
+  int64_t asyncQueueWaitUs;
+  int64_t asyncBackpressureUs;
+  int64_t asyncAppendUs;
+  int64_t asyncTaskNum;
+  int64_t asyncQueueHighWater;
 } SStmtStatInfo;
 
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
+  SVCreateTbReq       *pCreateTbReq;
+  int32_t              tableColsIdx;
+  int64_t              enqueueUs;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
@@ -130,7 +143,7 @@ typedef struct SStmtQueue {
   bool        stopQueue;
   SStmtQNode* head;
   SStmtQNode* tail;
-  uint64_t    qRemainNum;
+  int64_t       qRemainNum;
   TdThreadMutex mutex;
   TdThreadCond  waitCond;
 } SStmtQueue;
@@ -155,6 +168,12 @@ typedef struct STscStmt {
   int32_t           errCode;
 
   SStmtStatInfo     stat;
+  // Workload recorder: logical statement identity, minted once by the public
+  // taos_stmt_init/taos_stmt2_init wrappers after calloc and referenced by every
+  // later event on this handle. The handle is freed by stmtClose rather than recycled,
+  // so the ID is never reused or reset in place. STMT1 and STMT2 share
+  // wlrNextStmtId(). Zero means recording is off or capture is not running.
+  uint64_t wlrStmtId;
 } STscStmt;
 
 extern char *gStmtStatusStr[];
@@ -205,12 +224,12 @@ extern char *gStmtStatusStr[];
     }                                \
   } while (0)
 
-#define STMT_FLOG(param, ...) qFatal("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_ELOG(param, ...) qError("stmt:%p " param, pStmt, __VA_ARGS__)
-#define STMT_DLOG(param, ...) qDebug("stmt:%p " param, pStmt, __VA_ARGS__)
+#define STMT_FLOG(param, ...) qFatal("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_ELOG(param, ...) qError("stmt:%p, " param, pStmt, __VA_ARGS__)
+#define STMT_DLOG(param, ...) qDebug("stmt:%p, " param, pStmt, __VA_ARGS__)
 
-#define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
-#define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
+#define STMT_ELOG_E(param) qError("stmt:%p, " param, pStmt)
+#define STMT_DLOG_E(param) qDebug("stmt:%p, " param, pStmt)
 
 TAOS_STMT  *stmtInit(STscObj* taos, int64_t reqid, TAOS_STMT_OPTIONS* pOptions);
 int         stmtClose(TAOS_STMT *stmt);

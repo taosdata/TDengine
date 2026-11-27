@@ -1,0 +1,196 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+IF (BUILD_VER_NUMBER STREQUAL "")
+  SET(BUILD_VER_NUMBER "3.4.4.0")
+ENDIF ()
+
+IF (BUILD_VER_COMPATIBLE STREQUAL "")
+  SET(BUILD_VER_COMPATIBLE "3.0.0.0")
+ENDIF ()
+
+STRING(LENGTH "${BUILD_VER_NUMBER}" BUILD_VER_NUMBER_LEN)
+IF (BUILD_VER_NUMBER_LEN GREATER 20)
+  MESSAGE(FATAL_ERROR
+    "BUILD_VER_NUMBER is too long (${BUILD_VER_NUMBER_LEN} > 20): ${BUILD_VER_NUMBER}. "
+    "Keep the version within 20 characters so ${BUILD_VER_NUMBER}.${TD_EDITION} fits protocol limits.")
+ENDIF ()
+
+IF (TD_ENTERPRISE)
+  SET(TD_EDITION "enterprise")
+  IF (DEFINED ENV{TD_ENTERPRISE_EDITION_SIGNATURE_SALT})
+    SET(TD_EDITION_SIGNATURE_SALT "$ENV{TD_ENTERPRISE_EDITION_SIGNATURE_SALT}")
+  ELSE()
+    message(STATUS "Enterprise edition signature salt is not set.")
+  ENDIF ()
+ELSE()
+  SET(TD_EDITION "community")
+  IF (DEFINED ENV{TD_COMMUNITY_EDITION_SIGNATURE_SALT})
+    SET(TD_EDITION_SIGNATURE_SALT "$ENV{TD_COMMUNITY_EDITION_SIGNATURE_SALT}")
+  ELSE()
+    message(STATUS "Community edition signature salt is not set.")
+  ENDIF ()
+ENDIF ()
+
+IF (BUILD_VER_COMPATIBLE STREQUAL "")
+  SET(BUILD_VER_COMPATIBLE "3.0.0.0")
+ENDIF ()
+
+IF (BUILD_CUS_PRODUCT_NAME AND NOT BUILD_CUS_PRODUCT_NAME STREQUAL "")
+  ADD_DEFINITIONS(-DTD_PRODUCT_NAME="${BUILD_CUS_PRODUCT_NAME}")
+ENDIF ()
+
+IF (BUILD_CUS_NAME AND NOT BUILD_CUS_NAME STREQUAL "")
+  ADD_DEFINITIONS(-DCUS_NAME="${BUILD_CUS_NAME}")
+ENDIF ()
+
+IF (BUILD_CUS_PROMPT AND NOT BUILD_CUS_PROMPT STREQUAL "")
+  ADD_DEFINITIONS(-DCUS_PROMPT="${BUILD_CUS_PROMPT}")
+ENDIF ()
+
+IF (BUILD_CUS_EMAIL AND NOT BUILD_CUS_EMAIL STREQUAL "")
+  ADD_DEFINITIONS(-DCUS_EMAIL="${BUILD_CUS_EMAIL}")
+ENDIF ()
+
+find_program(HAVE_GIT NAMES git)
+
+IF (DEFINED BUILD_GITINFO AND NOT BUILD_GITINFO STREQUAL "")
+  # use value from command line
+ELSEIF (HAVE_GIT)
+  message(STATUS "TD_COMMUNITY_DIR:${TD_COMMUNITY_DIR}")
+  execute_process(COMMAND git log -1 --format=%H WORKING_DIRECTORY ${TD_COMMUNITY_DIR} OUTPUT_VARIABLE GIT_COMMITID)
+  IF (GIT_COMMITID)
+    string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
+    SET(BUILD_GITINFO ${GIT_COMMITID})
+  ELSE ()
+    message(STATUS "not a git repository")
+    SET(BUILD_GITINFO "no git commit id")
+  ENDIF ()
+ELSE ()
+  message(STATUS "no git found")
+  SET(BUILD_GITINFO "no git commit id")
+ENDIF ()
+
+IF (DEFINED BUILD_GITINFOI AND NOT BUILD_GITINFOI STREQUAL "")
+  # use value from command line
+ELSEIF (HAVE_GIT AND TD_ENTERPRISE)
+  execute_process(COMMAND git log -1 --format=%H WORKING_DIRECTORY ${TD_ENTERPRISE_DIR} OUTPUT_VARIABLE GIT_COMMITID)
+  message(STATUS "git log result:${GIT_COMMITID}")
+  IF (GIT_COMMITID)
+    string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
+    SET(BUILD_GITINFOI ${GIT_COMMITID})
+  ELSE ()
+    message(STATUS "not a git repository")
+    SET(BUILD_GITINFOI "no git commit id")
+  ENDIF ()
+ELSEIF (HAVE_GIT)
+  message(STATUS "PROJECT_SOURCE_DIR:${PROJECT_SOURCE_DIR}")
+  execute_process(COMMAND git log -1 --format=%H WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} OUTPUT_VARIABLE GIT_COMMITID)
+ELSE ()
+  message(STATUS "no git cmd")
+  SET(BUILD_GITINFOI "no git commit id")
+ENDIF ()
+
+message(STATUS "BUILD_GITINFOI: ${BUILD_GITINFOI}")
+message(STATUS "BUILD_GITINFO:  ${BUILD_GITINFO}")
+
+IF (NOT DEFINED BUILD_VER_DATE OR BUILD_VER_DATE STREQUAL "")
+  STRING(COMPARE GREATER_EQUAL "${CMAKE_VERSION}" "3.26" TD_CMAKE_SUPPORT_TZ)
+
+  IF (TD_CMAKE_SUPPORT_TZ)
+    STRING(TIMESTAMP BUILD_VER_DATE "%Y-%m-%d %H:%M:%S %z")
+  ELSE ()
+    IF (TD_WINDOWS)
+      STRING(TIMESTAMP BUILD_VER_DATE "%Y-%m-%d %H:%M:%S")
+    ELSE ()
+      EXECUTE_PROCESS(COMMAND date +"%F %T %z" OUTPUT_VARIABLE BUILD_VER_DATE)
+      STRING(REPLACE "\"" "" BUILD_VER_DATE ${BUILD_VER_DATE})
+      STRING(STRIP ${BUILD_VER_DATE} BUILD_VER_DATE)
+    ENDIF ()
+  ENDIF ()
+ENDIF ()
+
+IF (NOT DEFINED BUILD_VER_TYPE OR BUILD_VER_TYPE STREQUAL "")
+  SET(BUILD_VER_TYPE "stable")
+ENDIF ()
+
+IF (DEFINED BUILD_VER_CPUTYPE AND NOT BUILD_VER_CPUTYPE STREQUAL "")
+  # use value from command line
+ELSE ()
+  IF (TD_WINDOWS_32)
+    SET(BUILD_VER_CPUTYPE "x86")
+  ELSEIF (TD_LINUX_32)
+    SET(BUILD_VER_CPUTYPE "x86")
+  ELSEIF (TD_ARM_32)
+    SET(BUILD_VER_CPUTYPE "arm32")
+  ELSEIF (TD_MIPS_32)
+    SET(BUILD_VER_CPUTYPE "mips32")
+  ELSE ()
+    SET(BUILD_VER_CPUTYPE "x64")
+  ENDIF ()
+ENDIF ()
+
+IF (NOT DEFINED BUILD_VER_OSTYPE OR BUILD_VER_OSTYPE STREQUAL "")
+  SET(BUILD_VER_OSTYPE "Linux")
+ENDIF ()
+
+MESSAGE(STATUS "============= compile version parameter information start ============= ")
+MESSAGE(STATUS "version:    " ${BUILD_VER_NUMBER})
+MESSAGE(STATUS "compatible: " ${BUILD_VER_COMPATIBLE})
+MESSAGE(STATUS "commit id:  " ${BUILD_GITINFO})
+MESSAGE(STATUS "build date: " ${BUILD_VER_DATE})
+MESSAGE(STATUS "build type: " ${CMAKE_BUILD_TYPE})
+MESSAGE(STATUS "type:       " ${BUILD_VER_TYPE})
+MESSAGE(STATUS "cpu:        " ${BUILD_VER_CPUTYPE})
+MESSAGE(STATUS "os:         " ${BUILD_VER_OSTYPE})
+MESSAGE(STATUS "============= compile version parameter information end  ============= ")
+
+SET(BUILD_VER_NUMBER     "${BUILD_VER_NUMBER}"      CACHE STRING "Global TD version number"   FORCE)
+SET(BUILD_VER_OSTYPE     "${BUILD_VER_OSTYPE}"      CACHE STRING "Global TD target OS type"   FORCE)
+SET(BUILD_VER_CPUTYPE    "${BUILD_VER_CPUTYPE}"     CACHE STRING "Global TD target CPU type"  FORCE)
+SET(BUILD_VER_DATE       "${BUILD_VER_DATE}"        CACHE STRING "Global TD build date"       FORCE)
+SET(BUILD_VER_COMPATIBLE "${BUILD_VER_COMPATIBLE}"  CACHE STRING "Global TD compatible ver"   FORCE)
+SET(BUILD_VER_TYPE       "${BUILD_VER_TYPE}"        CACHE STRING "Global TD version type"     FORCE)
+SET(BUILD_GITINFO        "${BUILD_GITINFO}"         CACHE STRING "Global TD git commit"       FORCE)
+SET(BUILD_GITINFOI       "${BUILD_GITINFOI}"        CACHE STRING "Global TD internal commit"  FORCE)
+
+STRING(REPLACE "." "_" TD_LIB_VER_NUMBER "${BUILD_VER_NUMBER}")
+
+# Generate comma-separated version for Windows .rc FILEVERSION/PRODUCTVERSION
+# Extract up to 4 numeric components from BUILD_VER_NUMBER (e.g. "3.4.1.6.alpha" → "3,4,1,6")
+STRING(REGEX MATCHALL "[0-9]+" _ver_components "${BUILD_VER_NUMBER}")
+LIST(LENGTH _ver_components _ver_len)
+IF(_ver_len GREATER_EQUAL 4)
+  LIST(GET _ver_components 0 _v0)
+  LIST(GET _ver_components 1 _v1)
+  LIST(GET _ver_components 2 _v2)
+  LIST(GET _ver_components 3 _v3)
+ELSEIF(_ver_len EQUAL 3)
+  LIST(GET _ver_components 0 _v0)
+  LIST(GET _ver_components 1 _v1)
+  LIST(GET _ver_components 2 _v2)
+  SET(_v3 "0")
+ELSEIF(_ver_len EQUAL 2)
+  LIST(GET _ver_components 0 _v0)
+  LIST(GET _ver_components 1 _v1)
+  SET(_v2 "0")
+  SET(_v3 "0")
+ELSE()
+  SET(_v0 "0")
+  SET(_v1 "0")
+  SET(_v2 "0")
+  SET(_v3 "0")
+ENDIF()
+SET(BUILD_VER_NUMBER_COMMA "${_v0},${_v1},${_v2},${_v3}" CACHE STRING "Comma-separated version for RC" FORCE)

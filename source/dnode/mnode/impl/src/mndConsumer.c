@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,11 +23,13 @@
 #include "mndSubscribe.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 #include "mndVgroup.h"
 #include "tcompare.h"
+#include "tlogKeyOp.h"
 #include "tname.h"
 
-#define MND_CONSUMER_VER_NUMBER   3
+#define MND_CONSUMER_VER_NUMBER   4
 #define MND_CONSUMER_RESERVE_SIZE 64
 
 #define MND_MAX_GROUP_PER_TOPIC 100
@@ -73,6 +77,8 @@ int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType,
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   void   *msg  = rpcMallocCont(sizeof(int64_t));
   MND_TMQ_NULL_CHECK(msg);
 
@@ -86,55 +92,73 @@ int32_t mndSendConsumerMsg(SMnode *pMnode, int64_t consumerId, uint16_t msgType,
 
   mInfo("mndSendConsumerMsg type:%d consumer:0x%" PRIx64, msgType, consumerId);
   MND_TMQ_RETURN_CHECK(tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg));
-  return code;
 
 END:
-  taosMemoryFree(msg);
+  PRINT_LOG_END
   return code;
 }
 
-static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *pUser) {
-  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || pUser == NULL) {
+static int32_t validateOneTopic(STrans* pTrans,char *pOneTopic, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
+  int32_t      code = 0;
+  int32_t lino = 0;
+  SMqTopicObj *pTopic = NULL;
+
+  PRINT_LOG_START
+  MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, pOneTopic, &pTopic));
+  taosRLockLatch(&pTopic->lock);
+
+  MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic));
+  MND_TMQ_RETURN_CHECK(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION));
+
+  if (subscribe->enableReplay) {
+    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+      code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
+      goto END;
+    } 
+    if (pTopic->stbName[0] != 0) {
+      SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
+      if (pDb == NULL) {
+        code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+        goto END;
+      }
+      if (pDb->cfg.numOfVgroups != 1) {
+        mndReleaseDb(pMnode, pDb);
+        code = TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
+        goto END;
+      }
+      mndReleaseDb(pMnode, pDb);
+    }
+  }
+  char  key[TSDB_CONSUMER_ID_LEN] = {0};
+  (void)snprintf(key, TSDB_CONSUMER_ID_LEN, "%"PRIx64, subscribe->consumerId);
+  mndTransSetDbName(pTrans, pTopic->db, key);
+  MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
+
+END:
+  PRINT_LOG_END
+  if (pTopic != NULL) {
+    taosRUnLockLatch(&pTopic->lock);
+  }
+  mndReleaseTopic(pMnode, pTopic);
+  return code;
+}
+
+static int32_t validateTopics(STrans* pTrans, SCMSubscribeReq *subscribe, SMnode *pMnode, const char *user, const char* token) {
+  if (pTrans == NULL || subscribe == NULL || pMnode == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMqTopicObj *pTopic = NULL;
   int32_t      code = 0;
+  int32_t lino = 0;
 
+  PRINT_LOG_START
   int32_t numOfTopics = taosArrayGetSize(subscribe->topicNames);
   for (int32_t i = 0; i < numOfTopics; i++) {
     char *pOneTopic = taosArrayGetP(subscribe->topicNames, i);
-    MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, pOneTopic, &pTopic));
-    MND_TMQ_RETURN_CHECK(mndCheckTopicPrivilege(pMnode, pUser, MND_OPER_SUBSCRIBE, pTopic));
-    MND_TMQ_RETURN_CHECK(grantCheckExpire(TSDB_GRANT_SUBSCRIPTION));
-
-    if (subscribe->enableReplay) {
-      if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
-        code = TSDB_CODE_TMQ_REPLAY_NOT_SUPPORT;
-        goto END;
-      } else if (pTopic->ntbUid == 0 && pTopic->ctbStbUid == 0) {
-        SDbObj *pDb = mndAcquireDb(pMnode, pTopic->db);
-        if (pDb == NULL) {
-          code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-          goto END;
-        }
-        if (pDb->cfg.numOfVgroups != 1) {
-          mndReleaseDb(pMnode, pDb);
-          code = TSDB_CODE_TMQ_REPLAY_NEED_ONE_VGROUP;
-          goto END;
-        }
-        mndReleaseDb(pMnode, pDb);
-      }
-    }
-    char  key[TSDB_CONSUMER_ID_LEN] = {0};
-    (void)snprintf(key, TSDB_CONSUMER_ID_LEN, "%"PRIx64, subscribe->consumerId);
-    mndTransSetDbName(pTrans, pTopic->db, key);
-    MND_TMQ_RETURN_CHECK(mndTransCheckConflict(pMnode, pTrans));
-    mndReleaseTopic(pMnode, pTopic);
+    MND_TMQ_RETURN_CHECK(validateOneTopic(pTrans, pOneTopic, subscribe, pMnode, user, token));
   }
-  return 0;
 
 END:
-  mndReleaseTopic(pMnode, pTopic);
+  PRINT_LOG_END
   return code;
 }
 
@@ -143,6 +167,7 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t              code = 0;
+  int32_t              lino = 0;
   SMnode              *pMnode = pMsg->info.node;
   SMqConsumerClearMsg *pClearMsg = pMsg->pCont;
   SMqConsumerObj      *pConsumerNew = NULL;
@@ -150,49 +175,94 @@ static int32_t mndProcessConsumerClearMsg(SRpcMsg *pMsg) {
   SMqConsumerObj      *pConsumer = NULL;
 
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, pClearMsg->consumerId, &pConsumer));
+  taosRLockLatch(&pConsumer->lock);
   mInfo("consumer:0x%" PRIx64 " needs to be cleared, status %s", pClearMsg->consumerId,
         mndConsumerStatusName(pConsumer->status));
 
-  MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, -1, NULL, NULL, &pConsumerNew));
+  MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(pConsumer->consumerId, pConsumer->cgroup, CONSUMER_CLEAR, NULL, NULL, &pConsumerNew));
+
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pMsg, "clear-csm");
   MND_TMQ_NULL_CHECK(pTrans);
   MND_TMQ_RETURN_CHECK(mndSetConsumerDropLogs(pTrans, pConsumerNew));
   code = mndTransPrepare(pMnode, pTrans);
 
 END:
+  PRINT_LOG_END
+  if (pConsumer != NULL) {
+    taosRUnLockLatch(&pConsumer->lock);
+  }
   mndReleaseConsumer(pMnode, pConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
   mndTransDrop(pTrans);
   return code;
 }
 
-static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, char *user) {
+static void checkOnePrivilege(const char* topic, SMnode *pMnode, SMqHbRsp *rsp, const char *user, const char* token) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMqTopicObj *pTopic = NULL;
+  PRINT_LOG_START
+  MND_TMQ_RETURN_CHECK(mndAcquireTopic(pMnode, topic, &pTopic));
+  taosRLockLatch(&pTopic->lock);
+  STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
+  MND_TMQ_NULL_CHECK(data);
+  tstrncpy(data->topic, topic, TSDB_TOPIC_FNAME_LEN);
+  if (mndCheckTopicPrivilege(pMnode, user, token, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
+      grantCheckExpire(TSDB_GRANT_SUBSCRIPTION) < 0) {
+    data->noPrivilege = 1;
+  } else {
+    data->noPrivilege = 0;
+  }
+
+END:
+  PRINT_LOG_END
+  if (pTopic != NULL) {
+    taosRUnLockLatch(&pTopic->lock);
+  }
+  mndReleaseTopic(pMnode, pTopic);
+}
+
+static int32_t checkPrivilege(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqHbRsp *rsp, const char *user, const char* token) {
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL || user == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
+
   rsp->topicPrivileges = taosArrayInit(taosArrayGetSize(pConsumer->currentTopics), sizeof(STopicPrivilege));
   MND_TMQ_NULL_CHECK(rsp->topicPrivileges);
   for (int32_t i = 0; i < taosArrayGetSize(pConsumer->currentTopics); i++) {
     char        *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    SMqTopicObj *pTopic = NULL;
-    code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
-      continue;
-    }
-    STopicPrivilege *data = taosArrayReserve(rsp->topicPrivileges, 1);
-    MND_TMQ_NULL_CHECK(data);
-    tstrncpy(data->topic, topic, TSDB_TOPIC_FNAME_LEN);
-    if (mndCheckTopicPrivilege(pMnode, user, MND_OPER_SUBSCRIBE, pTopic) != 0 ||
-        grantCheckExpire(TSDB_GRANT_SUBSCRIPTION) < 0) {
-      data->noPrivilege = 1;
-    } else {
-      data->noPrivilege = 0;
-    }
-    mndReleaseTopic(pMnode, pTopic);
+    checkOnePrivilege(topic, pMnode, rsp, user, token);
   }
+
 END:
+  PRINT_LOG_END
   return code;
+}
+
+// Check whether the requester owns the consumer. This is the single place that logs an owner
+// mismatch: callers must not log the same rejection again, since the heartbeat path may repeat it
+// every heartbeat interval for a consumer that can never be recovered automatically.
+static int32_t validateConsumerOwner(const SRpcMsg *pMsg, const SMqConsumerObj *pConsumer) {
+  if (pMsg == NULL || pConsumer == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (strncmp(RPC_MSG_USER(pMsg), pConsumer->user, TSDB_USER_LEN) != 0) {
+    mWarn("consumer:0x%" PRIx64 " owner mismatch, requester:%s, owner:%s, "
+          "group:%s, QID:0x%" PRIx64 ":0x%" PRIx64
+          "; if this is a legacy token consumer after upgrade, close and "
+          "recreate it with the same group and topics; keep the consumer "
+          "group to retain committed offsets",
+          pConsumer->consumerId, RPC_MSG_USER(pMsg), pConsumer->user,
+          pConsumer->cgroup, pMsg->info.traceId.rootId,
+          pMsg->info.traceId.msgId);
+    return TSDB_CODE_MND_CONSUMER_NOT_EXIST;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pConsumer){
@@ -204,7 +274,7 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
     if (data == NULL){
       continue;
     }
-    mInfo("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
+    mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
 
     SMqSubscribeObj *pSub = NULL;
     char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
@@ -254,18 +324,30 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t         code = 0;
+  int32_t         lino = 0;
   SMnode         *pMnode = pMsg->info.node;
   SMqHbReq        req = {0};
   SMqHbRsp        rsp = {0};
   SMqConsumerObj *pConsumer = NULL;
+  bool            ownerRejected = false;
+  PRINT_LOG_START
+
   MND_TMQ_RETURN_CHECK(tDeserializeSMqHbReq(pMsg->pCont, pMsg->contLen, &req));
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
-  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, pMsg->info.conn.user));
+  taosWLockLatch(&pConsumer->lock);
+  code = validateConsumerOwner(pMsg, pConsumer);
+  if (code != TSDB_CODE_SUCCESS) {
+    ownerRejected = true;
+    lino = __LINE__;
+    goto END;
+  }
+  MND_TMQ_RETURN_CHECK(checkPrivilege(pMnode, pConsumer, &rsp, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
   atomic_store_32(&pConsumer->hbStatus, 0);
   mDebug("consumer:0x%" PRIx64 " receive hb pollFlag:%d pollStatus:%d", consumerId, req.pollFlag, pConsumer->pollStatus);
   if (req.pollFlag == 1){
     atomic_store_32(&pConsumer->pollStatus, 0);
+    pConsumer->pollTime = taosGetTimestampMs();
   }
 
   storeOffsetRows(pMnode, &req, pConsumer);
@@ -273,116 +355,99 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   code = buildMqHbRsp(pMsg, &rsp);
 
 END:
+  if (pConsumer != NULL) {
+    taosWUnLockLatch(&pConsumer->lock);
+  }
   tDestroySMqHbRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
   tDestroySMqHbReq(&req);
+  if (ownerRejected) {
+    // validateConsumerOwner already reported the mismatch with the recovery guidance; a rejected
+    // heartbeat repeats on every heartbeat interval, so keep the summary at debug level only.
+    mDebug("%s rejected the requester at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+    mWarn("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == 0) {
+    mDebug("%s return success", __func__);
+  } else {
+    mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
-static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, int32_t epoch, SMqAskEpRsp *rsp){
+static int32_t processEachTopicEp(SMnode *pMnode, SMqConsumerObj *pConsumer, char *topic, SMqAskEpRsp *rsp) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SMqSubscribeObj *pSub = NULL;
+  SMqSubTopicEp topicEp = {0};
+  char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
+  PRINT_LOG_START
+  (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, topic);
+  if(mndAcquireSubscribeByKey(pMnode, key, &pSub) != 0) {
+    mWarn("%s failed to acquire subscribe by key:%s", __func__, key);
+    goto END;
+  }
+  tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
+
+  taosWLockLatch(&pSub->lock);
+  // 2.2 iterate all vg assigned to the consumer of that topic
+  SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
+  MND_TMQ_NULL_CHECK(pConsumerEp);
+  int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
+  topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
+  MND_TMQ_NULL_CHECK(topicEp.vgs);
+
+  tstrncpy(topicEp.db, pSub->dbName, TSDB_DB_FNAME_LEN);
+  for (int32_t j = 0; j < vgNum; j++) {
+    int32_t *vgId = taosArrayGet(pConsumerEp->vgs, j);
+    if (vgId == NULL) {
+      continue;
+    }
+    SMqSubVgEp vgEp = {.epSet = {0}, .vgId = *vgId, .offset = -1};
+    SVgObj *pVgroup = mndAcquireVgroup(pMnode, *vgId);
+    if (pVgroup == NULL) {
+      mWarn("failed to acquire vgroup:%d", *vgId);
+      code = terrno;
+      goto END;
+    }
+    vgEp.epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    mndReleaseVgroup(pMnode, pVgroup);
+    MND_TMQ_NULL_CHECK(taosArrayPush(topicEp.vgs, &vgEp));
+  }
+  MND_TMQ_NULL_CHECK(taosArrayPush(rsp->topics, &topicEp));
+  topicEp.vgs = NULL;
+
+END:
+  if (pSub != NULL) {
+    taosWUnLockLatch(&pSub->lock);
+  }
+  taosArrayDestroy(topicEp.vgs);
+  mndReleaseSubscribe(pMnode, pSub);
+  PRINT_LOG_END
+  return code;
+}
+
+static int32_t addEpSetInfo(SMnode *pMnode, SMqConsumerObj *pConsumer, SMqAskEpRsp *rsp){
   if (pMnode == NULL || pConsumer == NULL || rsp == NULL){
     return TSDB_CODE_INVALID_PARA;
   }
-  taosRLockLatch(&pConsumer->lock);
+  int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
 
   int32_t numOfTopics = taosArrayGetSize(pConsumer->currentTopics);
-
   rsp->topics = taosArrayInit(numOfTopics, sizeof(SMqSubTopicEp));
-  if (rsp->topics == NULL) {
-    taosRUnLockLatch(&pConsumer->lock);
-    return terrno;
-  }
+  MND_TMQ_NULL_CHECK(rsp->topics);
 
   // handle all topics subscribed by this consumer
   for (int32_t i = 0; i < numOfTopics; i++) {
     char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-    SMqSubscribeObj *pSub = NULL;
-    char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
-    (void)snprintf(key, TSDB_SUBSCRIBE_KEY_LEN, "%s%s%s", pConsumer->cgroup, TMQ_SEPARATOR, topic);
-    int32_t code = mndAcquireSubscribeByKey(pMnode, key, &pSub);
-    if (code != 0) {
-      continue;
-    }
-    taosRLockLatch(&pSub->lock);
-
-    SMqSubTopicEp topicEp = {0};
-    tstrncpy(topicEp.topic, topic, TSDB_TOPIC_FNAME_LEN);
-
-    // 2.1 fetch topic schema
-    SMqTopicObj *pTopic = NULL;
-    code = mndAcquireTopic(pMnode, topic, &pTopic);
-    if (code != TDB_CODE_SUCCESS) {
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      continue;
-    }
-    taosRLockLatch(&pTopic->lock);
-    tstrncpy(topicEp.db, pTopic->db, TSDB_DB_FNAME_LEN);
-    topicEp.schema.nCols = pTopic->schema.nCols;
-    if (topicEp.schema.nCols) {
-      topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
-      if (topicEp.schema.pSchema == NULL) {
-        taosRUnLockLatch(&pTopic->lock);
-        taosRUnLockLatch(&pSub->lock);
-        mndReleaseSubscribe(pMnode, pSub);
-        mndReleaseTopic(pMnode, pTopic);
-        return terrno;
-      }
-      (void)memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
-    }
-    taosRUnLockLatch(&pTopic->lock);
-    mndReleaseTopic(pMnode, pTopic);
-
-    // 2.2 iterate all vg assigned to the consumer of that topic
-    SMqConsumerEp *pConsumerEp = taosHashGet(pSub->consumerHash, &pConsumer->consumerId, sizeof(int64_t));
-    if (pConsumerEp == NULL) {
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
-    topicEp.vgs = taosArrayInit(vgNum, sizeof(SMqSubVgEp));
-    if (topicEp.vgs == NULL) {
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return terrno;
-    }
-
-    for (int32_t j = 0; j < vgNum; j++) {
-      SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
-      if (pVgEp == NULL) {
-        continue;
-      }
-      if (epoch == -1) {
-        SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVgEp->vgId);
-        if (pVgroup) {
-          pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
-          mndReleaseVgroup(pMnode, pVgroup);
-        }
-      }
-      SMqSubVgEp vgEp = {.epSet = pVgEp->epSet, .vgId = pVgEp->vgId, .offset = -1};
-      if (taosArrayPush(topicEp.vgs, &vgEp) == NULL) {
-        taosArrayDestroy(topicEp.vgs);
-        taosRUnLockLatch(&pConsumer->lock);
-        taosRUnLockLatch(&pSub->lock);
-        mndReleaseSubscribe(pMnode, pSub);
-        return terrno;
-      }
-    }
-    if (taosArrayPush(rsp->topics, &topicEp) == NULL) {
-      taosArrayDestroy(topicEp.vgs);
-      taosRUnLockLatch(&pConsumer->lock);
-      taosRUnLockLatch(&pSub->lock);
-      mndReleaseSubscribe(pMnode, pSub);
-      return terrno;
-    }
-    taosRUnLockLatch(&pSub->lock);
-    mndReleaseSubscribe(pMnode, pSub);
+    MND_TMQ_RETURN_CHECK(processEachTopicEp(pMnode, pConsumer, topic, rsp));
   }
-  taosRUnLockLatch(&pConsumer->lock);
-  return 0;
+
+END:
+  PRINT_LOG_END
+  return code;
 }
 
 static int32_t buildAskEpRsp(SRpcMsg *pMsg, SMqAskEpRsp *rsp, int32_t serverEpoch, int64_t consumerId){
@@ -425,11 +490,21 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   SMqAskEpReq req = {0};
   SMqAskEpRsp rsp = {0};
   int32_t     code = 0;
+  int32_t     lino = 0;
   SMqConsumerObj *pConsumer = NULL;
+  bool        ownerRejected = false;
+  PRINT_LOG_START
 
   MND_TMQ_RETURN_CHECK(tDeserializeSMqAskEpReq(pMsg->pCont, pMsg->contLen, &req));
   int64_t consumerId = req.consumerId;
   MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, consumerId, &pConsumer));
+  taosRLockLatch(&pConsumer->lock);
+  code = validateConsumerOwner(pMsg, pConsumer);
+  if (code != TSDB_CODE_SUCCESS) {
+    ownerRejected = true;
+    lino = __LINE__;
+    goto END;
+  }
   if (strncmp(req.cgroup, pConsumer->cgroup, tListLen(pConsumer->cgroup)) != 0) {
     mError("consumer:0x%" PRIx64 " group:%s not consistent with data in sdb, saved cgroup:%s", consumerId, req.cgroup,
            pConsumer->cgroup);
@@ -438,28 +513,39 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
   }
 
   // 1. check consumer status
+  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
   int32_t status = atomic_load_32(&pConsumer->status);
   if (status != MQ_CONSUMER_STATUS_READY) {
     mInfo("consumer:0x%" PRIx64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
-    code = TSDB_CODE_MND_CONSUMER_NOT_READY;
-    goto END;
+    rsp.code = TSDB_CODE_MND_CONSUMER_NOT_READY;
+  } else {
+    int32_t epoch = req.epoch;
+
+    // 2. check epoch, only send ep info when epochs do not match
+    if (epoch != serverEpoch) {
+      mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
+            consumerId, epoch, serverEpoch);
+      MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, &rsp));
+    }
   }
-
-  int32_t epoch = req.epoch;
-  int32_t serverEpoch = atomic_load_32(&pConsumer->epoch);
-
-  // 2. check epoch, only send ep info when epochs do not match
-  if (epoch != serverEpoch) {
-    mInfo("process ask ep, consumer:0x%" PRIx64 "(epoch %d) update with server epoch %d",
-          consumerId, epoch, serverEpoch);
-    MND_TMQ_RETURN_CHECK(addEpSetInfo(pMnode, pConsumer, epoch, &rsp));
-  }
-
   code = buildAskEpRsp(pMsg, &rsp, serverEpoch, consumerId);
 
 END:
+  if (pConsumer != NULL) {
+    taosRUnLockLatch(&pConsumer->lock);
+  }
   tDeleteSMqAskEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);
+  if (ownerRejected) {
+    // validateConsumerOwner already reported the mismatch with the recovery guidance
+    mDebug("%s rejected the requester at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) {
+    mWarn("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  } else if (code == 0) {
+    mDebug("%s return success", __func__);
+  } else {
+    mError("%s failed at line:%d since:%s", __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -468,6 +554,8 @@ int32_t mndSetConsumerDropLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t  code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   SSdbRaw *pCommitRaw = mndConsumerActionEncode(pConsumer);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
@@ -476,7 +564,9 @@ int32_t mndSetConsumerDropLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
     goto END;
   }
   MND_TMQ_RETURN_CHECK(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+
 END:
+  PRINT_LOG_END
   return code;
 }
 
@@ -485,6 +575,8 @@ int32_t mndSetConsumerCommitLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t  code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
   SSdbRaw *pCommitRaw = mndConsumerActionEncode(pConsumer);
   MND_TMQ_NULL_CHECK(pCommitRaw);
   code = mndTransAppendCommitlog(pTrans, pCommitRaw);
@@ -494,6 +586,7 @@ int32_t mndSetConsumerCommitLogs(STrans *pTrans, SMqConsumerObj *pConsumer) {
   }
   MND_TMQ_RETURN_CHECK(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 END:
+
   return code;
 }
 
@@ -521,6 +614,10 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
     return TSDB_CODE_INVALID_PARA;
   }
   int32_t code = 0;
+  int32_t lino = 0;
+  PRINT_LOG_START
+  taosRLockLatch(&pExistedConsumer->lock);
+
   pConsumerNew->rebNewTopics = taosArrayInit(0, sizeof(void *));
   MND_TMQ_NULL_CHECK(pConsumerNew->rebNewTopics);
   pConsumerNew->rebRemovedTopics = taosArrayInit(0, sizeof(void *));
@@ -569,6 +666,8 @@ static int32_t getTopicAddDelete(SMqConsumerObj *pExistedConsumer, SMqConsumerOb
   }
 
 END:
+  taosRUnLockLatch(&pExistedConsumer->lock);
+  PRINT_LOG_END
   return code;
 }
 
@@ -589,25 +688,38 @@ static int32_t checkAndSortTopic(SMnode *pMnode, SArray *pTopicList){
   return 0;
 }
 
-static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqConsumerObj** ppConsumer){
-  if (pMnode == NULL || subscribe == NULL) {
+static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, const SRpcMsg *pMsg,
+                                bool *pOwnerMismatch, SMqConsumerObj **ppConsumer){
+  if (pMnode == NULL || subscribe == NULL || pMsg == NULL ||
+      pOwnerMismatch == NULL || ppConsumer == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   int64_t         consumerId = subscribe->consumerId;
   char           *cgroup     = subscribe->cgroup;
   SMqConsumerObj *pConsumerNew     = NULL;
   SMqConsumerObj *pExistedConsumer = NULL;
+  int32_t lino = 0;
+  PRINT_LOG_START
   int32_t code = mndAcquireConsumer(pMnode, consumerId, &pExistedConsumer);
   if (code != 0) {
-    mInfo("receive subscribe request from new consumer:0x%" PRIx64
+    mInfo("receive tmq subscribe request from new consumer:0x%" PRIx64
               ",cgroup:%s, numOfTopics:%d", consumerId,
           subscribe->cgroup, (int32_t)taosArrayGetSize(subscribe->topicNames));
 
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(consumerId, cgroup, CONSUMER_INSERT_SUB, NULL, subscribe, &pConsumerNew));
   } else {
+    taosRLockLatch(&pExistedConsumer->lock);
+    code = validateConsumerOwner(pMsg, pExistedConsumer);
     int32_t status = atomic_load_32(&pExistedConsumer->status);
+    taosRUnLockLatch(&pExistedConsumer->lock);
 
-    mInfo("receive subscribe request from existed consumer:0x%" PRIx64
+    if (code != TSDB_CODE_SUCCESS) {
+      *pOwnerMismatch = true;
+      lino = __LINE__;
+      goto END;
+    }
+
+    mInfo("receive tmq subscribe request from existed consumer:0x%" PRIx64
               ",cgroup:%s, current status:%d(%s), subscribe topic num: %d",
           consumerId, subscribe->cgroup, status, mndConsumerStatusName(status),
           (int32_t)taosArrayGetSize(subscribe->topicNames));
@@ -619,13 +731,13 @@ static int32_t buildSubConsumer(SMnode *pMnode, SCMSubscribeReq *subscribe, SMqC
     MND_TMQ_RETURN_CHECK(tNewSMqConsumerObj(consumerId, cgroup, CONSUMER_UPDATE_SUB, NULL, subscribe, &pConsumerNew));
     MND_TMQ_RETURN_CHECK(getTopicAddDelete(pExistedConsumer, pConsumerNew));
   }
-  mndReleaseConsumer(pMnode, pExistedConsumer);
   if (ppConsumer){
     *ppConsumer = pConsumerNew;
+    pConsumerNew = NULL;
   }
-  return code;
 
 END:
+  PRINT_LOG_END
   mndReleaseConsumer(pMnode, pExistedConsumer);
   tDeleteSMqConsumerObj(pConsumerNew);
   return code;
@@ -635,32 +747,50 @@ int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   if (pMsg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  SMnode *pMnode = pMsg->info.node;
-  char   *msgStr = pMsg->pCont;
-  int32_t code = 0;
+  SMnode         *pMnode = pMsg->info.node;
+  char           *msgStr = pMsg->pCont;
+  int32_t         code = 0;
+  int32_t         lino = 0;
   SMqConsumerObj *pConsumerNew = NULL;
   STrans         *pTrans = NULL;
+  bool            ownerMismatch = false;
 
+  PRINT_LOG_START
   SCMSubscribeReq subscribe = {0};
   MND_TMQ_RETURN_CHECK(tDeserializeSCMSubscribeReq(msgStr, &subscribe, pMsg->contLen));
+  tstrncpy(subscribe.user, RPC_MSG_USER(pMsg), TSDB_USER_LEN);
+  mDebug("consumer:0x%" PRIx64 " subscribe uses authenticated owner:%s, "
+         "QID:0x%" PRIx64 ":0x%" PRIx64,
+         subscribe.consumerId, subscribe.user, pMsg->info.traceId.rootId,
+         pMsg->info.traceId.msgId);
   bool unSubscribe = (taosArrayGetSize(subscribe.topicNames) == 0);
   if(unSubscribe){
     SMqConsumerObj *pConsumerTmp = NULL;
     MND_TMQ_RETURN_CHECK(mndAcquireConsumer(pMnode, subscribe.consumerId, &pConsumerTmp));
-    if (taosArrayGetSize(pConsumerTmp->assignedTopics) == 0){
-      mndReleaseConsumer(pMnode, pConsumerTmp);
+    taosRLockLatch(&pConsumerTmp->lock);
+    code = validateConsumerOwner(pMsg, pConsumerTmp);
+    size_t topicNum = code == TSDB_CODE_SUCCESS ? taosArrayGetSize(pConsumerTmp->assignedTopics) : 0;
+    taosRUnLockLatch(&pConsumerTmp->lock);
+    mndReleaseConsumer(pMnode, pConsumerTmp);
+    if (code != TSDB_CODE_SUCCESS) {
+      ownerMismatch = true;
+      lino = __LINE__;
       goto END;
     }
-    mndReleaseConsumer(pMnode, pConsumerTmp);
+    if (topicNum == 0){
+      goto END;
+    }
   }
   MND_TMQ_RETURN_CHECK(checkAndSortTopic(pMnode, subscribe.topicNames));
+  mInfo(KEYOP("tmq-subscribe", "START") "consumer:0x%" PRIx64 " unSubscribe:%d topicNum:%d", subscribe.consumerId,
+        unSubscribe, (int32_t)taosArrayGetSize(subscribe.topicNames));
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY,
                           (unSubscribe ? TRN_CONFLICT_NOTHING :TRN_CONFLICT_DB_INSIDE),
                           pMsg, "subscribe");
   MND_TMQ_NULL_CHECK(pTrans);
 
-  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, pMsg->info.conn.user));
-  MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, &pConsumerNew));
+  MND_TMQ_RETURN_CHECK(validateTopics(pTrans, &subscribe, pMnode, RPC_MSG_USER(pMsg), RPC_MSG_TOKEN(pMsg)));
+  MND_TMQ_RETURN_CHECK(buildSubConsumer(pMnode, &subscribe, pMsg, &ownerMismatch, &pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndSetConsumerCommitLogs(pTrans, pConsumerNew));
   MND_TMQ_RETURN_CHECK(mndTransPrepare(pMnode, pTrans));
   code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -669,7 +799,18 @@ END:
   mndTransDrop(pTrans);
   tDeleteSMqConsumerObj(pConsumerNew);
   taosArrayDestroyP(subscribe.topicNames, NULL);
-  return (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE || code == TSDB_CODE_MND_CONSUMER_NOT_EXIST) ? 0 : code;
+  code = (code == TSDB_CODE_TMQ_NO_NEED_REBALANCE ||
+          (code == TSDB_CODE_MND_CONSUMER_NOT_EXIST && !ownerMismatch))
+             ? 0
+             : code;
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS){
+    mError(KEYOP("tmq-subscribe", "FAIL") "tmq subscribe request from consumer:0x%" PRIx64 " failed, code:%d",
+           subscribe.consumerId, code);
+  } else {
+    mInfo(KEYOP("tmq-subscribe", "END") "tmq subscribe request from consumer:0x%" PRIx64 " processed, code:%d",
+          subscribe.consumerId, code);
+  }
+  return code;
 }
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
@@ -758,12 +899,10 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
 
-  if (tDecodeSMqConsumerObj(buf, pConsumer, sver) == NULL) {
+  if (tDecodeSMqConsumerObj(buf, (const void *)((const char *)buf + len), pConsumer, sver) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
-
-  tmsgUpdateDnodeEpSet(&pConsumer->ep);
 
 CM_DECODE_OVER:
   taosMemoryFreeClear(buf);
@@ -796,18 +935,6 @@ static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer) {
   return 0;
 }
 
-//static void updateConsumerStatus(SMqConsumerObj *pConsumer) {
-//  int32_t status = pConsumer->status;
-//
-//  if (taosArrayGetSize(pConsumer->rebNewTopics) == 0 && taosArrayGetSize(pConsumer->rebRemovedTopics) == 0) {
-//    if (status == MQ_CONSUMER_STATUS_REBALANCE) {
-//      pConsumer->status = MQ_CONSUMER_STATUS_READY;
-//    } else if (status == MQ_CONSUMER_STATUS_READY && taosArrayGetSize(pConsumer->currentTopics) == 0) {
-//      pConsumer->status = MQ_CONSUMER_STATUS_LOST;
-//    }
-//  }
-//}
-
 // remove from topic list
 static void removeFromTopicList(SArray *topicList, const char *pTopic, int64_t consumerId, char *type) {
   if (topicList == NULL || pTopic == NULL) {
@@ -820,7 +947,7 @@ static void removeFromTopicList(SArray *topicList, const char *pTopic, int64_t c
       taosArrayRemove(topicList, i);
       taosMemoryFree(p);
 
-      mInfo("[rebalance] consumer:0x%" PRIx64 " remove topic:%s in the %s topic list, remain newTopics:%d",
+      mInfo("tmq rebalance consumer:0x%" PRIx64 " remove topic:%s in the %s topic list, remain newTopics:%d",
             consumerId, pTopic, type, (int)taosArrayGetSize(topicList));
       break;
     }
@@ -848,10 +975,13 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   if (pOldConsumer == NULL || pNewConsumer == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t lino = 0;
+  int32_t code = 0;
+  char *pNewTopic = NULL;
+  PRINT_LOG_START
+  taosWLockLatch(&pOldConsumer->lock);
   mInfo("consumer:0x%" PRIx64 " perform update action, update type:%d, subscribe-time:%" PRId64 ", createTime:%" PRId64,
         pOldConsumer->consumerId, pNewConsumer->updateType, pOldConsumer->subscribeTime, pOldConsumer->createTime);
-
-  taosWLockLatch(&pOldConsumer->lock);
 
   if (pNewConsumer->updateType == CONSUMER_UPDATE_SUB) {
     TSWAP(pOldConsumer->rebNewTopics, pNewConsumer->rebNewTopics);
@@ -860,35 +990,51 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
     pOldConsumer->subscribeTime = taosGetTimestampMs();
     pOldConsumer->status = MQ_CONSUMER_STATUS_REBALANCE;
-    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer", pOldConsumer->consumerId);
+    atomic_store_32(&pOldConsumer->hbStatus, 0);
+    atomic_store_32(&pOldConsumer->pollStatus, 0);
+    mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer, reset hb/poll status", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
-    (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
-    pOldConsumer->rebalanceTime = taosGetTimestampMs();
-    mInfo("[rebalance] consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
+    // A rebalance result is computed from a subscription snapshot and persisted asynchronously
+    // (raft proposal + redo actions on all vgroups), so a subscribe/unsubscribe request can be
+    // committed in between. Such a request sets the consumer to REBALANCE and moves the changed
+    // topics into rebNewTopics/rebRemovedTopics, waiting for the next rebalance round to apply
+    // them. Overwriting the status with READY here makes checkOneConsumer() skip those pending
+    // changes (the READY branch only handles vgroup split, offline and unsubscribe-all cases), so
+    // the never-applied rebRemovedTopics keeps checkConsumer() reporting
+    // TSDB_CODE_MND_TOPIC_SUBSCRIBED and `drop topic` keeps failing until the session times out,
+    // while currentTopics stays stale as well.
+    // Drop the stale result instead and leave the consumer in REBALANCE, so that the next round
+    // rebalances the latest state. rebalanceTime is intentionally kept: it still refers to the
+    // last accepted rebalance.
+    int32_t curStatus = atomic_load_32(&pOldConsumer->status);
+    if (curStatus != MQ_CONSUMER_STATUS_READY) {
+      mInfo("tmq rebalance consumer:0x%" PRIx64
+            " skip stale rebalance update since consumer status is %d(%s), epoch:%d, pending new topics:%d, "
+            "pending removed topics:%d, a newer subscribe/unsubscribe request is pending rebalance",
+            pOldConsumer->consumerId, curStatus, mndConsumerStatusName(curStatus), pOldConsumer->epoch,
+            (int)taosArrayGetSize(pOldConsumer->rebNewTopics), (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
+    } else {
+      (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
+      pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
+      pOldConsumer->rebalanceTime = taosGetTimestampMs();
+      mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
+    }
   } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
     void *tmp = taosArrayGetP(pNewConsumer->rebNewTopics, 0);
-    if (tmp == NULL){
-      return TSDB_CODE_TMQ_INVALID_MSG;
-    }
+    MND_TMQ_NULL_CHECK(tmp);
     char *pNewTopic = taosStrdup(tmp);
-    if (pNewTopic == NULL) {
-      return terrno;
-    }
+    MND_TMQ_NULL_CHECK(pNewTopic);
     removeFromTopicList(pOldConsumer->rebNewTopics, pNewTopic, pOldConsumer->consumerId, "new");
     bool existing = existInCurrentTopicList(pOldConsumer, pNewTopic);
     if (existing) {
-      mError("[rebalance] consumer:0x%" PRIx64 " add new topic:%s should not in currentTopics", pOldConsumer->consumerId, pNewTopic);
-      taosMemoryFree(pNewTopic);
+      mError("tmq rebalance consumer:0x%" PRIx64 " add new topic:%s should not in currentTopics", pOldConsumer->consumerId, pNewTopic);
     } else {
-      if (taosArrayPush(pOldConsumer->currentTopics, &pNewTopic) == NULL) {
-        taosMemoryFree(pNewTopic);
-        return TSDB_CODE_TMQ_INVALID_MSG;
-      }
+      MND_TMQ_NULL_CHECK(taosArrayPush(pOldConsumer->currentTopics, &pNewTopic));
+      pNewTopic = NULL;
       taosArraySort(pOldConsumer->currentTopics, taosArrayCompareString);
     }
 
     int32_t status = pOldConsumer->status;
-//    updateConsumerStatus(pOldConsumer);
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
       pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
     }
@@ -896,7 +1042,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mInfo("[rebalance] consumer:0x%" PRIx64 " rebalance update add, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update add, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
           ", current topics:%d, newTopics:%d, removeTopics:%d",
           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
@@ -905,21 +1051,18 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
 
   } else if (pNewConsumer->updateType == CONSUMER_REMOVE_REB) {
     char *topic = taosArrayGetP(pNewConsumer->rebRemovedTopics, 0);
-    if (topic == NULL){
-      return TSDB_CODE_TMQ_INVALID_MSG;
-    }
+    MND_TMQ_NULL_CHECK(topic);
     removeFromTopicList(pOldConsumer->rebRemovedTopics, topic, pOldConsumer->consumerId, "remove");
     removeFromTopicList(pOldConsumer->currentTopics, topic, pOldConsumer->consumerId, "current");
 
     int32_t status = pOldConsumer->status;
-//    updateConsumerStatus(pOldConsumer);
     if (taosArrayGetSize(pOldConsumer->rebNewTopics) == 0 && taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0) {
       pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
     }
     pOldConsumer->rebalanceTime = taosGetTimestampMs();
     (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
 
-    mInfo("[rebalance]consumer:0x%" PRIx64 " rebalance update remove, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
+    mInfo("tmq rebalanceconsumer:0x%" PRIx64 " rebalance update remove, state (%d)%s -> (%d)%s, new epoch:%d, reb-time:%" PRId64
           ", current topics:%d, newTopics:%d, removeTopics:%d",
           pOldConsumer->consumerId, status, mndConsumerStatusName(status), pOldConsumer->status,
           mndConsumerStatusName(pOldConsumer->status), pOldConsumer->epoch, pOldConsumer->rebalanceTime,
@@ -927,8 +1070,13 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
           (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
   }
 
+END:
+  taosMemoryFree(pNewTopic);
   taosWUnLockLatch(&pOldConsumer->lock);
-  return 0;
+
+  PRINT_LOG_END
+
+  return code;
 }
 
 int32_t mndAcquireConsumer(SMnode *pMnode, int64_t consumerId, SMqConsumerObj** pConsumer) {
@@ -951,6 +1099,175 @@ void mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer) {
   sdbRelease(pSdb, pConsumer);
 }
 
+static int32_t buildResult(SMqConsumerObj *pConsumer, SShowObj *pShow, SSDataBlock *pBlock, int32_t numOfRows, const char* showTopic, bool hasTopic) {
+  int32_t         code = 0;
+  int32_t         lino = 0;
+  SColumnInfoData *pColInfo = NULL;
+  int32_t          cols = 0;
+  char * parasStr = NULL;
+  char           *status = NULL;
+
+  PRINT_LOG_START
+  // consumer id
+  char consumerIdHex[TSDB_CONSUMER_ID_LEN + VARSTR_HEADER_SIZE] = {0};
+  (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN, "0x%" PRIx64, pConsumer->consumerId);
+  varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)consumerIdHex, false));
+
+  // consumer group
+  char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(cgroup, pConsumer->cgroup);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false));
+
+  // client id
+  char clientId[TSDB_CLIENT_ID_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(clientId, pConsumer->clientId);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)clientId, false));
+
+  // user
+  char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(user, pConsumer->user);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)user, false));
+
+  // fqdn
+  char fqdn[TSDB_FQDN_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(fqdn, pConsumer->fqdn);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)fqdn, false));
+
+  // status
+  const char *pStatusName = mndConsumerStatusName(pConsumer->status);
+  status = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+  MND_TMQ_NULL_CHECK(status);
+  STR_TO_VARSTR(status, pStatusName);
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)status, false));
+
+  // one subscribed topic
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  if (hasTopic) {
+    char        topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    mndTopicGetShowName(showTopic, topic + VARSTR_HEADER_SIZE);
+    *(VarDataLenT *)(topic) = strlen(topic + VARSTR_HEADER_SIZE);
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)topic, false));
+  } else {
+    MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, NULL, true));
+  }
+
+  // up time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->createTime, false));
+
+  // subscribe time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->subscribeTime, false));
+
+  // rebalance time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0));
+
+  char         buf[TSDB_OFFSET_LEN] = {0};
+  STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
+  tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
+
+  parasStr = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+  MND_TMQ_NULL_CHECK(parasStr);
+  (void)snprintf(varDataVal(parasStr), pShow->pMeta->pSchemas[cols].bytes - VARSTR_HEADER_SIZE, "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
+          pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
+  varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
+
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false));
+
+  // rebalance time
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  MND_TMQ_NULL_CHECK(pColInfo);
+  MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->pollTime, pConsumer->pollTime == 0));
+
+END:
+  PRINT_LOG_END
+  taosMemoryFreeClear(status);
+  taosMemoryFreeClear(parasStr);
+  return code;
+}
+
+static int32_t retrieveOneConsumer(SRpcMsg *pReq, SMqConsumerObj *pConsumer, SUserObj *pOperUser, bool showAll,
+                                   int32_t *numOfRows, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SMnode *pMnode = pReq->info.node;
+  PRINT_LOG_START
+  taosRLockLatch(&pConsumer->lock);
+  mDebug("showing consumer:0x%" PRIx64, pConsumer->consumerId);
+  if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
+    mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
+    goto END;
+  }
+
+  int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
+  bool    hasTopic = true;
+  if (topicSz == 0) {
+    hasTopic = false;
+    topicSz = 1;
+  }
+
+  if (*numOfRows + topicSz > rowsCapacity) {
+    MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + topicSz));
+  }
+
+  for (int32_t i = 0; i < topicSz; i++) {
+    char *pTopicFName = taosArrayGetP(pConsumer->assignedTopics, i);
+    if (!showAll && (strncmp(pOperUser->name, pConsumer->user, TSDB_USER_LEN) != 0)) {
+      bool         showConsumer = false;
+      SMqTopicObj *pTopic = NULL;
+      (void)mndAcquireTopic(pMnode, pTopicFName, &pTopic);
+      if (pTopic) {
+        SName name = {0};  // 1.topic1
+        if (0 == tNameFromString(&name, pTopic->name, T_NAME_ACCT | T_NAME_DB)) {
+          if (0 == mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CONSUMER_SHOW, PRIV_OBJ_TOPIC, pTopic->ownerId,
+                                            pTopic->db, name.dbname)) {
+            showConsumer = true;
+          }
+        }
+        mndReleaseTopic(pMnode, pTopic);
+      }
+      if (!showConsumer) {
+        continue;
+      }
+    }
+    // char  topic[TSDB_TOPIC_FNAME_LEN] = {0};
+    // mndTopicGetShowName(showTopic, topic);
+    MND_TMQ_RETURN_CHECK(buildResult(pConsumer, pShow, pBlock, *numOfRows, pTopicFName, hasTopic));
+    (*numOfRows)++;
+  }
+
+END:
+  taosRUnLockLatch(&pConsumer->lock);
+  PRINT_LOG_END
+  return code;
+}
+
 static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
   if (pReq == NULL || pShow == NULL || pBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -959,149 +1276,42 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
   SSdb           *pSdb = pMnode->pSdb;
   int32_t         numOfRows = 0;
   SMqConsumerObj *pConsumer = NULL;
+  SUserObj       *pOperUser = NULL;
   int32_t         code = 0;
-  char           *parasStr = NULL;
-  char           *status = NULL;
+  int32_t         lino = 0;
+  bool            showAll = false;
+  char            objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
+  PRINT_LOG_START
 
+  MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
+  (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
+  showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_CONSUMER_SHOW,
+                                          PRIV_OBJ_TOPIC, 0, objFName, "*"));
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) {
       break;
     }
-
-    if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
-      mInfo("showing consumer:0x%" PRIx64 " no assigned topic, skip", pConsumer->consumerId);
-      sdbRelease(pSdb, pConsumer);
-      continue;
-    }
-
-    taosRLockLatch(&pConsumer->lock);
-    mInfo("showing consumer:0x%" PRIx64, pConsumer->consumerId);
-
-    int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
-    bool    hasTopic = true;
-    if (topicSz == 0) {
-      hasTopic = false;
-      topicSz = 1;
-    }
-
-    if (numOfRows + topicSz > rowsCapacity) {
-      MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, numOfRows + topicSz));
-    }
-
-    for (int32_t i = 0; i < topicSz; i++) {
-      SColumnInfoData *pColInfo = NULL;
-      int32_t          cols = 0;
-
-      // consumer id
-      char consumerIdHex[TSDB_CONSUMER_ID_LEN + VARSTR_HEADER_SIZE] = {0};
-      (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN, "0x%" PRIx64, pConsumer->consumerId);
-      varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)consumerIdHex, false));
-
-      // consumer group
-      char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(cgroup, pConsumer->cgroup);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)cgroup, false));
-
-      // client id
-      char clientId[TSDB_CLIENT_ID_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(clientId, pConsumer->clientId);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)clientId, false));
-
-      // user
-      char user[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(user, pConsumer->user);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)user, false));
-
-      // fqdn
-      char fqdn[TSDB_FQDN_LEN + VARSTR_HEADER_SIZE] = {0};
-      STR_TO_VARSTR(fqdn, pConsumer->fqdn);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)fqdn, false));
-
-      // status
-      const char *pStatusName = mndConsumerStatusName(pConsumer->status);
-      status = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
-      MND_TMQ_NULL_CHECK(status);
-      STR_TO_VARSTR(status, pStatusName);
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)status, false));
-      taosMemoryFreeClear(status);
-
-      // one subscribed topic
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      if (hasTopic) {
-        char        topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-        mndTopicGetShowName(taosArrayGetP(pConsumer->assignedTopics, i), topic + VARSTR_HEADER_SIZE);
-        *(VarDataLenT *)(topic) = strlen(topic + VARSTR_HEADER_SIZE);
-        MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)topic, false));
-      } else {
-        MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, NULL, true));
-      }
-
-      // up time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->createTime, false));
-
-      // subscribe time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->subscribeTime, false));
-
-      // rebalance time
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0));
-
-      char         buf[TSDB_OFFSET_LEN] = {0};
-      STqOffsetVal pVal = {.type = pConsumer->resetOffsetCfg};
-      tFormatOffset(buf, TSDB_OFFSET_LEN, &pVal);
-
-      parasStr = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
-      MND_TMQ_NULL_CHECK(parasStr);
-      (void)snprintf(varDataVal(parasStr), pShow->pMeta->pSchemas[cols].bytes - VARSTR_HEADER_SIZE, "tbname:%d,commit:%d,interval:%dms,reset:%s", pConsumer->withTbName,
-              pConsumer->autoCommit, pConsumer->autoCommitInterval, buf);
-      varDataSetLen(parasStr, strlen(varDataVal(parasStr)));
-
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      MND_TMQ_NULL_CHECK(pColInfo);
-      MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, numOfRows, (const char *)parasStr, false));
-      taosMemoryFreeClear(parasStr);
-      numOfRows++;
-    }
-
-    taosRUnLockLatch(&pConsumer->lock);
-    sdbRelease(pSdb, pConsumer);
-
+    MND_TMQ_RETURN_CHECK(retrieveOneConsumer(pReq, pConsumer, pOperUser, showAll,  &numOfRows, pShow, pBlock, rowsCapacity));
+    
     pBlock->info.rows = numOfRows;
+    sdbRelease(pSdb, pConsumer);
+    pConsumer = NULL;
   }
 
   pShow->numOfRows += numOfRows;
-  return numOfRows;
 
 END:
-  taosMemoryFreeClear(status);
-  taosMemoryFreeClear(parasStr);
-  return code;
+  sdbRelease(pSdb, pConsumer);
+  sdbCancelFetch(pSdb, pShow->pIter);
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != 0) {
+    mError("show consumer failed, code:%d", code);
+    return code;
+  } else {
+    mDebug("show consumer processed, numOfRows:%d", numOfRows);
+    return numOfRows;
+  }
 }
 
 static void mndCancelGetNextConsumer(SMnode *pMnode, void *pIter) {
@@ -1114,8 +1324,6 @@ const char *mndConsumerStatusName(int status) {
   switch (status) {
     case MQ_CONSUMER_STATUS_READY:
       return "ready";
-//    case MQ_CONSUMER_STATUS_LOST:
-//      return "lost";
     case MQ_CONSUMER_STATUS_REBALANCE:
       return "rebalancing";
     default:

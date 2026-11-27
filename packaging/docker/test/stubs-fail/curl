@@ -1,0 +1,9 @@
+#!/bin/sh
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Scenario fixture: slow failing metrics probe, so without an early abort the
+# entrypoint would burn the whole ready-wait budget.
+sleep 2
+exit 1

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -41,7 +43,8 @@ typedef struct SVgroupDataCxt {
 } SVgroupDataCxt;
 
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
-int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema *pSchema);
+int32_t insBuildNcharConvErrMsg(SMsgBuf *pMsgBuf, const char *source,
+                                const void *charsetCxt);
 int32_t insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag, int64_t suid, const char *sname,
                             SArray *tagName, uint8_t tagNum, int32_t ttl);
 int32_t insInitBoundColsInfo(int32_t numOfBound, SBoundColInfo *pInfo);
@@ -55,10 +58,20 @@ int32_t insMergeTableDataCxt(SHashObj *pTableHash, SArray **pVgDataBlocks, bool 
 //int32_t insMergeStmtTableDataCxt(STableDataCxt* pTableCxt, SArray* pTableList, SArray** pVgDataBlocks, bool isRebuild, int32_t tbNum);
 int32_t insBuildVgDataBlocks(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks, bool append);
 void    insDestroyTableDataCxtHashMap(SHashObj *pTableCxtHash);
+void    insDestroyTableDataCxtHashMapSml(SHashObj *pTableCxtHash);
 void    insDestroyVgroupDataCxt(SVgroupDataCxt *pVgCxt);
 void    insDestroyVgroupDataCxtList(SArray *pVgCxtList);
 void    insDestroyVgroupDataCxtHashMap(SHashObj *pVgCxtHash);
 void    insDestroyTableDataCxt(STableDataCxt *pTableCxt);
-void    insDestroyBoundColInfo(SBoundColInfo *pInfo);
+
+static FORCE_INLINE int16_t insFindCol(struct SToken *pColname, int16_t start, int16_t end, SSchema *pSchema) {
+  while (start < end) {
+    if (strncmp(pColname->z, pSchema[start].name, pColname->n) == 0 && pSchema[start].name[pColname->n] == '\0') {
+      return start;
+    }
+    ++start;
+  }
+  return -1;
+}
 
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

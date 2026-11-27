@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,8 @@
 #ifndef _TD_OS_MATH_H_
 #define _TD_OS_MATH_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -29,13 +33,23 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x)  ((x) > 0 ? (x) : -(x))
 
-#define TSWAP(a, b)                  \
-  do {                               \
-    char *__tmp = (char*)alloca(sizeof(a)); \
-    (void)memcpy(__tmp, &(a), sizeof(a));  \
-    (void)memcpy(&(a), &(b), sizeof(a));   \
-    (void)memcpy(&(b), __tmp, sizeof(a));  \
+#ifndef TD_ASTRA
+#define TSWAP(a, b)                          \
+  do {                                       \
+    char *__tmp = (char *)alloca(sizeof(a)); \
+    (void)memcpy(__tmp, &(a), sizeof(a));    \
+    (void)memcpy(&(a), &(b), sizeof(a));     \
+    (void)memcpy(&(b), __tmp, sizeof(a));    \
   } while (0)
+#else
+#define TSWAP(a, b)                       \
+  do {                                    \
+    char __tmp[sizeof(a)];                \
+    (void)memcpy(__tmp, &(a), sizeof(a)); \
+    (void)memcpy(&(a), &(b), sizeof(a));  \
+    (void)memcpy(&(b), __tmp, sizeof(a)); \
+  } while (0)
+#endif
 
 #ifdef WINDOWS
 

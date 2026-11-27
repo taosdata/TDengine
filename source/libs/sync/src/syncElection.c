@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,6 +41,8 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
     return 0;
   }
 
+  int64_t rootId = tGenIdPI64();
+
   int32_t ret = 0;
   for (int i = 0; i < pNode->peersNum; ++i) {
     if(pNode->peersNodeInfo[i].nodeRole == TAOS_SYNC_ROLE_LEARNER) continue;
@@ -61,9 +65,15 @@ static int32_t syncNodeRequestVotePeers(SSyncNode* pNode) {
       continue;
     }
 
+    TRACE_SET_MSGID(&(rpcMsg.info.traceId), tGenIdPI64());
+    TRACE_SET_ROOTID(&(rpcMsg.info.traceId), rootId);
+    sInfo("vgId:%d, send request-vote msg to peerId:0x%" PRIx64 ", lastLogIndex:%" PRId64 ", lastLogTerm:%" PRId64
+          ", QID:0x%" PRIx64 ":0x%" PRIx64,
+          pNode->vgId, pNode->peersId[i].addr, pMsg->lastLogIndex, pMsg->lastLogTerm,
+          (uint64_t)rpcMsg.info.traceId.rootId, (uint64_t)rpcMsg.info.traceId.msgId);
     ret = syncNodeSendMsgById(&pNode->peersId[i], pNode, &rpcMsg);
     if (ret < 0) {
-      sError("vgId:%d, failed to send msg to peerId:%" PRId64, pNode->vgId, pNode->peersId[i].addr);
+      sError("vgId:%d, failed to send msg to peerId:0x%" PRIx64, pNode->vgId, pNode->peersId[i].addr);
       continue;
     }
   }
@@ -85,7 +95,7 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
   }
 
   if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
-    sNError(pSyncNode, "not candidate, can not elect");
+    sNError(pSyncNode, "not candidate, cannot elect");
     return TSDB_CODE_SYN_WRONG_SYNC_STATE;
   }
 

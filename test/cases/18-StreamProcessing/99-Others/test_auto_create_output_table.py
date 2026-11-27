@@ -1,0 +1,593 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import time
+from new_test_framework.utils import tdSql, tdLog, tdStream, StreamItem
+
+class TestStreamAutoCreateOutputTable:
+
+    def setup_class(self):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def test_auto_create_output_table(self):
+        """summary: test auto create output table
+
+        description:
+            - check_auto_create_out_ctb:
+                test auto create output ctable
+            - check_auto_create_out_ntb:
+                test auto create output ntable
+
+        Since: v3.4.2.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci,integration,functional
+
+        Jira: ID-6490870739
+
+        History:
+            - 2025-03-04 Created by Peng Rongkun
+
+        """
+
+        tdStream.createSnode()
+        self.prepareData()
+        self.check_auto_create_out_ctb()
+        self.check_auto_create_out_ntb()
+        self.insertDataAndCheck()
+
+    def test_auto_create_output_table_for_vtable_period(self):
+        """summary: test nodelay output subtable creation for virtual table period stream
+
+        description:
+            - check period stream from virtual stable creates one output
+              subtable per tbname partition when output_subtable uses tbname
+
+        Since: v3.4.2.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7026933541
+
+        History:
+            - 2026-06-25 Created by regression
+
+        """
+
+        tdStream.ensureSnode()
+        self.prepareVtablePeriodData()
+        tdSql.execute("use db_vtable_period")
+        tdSql.execute(
+            "create stream s_vtable_period "
+            "period(5s) "
+            "from vst_period partition by tbname "
+            "stream_options(ignore_disorder|ignore_nodata_trigger) "
+            "into out_vtable_period nodelay_create_subtable "
+            "output_subtable(concat('out_', tbname, '_period')) "
+            "as select cast(_tlocaltime / 1000000 as timestamp) as ts, "
+            "max(current) as current from %%tbname "
+            "where _c0 >= now() - 10s and _c0 < now();"
+        )
+
+        tdStream.checkStreamStatus("s_vtable_period")
+        tdSql.checkResultsByFunc(
+            sql="select tags tbname from out_vtable_period order by tbname;",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_vt_d6_ajrj26_period")
+            and tdSql.compareData(1, 0, "out_vt_d9_q5ox8n_period"),
+            retry=60,
+        )
+
+    def test_nodelay_create_subtable_without_window(self):
+        """summary: skip calculation for nodelay create-only requests without windows
+
+        description:
+            - create a partitioned virtual-stable count-window stream
+            - verify nodelay creates an empty output subtable before any real
+              window closes
+            - verify later real windows still produce the expected diff results
+
+        Since: v3.4.2.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7026933541
+
+        History:
+            - 2026-07-20 Created by regression
+
+        """
+
+        tdStream.ensureSnode()
+        tdSql.executes(
+            [
+                "drop database if exists nodelay_calc;",
+                "drop database if exists nodelay_src;",
+                "create database nodelay_src vgroups 2;",
+                "create table nodelay_src.t (ts timestamp, voltage int);",
+                "create database nodelay_calc vgroups 2;",
+                "create stable nodelay_calc.vst (ts timestamp, voltage int) "
+                "tags (element varchar(64)) virtual 1;",
+                "create vtable nodelay_calc.vt "
+                "(voltage from nodelay_src.t.voltage) "
+                "using nodelay_calc.vst tags ('voltage');",
+                "insert into nodelay_src.t values ('2025-12-31 23:59:59', 101);",
+            ]
+        )
+        tdSql.execute(
+            "create stream nodelay_calc.s "
+            "count_window(6, 1) "
+            "from nodelay_calc.vst partition by tbname "
+            "stream_options(ignore_disorder) "
+            "into nodelay_calc.out nodelay_create_subtable "
+            "output_subtable(concat('out_', tbname)) "
+            "as select _twstart as start_time, _twend as end_time, sum_v "
+            "from (select sum(case when dif > 0 then 1 when dif < 0 then -1 else 0 end) as sum_v "
+            "from (select diff(voltage) as dif from nodelay_calc.vt "
+            "where _c0 >= _twstart and _c0 <= _twend)) "
+            "where abs(sum_v) >= 5;"
+        )
+
+        tdStream.checkStreamStatus("s")
+        tdSql.checkResultsByFunc(
+            sql=(
+                "select table_name from information_schema.ins_tables "
+                "where db_name = 'nodelay_calc' and table_name = 'out_vt'"
+            ),
+            func=lambda: tdSql.getRows() == 1,
+            retry=60,
+        )
+        tdSql.query("select count(*) from nodelay_calc.out_vt")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.execute(
+            "insert into nodelay_src.t values "
+            "('2026-01-01 00:00:00', 100) "
+            "('2026-01-01 00:00:01', 99) "
+            "('2026-01-01 00:00:02', 98) "
+            "('2026-01-01 00:00:03', 97) "
+            "('2026-01-01 00:00:04', 96) "
+            "('2026-01-01 00:00:05', 95) "
+            "('2026-01-01 00:00:06', 94)"
+        )
+        tdSql.checkResultsByFunc(
+            sql="select start_time, end_time, sum_v from nodelay_calc.out order by start_time",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "2026-01-01 00:00:05")
+            and tdSql.compareData(0, 2, -5)
+            and tdSql.compareData(1, 0, "2026-01-01 00:00:01")
+            and tdSql.compareData(1, 1, "2026-01-01 00:00:06")
+            and tdSql.compareData(1, 2, -5),
+            retry=60,
+        )
+        tdStream.checkStreamStatus("s")
+
+    def test_nodelay_virtual_groups_with_shared_sources(self):
+        """Create virtual-group output tables once and continue periodic calculation.
+
+        Two virtual children reference the same two physical source tables.
+        Keep NODELAY_CREATE_SUBTABLE enabled, verify both result children exist,
+        then write source rows at distinct timestamps in both time orders.
+        Serialize requests to force executor reuse across groups and check
+        last(x) as well as the sum so selecting the other child cannot pass.
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/issue/detail/7150292758
+
+        History:
+            - 2026-10-29 Added regression for overlapping nodelay responses.
+            - 2026-11-13 Cover aggregate isolation with staggered source timestamps.
+            - 2026-11-13 Force cross-group reuse with distinct column expectations.
+        """
+        tdStream.ensureSnode()
+        tdSql.executes(
+            [
+                "drop database if exists nodelay_shared;",
+                "create database nodelay_shared vgroups 1;",
+                "create table nodelay_shared.a (ts timestamp, value int);",
+                "create table nodelay_shared.b (ts timestamp, value int);",
+                "create stable nodelay_shared.vst (ts timestamp, x int, y int) "
+                "tags (device int) virtual 1;",
+                "create vtable nodelay_shared.v1 "
+                "(x from nodelay_shared.a.value, y from nodelay_shared.b.value) "
+                "using nodelay_shared.vst tags (1);",
+                "create vtable nodelay_shared.v2 "
+                "(x from nodelay_shared.b.value, y from nodelay_shared.a.value) "
+                "using nodelay_shared.vst tags (2);",
+                "insert into nodelay_shared.a values (now - 1m, 1) "
+                "nodelay_shared.b values (now - 1m, 2);",
+            ]
+        )
+        runner_settings = {}
+        # The scheduler reserves one slot; two allow one active request.
+        runner_limits = (("numOfStreamRunnerDeploys", 1), ("numOfStreamRunnerReplicas", 2))
+        for name, _ in runner_limits:
+            tdSql.query(f"show dnode 1 variables like '{name}'")
+            tdSql.checkRows(1)
+            runner_settings[name] = tdSql.getData(0, 2)
+        try:
+            for name, limit in runner_limits:
+                tdSql.execute(f"alter dnode 1 '{name}' '{limit}'")
+                tdSql.query(f"show dnode 1 variables like '{name}'")
+                tdSql.checkData(0, 2, str(limit))
+            tdSql.execute(
+                "create stream nodelay_shared.shared_period period(1s) "
+                "from nodelay_shared.vst partition by tbname "
+                "stream_options(ignore_disorder|ignore_nodata_trigger) "
+                "into nodelay_shared.out nodelay_create_subtable "
+                "output_subtable(concat('out_', tbname)) "
+                "as select cast(_tlocaltime / 1000000 as timestamp) as ts, "
+                "last(x) + last(y) as total, last(x) as last_x from %%tbname"
+            )
+            tdStream.checkStreamStatus("shared_period")
+        finally:
+            for name, value in runner_settings.items():
+                tdSql.execute(f"alter dnode 1 '{name}' '{value}'")
+        tdSql.checkResultsByFunc(
+            sql="select tags tbname from nodelay_shared.out order by tbname",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_v1")
+            and tdSql.compareData(1, 0, "out_v2"),
+            retry=60,
+        )
+        for a_value, b_value, a_offset, b_offset, expected in (
+            (10, 20, 0, 1, 30),
+            (40, 30, 1, 0, 70),
+        ):
+            ts = int(time.time() * 1000)
+            tdSql.execute(
+                f"insert into nodelay_shared.a values ({ts + a_offset}, {a_value}) "
+                f"nodelay_shared.b values ({ts + b_offset}, {b_value})"
+            )
+            for table, last_x in (("out_v1", a_value), ("out_v2", b_value)):
+                tdSql.checkResultsByFunc(
+                    sql=f"select total, last_x from nodelay_shared.{table} order by ts desc limit 1",
+                    func=lambda: tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, expected)
+                    and tdSql.compareData(0, 1, last_x),
+                    retry=60,
+                )
+        tdStream.checkStreamStatus("shared_period")
+
+    def prepareData(self):
+        tdLog.info(f"prepare data")
+
+        sqls = [
+            "drop database if exists db;",
+            "create database db vgroups 1;",
+            "use db;",
+            "create table stb (`ts` timestamp, `c1` int) tags(`t1` int);",
+            "create table tb1 using stb tags (1);",
+            "create table tb2 using stb tags (2);",
+            "create table out_exists (`ts` timestamp, `c1` int, `t1` int) tags(`tag_tbname` varchar(128));",
+            "create table out_normal_exists (`ts` timestamp, `c1` int);",
+            "create table tb_decimal (`ts` timestamp, `c1` decimal(10, 2));",
+            "create table out_decimal_exists (`ts` timestamp, `c1` decimal(10, 2));",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"create successfully.")
+
+    def prepareVtablePeriodData(self):
+        tdLog.info(f"prepare virtual table period stream data")
+
+        sqls = [
+            "drop database if exists db_vtable_period;",
+            "create database db_vtable_period vgroups 8;",
+            "use db_vtable_period;",
+            "create table meters (`ts` timestamp, `current` float, `phase` float, `voltage` int) tags(`t1` int);",
+            "create table d6 using meters tags (6);",
+            "create table d9 using meters tags (9);",
+            "insert into d6 values (now - 5s, 10.0, 1.0, 220);",
+            "insert into d9 values (now - 5s, 20.0, 2.0, 221);",
+            "create stable vst_period (`ts` timestamp, `current` float, `phase` float, `voltage` int) "
+            "tags(`element` varchar(256)) virtual 1;",
+            "create vtable vt_d6_ajrj26 (`current` from d6.current, `phase` from d6.phase, `voltage` from d6.voltage) "
+            "using vst_period tags ('d6');",
+            "create vtable vt_d9_q5ox8n (`current` from d9.current, `phase` from d9.phase, `voltage` from d9.voltage) "
+            "using vst_period tags ('d9');",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"create virtual table period data successfully.")
+
+    def check_auto_create_out_ctb(self):
+        tdSql.execute(f"use db")
+
+        sql1 ="create stream s1 count_window(1) from stb partition by tbname into out_ctb1 NODELAY_CREATE_SUBTABLE as select * from %%tbname where c1 > 10000;"
+        sql2 ="create stream s2 count_window(1) from stb partition by tbname into out_ctb2 as select * from %%tbname where c1 > 10000;"
+        sql3 ="create stream s3 count_window(1) from stb partition by tbname into out_ctb3 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out3_', tbname))tags (`nameoftbl` varchar(128) as tbname) as select * from %%tbname where c1 > 10000;"
+        sql4 ="create stream s4 count_window(1) from stb partition by tbname,t1 into out_ctb4 NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out4_', tbname))tags (`nameoftbl` varchar(128) as tbname, tagt1 int as t1) as select * from %%tbname where c1 > 10000;"
+        sql5 ="create stream s5 count_window(1) from stb partition by tbname into out_exists NODELAY_CREATE_SUBTABLE OUTPUT_SUBTABLE(CONCAT('out_exists_', tbname)) as select * from %%tbname where c1 > 10000;"
+        streams = [
+            self.StreamItem(sql1, self.checks1),
+            self.StreamItem(sql2, self.checks2),
+            self.StreamItem(sql3, self.checks3),
+            self.StreamItem(sql4, self.checks4),
+            self.StreamItem(sql5, self.checks5)
+        ]
+        for stream in streams:
+            tdSql.execute(stream.sql)
+        tdStream.checkStreamStatus()
+        for stream in streams:
+            stream.check()
+
+    def check_auto_create_out_ntb(self):
+        tdSql.execute(f"use db")
+
+        sql1 ="create stream s10 count_window(1) from tb1 into out_normal NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
+        sql2 = "create stream s11 state_window(c1) from tb1 into out_normal_2 NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
+        sql3 = "create stream s12 state_window(c1) from tb1 into out_normal_exists NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
+        sql4 = "create stream s13 count_window(1) from tb_decimal into out_decimal_exists NODELAY_CREATE_SUBTABLE as select * from tb_decimal where c1 > 0;"
+
+        streams = [
+            self.StreamItem(sql1, self.checks10),
+            self.StreamItem(sql2, self.checks11),
+            self.StreamItem(sql3, self.checks12),
+            self.StreamItem(sql4, self.checks13),
+        ]
+        for stream in streams:
+            tdSql.execute(stream.sql)
+        tdStream.checkStreamStatus()
+        for stream in streams:
+            stream.check()
+
+    def checks1(self):
+        tdLog.info(f"start to check nodelay create output ctb")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb1';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_ctb1")
+        )
+
+        result_sql = f"select tags tag_tbname from out_ctb1 order by tag_tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "tb1")
+            and tdSql.compareData(1, 0, "tb2")
+        )
+
+    def checks2(self):
+        tdLog.info(f"start to check delay create output ctb")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb2';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_ctb2")
+        )
+
+        result_sql = f"select tags tag_tbname from out_ctb2 order by tag_tbname;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ctb fail to exit[res_tbl_num: {res_tbl_num}]")
+
+    def checks3(self):
+        tdLog.info(f"start to check nodelay create output ctb with custom tbname and tag")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb3';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_ctb3")
+        )
+
+        result_sql = f"select tags tbname from out_ctb3 order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out3_tb1")
+            and tdSql.compareData(1, 0, "out3_tb2")
+        )
+
+        result_sql = f"select tags nameoftbl from out_ctb3 order by nameoftbl;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "tb1")
+            and tdSql.compareData(1, 0, "tb2")
+        )
+
+    def checks4(self):
+        tdLog.info(f"start to check nodelay create output ctb with multiple tags")
+        result_sql = f"select * from information_schema.ins_stables where stable_name like 'out_ctb4';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_ctb4")
+        )
+
+        result_sql = f"select tags tbname,nameoftbl,tagt1 from out_ctb4 order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out4_tb1")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(0, 2, "1")
+            and tdSql.compareData(1, 0, "out4_tb2")
+            and tdSql.compareData(1, 1, "tb2")
+            and tdSql.compareData(1, 2, "2")
+        )
+    
+    def checks5(self):
+        tdLog.info(f"start to check nodelay create output ctb with exists table")
+        result_sql = f"select tags tbname from out_exists order by tbname;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_exists_tb1")
+            and tdSql.compareData(1, 0, "out_exists_tb2")
+        )
+
+    def checks10(self):
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_normal';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_normal")
+        )
+
+        result_sql = f"select * from out_normal;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
+
+    def checks13(self):
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_decimal_exists';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_decimal_exists")
+        )
+        result_sql = f"select * from out_decimal_exists;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
+    
+    def checks11(self):
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_normal_2';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_normal_2")
+        )
+        result_sql = f"select * from out_normal_2;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
+
+    def checks12(self):
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_normal_exists';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_normal_exists")
+        )
+        result_sql = f"select * from out_normal_exists;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
+    
+    def insertDataAndCheck(self):
+        tdLog.info(f"insert data and check")
+        sqls = [
+            "insert into tb1 values ('2025-01-01 00:00:00', 10001);",
+            "insert into tb2 values ('2025-01-01 00:00:01', 10002);",
+            "insert into tb_decimal values ('2025-01-01 00:00:00', 100.12);",
+        ]
+        tdSql.executes(sqls)
+        tdLog.info(f"insert data successfully")
+        tdLog.info(f"start to check data")
+        result_sql = f"select c1,tag_tbname from out_ctb1 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "tb2")
+        )
+        result_sql = f"select c1,tag_tbname from out_ctb2 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "tb2")
+        )
+        result_sql = f"select c1,tbname,nameoftbl from out_ctb3 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "out3_tb1")
+            and tdSql.compareData(0, 2, "tb1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "out3_tb2")
+            and tdSql.compareData(1, 2, "tb2")
+        )
+        result_sql = f"select c1,tbname,nameoftbl,tagt1 from out_ctb4 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "10001")
+            and tdSql.compareData(0, 1, "out4_tb1")
+            and tdSql.compareData(0, 2, "tb1")
+            and tdSql.compareData(0, 3, "1")
+            and tdSql.compareData(1, 0, "10002")
+            and tdSql.compareData(1, 1, "out4_tb2")
+            and tdSql.compareData(1, 2, "tb2")
+            and tdSql.compareData(1, 3, "2")
+        )
+        result_sql = f"select * from out_normal order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "10001")
+        )
+
+        tdSql.execute("insert into tb1 values ('2025-01-01 00:00:02', 10003);")
+        time.sleep(5)
+
+        result_sql = f"select * from out_normal_2 order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "10001")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
+            and tdSql.compareData(1, 1, "10003")
+        )
+        result_sql = f"select * from out_normal_exists order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "10001")
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
+            and tdSql.compareData(1, 1, "10003")
+        )
+        result_sql = f"select * from out_decimal_exists order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "100.12")
+        )
+
+    class StreamItem:
+        def __init__(self, sql, checkfunc):
+            self.sql = sql
+            self.checkfunc = checkfunc
+
+        def check(self):
+            self.checkfunc()

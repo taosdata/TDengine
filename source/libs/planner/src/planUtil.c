@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,9 +25,23 @@ static char* getUsageErrFormat(int32_t errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
       return "primary timestamp equal condition is expected in join conditions";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
-      return "not support cross join";
+      return "cross join is not supported";
     case TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND:
-      return "Not supported join conditions";
+      return "unsupported join conditions";
+    case TSDB_CODE_PAR_NOT_SUPPORT_JOIN:
+      return "join is not supported for '%s'";
+    case TSDB_CODE_PLAN_SLOT_NOT_FOUND:
+      return "not found slot id by slot key";
+    case TSDB_CODE_PLAN_INVALID_TABLE_TYPE:
+      return "Planner invalid table type";
+    case TSDB_CODE_PLAN_INVALID_DYN_CTRL_TYPE:
+      return "Planner invalid query control plan type";
+    case TSDB_CODE_PLAN_INVALID_WINDOW_TYPE:
+      return "Planner invalid window type";
+    case TSDB_CODE_VTABLE_SRC_TABLE_NOT_EXIST:
+      return "virtual table source table \"%s.%s\" (referenced by virtual table \"%s.%s\") does not exist";
+    case TSDB_CODE_VTABLE_SRC_COL_NOT_FOUND:
+      return "virtual table source column \"%s.%s.%s\" (referenced by virtual table \"%s.%s\") not found";
     default:
       break;
   }
@@ -38,6 +54,20 @@ int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
   (void)vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
   va_end(vArgList);
   return errCode;
+}
+
+void planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel, EDataOrderLevel resultLevel) {
+  if (requireLevel < DATA_ORDER_LEVEL_IN_BLOCK) {
+    requireLevel = DATA_ORDER_LEVEL_IN_BLOCK;
+  }
+  if (resultLevel < DATA_ORDER_LEVEL_IN_BLOCK) {
+    resultLevel = DATA_ORDER_LEVEL_IN_BLOCK;
+  }
+
+  pScan->scanType = SCAN_TYPE_TABLE_MERGE;
+  pScan->filesetDelimited = true;
+  pScan->node.requireDataOrder = requireLevel;
+  pScan->node.resultDataOrder = resultLevel;
 }
 
 typedef struct SCreateColumnCxt {
@@ -54,19 +84,24 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: {
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+    case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
       pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
+
       pCol->node.resType = pExpr->resType;
       tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
@@ -79,8 +114,10 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
           }
         }
       }
-      return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
-                                                                                    : DEAL_RES_ERROR);
+      pCol->node.relatedTo = pExpr->relatedTo;
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, (SNode*)pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     default:
       break;
@@ -89,7 +126,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+static int32_t createColumnsByRewrite(SNode* pExpr, SNodeList* pExprs,
+                                      SNodeList** pList) {
   SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
   if (!cxt.pList) {
     int32_t code = nodesMakeList(&cxt.pList);
@@ -98,35 +136,225 @@ int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
     }
   }
 
-  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  if (NULL != pExprs) {
+    nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  } else {
+    nodesWalkExpr(pExpr, doCreateColumn, &cxt);
+  }
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
-    return cxt.errCode;
+    cxt.pList = NULL;
   }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
+  *pList = cxt.pList;
   return cxt.errCode;
 }
 
+int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+  return createColumnsByRewrite(NULL, pExprs, pList);
+}
+
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
-  if (!cxt.pList) {
-    int32_t code = nodesMakeList(&cxt.pList);
+  return createColumnsByRewrite(pExpr, NULL, pList);
+}
+
+static const SNode* planUnwrapRemoteOutputExpr(const SNode* pExprNode) {
+  const SNode* pExpr = pExprNode;
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType((SNode*)pExpr)) {
+    pExpr = ((const STargetNode*)pExpr)->pExpr;
+  }
+
+  if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType((SNode*)pExpr)) {
+    pExpr = nodesListGetNode(((const SGroupingSetNode*)pExpr)->pParameterList, 0);
+  }
+
+  return pExpr;
+}
+
+static const char* planResolveRemoteOutputVisibleName(const SExprNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+    const SColumnNode* pCol = (const SColumnNode*)pExpr;
+    bool isCurrentScopeOutputRef = ('\0' == pCol->tableAlias[0] && '\0' == pCol->tableName[0]);
+    if (isCurrentScopeOutputRef) {
+      if ('\0' != pExpr->userAlias[0]) {
+        return pExpr->userAlias;
+      }
+      if ('\0' != pCol->colName[0]) {
+        return pCol->colName;
+      }
+      return NULL;
+    }
+
+    if ('\0' != pCol->colName[0]) {
+      return pCol->colName;
+    }
+  } else if ('\0' != pExpr->userAlias[0]) {
+    return pExpr->userAlias;
+  }
+
+  if ('\0' != pExpr->aliasName[0]) {
+    return pExpr->aliasName;
+  }
+  return NULL;
+}
+
+static const char* planResolveRemoteOutputInternalAlias(const SExprNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if ('\0' != pExpr->aliasName[0]) {
+    return pExpr->aliasName;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+    const SColumnNode* pCol = (const SColumnNode*)pExpr;
+    if ('\0' != pCol->colName[0]) {
+      return pCol->colName;
+    }
+  }
+
+  if ('\0' != pExpr->userAlias[0]) {
+    return pExpr->userAlias;
+  }
+  return NULL;
+}
+
+static int32_t planCreateRemoteOutputColumn(const SExprNode* pResExpr,
+                                            const char*      pVisibleName,
+                                            const char*      pInternalAlias,
+                                            SColumnNode**    ppCol) {
+  if (NULL == pResExpr || NULL == ppCol) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SColumnNode* pCol = NULL;
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pResExpr)) {
+    // Keep the original column semantics, especially primary-ts / colId metadata,
+    // but rewrite its naming to the current remote-output scope.
+    code = nodesCloneNode((SNode*)pResExpr, (SNode**)&pCol);
+  } else {
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  }
+
+  if (TSDB_CODE_SUCCESS != code || NULL == pCol) {
+    return (TSDB_CODE_SUCCESS == code) ? terrno : code;
+  }
+
+  pCol->node.resType = pResExpr->resType;
+  pCol->node.relatedTo = pResExpr->relatedTo;
+  pCol->dbName[0] = '\0';
+  pCol->tableName[0] = '\0';
+  pCol->tableAlias[0] = '\0';
+  tstrncpy(pCol->colName, pInternalAlias, sizeof(pCol->colName));
+  tstrncpy(pCol->node.aliasName, pInternalAlias, sizeof(pCol->node.aliasName));
+  tstrncpy(pCol->node.userAlias, pVisibleName, sizeof(pCol->node.userAlias));
+
+  *ppCol = pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList) {
+  if (NULL == pList) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // JOIN targets are also the SELECT expressions used by the renderer. Keep
+  // their input qualifiers across repeated logical and physical target refreshes.
+  if (pOutputs->source == NODES_REMOTE_SELECT_SOURCE_JOIN) {
+    return nodesCloneList(pOutputs->pSelectExprs, pList);
+  }
+  SNodeList* pExprs = pOutputs->pSelectExprs;
+  SNodeList* pCols = *pList;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pCols) {
+    code = nodesMakeList(&pCols);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
   }
 
-  nodesWalkExpr(pExpr, doCreateColumn, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pList);
-    return cxt.errCode;
+  SNode* pExprNode = NULL;
+  FOREACH(pExprNode, pExprs) {
+    const SNode* pExpr = planUnwrapRemoteOutputExpr(pExprNode);
+    if (NULL == pExpr || !nodesIsExprNode((SNode*)pExpr)) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      break;
+    }
+
+    const SExprNode* pResExpr = (const SExprNode*)pExpr;
+    const char* pVisibleName = planResolveRemoteOutputVisibleName(pResExpr);
+    const char* pInternalAlias = planResolveRemoteOutputInternalAlias(pResExpr);
+    if ((NULL == pVisibleName || '\0' == pVisibleName[0]) &&
+        (NULL == pInternalAlias || '\0' == pInternalAlias[0])) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      break;
+    }
+
+    if (NULL == pVisibleName || '\0' == pVisibleName[0]) {
+      pVisibleName = pInternalAlias;
+    }
+    if (NULL == pInternalAlias || '\0' == pInternalAlias[0]) {
+      pInternalAlias = pVisibleName;
+    }
+
+    SColumnNode* pCol = NULL;
+    code = planCreateRemoteOutputColumn(pResExpr, pVisibleName, pInternalAlias, &pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+
+    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pCol);
+      break;
+    }
   }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    if (NULL == *pList) {
+      nodesDestroyList(pCols);
+    }
+    return code;
+  }
+
   if (NULL == *pList) {
-    *pList = cxt.pList;
+    *pList = pCols;
   }
-  return cxt.errCode;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs) {
+  if (NULL == pNode || NULL == pExprs || QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType((SNode*)pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SProjectLogicNode* pProject = (SProjectLogicNode*)pNode;
+  // Remote-output alignment rebuilds pTargets from the final remote SELECT list,
+  // but a Project's pProjections still carry the real SELECT semantics. When
+  // they already exist, keep them intact so later remote SQL rendering does not
+  // collapse expressions like CAST(time ...) into current-scope output refs.
+  if (pProject->pProjections != NULL && LIST_LENGTH(pProject->pProjections) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCloned = NULL;
+  int32_t    code = nodesCloneList((SNodeList*)pExprs, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  nodesDestroyList(pProject->pProjections);
+  pProject->pProjections = pCloned;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
@@ -160,8 +388,164 @@ SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr) {
   return NULL;
 }
 
+// SMALLDATA_SCAN_SORT applies only to super-table scans (the only scan kind that
+// fuses into a table merge scan), so the hint takes effect only on one.
+bool scanIsSmallDataScanSortHinted(const SScanLogicNode* pScan) {
+  return pScan->smallDataScanSort && TSDB_SUPER_TABLE == pScan->tableType;
+}
 
+// Hint SMALLDATA_SCAN_SORT: replace a would-be table-merge scan with a plain
+// table scan plus a Sort node, inserted between pScan and its current parent.
+// The Sort provides the ts (and pk) ordering that the table merge scan used to
+// fuse in.  Any scan-level limit is moved onto the Sort (sort-then-limit).
+//
+// The ts/pk sort keys are built with the same helpers the table-merge-scan split
+// path uses (stbSplFindPrimaryKeyFromScan / stbSplFindPkFromScan /
+// stbSplCreateMergeKeysByExpr in planSpliter.c), so the inserted Sort orders by
+// exactly what the merge scan would have.
+int32_t planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced) {
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SSortLogicNode* pSort = NULL;
+  SNode*          pTs = NULL;
+  SNode*          pPk = NULL;
+  // This runs during data-requirement adjustment (logic-plan creation), before the
+  // optimizer can flip scanSeq for a DESC scan, so scanSeq[0] is always its creation
+  // default (>0 => ASC).  Every consumer that reaches this branch (session/state/
+  // interval windows with no ORDER BY) requires ASC ts input, so ASC is correct
+  // here; the DESC flip happens later in sortPrimaryKeyOptimize.
+  EOrder          order = (pScan->scanSeq[0] > 0) ? ORDER_ASC : ORDER_DESC;
+
+  *pReplaced = false;
+
+  // Locate the primary ts sort key BEFORE touching the scan.  If the scan carries
+  // no primary ts column we cannot build an ordering Sort; leave the scan untouched
+  // and report it (pReplaced stays false) so the caller keeps the correct,
+  // order-providing table merge scan instead of an unordered plain scan.  A
+  // super-table scan that needs global order always carries the ts column, so this
+  // is a defensive guard, not an expected path.
+  code = stbSplFindPrimaryKeyFromScan(pScan, &pTs);
+  if (TSDB_CODE_SUCCESS != code || NULL == pTs) {
+    return code;
+  }
+
+  // We have a ts key: demote to a plain table scan and build the Sort above it.
+  pScan->scanType = SCAN_TYPE_TABLE;
+  pScan->filesetDelimited = false;
+
+  code = stbSplFindPkFromScan(pScan, &pPk);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->groupSort = (NULL != pScan->pGroupTags);
+    pSort->node.precision = pScan->node.precision;
+    pSort->node.outputTsOrder = order;
+    pSort->node.inputTsOrder = pScan->node.outputTsOrder;
+    // A Sort needs no order from its input and guarantees globally ordered output.
+    pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pSort->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+    code = nodesCloneList(pScan->node.pTargets, &pSort->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeKeysByExpr(pTs, order, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pPk) {
+    code = stbSplCreateMergeKeysByExpr(pPk, order, &pSort->pSortKeys);
+  }
+
+  // Splice pSort between pScan and pScan->node.pParent: pSort takes the exact slot
+  // pScan occupied in the parent's child list, and pScan becomes pSort's only
+  // child.  The parent-slot swap is done first (it can fail); pScan is appended to
+  // pSort only after success, so destroying pSort on the error path never frees the
+  // still-live pScan.
+  if (TSDB_CODE_SUCCESS == code && NULL != pScan->node.pParent) {
+    SLogicNode* pParent = pScan->node.pParent;
+    bool        replaced = false;
+    SNode*      pNode = NULL;
+    FOREACH(pNode, pParent->pChildren) {
+      if (nodesEqualNode(pNode, (SNode*)pScan)) {
+        REPLACE_NODE(pSort);
+        replaced = true;
+        break;
+      }
+    }
+    code = replaced ? TSDB_CODE_SUCCESS : TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->node.stmtRoot = pScan->node.stmtRoot;
+    pSort->node.pParent = pScan->node.pParent;
+    pScan->node.pParent = (SLogicNode*)pSort;
+    pScan->node.stmtRoot = false;
+    code = nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pScan);
+    if (TSDB_CODE_SUCCESS != code) {
+      // Roll back the parent-slot swap so pScan is reachable again, then bail.
+      SNode* pNode = NULL;
+      if (NULL != pSort->node.pParent) {
+        FOREACH(pNode, pSort->node.pParent->pChildren) {
+          if (nodesEqualNode(pNode, (SNode*)pSort)) {
+            REPLACE_NODE(pScan);
+            break;
+          }
+        }
+      }
+      pScan->node.pParent = pSort->node.pParent;
+      pSort->node.pParent = NULL;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    // Move any scan-level limit above the Sort (sort-then-limit, not limit-then-sort)
+    // only after the splice succeeded, so a failed splice never strands the moved
+    // limit on the to-be-destroyed Sort.
+    if (NULL != pScan->node.pLimit) {
+      pSort->node.pLimit = pScan->node.pLimit;
+      pScan->node.pLimit = NULL;
+    }
+    *pReplaced = true;
+  } else {
+    nodesDestroyNode((SNode*)pSort);
+  }
+  return code;
+}
+
+// Hint SMALLDATA_SCAN_SORT: decide whether a Sort already orders this scan's
+// output.  Walk up the parent chain; an explicit Sort (the ORDER BY case) is the
+// order source and no Sort needs to be inserted.  If an order-consuming operator
+// (window/join/agg/partition/...) is reached first, the consumer relies on the
+// (would-be) merge scan for ordering, so a Sort must be inserted instead.
+static bool planScanHasSortAncestor(SScanLogicNode* pScan) {
+  SLogicNode* pParent = pScan->node.pParent;
+  while (NULL != pParent) {
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        return true;
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        // Projection preserves row order; keep walking toward an ORDER BY Sort.
+        pParent = pParent->pParent;
+        break;
+      default:
+        // Any other consumer (window, join, agg, partition, merge, fill, ...) is
+        // the order requester; there is no Sort providing the order.  Defaulting an
+        // unrecognized node to "requester" is the safe direction: it inserts a Sort
+        // (at worst redundant) rather than leaving an order-needing consumer unordered.
+        return false;
+    }
+  }
+  return false;
+}
+
+// Note on phase ordering (load-bearing): this runs during logic-plan creation
+// (adjustLogicNodeDataRequirement), BEFORE optimizeLogicPlan.  Inserting the Sort
+// here, between an order-consuming partition/window and the scan, is what stops
+// partTagsOptimize from later folding a tag partition into the scan's pGroupTags
+// (partTagsIsOptimizableNode requires the partition's direct child to be a SCAN).
+// A separate Partition operator therefore survives to regroup the ts-ordered
+// stream, and pScan->pGroupTags stays NULL when planReplaceMergeWithSort runs (so
+// it never builds a group-sort over a non-group-ordered scan).  Do NOT move this
+// into an optimize-phase rule: running after partTagsOptimize would re-enable that
+// fold and produce a group-sort scan whose per-partition order is not established.
 static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel requirement) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if ((SCAN_TYPE_TABLE != pScan->scanType && SCAN_TYPE_TABLE_MERGE != pScan->scanType) ||
       DATA_ORDER_LEVEL_GLOBAL == pScan->node.requireDataOrder) {
     return TSDB_CODE_SUCCESS;
@@ -170,26 +554,261 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (requirement < DATA_ORDER_LEVEL_IN_BLOCK) {
     requirement = DATA_ORDER_LEVEL_IN_BLOCK;
   }
-  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement) {
+  // An interp RANGE scan grouped by tbname makes every group a single child
+  // table, which the storage layer already returns in timestamp order, so the
+  // in-group order requirement needs no multi-table merge: a plain table scan
+  // suffices and lets interp reuse the mature per-table RANGE-pruning
+  // optimizations instead of the merge-scan probe. Scoped to interp
+  // (pExtScanRange set) to leave other tbname-grouped queries on their existing
+  // merge-scan path.
+  bool interpRangeByTbname = (NULL != pScan->pExtScanRange) && keysHasTbname(pScan->pGroupTags);
+  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement ||
+      pScan->placeholderType == SP_PARTITION_TBNAME ||
+      pScan->placeholderType == SP_PARTITION_ROWS ||
+      interpRangeByTbname) {
     pScan->scanType = SCAN_TYPE_TABLE;
+    if (interpRangeByTbname) {
+      // Emit one group per child table so each gets its own scan pass. An
+      // interp RANGE scan opens a per-reader external (3-segment) reader,
+      // which is not per-table; without per-table groups all child tables
+      // would share one external reader and only the first would get its
+      // fill-reference rows.
+      pScan->groupSort = true;
+    }
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
-    pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pScan->filesetDelimited = true;
+    // TIME_ALIGN over a super table also uses the table merge scan: the align
+    // stage runs inside it on each per-table block before the ts merge, where
+    // the block still carries its own uid.
+    if (pScan->smallDataScanSort) {
+      if (planScanHasSortAncestor(pScan)) {
+        // ORDER BY case: a Sort already orders the scan output (Task 1 behavior).
+        // Leave a plain table scan; the Sort above provides global order.
+        pScan->scanType = SCAN_TYPE_TABLE;
+      } else {
+        // Window/interval/session/state case: no Sort exists, the consumer expects
+        // the merge scan to be the order source.  Demote to a plain table scan and
+        // insert a Sort above it so the required order is still provided.
+        bool replaced = false;
+        code = planReplaceMergeWithSort(pScan, &replaced);
+        if (TSDB_CODE_SUCCESS == code && !replaced) {
+          // No ts sort key to build a Sort from: keep the correct table merge scan
+          // rather than leave an unordered plain scan for an order-requiring consumer.
+          planPromoteScanToTableMerge(pScan, pScan->node.requireDataOrder, requirement);
+        }
+      }
+    } else {
+      planPromoteScanToTableMerge(pScan, pScan->node.requireDataOrder, requirement);
+    }
   }
 
-  if (TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {
-    pScan->node.resultDataOrder = requirement;
+  if (TSDB_CODE_SUCCESS == code && TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType) {
+    // A hinted plain scan (ORDER BY case, or after the merge scan was replaced by a
+    // Sort + plain scan) only guarantees in-block order; the Sort above raises the
+    // order back to GLOBAL for the consumer.  Either way the scan is left as
+    // SCAN_TYPE_TABLE, so that flag distinguishes it from the table-merge fallback.
+    pScan->node.resultDataOrder = (pScan->smallDataScanSort && SCAN_TYPE_TABLE == pScan->scanType)
+                                      ? DATA_ORDER_LEVEL_IN_BLOCK
+                                      : requirement;
   }
+  return code;
+}
+
+// Propagates a timestamp order from pNode toward the root until an operator
+// establishes or destroys order. pNodeForcePropagate lets one such boundary
+// adopt the supplied order and continue propagation, for example when its
+// Sort is removed. Temporal joins propagate their effective output order
+// instead of a child's physical timestamp order.
+void planSetParentOrder(SLogicNode* pNode, EOrder order,
+                        SLogicNode* pNodeForcePropagate) {
+  if (NULL == pNode) {
+    return;
+  }
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode) &&
+      (IS_ASOF_JOIN(((SJoinLogicNode*)pNode)->subType) ||
+       IS_WINDOW_JOIN(((SJoinLogicNode*)pNode)->subType))) {
+    // Child physical-ts order is not necessarily the effective-time order.
+    planSetParentOrder(pNode->pParent, pNode->outputTsOrder,
+                       pNodeForcePropagate);
+    return;
+  }
+  pNode->inputTsOrder = order;
+  switch (nodeType(pNode)) {
+    // Stop at operators that establish their own output order.
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      if (pNode == pNodeForcePropagate) {
+        pNode->outputTsOrder = order;
+        break;
+      } else {
+        return;
+      }
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      // Hash output does not preserve the order of its input.
+      if (JOIN_ALGO_HASH == ((SJoinLogicNode*)pNode)->joinAlgo) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      // Theta may emit unmatched rows after all matched rows, regardless
+      // of the input order. Its parent must establish any required order.
+      if (JOIN_ALGO_THETA == ((SJoinLogicNode*)pNode)->joinAlgo) {
+        order = TSDB_ORDER_NONE;
+        pNode->inputTsOrder = TSDB_ORDER_NONE;
+      }
+      pNode->outputTsOrder = order;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+      if (((SWindowLogicNode*)pNode)->winType == WINDOW_TYPE_INTERVAL &&
+          pNode->groupAction != GROUP_ACTION_KEEP) {
+        return;
+      }
+      // Use the window's own order, not its original input order.
+      order = pNode->outputTsOrder;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (projectCouldMergeUnsortDataBlock((SProjectLogicNode*)pNode)) {
+        pNode->outputTsOrder = TSDB_ORDER_NONE;
+        return;
+      }
+      pNode->outputTsOrder = order;
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      return;
+    }
+    default:
+      pNode->outputTsOrder = order;
+      break;
+  }
+  planSetParentOrder(pNode->pParent, order, pNodeForcePropagate);
+}
+
+bool planCanMergeOutputGroups(const SLogicNode* pNode) {
+  if (GROUP_ACTION_KEEP == pNode->groupAction) {
+    return false;
+  }
+
+  for (const SLogicNode* pParent = pNode->pParent; pParent != NULL;
+       pParent = pParent->pParent) {
+    if (GROUP_ACTION_KEEP == pParent->groupAction ||
+        DATA_ORDER_LEVEL_NONE != pParent->requireDataOrder) {
+      return false;
+    }
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        // Clearing output groups does not imply group-independent input.
+        if (pParent->pSlimit != NULL ||
+            (pParent->pLimit != NULL &&
+             !((const SProjectLogicNode*)pParent)->inputIgnoreGroup)) {
+          return false;
+        }
+        break;
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        if (((const SSortLogicNode*)pParent)->groupSort) {
+          return false;
+        }
+        break;
+      default:
+        // A consumer may use group IDs even if it creates its own groups.
+        return false;
+    }
+  }
+  return true;
+}
+
+int32_t planCreateIsNotNullCond(const SNode* pExpr, SNode** ppCond) {
+  SOperatorNode* pOp = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp));
+  pOp->opType = OP_TYPE_IS_NOT_NULL;
+  pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  int32_t code = nodesCloneNode(pExpr, &pOp->pLeft);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOp);
+    return code;
+  }
+
+  *ppCond = (SNode*)pOp;
+  return TSDB_CODE_SUCCESS;
+}
+
+SNode* planGetTemporalJoinTimeCond(const SJoinLogicNode* pJoin) {
+  // planPrepareAsofJoinTimeCondition() destroys addPrimEqCond once it has
+  // produced pPrimKeyEqCond, so at most one of the two is live. Prefer the
+  // resolved one so every consumer reads the same operator.
+  return NULL != pJoin->pPrimKeyEqCond ? pJoin->pPrimKeyEqCond :
+                                         pJoin->addPrimEqCond;
+}
+
+int32_t planCreateJoinInputSort(SLogicNode* pChild, SNode* pKey, EOrder order,
+                                SLogicNode** ppSort) {
+  SSortLogicNode* pSort = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pSort->node.outputTsOrder = order;
+  code = nodesCloneList(pChild->pTargets, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = stbSplCreateMergeKeysByExpr(pKey, order, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeAppend(&pSort->node.pChildren, (SNode*)pChild);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSort);
+    return code;
+  }
+  // The caller splices pSort into its slot and owns pSort->node.pParent.
+  pChild->pParent = (SLogicNode*)pSort;
+  *ppSort = (SLogicNode*)pSort;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t adjustJoinDataRequirement(SJoinLogicNode* pJoin, EDataOrderLevel requirement) {
+  // Temporal inputs have already been aligned by their effective-time keys,
+  // which may differ from their physical primary timestamps. Require GLOBAL
+  // physical-ts order only when a child advertises it; otherwise a blanket
+  // GLOBAL requirement could reorder the subtree by the wrong time column.
+  if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pJoin->node.pChildren) {
+      SLogicNode* pChild = (SLogicNode*)pNode;
+      // The join's GLOBAL requirement concerns its effective-time keys.
+      EDataOrderLevel level = TSDB_ORDER_NONE == pChild->outputTsOrder ?
+          DATA_ORDER_LEVEL_NONE : DATA_ORDER_LEVEL_GLOBAL;
+      int32_t code = adjustLogicNodeDataRequirement(pChild, level);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
   // The lowest sort level of join input and output data is DATA_ORDER_LEVEL_GLOBAL
-  return TSDB_CODE_SUCCESS;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!pJoin->leftConstPrimGot) {
+    code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0),
+                                          pJoin->node.requireDataOrder);
+  } else {
+    code =
+        adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0), DATA_ORDER_LEVEL_NONE);
+  }
+  if (TSDB_CODE_SUCCESS == code && pJoin->node.pChildren->length > 1) {
+    if (!pJoin->rightConstPrimGot) {
+      code = adjustLogicNodeDataRequirement((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1),
+                                            pJoin->node.requireDataOrder);
+    } else {
+      code =
+          adjustScanDataRequirement((SScanLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1), DATA_ORDER_LEVEL_NONE);
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    planError("adjust join input data requirement failed, err:%s", tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel requirement) {
   // The sort level of agg with group by output data can only be DATA_ORDER_LEVEL_NONE
+  /* agg could meet the requirement when the primary key is const like function, so this check may be failed
   if (requirement > DATA_ORDER_LEVEL_NONE && (NULL != pAgg->pGroupKeys || !pAgg->onlyHasKeepOrderFunc)) {
     planError(
         "The output of aggregate cannot meet the requirements(%s) of the upper operator. "
@@ -197,6 +816,7 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
         dataOrderStr(requirement));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  */
   pAgg->node.resultDataOrder = requirement;
   if (pAgg->hasTimeLineFunc) {
     pAgg->node.requireDataOrder = requirement < DATA_ORDER_LEVEL_IN_GROUP ? DATA_ORDER_LEVEL_IN_GROUP : requirement;
@@ -205,6 +825,15 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
 }
 
 static int32_t adjustProjectDataRequirement(SProjectLogicNode* pProject, EDataOrderLevel requirement) {
+  if (pProject->timeAlignProject) {
+    // The align host keeps per-series state and needs each series to arrive in
+    // ts order, but it must not force a global order requirement into the view
+    // subtree: that promotes a stable scan to a table merge scan, whose blocks
+    // no longer carry a single series id and leak values across devices.
+    pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+    pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
   pProject->node.resultDataOrder = requirement;
   pProject->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
@@ -215,7 +844,28 @@ static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrd
   if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
     requirement = DATA_ORDER_LEVEL_IN_GROUP;
   }
-  // The sort level of interval input data is always DATA_ORDER_LEVEL_IN_BLOCK
+  // Interval can produce ordered output (IN_GROUP or stronger) from block-ordered
+  // input. Do NOT push the parent's output requirement into requireDataOrder --
+  // that would over-demand from children (e.g. promoting Table Scan to Table
+  // Merge Scan unnecessarily).  Keep the minimum input requirement as-is.
+  if (pWindow->node.requireDataOrder < DATA_ORDER_LEVEL_IN_BLOCK) {
+    pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_IN_BLOCK;
+  }
+  pWindow->node.resultDataOrder = requirement;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t adjustExternalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
+  // External window output is at least ordered within each group, and can
+  // already be globally ordered when there is no outer partition/group sort.
+  // Keep that stronger guarantee instead of downgrading it to the parent's
+  // weaker requirement.
+  if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
+    requirement = DATA_ORDER_LEVEL_IN_GROUP;
+  }
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
   pWindow->node.resultDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }
@@ -279,6 +929,8 @@ static int32_t adjustWindowDataRequirement(SWindowLogicNode* pWindow, EDataOrder
       return adjustCountDataRequirement(pWindow, requirement);
     case WINDOW_TYPE_ANOMALY:
       return adjustAnomalyDataRequirement(pWindow, requirement);
+    case WINDOW_TYPE_EXTERNAL:
+      return adjustExternalDataRequirement(pWindow, requirement);
     default:
       break;
   }
@@ -346,7 +998,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = adjustJoinDataRequirement((SJoinLogicNode*)pNode, requirement);
-      break;
+      return code;
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = adjustAggDataRequirement((SAggLogicNode*)pNode, requirement);
       break;
@@ -366,6 +1018,10 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
     case QUERY_NODE_LOGIC_PLAN_SORT:
       code = adjustSortDataRequirement((SSortLogicNode*)pNode, requirement);
       break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      pNode->resultDataOrder = requirement;
+      pNode->requireDataOrder = requirement;
+      break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = adjustPartitionDataRequirement((SPartitionLogicNode*)pNode, requirement);
       break;
@@ -376,6 +1032,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
       code = adjustInterpDataRequirement((SInterpFuncLogicNode*)pNode, requirement);
       break;
     case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
       code = adjustForecastDataRequirement((SForecastFuncLogicNode*)pNode, requirement);
       break;
     default:
@@ -439,6 +1096,18 @@ bool isPartTableAgg(SAggLogicNode* pAgg) {
            stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
   return pAgg->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+}
+
+// Partition-by-table aggregation directly over a group-ordered cache scan,
+// whose groups each arrive whole.
+bool isLastRowPartTableAgg(SAggLogicNode* pAgg) {
+  if (NULL != pAgg->pGroupKeys || !isPartTableAgg(pAgg)) {
+    return false;
+  }
+  const SNode* pInput = nodesListGetNode(pAgg->node.pChildren, 0);
+  return QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pInput) &&
+         SCAN_TYPE_LAST_ROW == ((const SScanLogicNode*)pInput)->scanType &&
+         ((const SScanLogicNode*)pInput)->groupOrderScan;
 }
 
 static bool stbHasPartTag(SNodeList* pPartKeys) {
@@ -523,16 +1192,29 @@ bool getSmallDataTsSortOptHint(SNodeList* pList) {
   return false;
 }
 
-bool getHashJoinOptHint(SNodeList* pList) {
-  if (!pList) return false;
+bool getSmallDataScanSortOptHint(SNodeList* pList) { return getOptHint(pList, HINT_SMALLDATA_SCAN_SORT); }
+
+EJoinAlgorithm getJoinAlgoHint(SNodeList* pList) {
+  if (!pList) return JOIN_ALGO_UNKNOWN;
   SNode* pNode;
   FOREACH(pNode, pList) {
     SHintNode* pHint = (SHintNode*)pNode;
+    if (pHint->option == HINT_JOIN_ALGO) {
+      if (NULL == pHint->pParams || 1 != taosArrayGetSize(pHint->pParams)) return JOIN_ALGO_UNKNOWN;
+      const SHintParam* pParam = taosArrayGet(pHint->pParams, 0);
+      if (0 == taosStrcasecmp(pParam->value, "HASH")) return JOIN_ALGO_HASH;
+      if (0 == taosStrcasecmp(pParam->value, "MERGE")) return JOIN_ALGO_MERGE;
+      if (0 == taosStrcasecmp(pParam->value, "THETA")) return JOIN_ALGO_THETA;
+      return JOIN_ALGO_UNKNOWN;
+    }
     if (pHint->option == HINT_HASH_JOIN) {
-      return true;
+      return JOIN_ALGO_HASH;
+    }
+    if (pHint->option == HINT_MERGE_JOIN) {
+      return JOIN_ALGO_MERGE;
     }
   }
-  return false;
+  return JOIN_ALGO_UNKNOWN;
 }
 
 
@@ -546,6 +1228,10 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
       if (NULL == *ppRes) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
+    }
+
+    if(pCol->tableAlias[0] == '\0') {
+      continue;
     }
 
     code = tSimpleHashPut(*ppRes, pCol->tableAlias, strlen(pCol->tableAlias), NULL, 0);
@@ -570,6 +1256,96 @@ int32_t collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
   return code;
 }
 
+typedef struct SCollectTableAliasCxt {
+  SSHashObj** ppRes;
+  int32_t     code;
+} SCollectTableAliasCxt;
+
+static EDealRes collectTableAliasFromExpr(SNode* pNode, void* pContext) {
+  SCollectTableAliasCxt* pCxt = (SCollectTableAliasCxt*)pContext;
+  const char*            pTableAlias = NULL;
+  char                   tbnameTableAlias[TSDB_TABLE_NAME_LEN] = {0};
+
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pTableAlias = ((SColumnNode*)pNode)->tableAlias;
+  } else if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    pTableAlias = ((SValueNode*)pNode)->node.srcTable;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pNode) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+    SValueNode* pVal = (pArg != NULL && QUERY_NODE_VALUE == nodeType(pArg)) ? (SValueNode*)pArg : NULL;
+    if (NULL != pVal) {
+      pTableAlias = pVal->literal;
+    } else {
+      char* pSuffix = strstr(pFunc->node.userAlias, ".tbname");
+      if (NULL != pSuffix && pSuffix != pFunc->node.userAlias) {
+        int32_t len = TMIN((int32_t)(pSuffix - pFunc->node.userAlias), TSDB_TABLE_NAME_LEN - 1);
+        memcpy(tbnameTableAlias, pFunc->node.userAlias, len);
+        tbnameTableAlias[len] = '\0';
+        pTableAlias = tbnameTableAlias;
+      }
+    }
+  }
+
+  if (NULL == pTableAlias || '\0' == pTableAlias[0]) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (NULL == *pCxt->ppRes) {
+    *pCxt->ppRes = tSimpleHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (NULL == *pCxt->ppRes) {
+      pCxt->code = TSDB_CODE_OUT_OF_MEMORY;
+      return DEAL_RES_ERROR;
+    }
+  }
+
+  pCxt->code = tSimpleHashPut(*pCxt->ppRes, pTableAlias, strlen(pTableAlias), NULL, 0);
+  return (TSDB_CODE_SUCCESS == pCxt->code) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+static int32_t collectTableAliasFromExprs(SNodeList* pList, SSHashObj** ppRes) {
+  SCollectTableAliasCxt cxt = {.ppRes = ppRes, .code = TSDB_CODE_SUCCESS};
+  nodesWalkExprs(pList, collectTableAliasFromExpr, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+  return cxt.code;
+}
+
+int32_t collectSourceTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SLogicNode* pCurr = (SLogicNode*)pNode;
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    code = collectTableAliasFromExprs(pScan->pScanCols, ppRes);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectTableAliasFromExprs(pScan->pScanPseudoCols, ppRes);
+    }
+    return code;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pCurr->pChildren) {
+    code = collectSourceTableAliasFromNodes(pChild, ppRes);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    tSimpleHashCleanup(*ppRes);
+    *ppRes = NULL;
+  }
+
+  return code;
+}
+
 bool isPartTagAgg(SAggLogicNode* pAgg) {
   if (1 != LIST_LENGTH(pAgg->node.pChildren)) {
     return false;
@@ -582,35 +1358,57 @@ bool isPartTagAgg(SAggLogicNode* pAgg) {
 }
 
 bool isPartTableWinodw(SWindowLogicNode* pWindow) {
-  return pWindow->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)));
+  if ((pWindow->partType & WINDOW_PART_TB) || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0)))) {
+    return true;
+  }
+  return false;
+}
+
+bool limitHasFiniteRows(const SNode* pLimit) { return NULL != pLimit && NULL != ((SLimitNode*)pLimit)->limit; }
+
+static void adjustLimitWithOffset(SLimitNode* pLimit) {
+  if (NULL == pLimit || NULL == pLimit->limit) {
+    return;
+  }
+  if (pLimit->offset) {
+    pLimit->limit->datum.i += pLimit->offset->datum.i;
+    pLimit->offset->datum.i = 0;
+  }
+}
+
+bool isPartTableInterp(SInterpFuncLogicNode* pInterp) {
+  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  // Each partition-by-tbname group lives entirely on a single vnode, and the
+  // scan already emits group-ordered rows (groupSort, set by the interp RANGE
+  // by-tbname rewrite), so interp can be computed per vnode and pushed below the
+  // exchange instead of going through the cross-table Merge. partition by tag may
+  // span vnodes, so it is excluded and keeps the merge path.
+  return keysHasTbname(pScan->pGroupTags) && pScan->groupSort;
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
-  SLimitNode* pLimit = NULL, *pSlimit = NULL;
+  SLimitNode *pLimit = NULL, *pSlimit = NULL;
   int32_t     code = 0;
   bool        cloned = false;
-  if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
+  if (limitHasFiniteRows(pParent->pLimit) && (cloneWhat & CLONE_LIMIT)) {
     code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
     if (TSDB_CODE_SUCCESS == code) {
-      if (pLimit->limit && pLimit->offset) {
-        pLimit->limit->datum.i += pLimit->offset->datum.i;
-      }
-      if (pLimit->offset) {
-        pLimit->offset->datum.i = 0;
-      }
+      adjustLimitWithOffset(pLimit);
       cloned = true;
     }
   }
 
-  if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
+  if (limitHasFiniteRows(pParent->pSlimit) && (cloneWhat & CLONE_SLIMIT)) {
     code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
     if (TSDB_CODE_SUCCESS == code) {
-      if (pSlimit->limit && pSlimit->offset) {
-        pSlimit->limit->datum.i += pSlimit->offset->datum.i;
-      }
-      if (pSlimit->offset) {
-        pSlimit->offset->datum.i = 0;
-      }
+      adjustLimitWithOffset(pSlimit);
       cloned = true;
     }
   }
@@ -620,6 +1418,7 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
     *pCloned = cloned;
   } else {
     nodesDestroyNode((SNode*)pLimit);
+    nodesDestroyNode((SNode*)pSlimit);
   }
   return code;
 }
@@ -640,15 +1439,64 @@ bool keysHasCol(SNodeList* pKeys) {
   return hasCol;
 }
 
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+bool partitionKeyHasOrdinaryColumn(SNode* pKey) {
+  bool hasCol = false;
+  nodesWalkExpr(pKey, partTagsOptHasColImpl, &hasCol);
+  return hasCol;
+}
+
+static EDealRes keysHasTagOrTbnameImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    int32_t funcType = ((SFunctionNode*)pNode)->funcType;
+    if (FUNCTION_TYPE_TAGS == funcType || FUNCTION_TYPE_TBNAME == funcType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  } else if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    int8_t colType = ((SColumnNode*)pNode)->colType;
+    if (COLUMN_TYPE_TAG == colType || COLUMN_TYPE_TBNAME == colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+bool keysHasTagOrTbname(SNodeList* pKeys) {
+  bool hasTagOrTbname = false;
+  nodesWalkExprs(pKeys, keysHasTagOrTbnameImpl, &hasTagOrTbname);
+  return hasTagOrTbname;
+}
+
+bool partitionKeyHasTagOrTbname(SNode* pKey) {
+  bool hasTagOrTbname = false;
+  nodesWalkExpr(pKey, keysHasTagOrTbnameImpl, &hasTagOrTbname);
+  return hasTagOrTbname;
+}
+
+bool partitionKeysAreOrdinaryColumns(SNodeList* pKeys) {
+  return keysHasCol(pKeys) && !keysHasTagOrTbname(pKeys);
+}
+
+bool planAggFuncsHasFirst(SNodeList* pFuncs) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    if (FUNCTION_TYPE_FIRST == ((SFunctionNode*)pNode)->funcType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
     tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
-    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
-    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupExpr->userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
-    code = nodesCloneNode((SNode*)pGroupCol, &pNew);
+    code = nodesCloneNode((SNode*)pGroupExpr, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
     }
@@ -661,8 +1509,8 @@ SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
     }
     if (TSDB_CODE_SUCCESS == code) {
       char    name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
-      int32_t len = tsnprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
-      (void)taosHashBinary(name, len);
+      int32_t len = snprintf(name, sizeof(name) - 1, "%s.%p", pFunc->functionName, pFunc);
+      (void)taosHashBinary(name, len, sizeof(name));
       tstrncpy(pFunc->node.aliasName, name, TSDB_COL_NAME_LEN);
     }
   }
@@ -679,7 +1527,7 @@ int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, b
   int32_t code = scalarCalculateConstants(*pPrimaryKeyCond, &pNew);
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
-    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict);
+    code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, pIsStrict, NULL);
   }
   return code;
 }
@@ -711,7 +1559,7 @@ static bool tagScanNodeHasTbname(SNode* pKeys) {
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan) {
   pScan->onlyMetaCtbIdx = false;
 
-  if (pScan->tableType == TSDB_CHILD_TABLE) {
+  if (pScan->tableType != TSDB_SUPER_TABLE) {
     pScan->onlyMetaCtbIdx = false;
     return TSDB_CODE_SUCCESS;
   }
@@ -759,4 +1607,236 @@ void rewriteTargetsWithResId(SNodeList* pTargets) {
     SColumnNode* pCol = (SColumnNode*)pNode;
     pCol->resIdx = pCol->projRefIdx;
   }
+}
+
+bool checkScanLogicNode(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    return true;
+  }
+
+  SNode* node = NULL;
+  FOREACH(node, pNode->pChildren) {
+    if (checkScanLogicNode((SLogicNode*)node)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool inStreamCalcClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isCalc;
+}
+
+bool inStreamTriggerClause(SPlanContext* pCxt) {
+  return pCxt->streamCxt.isTrigger;
+}
+
+// Specialized query blocks retain their existing execution paths.
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt) {
+  return !pCxt->topicQuery && !pCxt->rSmaQuery && !pCxt->streamCxt.isCalc &&
+         !pCxt->streamCxt.isTrigger && !pCxt->streamCxt.isVtableCalc;
+}
+
+// Stage-specific remote operands and function safety stay with callers.
+bool planExprIsRuntimeDependent(const SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return true;
+    case QUERY_NODE_COLUMN:
+      return ((const SColumnNode*)pNode)->hasDep;
+    case QUERY_NODE_VALUE:
+      return 0 != (((const SValueNode*)pNode)->flag &
+                   VALUE_FLAG_DEFERRED_QUERY_TIME);
+    default:
+      return false;
+  }
+}
+
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight) {
+  return 0 == strcmp(pLeft->tableAlias, pRight->tableAlias) &&
+         0 == strcmp(pLeft->colName, pRight->colName);
+}
+
+// A bit describes the result after NULL-extending that input. Keeping both
+// truth exclusions lets NOT invert facts without mistaking FALSE for NULL.
+typedef struct SPlanNullFacts {
+  uint64_t notTrue;
+  uint64_t notFalse;
+} SPlanNullFacts;
+
+typedef struct SPlanNullContext {
+  FPlanNullColumnResolver resolver;
+  const void*             pResolveContext;
+  uint64_t                inputs;
+} SPlanNullContext;
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr);
+
+// A result that is neither TRUE nor FALSE is guaranteed NULL. Strict scalar
+// operations propagate this fact, not the weaker fact that a filter rejects.
+static SPlanNullFacts planNullStrictFacts(SPlanNullFacts left,
+                                          SPlanNullFacts right) {
+  uint64_t inputs = (left.notTrue & left.notFalse) |
+                    (right.notTrue & right.notFalse);
+  return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+}
+
+static SPlanNullFacts planNullLogicFacts(const SPlanNullContext* pCxt,
+                                         const SLogicConditionNode* pLogic) {
+  SPlanNullFacts facts = {0};
+  if (0 == LIST_LENGTH(pLogic->pParameterList)) return facts;
+  if (LOGIC_COND_TYPE_NOT == pLogic->condType) {
+    if (1 != LIST_LENGTH(pLogic->pParameterList)) return facts;
+    const SNode* pChild = nodesListGetNode(pLogic->pParameterList, 0);
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    return (SPlanNullFacts){.notTrue = child.notFalse,
+                            .notFalse = child.notTrue};
+  }
+  bool isAnd = LOGIC_COND_TYPE_AND == pLogic->condType;
+  if (!isAnd && LOGIC_COND_TYPE_OR != pLogic->condType) return facts;
+  facts.notTrue = isAnd ? 0 : pCxt->inputs;
+  facts.notFalse = isAnd ? pCxt->inputs : 0;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pLogic->pParameterList) {
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    if (isAnd) {
+      facts.notTrue |= child.notTrue;
+      facts.notFalse &= child.notFalse;
+    } else {
+      facts.notTrue &= child.notTrue;
+      facts.notFalse |= child.notFalse;
+    }
+  }
+  return facts;
+}
+
+static bool planNullIsRemoteOperand(const SNode* pNode) {
+  return QUERY_NODE_REMOTE_VALUE == nodeType(pNode) ||
+         QUERY_NODE_REMOTE_ROW == nodeType(pNode);
+}
+
+static SPlanNullFacts planNullOperatorFacts(const SPlanNullContext* pCxt,
+                                            const SOperatorNode* pOp) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pOp->pLeft) return unknown;
+  SPlanNullFacts left = planNullExprFacts(pCxt, pOp->pLeft);
+  uint64_t nulls = left.notTrue & left.notFalse;
+  switch (pOp->opType) {
+    case OP_TYPE_IS_NULL:
+      return (SPlanNullFacts){.notFalse = nulls};
+    case OP_TYPE_IS_NOT_NULL:
+      return (SPlanNullFacts){.notTrue = nulls};
+    case OP_TYPE_MINUS:
+      return planNullStrictFacts(left, unknown);
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      // ANY/ALL rewritten to MIN/MAX use a remote row; an empty set yields
+      // TRUE or FALSE even for a NULL operand. Remote values stay unknown.
+      if (NULL == pOp->pRight || planNullIsRemoteOperand(pOp->pLeft) ||
+          planNullIsRemoteOperand(pOp->pRight)) return unknown;
+      return planNullStrictFacts(left,
+                                  planNullExprFacts(pCxt, pOp->pRight));
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullFunctionFacts(const SPlanNullContext* pCxt,
+                                            const SFunctionNode* pFunc) {
+  SPlanNullFacts unknown = {0};
+  if (!fmIsScalarFunc(pFunc->funcId)) return unknown;
+  EFunctionType type = fmGetFuncTypeFromId(pFunc->funcId);
+  int32_t numParams = LIST_LENGTH(pFunc->pParameterList);
+  // translateCast appends database precision after the expression argument.
+  if (1 != numParams && !(FUNCTION_TYPE_CAST == type && 2 == numParams)) {
+    return unknown;
+  }
+  // These unary implementations in sclfunc.c preserve NULL. Do not infer
+  // strictness from scalar classification or from a function's name.
+  const SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  switch (type) {
+    case FUNCTION_TYPE_ABS:
+    case FUNCTION_TYPE_CEIL:
+    case FUNCTION_TYPE_FLOOR:
+    case FUNCTION_TYPE_CAST:
+    case FUNCTION_TYPE_LOWER:
+    case FUNCTION_TYPE_UPPER:
+    case FUNCTION_TYPE_LENGTH:
+      return planNullStrictFacts(planNullExprFacts(pCxt, pArg), unknown);
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pExpr) return unknown;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN: {
+      const SColumnNode* pColumn = (const SColumnNode*)pExpr;
+      if (pColumn->hasDep) return unknown;
+      uint64_t inputs = pCxt->resolver(pColumn, pCxt->pResolveContext) &
+                        pCxt->inputs;
+      return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+    }
+    case QUERY_NODE_VALUE: {
+      const SValueNode* pValue = (const SValueNode*)pExpr;
+      if (!pValue->translate || pValue->placeholderNo > 0 ||
+          0 != (pValue->flag & (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_REMOTE_PLAN |
+                               VALUE_FLAG_RAW_SQL_FRAG |
+                               VALUE_FLAG_DEFERRED_QUERY_TIME))) return unknown;
+      if (pValue->isNull || TSDB_DATA_TYPE_NULL == pValue->node.resType.type) {
+        return (SPlanNullFacts){.notTrue = pCxt->inputs,
+                                .notFalse = pCxt->inputs};
+      }
+      if (TSDB_DATA_TYPE_BOOL == pValue->node.resType.type) {
+        return pValue->datum.b ? (SPlanNullFacts){.notFalse = pCxt->inputs}
+                               : (SPlanNullFacts){.notTrue = pCxt->inputs};
+      }
+      return unknown;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      return planNullLogicFacts(pCxt, (const SLogicConditionNode*)pExpr);
+    case QUERY_NODE_OPERATOR:
+      return planNullOperatorFacts(pCxt, (const SOperatorNode*)pExpr);
+    case QUERY_NODE_FUNCTION:
+      return planNullFunctionFacts(pCxt, (const SFunctionNode*)pExpr);
+    default:
+      return unknown;
+  }
+}
+
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext) {
+  if (NULL == resolver || 0 == inputs) return 0;
+  SPlanNullContext context = {
+      .resolver = resolver, .pResolveContext = pContext, .inputs = inputs};
+  return planNullExprFacts(&context, pCondition).notTrue;
 }

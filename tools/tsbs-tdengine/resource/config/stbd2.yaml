@@ -1,0 +1,39 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+testCases:
+    # U1
+    - scenarioId: "D2"
+      querySql: select count(*) from db.stbd2;
+      dataRows: 40000
+      verifySql: select count(*) from db.res_d2;
+      expectRows: 6000
+      compare: ">="
+      delaySql: select 
+                    count(ts)  cnt,
+                    avg(delay) avg_val,
+                    min(delay) min_val,
+                    apercentile(delay, 10) p10,
+                    apercentile(delay, 50) p50,
+                    apercentile(delay, 90) p90,
+                    apercentile(delay, 95) p95,
+                    apercentile(delay, 99) p99,
+                    max(delay) max_val
+                  from ( 
+                         select ts,
+                                localtime,
+                                cast(localtime as bigint) - cast(ts as bigint) delay 
+                          from db.res_d2
+                       );

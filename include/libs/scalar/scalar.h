@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_SCALAR_H
 #define TDENGINE_SCALAR_H
 
@@ -23,9 +26,59 @@ extern "C" {
 #include "nodes.h"
 #include "querynodes.h"
 
+typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
+typedef bool    (*sclIsTaskKilled)(void*);
+
 typedef struct SFilterInfo SFilterInfo;
+typedef struct SStreamDerivativeLogState SStreamDerivativeLogState;
+
+// Parse a validated integer/VARCHAR/NCHAR unit into source-precision ticks.
+// NULL denotes success. The returned error text is static.
+const char* scalarStreamDerivativeDuration(const char* data, int8_t type, int32_t precision, int64_t* ticks);
+
+// Runner-owned diagnostic state; shared by its calculations and freed on undeploy.
+int32_t scalarCreateStreamDerivativeLogState(SStreamDerivativeLogState** ppState);
+void scalarDestroyStreamDerivativeLogState(SStreamDerivativeLogState* pState);
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
+typedef struct SCorrelationRuntimeOps SCorrelationRuntimeOps;
+typedef struct SCorrelationWaitHooks SCorrelationWaitHooks;
+
+// Borrowed for one Scalar/Filter invocation. A missing row range selects the
+// full input block; JOIN row positions apply to the named input blocks only.
+typedef struct SCorrelationEvalContext {
+  SCorrelationTaskSession*      pSession;
+  const SCorrelationRuntimeOps* pOps;
+  const SArray*                 pInheritedParams;
+  const SCorrelationWaitHooks*  pWait;
+  const SArray*                 pSubquerySources;  // Borrowed noncorrelated producer endpoints.
+  bool                          hasRowRange;
+  int32_t                       rowStart;
+  int32_t                       rowEnd;
+  bool                          hasJoinRows;
+  int64_t                       leftBlockId;
+  int64_t                       rightBlockId;
+  int32_t                       leftRow;
+  int32_t                       rightRow;
+  void*                         pStatsContext;  // Borrowed; may be NULL.
+  // Called after each input row. called reports whether invokeScalar ran;
+  // elapsedUs covers that call. A nonzero return aborts evaluation.
+  int32_t (*recordStats)(void* pContext, int32_t templateId, bool called, int64_t elapsedUs);
+} SCorrelationEvalContext;
+
+typedef struct SScalarExtraInfo {
+  void*              pStreamInfo;
+  void*              pStreamRange;
+  void*              pSubJobCtx;
+  bool               isStream;
+  sclFetchFromRemote fp;
+  uint64_t           streamGen;
+  void*              pTaskInfo;    // opaque task handle for kill check
+  sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
+  const SCorrelationEvalContext*  pCorrelation;
+} SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
+int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp);
 
 /*
 pNode will be freed in API;
@@ -33,20 +86,33 @@ pNode will be freed in API;
 */
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculateConstantsFromDual(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateRemoteConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculateProjectionConstantsFromDual(SNode *pNode, SNode **pRes);
+
+int32_t scalarConvertOpValueNodeTs(SOperatorNode *node);
 
 /*
 pDst need to freed in caller
 */
-int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
-
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, SScalarExtraInfo* pExtra);
+int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *pDst, int32_t rowStartIdx, int32_t rowEndIdx, SScalarExtraInfo* pExtra);
+void    sclFreeParam(SScalarParam* param);
+int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset, int64_t rows, int16_t funcId, const void* pExtraParams, SNode* pParamNode);
 int32_t scalarGetOperatorParamNum(EOperatorType type);
-int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, int8_t processType);
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, STypeMod typeMod, int8_t processType);
 
-int32_t vectorGetConvertType(int32_t type1, int32_t type2);
-int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int32_t *overflow, int32_t startIndex, int32_t numOfRows);
+int32_t  vectorGetConvertType(int32_t type1, int32_t type2);
+int32_t  vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, int8_t *overflow, int32_t startIndex,
+                                    int32_t numOfRows);
+int32_t  vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_t type, STypeMod typeMod,
+                                int32_t startIndex, int32_t numOfRows);
+STypeMod getConvertTypeMod(int32_t type, const SColumnInfo *pCol1, SScalarParam *param2);
+int32_t  scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, SColumnInfoData* pCol, int64_t rows);
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t bitCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -71,6 +137,9 @@ int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t degreesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t radiansFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t randFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sleepFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t greatestFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t leastFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* String functions */
 int32_t lengthFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -82,7 +151,16 @@ int32_t upperFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t ltrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t rtrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
-int32_t md5Function(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t md5Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t shaFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskFullFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t maskNoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -90,6 +168,19 @@ int32_t trimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t substrIdxFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t base64Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t base64FunctionFrom(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t crc32Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Maximum capture-group index accepted by regexp_extract()  -  shared between
+// translate-time validation (builtins.c) and runtime validation (sclfunc.c).
+#define REGEXP_EXTRACT_MAX_GROUP_IDX 512
+int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t generateTotpCodeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 /* Conversion functions */
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -106,18 +197,24 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t nowFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t firstDayOfWeekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekdayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t dayofweekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t weekofyearFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t dateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t mysqlTimeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 bool getTimePseudoFuncEnv(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
+bool getMarkPseudoFuncEnv(SFunctionNode *UNUSED_PARAM(pFunc), SFuncExecEnv *pEnv);
 
 int32_t winStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t winDurFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qStartTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t qEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t isWinFilledFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t anomalyCheckMarkFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 int32_t qPseudoTagFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
@@ -133,12 +230,14 @@ int32_t percentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalar
 int32_t apercentileScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t spreadScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t derivativeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t streamDerivativeFactorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t irateScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t twaScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t mavgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t hllScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t csumScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t diffScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t fillforwardScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t forecastScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t stateCountScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t stateDurationScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
@@ -149,6 +248,18 @@ int32_t sampleScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
 int32_t tailScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t uniqueScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t modeScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// stream pseudo functions
+int32_t streamPseudoScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, STimeWindow *pWinRange,
+                                   bool *winRangeValid, int32_t type);
+int32_t scalarCalculateExtWinsTimeRange(STimeRangeNode *pNode, const void *pExtraParam, SExtWinTimeWindow *pWins);
+
+int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+extern threadlocal SScalarExtraInfo gTaskScalarExtra;
+
 
 #ifdef __cplusplus
 }

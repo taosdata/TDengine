@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,20 +24,26 @@
 #include "tmsg.h"
 #include "tqueue.h"
 #include "trpc.h"
-#include "tstream.h"
 
 #include "snode.h"
+#include "tworker.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 struct SSnode {
-  SStreamMeta* pMeta;
-  SMsgCb       msgCb;
+  SMsgCb                   msgCb;
+  TdThreadMutex            resultLock;
+  TdThreadCond             resultDrained;
+  void                    *resultTimer;
+  struct SSnodeResultCalc *readyResults;
+  int64_t                  nextResultTicket;
+  int32_t                  activeResultWriters;
+  int32_t                  activeResultPosts;
+  bool                     stopping;
 };
 
-void initStreamStateAPI(SStorageAPI* pAPI);
 
 #ifdef __cplusplus
 }

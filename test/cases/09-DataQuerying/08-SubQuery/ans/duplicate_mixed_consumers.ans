@@ -1,0 +1,1052 @@
+
+taos> drop database if exists duplicate_mixed_consumers;
+Drop OK, 0 row(s) affected
+
+taos> create database duplicate_mixed_consumers vgroups 2 keep 36500;
+Create OK, 0 row(s) affected
+
+taos> use duplicate_mixed_consumers;
+Database changed.
+
+taos> create table matrix_readings (ts timestamp, k int, v int, d double);
+Create OK, 0 row(s) affected
+
+taos> create table matrix_history (ts timestamp, k int, v int);
+Create OK, 0 row(s) affected
+
+taos> create table matrix_other (ts timestamp, k int, v int);
+Create OK, 0 row(s) affected
+
+taos> insert into matrix_readings values (1760000000000, 1, 10, 10);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_readings values (1760000001000, 2, 20, 20);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_readings values (1760000002000, 3, 30, 30);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_readings values (1760000003000, 2, null, null);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_readings values (1760000004000, null, 40, 40);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_history values (1760000000000, 1, 5);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_history values (1760000001000, 1, 15);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_history values (1760000002000, 2, 20);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_history values (1760000003000, 3, null);
+Insert OK, 1 row(s) affected
+
+taos> insert into matrix_other values (1760000000000, 1, 100);
+Insert OK, 1 row(s) affected
+
+taos> select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+ (select max(h.v) from matrix_history h) | (select max(h.v) from matrix_history h) | (select max(h.v) from matrix_history h where h.k = r.k) | (select max(h.v) from matrix_history h where h.k = r.k) | r.v in (select h.v from matrix_history h where h.v is not null) | r.v in (select h.v from matrix_history h where h.v is not null) |
+============================================================================================================================================================================================================================================================================================================================================
+                                      20 |                                      20 |                                                      15 |                                                      15 | false                                                           | false                                                           |
+                                      20 |                                      20 |                                                      20 |                                                      20 | true                                                            | true                                                            |
+                                      20 |                                      20 | NULL                                                    | NULL                                                    | false                                                           | false                                                           |
+                                      20 |                                      20 |                                                      20 |                                                      20 | NULL                                                            | NULL                                                            |
+                                      20 |                                      20 | NULL                                                    | NULL                                                    | false                                                           | false                                                           |
+
+taos> explain select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=6 width=18 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 2, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 5.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 7.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 3, stage: Projection, type: INT)
+*************************** 8.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 9.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 11.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 12.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+
+taos> explain analyze select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=6 width=18 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 2, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Input Rows: 5, Calls: 5, Time: ms
+*************************** 5.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 8.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 3, stage: Projection, type: INT)
+*************************** 9.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 10.row ***************************
+QUERY_PLAN:          Input Rows: 5, Calls: 5, Time: ms
+*************************** 11.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 12.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 14.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 20.row ***************************
+QUERY_PLAN:
+*************************** 21.row ***************************
+QUERY_PLAN:
+
+taos> select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts;
+      k      | (select max(h.v) from matrix_history h) | (select max(h.v) from matrix_history h where h.k = r.k) | r.v in (select h.v from matrix_history h where h.v is not null) | exists (select h.k from matrix_history h where h.k > 0) |
+==============================================================================================================================================================================================================================================
+           1 |                                      20 |                                                      15 | false                                                           | true                                                    |
+           2 |                                      20 |                                                      20 | true                                                            | true                                                    |
+           3 |                                      20 | NULL                                                    | false                                                           | true                                                    |
+           2 |                                      20 |                                                      20 | NULL                                                            | true                                                    |
+ NULL        |                                      20 | NULL                                                    | false                                                           | true                                                    |
+
+taos> explain select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=5 width=14 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 5, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 5.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 7.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 3
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 11.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 12.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+
+taos> explain analyze select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=5 width=14 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 5, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Input Rows: 5, Calls: 5, Time: ms
+*************************** 5.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 8.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:    InitPlan 3
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:
+*************************** 17.row ***************************
+QUERY_PLAN:
+
+taos> select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+ (select max(h.v) from matrix_history h) | (select max(v) from matrix_other) | (select max(h.v) from matrix_history h where h.k = r.k) | r.v in (select h.v from matrix_history h where h.v is not null) | r.d in (select h.v from matrix_history h where h.v is not null) |
+============================================================================================================================================================================================================================================================================
+                                      20 |                               100 |                                                      15 | false                                                           | false                                                           |
+                                      20 |                               100 |                                                      20 | true                                                            | true                                                            |
+                                      20 |                               100 | NULL                                                    | false                                                           | false                                                           |
+                                      20 |                               100 |                                                      20 | NULL                                                            | NULL                                                            |
+                                      20 |                               100 | NULL                                                    | false                                                           | false                                                           |
+
+taos> explain select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=5 width=14 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 2, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 5.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 7.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=4 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 4
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:    InitPlan 3
+*************************** 11.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 12.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_other (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 15.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 16.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 17.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+
+taos> explain analyze select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=5 width=14 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 2, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Input Rows: 5, Calls: 5, Time: ms
+*************************** 5.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 8.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=4 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:    InitPlan 4
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 3
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_other ( rows=1 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 16.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 17.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=asc)
+*************************** 18.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 19.row ***************************
+QUERY_PLAN:
+*************************** 20.row ***************************
+QUERY_PLAN:
+
+taos> select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts;
+ (select v from matrix_history where k = 2) | r.v in (select v from matrix_history where k = 2) |
+=================================================================================================
+                                         20 | false                                             |
+                                         20 | true                                              |
+                                         20 | false                                             |
+                                         20 | NULL                                              |
+                                         20 | false                                             |
+
+taos> explain verbose true select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=5 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=5
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Projection (columns=1 width=4 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 11.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 12.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 13.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 14.row ***************************
+QUERY_PLAN:                Output: columns=3 width=16
+*************************** 15.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 16.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`matrix_history`.`k` = 2)
+*************************** 17.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Projection (columns=1 width=4 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 20.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=3 width=16
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`matrix_history`.`k` = 2)
+
+taos> explain analyze verbose true select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=5 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=5
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 9.row ***************************
+*************************** 10.row ***************************
+QUERY_PLAN:          I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 11.row ***************************
+QUERY_PLAN:
+*************************** 12.row ***************************
+QUERY_PLAN:             check_rows=5
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=4 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 16.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 17.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 18.row ***************************
+*************************** 19.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=1 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 20.row ***************************
+QUERY_PLAN:                Output: columns=3 width=16
+*************************** 21.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 22.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`matrix_history`.`k` = 2) efficiency=25.0%
+*************************** 23.row ***************************
+*************************** 24.row ***************************
+QUERY_PLAN:                I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 25.row ***************************
+QUERY_PLAN:
+*************************** 26.row ***************************
+QUERY_PLAN:                   check_rows=4
+*************************** 27.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 28.row ***************************
+QUERY_PLAN:       -> Projection ( rows=1 columns=1 width=4 input_order=asc)
+*************************** 29.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 30.row ***************************
+QUERY_PLAN:             Output: Ignore Group Id: true
+*************************** 31.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 32.row ***************************
+*************************** 33.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=1 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 34.row ***************************
+QUERY_PLAN:                Output: columns=3 width=16
+*************************** 35.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 36.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`matrix_history`.`k` = 2) efficiency=25.0%
+*************************** 37.row ***************************
+*************************** 38.row ***************************
+QUERY_PLAN:                I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 39.row ***************************
+QUERY_PLAN:
+*************************** 40.row ***************************
+QUERY_PLAN:                   check_rows=4
+*************************** 41.row ***************************
+QUERY_PLAN:
+*************************** 42.row ***************************
+QUERY_PLAN:
+
+taos> select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+ r.v in (select h.v from matrix_history h where h.v is not null) | exists (select h.v from matrix_history h where h.v is not null) |
+====================================================================================================================================
+ false                                                           | true                                                            |
+ true                                                            | true                                                            |
+ false                                                           | true                                                            |
+ NULL                                                            | true                                                            |
+ false                                                           | true                                                            |
+
+taos> explain verbose true select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL )
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 16.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 17.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL )
+
+taos> explain analyze verbose true select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 9.row ***************************
+*************************** 10.row ***************************
+QUERY_PLAN:          I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 11.row ***************************
+QUERY_PLAN:
+*************************** 12.row ***************************
+QUERY_PLAN:             check_rows=5
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 16.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 17.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 18.row ***************************
+*************************** 19.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 20.row ***************************
+QUERY_PLAN:
+*************************** 21.row ***************************
+QUERY_PLAN:                check_rows=4
+*************************** 22.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 23.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 25.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 26.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 27.row ***************************
+*************************** 28.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 29.row ***************************
+QUERY_PLAN:
+*************************** 30.row ***************************
+QUERY_PLAN:                check_rows=4
+*************************** 31.row ***************************
+QUERY_PLAN:
+*************************** 32.row ***************************
+QUERY_PLAN:
+
+taos> select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+ r.v > any (select h.v from matrix_history h where h.v is not nul | r.v > all (select h.v from matrix_history h where h.v is not nul |
+======================================================================================================================================
+ true                                                             | false                                                            |
+ true                                                             | false                                                            |
+ true                                                             | true                                                             |
+ NULL                                                             | NULL                                                             |
+ true                                                             | true                                                             |
+
+taos> explain verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=5 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=2 width=5 blocking=1
+*************************** 11.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 12.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=4 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:                Output: columns=1 width=4
+*************************** 14.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 15.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 16.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 17.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 18.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 19.row ***************************
+QUERY_PLAN:                   Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL )
+*************************** 20.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 21.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=2 width=5 input_order=asc)
+*************************** 22.row ***************************
+QUERY_PLAN:             Output: columns=2 width=5 blocking=1
+*************************** 23.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 24.row ***************************
+QUERY_PLAN:          -> Projection (columns=1 width=4 input_order=asc)
+*************************** 25.row ***************************
+QUERY_PLAN:                Output: columns=1 width=4
+*************************** 26.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 27.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 28.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 29.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 30.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 31.row ***************************
+QUERY_PLAN:                   Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL )
+
+taos> explain analyze verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 9.row ***************************
+*************************** 10.row ***************************
+QUERY_PLAN:          I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 11.row ***************************
+QUERY_PLAN:
+*************************** 12.row ***************************
+QUERY_PLAN:             check_rows=5
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=5 input_order=asc)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=2 width=5 blocking=1
+*************************** 16.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 17.row ***************************
+*************************** 18.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3 columns=1 width=4 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:                Output: columns=1 width=4
+*************************** 20.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 21.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 22.row ***************************
+*************************** 23.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 24.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 25.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 26.row ***************************
+QUERY_PLAN:                   Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 27.row ***************************
+*************************** 28.row ***************************
+QUERY_PLAN:                   I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 29.row ***************************
+QUERY_PLAN:
+*************************** 30.row ***************************
+QUERY_PLAN:                      check_rows=4
+*************************** 31.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 32.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=2 width=5 input_order=asc)
+*************************** 33.row ***************************
+QUERY_PLAN:             Output: columns=2 width=5 blocking=1
+*************************** 34.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 35.row ***************************
+*************************** 36.row ***************************
+QUERY_PLAN:          -> Projection ( rows=3 columns=1 width=4 input_order=asc)
+*************************** 37.row ***************************
+QUERY_PLAN:                Output: columns=1 width=4
+*************************** 38.row ***************************
+QUERY_PLAN:                Output: Ignore Group Id: true
+*************************** 39.row ***************************
+QUERY_PLAN:                Merge ResBlocks: True
+*************************** 40.row ***************************
+*************************** 41.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 42.row ***************************
+QUERY_PLAN:                   Output: columns=2 width=12
+*************************** 43.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 44.row ***************************
+QUERY_PLAN:                   Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 45.row ***************************
+*************************** 46.row ***************************
+QUERY_PLAN:                   I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 47.row ***************************
+QUERY_PLAN:
+*************************** 48.row ***************************
+QUERY_PLAN:                      check_rows=4
+*************************** 49.row ***************************
+QUERY_PLAN:
+*************************** 50.row ***************************
+QUERY_PLAN:
+
+taos> select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+ r.v in (select h.v from matrix_history h where h.v is not null) | r.v not in (select h.v from matrix_history h where h.v is not nu |
+=====================================================================================================================================
+ false                                                           | true                                                             |
+ true                                                            | false                                                            |
+ false                                                           | true                                                             |
+ NULL                                                            | NULL                                                             |
+ false                                                           | true                                                             |
+
+taos> explain verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 7.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 10.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 11.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 12.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL )
+
+taos> explain analyze verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=2 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=2
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=2 width=12
+*************************** 8.row ***************************
+QUERY_PLAN:          Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 9.row ***************************
+*************************** 10.row ***************************
+QUERY_PLAN:          I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 11.row ***************************
+QUERY_PLAN:
+*************************** 12.row ***************************
+QUERY_PLAN:             check_rows=5
+*************************** 13.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 14.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4
+*************************** 16.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 17.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`h`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 18.row ***************************
+*************************** 19.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 20.row ***************************
+QUERY_PLAN:
+*************************** 21.row ***************************
+QUERY_PLAN:                check_rows=4
+*************************** 22.row ***************************
+QUERY_PLAN:
+*************************** 23.row ***************************
+QUERY_PLAN:
+
+taos> select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts;
+ (select max(h.v) from matrix_history h where h.k = r.k and h.v < | (select max(h.v) from matrix_history h) |
+=============================================================================================================
+                                                               15 |                                      20 |
+                                                               20 |                                      20 |
+ NULL                                                             |                                      20 |
+                                                               20 |                                      20 |
+ NULL                                                             |                                      20 |
+
+taos> explain select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=8 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 1, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 5.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 6.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 7.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 8.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 9.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+
+taos> explain analyze select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=8 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Correlated Scalar Subquery (template: 1, stage: Projection, type: INT)
+*************************** 3.row ***************************
+QUERY_PLAN:          Param 0: scope 1, block 0, slot 1
+*************************** 4.row ***************************
+QUERY_PLAN:          Input Rows: 5, Calls: 5, Time: ms
+*************************** 5.row ***************************
+QUERY_PLAN:          Subquery Plan
+*************************** 6.row ***************************
+QUERY_PLAN:          -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 7.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 8.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=asc)
+*************************** 11.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 12.row ***************************
+QUERY_PLAN:
+*************************** 13.row ***************************
+QUERY_PLAN:
+
+taos> select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts;
+ (select max(h.v + (select max(z.v) from matrix_other z where z.k | (select max(h.v + (select max(z.v) from matrix_other z where z.k |
+======================================================================================================================================
+                                                             115 |                                                             115 |
+                                                             115 |                                                             115 |
+                                                             115 |                                                             115 |
+                                                             115 |                                                             115 |
+                                                             115 |                                                             115 |
+
+taos> explain select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=16 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings (columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 3.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 4.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=8 input_order=asc)
+*************************** 5.row ***************************
+QUERY_PLAN:             Correlated Scalar Subquery (template: 2, stage: Aggregate Input, type: INT)
+*************************** 6.row ***************************
+QUERY_PLAN:                Param 0: scope 4, block 0, slot 1
+*************************** 7.row ***************************
+QUERY_PLAN:                Subquery Plan
+*************************** 8.row ***************************
+QUERY_PLAN:                -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 9.row ***************************
+QUERY_PLAN:                   -> Table Scan on matrix_other (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 10.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=3 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=8 input_order=asc)
+*************************** 13.row ***************************
+QUERY_PLAN:             Correlated Scalar Subquery (template: 0, stage: Aggregate Input, type: INT)
+*************************** 14.row ***************************
+QUERY_PLAN:                Param 0: scope 2, block 0, slot 1
+*************************** 15.row ***************************
+QUERY_PLAN:                Subquery Plan
+*************************** 16.row ***************************
+QUERY_PLAN:                -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 17.row ***************************
+QUERY_PLAN:                   -> Table Scan on matrix_other (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 18.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=3 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+
+taos> explain analyze select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=5 columns=2 width=16 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:    -> Table Scan on matrix_readings ( rows=5 columns=1 width=8 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 3.row ***************************
+QUERY_PLAN:    InitPlan 2
+*************************** 4.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=8 input_order=asc)
+*************************** 5.row ***************************
+QUERY_PLAN:             Correlated Scalar Subquery (template: 2, stage: Aggregate Input, type: INT)
+*************************** 6.row ***************************
+QUERY_PLAN:                Param 0: scope 4, block 0, slot 1
+*************************** 7.row ***************************
+QUERY_PLAN:                Input Rows: 4, Calls: 4, Time: ms
+*************************** 8.row ***************************
+QUERY_PLAN:                Subquery Plan
+*************************** 9.row ***************************
+QUERY_PLAN:                -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 10.row ***************************
+QUERY_PLAN:                   -> Table Scan on matrix_other (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 11.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=3 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 12.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 13.row ***************************
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=8 input_order=asc)
+*************************** 14.row ***************************
+QUERY_PLAN:             Correlated Scalar Subquery (template: 0, stage: Aggregate Input, type: INT)
+*************************** 15.row ***************************
+QUERY_PLAN:                Param 0: scope 2, block 0, slot 1
+*************************** 16.row ***************************
+QUERY_PLAN:                Input Rows: 4, Calls: 4, Time: ms
+*************************** 17.row ***************************
+QUERY_PLAN:                Subquery Plan
+*************************** 18.row ***************************
+QUERY_PLAN:                -> Aggregate (functions=1 width=4 input_order=asc)
+*************************** 19.row ***************************
+QUERY_PLAN:                   -> Table Scan on matrix_other (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=sma)
+*************************** 20.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=4 columns=3 width=24 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 21.row ***************************
+QUERY_PLAN:
+*************************** 22.row ***************************
+QUERY_PLAN:
+
+taos> select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts;
+      v      |      v      |
+============================
+           5 |           5 |
+          15 |          15 |
+          20 |          20 |
+
+taos> explain verbose true select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection (columns=2 width=8 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=8
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+QUERY_PLAN:    -> Inner Join (columns=3 width=16 input_order=asc algo=Merge)
+*************************** 6.row ***************************
+QUERY_PLAN:          Output: columns=3 width=16
+*************************** 7.row ***************************
+QUERY_PLAN:          Join Prim Cond: (`a`.`ts` = `b`.`ts`)
+*************************** 8.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 9.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 10.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 11.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`a`.`v` IS NOT NULL )
+*************************** 12.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 (width=12)
+*************************** 13.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 14.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 15.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 16.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 17.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`b`.`v` IS NOT NULL )
+
+taos> explain analyze verbose true select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts\G;
+*************************** 1.row ***************************
+QUERY_PLAN: -> Projection ( rows=3 columns=2 width=8 input_order=asc)
+*************************** 2.row ***************************
+QUERY_PLAN:       Output: columns=2 width=8
+*************************** 3.row ***************************
+QUERY_PLAN:       Output: Ignore Group Id: true
+*************************** 4.row ***************************
+QUERY_PLAN:       Merge ResBlocks: True
+*************************** 5.row ***************************
+*************************** 6.row ***************************
+QUERY_PLAN:    -> Inner Join ( rows=3 columns=3 width=16 input_order=asc algo=Merge)
+*************************** 7.row ***************************
+QUERY_PLAN:          Output: columns=3 width=16
+*************************** 8.row ***************************
+QUERY_PLAN:          Join Prim Cond: (`a`.`ts` = `b`.`ts`)
+*************************** 9.row ***************************
+*************************** 10.row ***************************
+QUERY_PLAN:       -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 11.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 12.row ***************************
+QUERY_PLAN:             Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 13.row ***************************
+QUERY_PLAN:             Filter: conditions=(`duplicate_mixed_consumers`.`a`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 14.row ***************************
+*************************** 15.row ***************************
+QUERY_PLAN:             I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 16.row ***************************
+QUERY_PLAN:
+*************************** 17.row ***************************
+QUERY_PLAN:                check_rows=4
+*************************** 18.row ***************************
+QUERY_PLAN:       -> Data Exchange 1:1 ( rows=3 width=12)
+*************************** 19.row ***************************
+QUERY_PLAN:             Output: columns=2 width=12
+*************************** 20.row ***************************
+QUERY_PLAN:             Network: mode=concurrent  fetch_rows=3
+*************************** 21.row ***************************
+*************************** 22.row ***************************
+QUERY_PLAN:          -> Table Scan on matrix_history ( rows=3 columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 23.row ***************************
+QUERY_PLAN:                Output: columns=2 width=12
+*************************** 24.row ***************************
+QUERY_PLAN:                Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 25.row ***************************
+QUERY_PLAN:                Filter: conditions=(`duplicate_mixed_consumers`.`b`.`v` IS NOT NULL ) efficiency=75.0%
+*************************** 26.row ***************************
+*************************** 27.row ***************************
+QUERY_PLAN:                I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 28.row ***************************
+QUERY_PLAN:
+*************************** 29.row ***************************
+QUERY_PLAN:                   check_rows=4
+*************************** 30.row ***************************
+QUERY_PLAN:
+*************************** 31.row ***************************
+QUERY_PLAN:
+
+taos> drop database duplicate_mixed_consumers;
+Drop OK, 0 row(s) affected
+

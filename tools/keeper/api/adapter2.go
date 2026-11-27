@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -36,9 +51,10 @@ type Adapter struct {
 	conn      *db.Connector
 	db        string
 	dbOptions map[string]interface{}
+	gm        *GeneralMetric
 }
 
-func NewAdapter(c *config.Config) *Adapter {
+func NewAdapter(c *config.Config, gm *GeneralMetric) *Adapter {
 	return &Adapter{
 		username:  c.TDengine.Username,
 		password:  c.TDengine.Password,
@@ -47,6 +63,7 @@ func NewAdapter(c *config.Config) *Adapter {
 		usessl:    c.TDengine.Usessl,
 		db:        c.Metrics.Database.Name,
 		dbOptions: c.Metrics.Database.Options,
+		gm:        gm,
 	}
 }
 
@@ -102,6 +119,16 @@ func (a *Adapter) handleFunc() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+
+		if len(report.ExtraMetrics) > 0 {
+			err = a.gm.handleBatchMetrics(report.ExtraMetrics, qid)
+
+			if err != nil {
+				adapterLog.Errorf("process records error. msg:%s", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("process records error. %s", err)})
+				return
+			}
+		}
 		c.JSON(http.StatusOK, gin.H{})
 	}
 }
@@ -122,15 +149,16 @@ func (a *Adapter) parseSql(report AdapterReport) string {
 	wsTbName := a.tableName(report.Endpoint, ws)
 	ts := time.Unix(report.Timestamp, 0).Format(time.RFC3339)
 	metric := report.Metric
+	escapedEndpoint := util.EscapeTrunc(report.Endpoint, 255)
 	return fmt.Sprintf("insert into %s using adapter_requests tags ('%s', %d) "+
 		"values('%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d) "+
 		"%s using adapter_requests tags ('%s', %d) "+
 		"values('%s', %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-		restTbName, report.Endpoint, rest, ts, metric.RestTotal, metric.RestQuery, metric.RestWrite, metric.RestOther,
+		restTbName, escapedEndpoint, rest, ts, metric.RestTotal, metric.RestQuery, metric.RestWrite, metric.RestOther,
 		metric.RestInProcess, metric.RestSuccess, metric.RestFail, metric.RestQuerySuccess, metric.RestQueryFail,
 		metric.RestWriteSuccess, metric.RestWriteFail, metric.RestOtherSuccess, metric.RestOtherFail,
 		metric.RestQueryInProcess, metric.RestWriteInProcess,
-		wsTbName, report.Endpoint, ws, ts, metric.WSTotal,
+		wsTbName, escapedEndpoint, ws, ts, metric.WSTotal,
 		metric.WSQuery, metric.WSWrite, metric.WSOther, metric.WSInProcess, metric.WSSuccess, metric.WSFail,
 		metric.WSQuerySuccess, metric.WSQueryFail, metric.WSWriteSuccess, metric.WSWriteFail, metric.WSOtherSuccess,
 		metric.WSOtherFail, metric.WSQueryInProcess, metric.WSWriteInProcess)
@@ -153,20 +181,20 @@ func (a *Adapter) tableName(endpoint string, reqType adapterReqType) string {
 }
 
 func (a *Adapter) createDatabase() error {
-	qid := util.GetQidOwn()
+	qid := util.GetQidOwn(config.Conf.InstanceID)
 
 	adapterLog := adapterLog.WithFields(
 		logrus.Fields{config.ReqIDKey: qid},
 	)
 
-	conn, err := db.NewConnector(a.username, a.password, a.host, a.port, a.usessl)
+	conn, err := db.NewConnectorWithRetryForever(a.username, a.password, a.host, a.port, a.usessl)
 	if err != nil {
 		return fmt.Errorf("connect to database error, msg:%s", err)
 	}
 	defer func() { _ = conn.Close() }()
 	sql := a.createDBSql()
 	adapterLog.Infof("create database, sql:%s", sql)
-	_, err = conn.Exec(context.Background(), sql, util.GetQidOwn())
+	_, err = conn.ExecWithRetryForever(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		adapterLog.Errorf("create database error, msg:%s", err)
 		return err
@@ -216,14 +244,52 @@ func (a *Adapter) createTable() error {
 	if a.conn == nil {
 		return errNoConnection
 	}
-	_, err := a.conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn())
-	return err
+	if _, err := a.conn.ExecWithRetryForever(context.Background(), adapterTableSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
+		return err
+	}
+	return a.alterSTable()
+}
+
+func (a *Adapter) alterSTable() error {
+	qid := util.GetQidOwn(config.Conf.InstanceID)
+	result, err := a.conn.QueryWithRetryForever(context.Background(), "desc adapter_requests", qid)
+	if err != nil {
+		adapterLog.Errorf("desc stable adapter_requests error, msg:%v", err)
+		return err
+	}
+
+	needAlterEndpoint := false
+	for _, row := range result.Data {
+		if row[0] == "endpoint" {
+			if colLen, ok := row[2].(int32); ok {
+				if colLen < 255 {
+					needAlterEndpoint = true
+				}
+			} else {
+				adapterLog.Errorf("unexpected type for endpoint length: %T", row[2])
+				return fmt.Errorf("failed to get endpoint tag length: unexpected type/value %T (%v)", row[2], row[2])
+			}
+			break
+		}
+	}
+
+	if needAlterEndpoint {
+		alterSql := "alter stable adapter_requests modify tag endpoint varchar(255)"
+		adapterLog.Info("alter endpoint tag to varchar(255)")
+		if _, err := a.conn.ExecWithRetryForever(context.Background(), alterSql, qid); err != nil {
+			adapterLog.Errorf("alter stable adapter_requests error, sql:%s, msg:%s", alterSql, err)
+			return err
+		}
+	}
+
+	return nil
 }
 
 type AdapterReport struct {
-	Timestamp int64          `json:"ts"`
-	Metric    AdapterMetrics `json:"metrics"`
-	Endpoint  string         `json:"endpoint"`
+	Timestamp    int64             `json:"ts"`
+	Metric       AdapterMetrics    `json:"metrics"`
+	Endpoint     string            `json:"endpoint"`
+	ExtraMetrics []StableArrayInfo `json:"extra_metrics"`
 }
 
 type AdapterMetrics struct {

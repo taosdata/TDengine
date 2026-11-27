@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "syncRaftCfg.h"
 #include "syncUtil.h"
+#include "tencrypt.h"
 #include "tjson.h"
 
 static const char *syncRoleToStr(ESyncRole role) {
@@ -127,44 +130,32 @@ _exit:
   TAOS_RETURN(code);
 }
 
-int32_t syncWriteCfgFile(SSyncNode *pNode) {
+int32_t syncWriteCfgFile(SSyncNode *pNode, const char *reason) {
   int32_t     code = 0, lino = 0;
   char       *buffer = NULL;
   SJson      *pJson = NULL;
-  TdFilePtr   pFile = NULL;
   const char *realfile = pNode->configPath;
   SRaftCfg   *pCfg = &pNode->raftCfg;
-  char        file[PATH_MAX] = {0};
-
-  (void)snprintf(file, sizeof(file), "%s.bak", realfile);
 
   if ((pJson = tjsonCreateObject()) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
   TAOS_CHECK_EXIT(tjsonAddObject(pJson, "RaftCfg", syncEncodeRaftCfg, pCfg));
+  TAOS_CHECK_EXIT(tjsonAddStringToObject(pJson, "reason", reason));
   buffer = tjsonToString(pJson);
   if (buffer == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
+  int32_t len = strlen(buffer);
+  
+  // Use encrypted write if tsCfgKey is enabled
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
+    lino = __LINE__;
     TAOS_CHECK_EXIT(code);
   }
-
-  int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    TAOS_CHECK_EXIT(terrno);
-  }
-
-  if (taosFsyncFile(pFile) < 0) {
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
-  }
-
-  TAOS_CHECK_EXIT(taosCloseFile(&pFile));
-  TAOS_CHECK_EXIT(taosRenameFile(file, realfile));
 
   sInfo("vgId:%d, succeed to write sync cfg file:%s, len:%d, lastConfigIndex:%" PRId64 ", changeVersion:%d",
         pNode->vgId, realfile, len, pNode->raftCfg.lastConfigIndex, pNode->raftCfg.cfg.changeVersion);
@@ -172,10 +163,10 @@ int32_t syncWriteCfgFile(SSyncNode *pNode) {
 _exit:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
-    sError("vgId:%d, failed to write sync cfg file:%s since %s", pNode->vgId, realfile, tstrerror(code));
+    sError("vgId:%d, failed at line %d to write sync cfg file:%s since %s", pNode->vgId, lino, realfile,
+           tstrerror(code));
   }
 
   TAOS_RETURN(code);
@@ -201,12 +192,12 @@ static int32_t syncDecodeSyncCfg(const SJson *pJson, void *pObj) {
     if (info == NULL) return TSDB_CODE_INVALID_JSON_FORMAT;
     tjsonGetUInt16ValueFromDouble(info, "nodePort", pCfg->nodeInfo[i].nodePort, code);
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    code = tjsonGetStringValue(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn);
+    code = tjsonGetStringValue1(info, "nodeFqdn", pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     tjsonGetNumberValue(info, "nodeId", pCfg->nodeInfo[i].nodeId, code);
     tjsonGetNumberValue(info, "clusterId", pCfg->nodeInfo[i].clusterId, code);
     char role[10] = {0};
-    code = tjsonGetStringValue(info, "isReplica", role);
+    code = tjsonGetStringValue1(info, "isReplica", role, sizeof(role));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
     if (strlen(role) != 0) {
       pCfg->nodeInfo[i].nodeRole = syncStrToRole(role);
@@ -251,39 +242,18 @@ static int32_t syncDecodeRaftCfg(const SJson *pJson, void *pObj) {
 
 int32_t syncReadCfgFile(SSyncNode *pNode) {
   int32_t     code = 0;
-  TdFilePtr   pFile = NULL;
   char       *pData = NULL;
+  int32_t     dataLen = 0;
   SJson      *pJson = NULL;
   const char *file = pNode->configPath;
   SRaftCfg   *pCfg = &pNode->raftCfg;
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    sError("vgId:%d, failed to open sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    sError("vgId:%d, failed to fstat sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -296,12 +266,11 @@ int32_t syncReadCfgFile(SSyncNode *pNode) {
     goto _OVER;
   }
 
-  sInfo("vgId:%d, succceed to read sync cfg file %s, changeVersion:%d", pNode->vgId, file, pCfg->cfg.changeVersion);
+  sInfo("vgId:%d, successfully read sync cfg file %s, changeVersion:%d", pNode->vgId, file, pCfg->cfg.changeVersion);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     sError("vgId:%d, failed to read sync cfg file:%s since %s", pNode->vgId, file, tstrerror(code));

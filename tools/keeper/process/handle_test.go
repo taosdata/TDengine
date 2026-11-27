@@ -1,8 +1,24 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package process
 
 import (
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,14 +38,8 @@ func Test_i2string(t *testing.T) {
 	}
 }
 
-func Test_i2string_panic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Expected panic for unexpected type, but did not panic")
-		}
-	}()
-
-	i2string(12345)
+func Test_i2string_unexpected_type(t *testing.T) {
+	assert.Equal(t, "", i2string(12345))
 }
 
 func Test_i2float(t *testing.T) {
@@ -57,14 +67,8 @@ func Test_i2float(t *testing.T) {
 	}
 }
 
-func Test_i2float_panic(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("Expected panic for unexpected type, but did not panic")
-		}
-	}()
-
-	i2float("unexpected type")
+func Test_i2float_unexpected_type(t *testing.T) {
+	assert.Equal(t, 0.0, i2float("unexpected type"))
 }
 
 func Test_getRoleStr(t *testing.T) {
@@ -124,4 +128,103 @@ func Test_withDBName(t *testing.T) {
 	processor := &Processor{db: "db"}
 	res := processor.withDBName("test")
 	assert.Equal(t, res, "`db`.`test`")
+}
+
+// Deliberately fatal, unlike i2string/i2float which were changed to warn and
+// return a zero value: the type comes from the metrics database schema rather
+// than from a request, so an unmapped type means this build cannot export that
+// column, and guessing a metric type would be a silent data error.
+func Test_exchangeDBType_UnsupportedType_Panics(t *testing.T) {
+	assert.PanicsWithValue(t, "unsupported type: DECIMAL_UNSUPPORTED", func() {
+		_ = exchangeDBType("DECIMAL_UNSUPPORTED")
+	})
+}
+
+func TestProcessorGetMetric(t *testing.T) {
+	processor := &Processor{}
+	metric := processor.GetMetric()
+	assert.Nil(t, metric)
+}
+
+func TestProcessor_buildFQName_UsesMappedName(t *testing.T) {
+	p := &Processor{prefix: "pref"}
+
+	got := p.buildFQName("taosd_cluster_basic", "first_ep")
+	want := "pref_cluster_info_first_ep"
+
+	if got != want {
+		t.Fatalf("buildFQName mapped name mismatch: got %q, want %q", got, want)
+	}
+}
+
+func TestProcessorCollect_Gauge_SkipsNilAndEmitsMetric(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+	m := &Metric{
+		FQName:    "test_gauge",
+		Type:      Gauge,
+		Variables: []string{"a"},
+	}
+	m.SetValue([]*Value{
+		{Label: map[string]string{"a": "1"}, Value: nil},
+		{Label: map[string]string{"a": "2"}, Value: float64(3.14)},
+	})
+	p.metricMap["test_gauge"] = m
+
+	ch := make(chan prometheus.Metric, 4)
+	p.Collect(ch)
+
+	if len(ch) != 1 {
+		t.Fatalf("expected 1 metric emitted, got %d", len(ch))
+	}
+}
+
+func TestProcessorCollect_Counter_SkipNilAndNegative_EmitPositive(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+	m := &Metric{
+		FQName:    "test_counter",
+		Type:      Counter,
+		Variables: []string{"a"},
+	}
+	m.SetValue([]*Value{
+		{Label: map[string]string{"a": "x"}, Value: nil},
+		{Label: map[string]string{"a": "y"}, Value: float64(-2)},
+		{Label: map[string]string{"a": "z"}, Value: int64(3)},
+		{Label: map[string]string{"a": "b"}, Value: true},
+	})
+	p.metricMap["test_counter"] = m
+
+	ch := make(chan prometheus.Metric, 4)
+	p.Collect(ch)
+
+	if len(ch) != 2 {
+		t.Fatalf("expected 2 metrics emitted, got %d", len(ch))
+	}
+}
+
+func TestProcessorCollect_Info_SkipNilAndEmitWithValueLabel(t *testing.T) {
+	p := &Processor{
+		metricMap: map[string]*Metric{},
+	}
+
+	m := &Metric{
+		FQName:    "test_info_metric",
+		Type:      Info,
+		Variables: []string{"tag"},
+	}
+	m.SetValue([]*Value{
+		nil,
+		{Label: map[string]string{"tag": "x"}, Value: "ready"},
+	})
+	p.metricMap["test_info_metric"] = m
+
+	ch := make(chan prometheus.Metric, 2)
+	p.Collect(ch)
+
+	if len(ch) != 1 {
+		t.Fatalf("expected 1 metric emitted, got %d", len(ch))
+	}
 }

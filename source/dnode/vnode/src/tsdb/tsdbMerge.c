@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "tsdbMerge.h"
+#include "tlogKeyOp.h"
 
 #define TSDB_MAX_LEVEL 2  // means max level is 3
 
@@ -265,14 +268,6 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
   int32_t lino = 0;
   int32_t vid = TD_VID(merger->tsdb->pVnode);
 
-  SDiskID did;
-  int32_t level = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now);
-
-  TAOS_CHECK_GOTO(tfsAllocDisk(merger->tsdb->pVnode->pTfs, level, &did), &lino, _exit);
-
-  code = tfsMkdirRecurAt(merger->tsdb->pVnode->pTfs, merger->tsdb->path, did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   SFSetWriterConfig config = {
       .tsdb = merger->tsdb,
       .toSttOnly = true,
@@ -283,7 +278,7 @@ static int32_t tsdbMergeFileSetBeginOpenWriter(SMerger *merger) {
       .cmprAlg = merger->cmprAlg,
       .fid = merger->ctx->fset->fid,
       .cid = merger->cid,
-      .did = did,
+      .expLevel = tsdbFidLevel(merger->ctx->fset->fid, &merger->tsdb->keepCfg, merger->ctx->now),
       .level = merger->ctx->level,
   };
 
@@ -430,7 +425,8 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done, fid:%d", TD_VID(merger->tsdb->pVnode), __func__, fset->fid);
+    tsdbInfo(KEYOP("tsdb-merge", "STEP") "vgId:%d %s done, fid:%d", TD_VID(merger->tsdb->pVnode), __func__,
+             fset->fid);
   }
   return code;
 }
@@ -455,7 +451,7 @@ _exit:
     tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(merger->tsdb->pVnode), __func__, __FILE__, lino,
               tstrerror(code));
   } else {
-    tsdbDebug("vgId:%d %s done", TD_VID(merger->tsdb->pVnode), __func__);
+    tsdbInfo(KEYOP("tsdb-merge", "STEP") "vgId:%d %s done", TD_VID(merger->tsdb->pVnode), __func__);
   }
   return code;
 }
@@ -513,9 +509,14 @@ int32_t tsdbMerge(void *arg) {
   }
 
   // do merge
-  tsdbInfo("vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
-  code = tsdbDoMerge(merger);
-  tsdbInfo("vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  tsdbInfo(KEYOP("tsdb-merge", "START") "vgId:%d merge begin, fid:%d", TD_VID(tsdb->pVnode), merger->fid);
+  METRICS_TIMING_BLOCK(tsdb->pVnode->writeMetrics.merge_time, METRIC_LEVEL_HIGH, { code = tsdbDoMerge(merger); });
+  METRICS_UPDATE(tsdb->pVnode->writeMetrics.merge_count, METRIC_LEVEL_HIGH, 1);
+  if (code) {
+    tsdbInfo(KEYOP("tsdb-merge", "FAIL") "vgId:%d merge failed, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  } else {
+    tsdbInfo(KEYOP("tsdb-merge", "END") "vgId:%d merge done, fid:%d", TD_VID(tsdb->pVnode), mergeArg->fid);
+  }
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

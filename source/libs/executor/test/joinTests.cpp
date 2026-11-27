@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,7 +15,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+
 #include <gtest/gtest.h>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -24,10 +35,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 
 #include "os.h"
 
@@ -74,7 +81,7 @@ enum {
 #define JT_PRINTF (void)printf
 
 #define COL_DISPLAY_WIDTH 18
-#define JT_MAX_LOOP       1000
+#define JT_DEFAULT_LOOP   1000
 
 #define LEFT_BLK_ID       0
 #define RIGHT_BLK_ID      1
@@ -103,6 +110,7 @@ int64_t jtFilterValue[] = {TIMESTAMP_FILTER_VALUE, INT_FILTER_VALUE, INT_FILTER_
 
 bool jtErrorRerun = false;
 bool jtInRerun = false;
+int32_t jtMaxLoop = JT_DEFAULT_LOOP;
 
 typedef struct {
   bool printTestInfo;
@@ -263,7 +271,7 @@ void pushResRow(char* buf, int32_t size) {
       (*rows)++;
     } else {
       int32_t n = 1;
-      assert(0 == tSimpleHashPut(jtCtx.jtResRows, buf, size, &n, sizeof(n)));
+      TD_ALWAYS_ASSERT(0 == tSimpleHashPut(jtCtx.jtResRows, buf, size, &n, sizeof(n)));
     }
   }
 }
@@ -276,7 +284,7 @@ void rmResRow() {
       (void)tSimpleHashRemove(jtCtx.jtResRows, jtCtx.resColBuf, jtCtx.resColSize);
     }
   } else {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 }
 
@@ -295,10 +303,10 @@ static int32_t jtMergeEqCond(SNode** ppDst, SNode** ppSrc) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppDst)) {
     SLogicConditionNode* pLogic = (SLogicConditionNode*)*ppDst;
     if (QUERY_NODE_LOGIC_CONDITION == nodeType(*ppSrc)) {
-      assert(0 == nodesListStrictAppendList(pLogic->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList));
+      TD_ALWAYS_ASSERT(0 == nodesListStrictAppendList(pLogic->pParameterList, ((SLogicConditionNode*)(*ppSrc))->pParameterList));
       ((SLogicConditionNode*)(*ppSrc))->pParameterList = NULL;
     } else {
-      assert(0 == nodesListStrictAppend(pLogic->pParameterList, *ppSrc));
+      TD_ALWAYS_ASSERT(0 == nodesListStrictAppend(pLogic->pParameterList, *ppSrc));
       *ppSrc = NULL;
     }
     nodesDestroyNode(*ppSrc);
@@ -316,8 +324,8 @@ static int32_t jtMergeEqCond(SNode** ppDst, SNode** ppSrc) {
   pLogicCond->condType = LOGIC_COND_TYPE_AND;
   pLogicCond->pParameterList = NULL;
   code = nodesMakeList(&pLogicCond->pParameterList);
-  assert(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc));
-  assert(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppDst));
+  TD_ALWAYS_ASSERT(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppSrc));
+  TD_ALWAYS_ASSERT(0 == nodesListStrictAppend(pLogicCond->pParameterList, *ppDst));
 
   *ppDst = (SNode*)pLogicCond;
   *ppSrc = NULL;
@@ -329,7 +337,7 @@ static int32_t jtMergeEqCond(SNode** ppDst, SNode** ppSrc) {
 void createDummyDownstreamOperators(int32_t num, SOperatorInfo** ppRes) {
   for (int32_t i = 0; i < num; ++i) {
     SOperatorInfo* p = (SOperatorInfo*)taosMemoryCalloc(1, sizeof(SOperatorInfo));
-    assert(NULL != p); 
+    TD_ALWAYS_ASSERT(NULL != p); 
     p->resultDataBlockId = i;
     ppRes[i] = p;
   }
@@ -394,7 +402,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       int32_t code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
       SColumnNode* pCol = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-      assert(NULL != pTarget && NULL != pCol);
+      TD_ALWAYS_ASSERT(NULL != pTarget && NULL != pCol);
       pCol->dataBlockId = LEFT_BLK_ID;
       pCol->slotId = i;
       pTarget->dataBlockId = RES_BLK_ID;
@@ -403,7 +411,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       dstOffset += tDataTypes[jtInputColType[i]].bytes;
       jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
       
-      assert(0 == nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget));
+      TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget));
 
       jtCtx.resColNum++;
     }
@@ -421,7 +429,7 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       int32_t code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
       SColumnNode* pCol = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-      assert(NULL != pTarget && NULL != pCol);
+      TD_ALWAYS_ASSERT(NULL != pTarget && NULL != pCol);
       pCol->dataBlockId = RIGHT_BLK_ID;
       pCol->slotId = i;
       pTarget->dataBlockId = RES_BLK_ID;
@@ -430,13 +438,13 @@ void createTargetSlotList(SSortMergeJoinPhysiNode* p) {
       dstOffset += tDataTypes[jtInputColType[i]].bytes;
       jtCtx.resColSize += tDataTypes[jtInputColType[i]].bytes;
       
-      assert(0 == nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget));
+      TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&p->pTargets, (SNode*)pTarget));
       jtCtx.resColNum++;
     }
   }  
 
   jtCtx.resColBuf = (char*)taosMemoryRealloc(jtCtx.resColBuf, jtCtx.resColSize);
-  assert(NULL != jtCtx.resColBuf);
+  TD_ALWAYS_ASSERT(NULL != jtCtx.resColBuf);
 }
 
 void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
@@ -463,13 +471,13 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
     if (jtCtx.colEqList[i]) {
       SColumnNode* pCol1 = NULL;
       int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
-      assert(pCol1);
+      TD_ALWAYS_ASSERT(pCol1);
       pCol1->dataBlockId = LEFT_BLK_ID;
       pCol1->slotId = i;
       pCol1->node.resType.type = jtInputColType[i];
       pCol1->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      assert(0 == nodesListMakeStrictAppend(&p->pEqLeft, (SNode*)pCol1));
+      TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&p->pEqLeft, (SNode*)pCol1));
 
       SColumnNode* pCol2 = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
@@ -478,7 +486,7 @@ void createColEqCondStart(SSortMergeJoinPhysiNode* p) {
       pCol2->node.resType.type = jtInputColType[i];
       pCol2->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
       
-      assert(0 == nodesListMakeStrictAppend(&p->pEqRight, (SNode*)pCol2));
+      TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&p->pEqRight, (SNode*)pCol2));
     }
   }
 }
@@ -520,7 +528,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
   SLogicConditionNode* pLogic = NULL;
   if (jtCtx.colEqNum > 1) {
     int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
-    assert(pLogic);
+    TD_ALWAYS_ASSERT(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     pLogic->condType = LOGIC_COND_TYPE_AND;
@@ -530,7 +538,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
     if (jtCtx.colEqList[i]) {
       SColumnNode* pCol1 = NULL;
       int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
-      assert(pCol1);
+      TD_ALWAYS_ASSERT(pCol1);
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
@@ -538,7 +546,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
       
       SColumnNode* pCol2 = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
-      assert(pCol2);
+      TD_ALWAYS_ASSERT(pCol2);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
@@ -546,7 +554,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
 
       SOperatorNode* pOp = NULL;
       code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
-      assert(pOp);
+      TD_ALWAYS_ASSERT(pOp);
       pOp->opType = OP_TYPE_EQUAL;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -554,7 +562,7 @@ void createColEqCondEnd(SSortMergeJoinPhysiNode* p) {
       pOp->pRight = (SNode*)pCol2;
 
       if (jtCtx.colEqNum > 1) {
-        assert(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
+        TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
       } else {
         p->pFullOnCond = (SNode*)pOp;
         break;
@@ -575,7 +583,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
   SLogicConditionNode* pLogic = NULL;
   if (jtCtx.colOnNum > 1) {
     int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
-    assert(pLogic);
+    TD_ALWAYS_ASSERT(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     pLogic->condType = LOGIC_COND_TYPE_AND;
@@ -585,7 +593,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
     if (jtCtx.colOnList[i]) {
       SColumnNode* pCol1 = NULL;
       int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol1);
-      assert(pCol1);
+      TD_ALWAYS_ASSERT(pCol1);
       pCol1->dataBlockId = RES_BLK_ID;
       pCol1->slotId = getDstSlotId(i);
       pCol1->node.resType.type = jtInputColType[i];
@@ -593,7 +601,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
       
       SColumnNode* pCol2 = NULL;
       code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol2);
-      assert(pCol2);
+      TD_ALWAYS_ASSERT(pCol2);
       pCol2->dataBlockId = RES_BLK_ID;
       pCol2->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol2->node.resType.type = jtInputColType[i];
@@ -601,7 +609,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
       
       SOperatorNode* pOp = NULL;
       code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
-      assert(pOp);
+      TD_ALWAYS_ASSERT(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -609,7 +617,7 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
       pOp->pRight = (SNode*)pCol2;
 
       if (jtCtx.colOnNum > 1) {
-        assert(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
+        TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
       } else {
         p->pColOnCond = (SNode*)pOp;
         break;
@@ -623,8 +631,8 @@ void createColOnCondEnd(SSortMergeJoinPhysiNode* p) {
 
   SNode* pTmp = NULL;
   int32_t code = nodesCloneNode(p->pColOnCond, &pTmp);
-  assert(pTmp);
-  assert(0 == jtMergeEqCond(&p->pFullOnCond, &pTmp));
+  TD_ALWAYS_ASSERT(pTmp);
+  TD_ALWAYS_ASSERT(0 == jtMergeEqCond(&p->pFullOnCond, &pTmp));
 }
 
 
@@ -737,7 +745,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
   SLogicConditionNode* pLogic = NULL;
   if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
     int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
-    assert(pLogic);
+    TD_ALWAYS_ASSERT(pLogic);
     pLogic->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pLogic->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
     pLogic->condType = LOGIC_COND_TYPE_AND;
@@ -747,7 +755,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
     if (jtCtx.leftFilterColList[i]) {
       SColumnNode* pCol = NULL;
       int32_t code = nodesMakeNode(QUERY_NODE_COLUMN,(SNode**)&pCol);
-      assert(pCol);
+      TD_ALWAYS_ASSERT(pCol);
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(i);
       pCol->node.resType.type = jtInputColType[i];
@@ -756,14 +764,14 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
 
       SValueNode* pVal = NULL;
       code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
-      assert(pVal);
+      TD_ALWAYS_ASSERT(pVal);
       pVal->node.resType.type = jtInputColType[i];
       pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
-      assert(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
+      TD_ALWAYS_ASSERT(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
 
       SOperatorNode* pOp = NULL;
       code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
-      assert(pOp);
+      TD_ALWAYS_ASSERT(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -771,7 +779,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       pOp->pRight = (SNode*)pVal;
 
       if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
-        assert(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
+        TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
       } else {
         p->node.pConditions = (SNode*)pOp;
         break;
@@ -783,7 +791,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
     if (jtCtx.rightFilterColList[i]) {
       SColumnNode* pCol = NULL;
       int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-      assert(pCol);
+      TD_ALWAYS_ASSERT(pCol);
       pCol->dataBlockId = RES_BLK_ID;
       pCol->slotId = getDstSlotId(MAX_SLOT_NUM + i);
       pCol->node.resType.type = jtInputColType[i];
@@ -792,14 +800,14 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
 
       SValueNode* pVal = NULL;
       code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
-      assert(pVal);
+      TD_ALWAYS_ASSERT(pVal);
       pVal->node.resType.type = jtInputColType[i];
       pVal->node.resType.bytes = tDataTypes[jtInputColType[i]].bytes;
-      assert(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
+      TD_ALWAYS_ASSERT(0 == nodesSetValueNodeValue(pVal, getFilterValue(jtInputColType[i])));
 
       SOperatorNode* pOp = NULL;
       code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
-      assert(pOp);
+      TD_ALWAYS_ASSERT(pOp);
       pOp->opType = OP_TYPE_GREATER_THAN;
       pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
       pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
@@ -807,7 +815,7 @@ void createFilterEnd(SSortMergeJoinPhysiNode* p, bool filter) {
       pOp->pRight = (SNode*)pVal;
 
       if ((jtCtx.leftFilterNum + jtCtx.rightFilterNum) > 1) {
-        assert(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
+        TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&pLogic->pParameterList, (SNode*)pOp));
       } else {
         p->node.pConditions = (SNode*)pOp;
         break;
@@ -833,20 +841,20 @@ void updateColRowInfo() {
 void createBlockDescNode(SDataBlockDescNode** ppNode) {
   SDataBlockDescNode* pDesc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, (SNode**)&pDesc);
-  assert(pDesc);
+  TD_ALWAYS_ASSERT(pDesc);
   pDesc->dataBlockId = RES_BLK_ID;
   pDesc->totalRowSize = jtCtx.resColSize - MAX_SLOT_NUM * 2 * sizeof(bool);
   pDesc->outputRowSize = pDesc->totalRowSize;
   for (int32_t i = 0; i < jtCtx.resColNum; ++i) {
     SSlotDescNode* pSlot = NULL;
     int32_t code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
-    assert(pSlot);
+    TD_ALWAYS_ASSERT(pSlot);
     pSlot->slotId = i;
     int32_t slotIdx = jtCtx.resColInSlot[i] >= MAX_SLOT_NUM ? jtCtx.resColInSlot[i] - MAX_SLOT_NUM : jtCtx.resColInSlot[i];
     pSlot->dataType.type = jtInputColType[slotIdx];
     pSlot->dataType.bytes = tDataTypes[pSlot->dataType.type].bytes;
 
-    assert(0 == nodesListMakeStrictAppend(&pDesc->pSlots, (SNode *)pSlot));
+    TD_ALWAYS_ASSERT(0 == nodesListMakeStrictAppend(&pDesc->pSlots, (SNode *)pSlot));
   }
 
   *ppNode = pDesc;
@@ -855,7 +863,7 @@ void createBlockDescNode(SDataBlockDescNode** ppNode) {
 SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param) {
   SSortMergeJoinPhysiNode* p = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN, (SNode**)&p);
-  assert(p);
+  TD_ALWAYS_ASSERT(p);
   p->joinType = param->joinType;
   p->subType = param->subType;
   p->asofOpType = param->asofOp;
@@ -863,9 +871,9 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
   if (p->subType == JOIN_STYPE_WIN || param->jLimit > 1 || taosRand() % 2) {
     SLimitNode* limitNode = NULL;
     code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&limitNode);
-    assert(limitNode);
+    TD_ALWAYS_ASSERT(limitNode);
     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&limitNode->limit);
-    assert(limitNode->limit);
+    TD_ALWAYS_ASSERT(limitNode->limit);
     limitNode->limit->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     limitNode->limit->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     limitNode->limit->datum.i = param->jLimit;
@@ -878,13 +886,13 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
   if (JOIN_STYPE_WIN == p->subType) {
     SWindowOffsetNode* pOffset = NULL;
     code = nodesMakeNode(QUERY_NODE_WINDOW_OFFSET, (SNode**)&pOffset);
-    assert(pOffset);
+    TD_ALWAYS_ASSERT(pOffset);
     SValueNode* pStart = NULL;
     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pStart);
-    assert(pStart);
+    TD_ALWAYS_ASSERT(pStart);
     SValueNode* pEnd = NULL;
     code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pEnd);
-    assert(pEnd);
+    TD_ALWAYS_ASSERT(pEnd);
     pStart->node.resType.type = TSDB_DATA_TYPE_BIGINT;
     pStart->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     pStart->datum.i = (taosRand() % 2) ? (((int32_t)-1) * (int64_t)(taosRand() % JT_MAX_WINDOW_OFFSET)) : (taosRand() % JT_MAX_WINDOW_OFFSET);
@@ -926,7 +934,7 @@ SSortMergeJoinPhysiNode* createDummySortMergeJoinPhysiNode(SJoinTestParam* param
 
 SExecTaskInfo* createDummyTaskInfo(char* taskId) {
   SExecTaskInfo* p = (SExecTaskInfo*)taosMemoryCalloc(1, sizeof(SExecTaskInfo));
-  assert(p);
+  TD_ALWAYS_ASSERT(p);
   p->id.str = taskId;
 
   return p;
@@ -935,10 +943,9 @@ SExecTaskInfo* createDummyTaskInfo(char* taskId) {
 SSDataBlock* createDummyBlock(int32_t blkId) {
   SSDataBlock* p = NULL;
   int32_t code = createDataBlock(&p);
-  assert(code == 0);
+  TD_ALWAYS_ASSERT(code == 0);
 
   p->info.id.blockId = blkId;
-  p->info.type = STREAM_INVALID;
   p->info.calWin.skey = INT64_MIN;
   p->info.calWin.ekey = INT64_MAX;
   p->info.watermark = INT64_MIN;
@@ -947,7 +954,7 @@ SSDataBlock* createDummyBlock(int32_t blkId) {
     SColumnInfoData idata =
         createColumnInfoData(jtInputColType[i], tDataTypes[jtInputColType[i]].bytes, i);
 
-    assert(0 == blockDataAppendColInfo(p, &idata));
+    TD_ALWAYS_ASSERT(0 == blockDataAppendColInfo(p, &idata));
   }
 
   return p;
@@ -1023,15 +1030,15 @@ void appendAllAsofResRows() {
     if (0 == jtCtx.rightFilterNum) {
       for (int32_t i = 0; i < leftRows; ++i) {
         char* leftInRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
-        assert(leftInRow);
+        TD_ALWAYS_ASSERT(leftInRow);
         appendLeftNonMatchGrp(leftInRow);
       }      
     }    
   } else {
-    assert(rightRows <= jtCtx.jLimit);
+    TD_ALWAYS_ASSERT(rightRows <= jtCtx.jLimit);
     for (int32_t i = 0; i < leftRows; ++i) {
       char* leftInRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
-      assert(leftInRow);
+      TD_ALWAYS_ASSERT(leftInRow);
       appendAsofLeftEachResGrps(leftInRow, 0, rightRows);
     }
   }
@@ -1050,12 +1057,12 @@ void chkAppendAsofForwardGrpResRows(bool forceOut) {
   int32_t i = 0;
   for (; i < leftRows; ++i) {
     char* leftRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
-    assert(leftRow);
+    TD_ALWAYS_ASSERT(leftRow);
     int64_t* leftTs = (int64_t*)(leftRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
     bool append = false;
     for (int32_t r = rightOffset; r < rightRows; ++r) {
       char* rightRow = (char*)taosArrayGet(jtCtx.rightRowsList, r);
-      assert(rightRow);
+      TD_ALWAYS_ASSERT(rightRow);
       int64_t* rightTs = (int64_t*)(rightRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
       if (((jtCtx.asc && *leftTs > *rightTs) || (!jtCtx.asc && *leftTs < *rightTs)) || (*leftTs == *rightTs && (OP_TYPE_LOWER_THAN == jtCtx.asofOpType || OP_TYPE_GREATER_THAN == jtCtx.asofOpType))) {
         rightOffset++;
@@ -1122,7 +1129,7 @@ void appendWinEachResGrps(char* leftInRow, int32_t rightOffset, int32_t rightRow
     }
     
     char* rightResRows = (char*)taosArrayGet(jtCtx.rightRowsList, r);
-    assert(rightResRows);
+    TD_ALWAYS_ASSERT(rightResRows);
     for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
       if (jtCtx.resColList[MAX_SLOT_NUM + c]) {
         if (*(bool*)(rightResRows + c)) {
@@ -1151,7 +1158,7 @@ void chkAppendWinResRows(bool forceOut) {
   int32_t i = 0;
   for (; i < leftRows; ++i) {
     char* leftRow = (char*)taosArrayGet(jtCtx.leftRowsList, i);
-    assert(leftRow);
+    TD_ALWAYS_ASSERT(leftRow);
     int64_t* leftTs = (int64_t*)(leftRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
     int64_t winStart = *leftTs + jtCtx.winStartOffset;
     int64_t winEnd = *leftTs + jtCtx.winEndOffset;
@@ -1160,7 +1167,7 @@ void chkAppendWinResRows(bool forceOut) {
     bool winClosed = false;
     for (int32_t r = rightOffset; r < rightRows; ++r) {
       char* rightRow = (char*)taosArrayGet(jtCtx.rightRowsList, r);
-      assert(rightRow);
+      TD_ALWAYS_ASSERT(rightRow);
       int64_t* rightTs = (int64_t*)(rightRow + jtCtx.inColOffset[JT_PRIM_TS_SLOT_ID]);
       if ((jtCtx.asc && *rightTs < winStart) || (!jtCtx.asc && *rightTs > winEnd)) {
         rightOffset++;
@@ -1227,9 +1234,9 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
 
   if (NULL == *ppBlk) {
     *ppBlk = createDummyBlock((blkId == LEFT_BLK_ID) ? LEFT_BLK_ID : RIGHT_BLK_ID);
-    assert(*ppBlk);
-    assert(0 == blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows));
-    assert(NULL != taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk));
+    TD_ALWAYS_ASSERT(*ppBlk);
+    TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk));
   }
 
   if (jtCtx.grpJoin) {
@@ -1281,9 +1288,9 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
   for (int32_t i = 0; i < grpRows; ++i) {
     if ((*ppBlk)->info.rows >= (*ppBlk)->info.capacity) {
       *ppBlk = createDummyBlock((blkId == LEFT_BLK_ID) ? LEFT_BLK_ID : RIGHT_BLK_ID);
-      assert(*ppBlk);
-      assert(0 == blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows));
-      assert(NULL != taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk));
+      TD_ALWAYS_ASSERT(*ppBlk);
+      TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppBlk, jtCtx.blkRows));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush((blkId == LEFT_BLK_ID) ? jtCtx.leftBlkList : jtCtx.rightBlkList, ppBlk));
       if (jtCtx.grpJoin) {
         (*ppBlk)->info.id.groupId = jtCtx.inGrpId;
       }
@@ -1337,8 +1344,8 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
       }
       
       SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet((*ppBlk)->pDataBlock, c);
-      assert(pCol);
-      assert(0 == colDataSetVal(pCol, (*ppBlk)->info.rows, pData, isNull));
+      TD_ALWAYS_ASSERT(pCol);
+      TD_ALWAYS_ASSERT(0 == colDataSetVal(pCol, (*ppBlk)->info.rows, pData, isNull));
 
       if (keepInput) {
         if (!filterOut || (blkId != LEFT_BLK_ID)) {
@@ -1360,10 +1367,10 @@ void createGrpRows(SSDataBlock** ppBlk, int32_t blkId, int32_t grpRows) {
     }
 
     if (keepInput && addToRowList) {
-      assert(NULL != taosArrayPush(pTableRows, jtCtx.inColBuf));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush(pTableRows, jtCtx.inColBuf));
       if (blkId == RIGHT_BLK_ID) {
         bool fout = filterOut ? true : false;
-        assert(NULL != taosArrayPush(jtCtx.rightFilterOut, &fout));
+        TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.rightFilterOut, &fout));
       }
     } 
 
@@ -1404,28 +1411,28 @@ void createRowData(SSDataBlock* pBlk, int64_t tbOffset, int32_t rowIdx, int32_t 
   
   for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, c);
-    assert(pCol);
+    TD_ALWAYS_ASSERT(pCol);
 
     int32_t rv = taosRand() % 10;
     switch (jtInputColType[c]) {
       case TSDB_DATA_TYPE_TIMESTAMP:
         *(int64_t*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + jtCtx.colRowOffset[c]) = jtCtx.curTs;
-        assert(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&jtCtx.curTs, false));
+        TD_ALWAYS_ASSERT(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&jtCtx.curTs, false));
         break;
       case TSDB_DATA_TYPE_INT:
         if (rv) {
           tmpInt = (taosRand() % 2) ? INT_FILTER_VALUE + jtCtx.grpOffset[c] + taosRand() % vRange : INT_FILTER_VALUE - taosRand() % vRange;
           *(int32_t*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + jtCtx.colRowOffset[c]) = tmpInt;
-          assert(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&tmpInt, false));
+          TD_ALWAYS_ASSERT(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&tmpInt, false));
         } else {
           *(bool*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + c) = true;
-          assert(0 == colDataSetVal(pCol, pBlk->info.rows, NULL, true));
+          TD_ALWAYS_ASSERT(0 == colDataSetVal(pCol, pBlk->info.rows, NULL, true));
         }
         break;
       case TSDB_DATA_TYPE_BIGINT:
         tmpBig = (taosRand() % 2) ? BIGINT_FILTER_VALUE + jtCtx.curKeyOffset++ : BIGINT_FILTER_VALUE - jtCtx.curKeyOffset++;
         *(int64_t*)(jtCtx.colRowDataBuf + tbOffset + rowIdx * jtCtx.blkRowSize + jtCtx.colRowOffset[c]) = tmpBig;
-        assert(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&tmpBig, false));
+        TD_ALWAYS_ASSERT(0 == colDataSetVal(pCol, pBlk->info.rows, (char*)&tmpBig, false));
         break;
       default:
         break;
@@ -1441,7 +1448,7 @@ void makeAppendBlkData(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   if (jtCtx.colRowDataBufSize < totalSize) {
     jtCtx.colRowDataBuf = (char*)taosMemoryRealloc(jtCtx.colRowDataBuf, totalSize);
-    assert(jtCtx.colRowDataBuf);
+    TD_ALWAYS_ASSERT(jtCtx.colRowDataBuf);
   }
 
   TAOS_MEMSET(jtCtx.colRowDataBuf, 0, totalSize);
@@ -1454,9 +1461,9 @@ void makeAppendBlkData(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
   for (int32_t i = 0; i < leftGrpRows; ++i) {
     if ((*ppLeft)->info.rows >= (*ppLeft)->info.capacity) {
       *ppLeft = createDummyBlock(LEFT_BLK_ID);
-      assert(*ppLeft);
-      assert(0 == blockDataEnsureCapacity(*ppLeft, jtCtx.blkRows));
-      assert(NULL != taosArrayPush(jtCtx.leftBlkList, ppLeft));
+      TD_ALWAYS_ASSERT(*ppLeft);
+      TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppLeft, jtCtx.blkRows));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.leftBlkList, ppLeft));
       if (jtCtx.grpJoin) {
         (*ppLeft)->info.id.groupId = jtCtx.inGrpId;
       }
@@ -1469,9 +1476,9 @@ void makeAppendBlkData(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
   for (int32_t i = 0; i < rightGrpRows; ++i) {
     if ((*ppRight)->info.rows >= (*ppRight)->info.capacity) {
       *ppRight = createDummyBlock(RIGHT_BLK_ID);
-      assert(*ppRight);
-      assert(0 == blockDataEnsureCapacity(*ppRight, jtCtx.blkRows));
-      assert(NULL != taosArrayPush(jtCtx.rightBlkList, ppRight));
+      TD_ALWAYS_ASSERT(*ppRight);
+      TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppRight, jtCtx.blkRows));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.rightBlkList, ppRight));
       if (jtCtx.grpJoin) {
         (*ppRight)->info.id.groupId = jtCtx.inGrpId;
       }
@@ -1904,7 +1911,7 @@ void antiJoinAppendEqGrpRes(int32_t leftGrpRows, int32_t rightGrpRows) {
   int64_t lBig = 0, rBig = 0, fbig = 0;
   int64_t rightTbOffset = jtCtx.blkRowSize * leftGrpRows;
 
-  assert(0 == jtCtx.rightFilterNum);
+  TD_ALWAYS_ASSERT(0 == jtCtx.rightFilterNum);
   
   for (int32_t l = 0; l < leftGrpRows; ++l) {
     char* lrow = jtCtx.colRowDataBuf + jtCtx.blkRowSize * l;
@@ -2057,9 +2064,9 @@ void addAsofEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
       continue;
     }
 
-    assert(NULL != taosArrayPush(rowList, row));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush(rowList, row));
     if (!leftTable) {
-      assert(NULL != taosArrayPush(jtCtx.rightFilterOut, &filterOut));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.rightFilterOut, &filterOut));
     }
   }
 
@@ -2183,9 +2190,9 @@ void addWinEqInRows(int32_t rowsNum, int64_t tbOffset, bool leftTable) {
       continue;
     }
 
-    assert(NULL != taosArrayPush(rowList, row));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush(rowList, row));
     if (!leftTable) {
-      assert(NULL != taosArrayPush(jtCtx.rightFilterOut, &filterOut));
+      TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.rightFilterOut, &filterOut));
     }
   }
 }
@@ -2365,9 +2372,9 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   if (NULL == *ppLeft && leftGrpRows > 0) {
     *ppLeft = createDummyBlock(LEFT_BLK_ID);
-    assert(*ppLeft);
-    assert(0 == blockDataEnsureCapacity(*ppLeft, jtCtx.blkRows));
-    assert(NULL != taosArrayPush(jtCtx.leftBlkList, ppLeft));
+    TD_ALWAYS_ASSERT(*ppLeft);
+    TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppLeft, jtCtx.blkRows));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.leftBlkList, ppLeft));
   }
 
   if (jtCtx.grpJoin) {
@@ -2376,9 +2383,9 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
   if (NULL == *ppRight && rightGrpRows > 0) {
     *ppRight = createDummyBlock(RIGHT_BLK_ID);
-    assert(*ppRight);
-    assert(0 == blockDataEnsureCapacity(*ppRight, jtCtx.blkRows));
-    assert(NULL != taosArrayPush(jtCtx.rightBlkList, ppRight));
+    TD_ALWAYS_ASSERT(*ppRight);
+    TD_ALWAYS_ASSERT(0 == blockDataEnsureCapacity(*ppRight, jtCtx.blkRows));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtCtx.rightBlkList, ppRight));
   }
 
   if (jtCtx.grpJoin) {
@@ -2393,7 +2400,7 @@ void createTsEqGrpRows(SSDataBlock** ppLeft, SSDataBlock** ppRight, int32_t left
 
 void forceFlushResRows() {
   if (JOIN_STYPE_ASOF == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
-    assert((jtCtx.asc && (OP_TYPE_LOWER_EQUAL == jtCtx.asofOpType || OP_TYPE_LOWER_THAN == jtCtx.asofOpType))
+    TD_ALWAYS_ASSERT((jtCtx.asc && (OP_TYPE_LOWER_EQUAL == jtCtx.asofOpType || OP_TYPE_LOWER_THAN == jtCtx.asofOpType))
          || (!jtCtx.asc && (OP_TYPE_GREATER_EQUAL == jtCtx.asofOpType || OP_TYPE_GREATER_THAN == jtCtx.asofOpType)));
     chkAppendAsofForwardGrpResRows(true);
   } else if (JOIN_STYPE_WIN == jtCtx.subType && taosArrayGetSize(jtCtx.leftRowsList) > 0) {
@@ -2486,7 +2493,7 @@ void createDummyBlkList(int32_t leftMaxRows, int32_t leftMaxGrpRows, int32_t rig
   if (maxGrpRows > jtCtx.rightFinMatchNum) {
     jtCtx.rightFinMatchNum = maxGrpRows;
     jtCtx.rightFinMatch = (bool*)taosMemoryRealloc(jtCtx.rightFinMatch, maxGrpRows * sizeof(bool));
-    assert(jtCtx.rightFinMatch);
+    TD_ALWAYS_ASSERT(jtCtx.rightFinMatch);
   }
 
   taosArrayClear(jtCtx.leftRowsList);
@@ -2523,27 +2530,17 @@ SSDataBlock* getDummyInputBlock(struct SOperatorInfo* pOperator, int32_t idx) {
 }
 
 
+int32_t getDummyInputBlockImpl(SOperatorInfo* pOperator, int32_t idx,
+                               bool resetParams, SSDataBlock** ppBlock) {
+  *ppBlock = getDummyInputBlock(pOperator, idx);
+  return TSDB_CODE_SUCCESS;
+}
+
 void joinTestReplaceRetrieveFp() {
   static Stub stub;
-  stub.set(getNextBlockFromDownstreamRemain, getDummyInputBlock);
-  {
-#ifdef WINDOWS
-    AddrAny                       any;
-    std::map<std::string, void *> result;
-    any.get_func_addr("getNextBlockFromDownstreamRemain", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-#ifdef LINUX
-    AddrAny                       any("libexecutor.so");
-    std::map<std::string, void *> result;
-    any.get_global_func_addr_dynsym("^getNextBlockFromDownstreamRemain$", result);
-    for (const auto &f : result) {
-      stub.set(f.second, getDummyInputBlock);
-    }
-#endif
-  }
+  // Merge join fetches through getNextBlockFromDownstreamChecked(), so the
+  // one Impl stub covers every downstream read.
+  stub.set(getNextBlockFromDownstreamImpl, getDummyInputBlockImpl);
 }
 
 void printColList(char* title, bool left, int32_t* colList, bool filter, char* opStr) {
@@ -2572,8 +2569,8 @@ void printInputRowData(SSDataBlock* pBlk, int32_t* rowIdx) {
   }
   for (int32_t c = 0; c < MAX_SLOT_NUM; ++c) {
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlk->pDataBlock, c);
-    assert(pCol);
-    assert(pCol->info.type == jtInputColType[c]);
+    TD_ALWAYS_ASSERT(pCol);
+    TD_ALWAYS_ASSERT(pCol->info.type == jtInputColType[c]);
     if (colDataIsNull_s(pCol, *rowIdx)) {
       JT_PRINTF("%18s", " NULL");
     } else {
@@ -2586,7 +2583,7 @@ void printInputRowData(SSDataBlock* pBlk, int32_t* rowIdx) {
           JT_PRINTF("%18d", *(int32_t*)colDataGetData(pCol, *rowIdx));
           break;
         default:
-          assert(0);
+          TD_ALWAYS_ASSERT(0);
       }
     }
   }
@@ -2602,7 +2599,7 @@ void printInputData() {
     if (jtCtx.leftBlkReadIdx < taosArrayGetSize(jtCtx.leftBlkList)) {
       while (true) {
         SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.leftBlkList, jtCtx.leftBlkReadIdx);
-        assert(pBlk);
+        TD_ALWAYS_ASSERT(pBlk);
         if (leftRowIdx < pBlk->info.rows) {
           printInputRowData(pBlk, &leftRowIdx);
           break;
@@ -2620,7 +2617,7 @@ void printInputData() {
     if (jtCtx.rightBlkReadIdx < taosArrayGetSize(jtCtx.rightBlkList)) {
       while (true) {
         SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.rightBlkList, jtCtx.rightBlkReadIdx);
-        assert(pBlk);
+        TD_ALWAYS_ASSERT(pBlk);
         if (rightRowIdx < pBlk->info.rows) {
           printInputRowData(pBlk, &rightRowIdx);
           break;
@@ -2787,7 +2784,7 @@ void putRowToResColBuf(SSDataBlock* pBlock, int32_t r, bool ignoreTbCols) {
     }
     
     SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, c);
-    assert(pCol);
+    TD_ALWAYS_ASSERT(pCol);
     switch (jtInputColType[slot % MAX_SLOT_NUM]) {
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_BIGINT:
@@ -2899,15 +2896,15 @@ void jtInitLogFile() {
 void initJoinTest() {
   jtCtx.leftBlkList = taosArrayInit(10, POINTER_BYTES);
   jtCtx.rightBlkList = taosArrayInit(10, POINTER_BYTES);
-  assert(jtCtx.leftBlkList && jtCtx.rightBlkList);
+  TD_ALWAYS_ASSERT(jtCtx.leftBlkList && jtCtx.rightBlkList);
   jtCtx.jtResRows = tSimpleHashInit(10000000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-  assert(jtCtx.jtResRows);
+  TD_ALWAYS_ASSERT(jtCtx.jtResRows);
 
   joinTestReplaceRetrieveFp();
 
   if (jtCtrl.logHistory) {
     jtStat.pHistory = taosArrayInit(100000, sizeof(SJoinTestHistory));
-    assert(jtStat.pHistory);
+    TD_ALWAYS_ASSERT(jtStat.pHistory);
   }
 
   int32_t offset = MAX_SLOT_NUM * sizeof(bool);
@@ -2917,12 +2914,12 @@ void initJoinTest() {
   }
   jtCtx.inColSize = offset;
   jtCtx.inColBuf = (char*)taosMemoryMalloc(jtCtx.inColSize);
-  assert(jtCtx.inColBuf);
+  TD_ALWAYS_ASSERT(jtCtx.inColBuf);
 
   jtCtx.leftRowsList = taosArrayInit(1024, jtCtx.inColSize);
   jtCtx.rightRowsList = taosArrayInit(1024, jtCtx.inColSize);
   jtCtx.rightFilterOut = taosArrayInit(1024, sizeof(bool));
-  assert(jtCtx.leftRowsList && jtCtx.rightRowsList && jtCtx.rightFilterOut);
+  TD_ALWAYS_ASSERT(jtCtx.leftRowsList && jtCtx.rightRowsList && jtCtx.rightFilterOut);
 
   jtInitLogFile();
 }
@@ -2932,13 +2929,13 @@ void handleTestDone() {
     SJoinTestHistory h;
     TAOS_MEMCPY(&h.ctx, &jtCtx, sizeof(h.ctx));
     TAOS_MEMCPY(&h.res, &jtRes, sizeof(h.res));
-    assert(NULL != taosArrayPush(jtStat.pHistory, &h));
+    TD_ALWAYS_ASSERT(NULL != taosArrayPush(jtStat.pHistory, &h));
   }
   
   int32_t blkNum = taosArrayGetSize(jtCtx.leftBlkList);
   for (int32_t i = 0; i < blkNum; ++i) {
     SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.leftBlkList, i);
-    assert(pBlk);
+    TD_ALWAYS_ASSERT(pBlk);
     (void)blockDataDestroy(pBlk);
   }
   taosArrayClear(jtCtx.leftBlkList);
@@ -2946,7 +2943,7 @@ void handleTestDone() {
   blkNum = taosArrayGetSize(jtCtx.rightBlkList);
   for (int32_t i = 0; i < blkNum; ++i) {
     SSDataBlock* pBlk = (SSDataBlock*)taosArrayGetP(jtCtx.rightBlkList, i);
-    assert(pBlk);
+    TD_ALWAYS_ASSERT(pBlk);
     (void)blockDataDestroy(pBlk);
   }
   taosArrayClear(jtCtx.rightBlkList);  
@@ -2961,7 +2958,7 @@ void runSingleTest(char* caseName, SJoinTestParam* param) {
   bool contLoop = true;
   
   SSortMergeJoinPhysiNode* pNode = createDummySortMergeJoinPhysiNode(param);    
-  assert(pNode);
+  TD_ALWAYS_ASSERT(pNode);
   createDummyBlkList(1000, 1000, 1000, 1000, 100);
   
   while (contLoop) {
@@ -2994,6 +2991,45 @@ void handleCaseEnd() {
   jtCtx.rightFinMatchNum = 0;
 }
 
+int32_t parseJoinTestLoopArg(const char* arg) {
+  const char* prefix = "--jt_loop=";
+  size_t      prefixLen = strlen(prefix);
+  if (strncmp(arg, prefix, prefixLen) != 0) {
+    return 0;
+  }
+
+  const char* value = arg + prefixLen;
+  char*   end = NULL;
+  int64_t loop = taosStr2Int64(value, &end, 10);
+  if (end == value || NULL == end || '\0' != *end || loop <= 0 || loop > INT32_MAX) {
+    (void)fprintf(stderr, "invalid --jt_loop value: '%s'\nusage: --jt_loop=<positive integer, default %d>\n", value,
+                  JT_DEFAULT_LOOP);
+    return -1;
+  }
+
+  jtMaxLoop = (int32_t)loop;
+  return 1;
+}
+
+bool parseJoinTestArgs(int* argc, char** argv) {
+  int32_t writeIdx = 1;
+  for (int32_t readIdx = 1; readIdx < *argc; ++readIdx) {
+    int32_t result = parseJoinTestLoopArg(argv[readIdx]);
+    if (result < 0) {
+      return false;
+    }
+    if (result > 0) {
+      continue;
+    }
+
+    argv[writeIdx++] = argv[readIdx];
+  }
+
+  argv[writeIdx] = NULL;
+  *argc = writeIdx;
+  return true;
+}
+
 }  // namespace
 
 #if 1
@@ -3002,7 +3038,7 @@ TEST(innerJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "innerJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_INNER;
@@ -3011,7 +3047,7 @@ TEST(innerJoin, noCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3030,7 +3066,7 @@ TEST(innerJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "innerJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_INNER;
@@ -3039,7 +3075,7 @@ TEST(innerJoin, eqCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3058,7 +3094,7 @@ TEST(innerJoin, onCondTest) {
   SJoinTestParam param;
   char* caseName = "innerJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_INNER;
@@ -3067,7 +3103,7 @@ TEST(innerJoin, onCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3086,7 +3122,7 @@ TEST(innerJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "innerJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_INNER;
@@ -3095,7 +3131,7 @@ TEST(innerJoin, fullCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3117,7 +3153,7 @@ TEST(leftOuterJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "leftOuterJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3125,7 +3161,7 @@ TEST(leftOuterJoin, noCondTest) {
   param.cond = TEST_NO_COND;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.grpJoin = taosRand() % 2 ? true : false;  
     param.filter = false;
@@ -3146,7 +3182,7 @@ TEST(leftOuterJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "leftOuterJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3155,7 +3191,7 @@ TEST(leftOuterJoin, eqCondTest) {
   param.asc = true;
   param.grpJoin = false;  
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3174,7 +3210,7 @@ TEST(leftOuterJoin, onCondTest) {
   SJoinTestParam param;
   char* caseName = "leftOuterJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3183,7 +3219,7 @@ TEST(leftOuterJoin, onCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3202,7 +3238,7 @@ TEST(leftOuterJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "leftOuterJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3211,7 +3247,7 @@ TEST(leftOuterJoin, fullCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3232,7 +3268,7 @@ TEST(fullOuterJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_FULL;
@@ -3241,7 +3277,7 @@ TEST(fullOuterJoin, noCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3260,7 +3296,7 @@ TEST(fullOuterJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_FULL;
@@ -3269,7 +3305,7 @@ TEST(fullOuterJoin, eqCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3289,7 +3325,7 @@ TEST(fullOuterJoin, onCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_FULL;
@@ -3298,7 +3334,7 @@ TEST(fullOuterJoin, onCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3317,7 +3353,7 @@ TEST(fullOuterJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "fullOuterJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_FULL;
@@ -3326,7 +3362,7 @@ TEST(fullOuterJoin, fullCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3347,7 +3383,7 @@ TEST(leftSemiJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "leftSemiJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3356,7 +3392,7 @@ TEST(leftSemiJoin, noCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3375,7 +3411,7 @@ TEST(leftSemiJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "leftSemiJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3384,7 +3420,7 @@ TEST(leftSemiJoin, eqCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3404,7 +3440,7 @@ TEST(leftSemiJoin, onCondTest) {
   SJoinTestParam param;
   char* caseName = "leftSemiJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3413,7 +3449,7 @@ TEST(leftSemiJoin, onCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3432,7 +3468,7 @@ TEST(leftSemiJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "leftSemiJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3441,7 +3477,7 @@ TEST(leftSemiJoin, fullCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3462,7 +3498,7 @@ TEST(leftAntiJoin, noCondTest) {
   SJoinTestParam param;
   char* caseName = "leftAntiJoin:noCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3471,7 +3507,7 @@ TEST(leftAntiJoin, noCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3490,7 +3526,7 @@ TEST(leftAntiJoin, eqCondTest) {
   SJoinTestParam param;
   char* caseName = "leftAntiJoin:eqCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3499,7 +3535,7 @@ TEST(leftAntiJoin, eqCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3519,7 +3555,7 @@ TEST(leftAntiJoin, onCondTest) {
   SJoinTestParam param;
   char* caseName = "leftAntiJoin:onCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3528,7 +3564,7 @@ TEST(leftAntiJoin, onCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3547,7 +3583,7 @@ TEST(leftAntiJoin, fullCondTest) {
   SJoinTestParam param;
   char* caseName = "leftAntiJoin:fullCondTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3556,7 +3592,7 @@ TEST(leftAntiJoin, fullCondTest) {
   param.asc = true;
   param.grpJoin = false;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.filter = false;
     runSingleTest(caseName, &param);
@@ -3577,7 +3613,7 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondGreaterThanTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3586,7 +3622,7 @@ TEST(leftAsofJoin, noCondGreaterThanTest) {
   param.asofOp = OP_TYPE_GREATER_THAN;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
 
@@ -3609,7 +3645,7 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondGreaterEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3618,7 +3654,7 @@ TEST(leftAsofJoin, noCondGreaterEqTest) {
   param.asofOp = OP_TYPE_GREATER_EQUAL;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
 
@@ -3641,7 +3677,7 @@ TEST(leftAsofJoin, noCondEqTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3650,7 +3686,7 @@ TEST(leftAsofJoin, noCondEqTest) {
   param.asofOp = OP_TYPE_EQUAL;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
@@ -3673,7 +3709,7 @@ TEST(leftAsofJoin, noCondLowerThanTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondLowerThanTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3682,7 +3718,7 @@ TEST(leftAsofJoin, noCondLowerThanTest) {
   param.asofOp = OP_TYPE_LOWER_THAN;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
@@ -3706,7 +3742,7 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
   SJoinTestParam param;
   char* caseName = "leftAsofJoin:noCondLowerEqTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3715,7 +3751,7 @@ TEST(leftAsofJoin, noCondLowerEqTest) {
   param.asofOp = OP_TYPE_LOWER_EQUAL;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
@@ -3742,7 +3778,7 @@ TEST(leftWinJoin, noCondProjectionTest) {
   SJoinTestParam param;
   char* caseName = "leftWinJoin:noCondProjectionTest";
   SExecTaskInfo* pTask = createDummyTaskInfo(caseName);
-  assert(pTask);
+  TD_ALWAYS_ASSERT(pTask);
 
   param.pTask = pTask;
   param.joinType = JOIN_TYPE_LEFT;
@@ -3750,7 +3786,7 @@ TEST(leftWinJoin, noCondProjectionTest) {
   param.cond = TEST_NO_COND;
   param.asc = true;
   
-  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < JT_MAX_LOOP; ++jtCtx.loopIdx) {
+  for (jtCtx.loopIdx = 0; jtCtx.loopIdx < jtMaxLoop; ++jtCtx.loopIdx) {
     param.asc = !param.asc;
     param.jLimit = taosRand() % 2 ? (1 + (taosRand() % JT_MAX_JLIMIT)) : 1;
     
@@ -3791,6 +3827,9 @@ TEST(functionsTest, branch) {
 int main(int argc, char** argv) {
   taosSeedRand(taosGetTimestampSec());
   initJoinTest();
+  if (!parseJoinTestArgs(&argc, argv)) {
+    return EXIT_FAILURE;
+  }
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

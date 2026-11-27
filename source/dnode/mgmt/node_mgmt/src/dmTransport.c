@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
@@ -23,6 +26,13 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
     dError("failed to send response, msg:%p", pMsg);
   }
+}
+
+static char *getUserFromConnInfo(SRpcConnInfo *pConnInfo) {
+  if (pConnInfo == NULL) {
+    return "unknown";
+  }
+  return pConnInfo->isToken ? pConnInfo->identifier : pConnInfo->user;
 }
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -61,6 +71,13 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
 
+  // msgType comes from the wire and is used as an index into msgFps[TDMT_MAX]; an undefined
+  // segment code or an out-of-range sequence byte would read past the table.
+  if (!tmsgIsValid(pMsg->msgType)) {
+    dGError("msg:%p, not processed since msg type:%u is invalid", pMsg, pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     // terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -70,6 +87,18 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
+
+  // dmOpenNode() publishes pMgmt before `deployed`, but the pointer write is not
+  // synchronized with this read and a node type could legitimately return success
+  // without a management handle. A NULL pMgmt here would be dereferenced by every
+  // node handler (e.g. mmPutMsgToSyncRdQueue -> mmAcquire), so reject the message
+  // as "still starting" instead of crashing the daemon.
+  if (pWrapper->pMgmt == NULL) {
+    dGError("msg:%p, not processed since %s has no mgmt yet, type:%s", pMsg, pWrapper->name,
+            TMSG_INFO(pMsg->msgType));
+    return TSDB_CODE_APP_IS_STARTING;
+  }
+
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
@@ -91,7 +120,7 @@ static int32_t dmConvertErrCode(tmsg_t msgType, int32_t code) {
 static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   int32_t        code = 0;
   SUpdateIpWhite ipWhite = {0};  // aosMemoryCalloc(1, sizeof(SUpdateIpWhite));
-  code = tDeserializeSUpdateIpWhite(pRpc->pCont, pRpc->contLen, &ipWhite);
+  code = tDeserializeSUpdateIpWhiteDual(pRpc->pCont, pRpc->contLen, &ipWhite);
   if (code < 0) {
     dError("failed to update rpc ip-white since: %s", tstrerror(code));
     return;
@@ -99,30 +128,55 @@ static void dmUpdateRpcIpWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
   code = rpcSetIpWhite(pTrans, &ipWhite);
   pData->ipWhiteVer = ipWhite.ver;
 
-  (void)tFreeSUpdateIpWhiteReq(&ipWhite);
+  (void)tFreeSUpdateIpWhiteDualReq(&ipWhite);
 
   rpcFreeCont(pRpc->pCont);
 }
-static bool dmIsForbiddenIp(int8_t forbidden, char *user, uint32_t clientIp) {
-  if (forbidden) {
-    SIpV4Range range = {.ip = clientIp, .mask = 32};
-    char       buf[36] = {0};
 
-    (void)rpcUtilSIpRangeToStr(&range, buf);
-    dError("User:%s host:%s not in ip white list", user, buf);
-    return true;
+static void dmUpdateRpcIpWhiteUnused(SDnodeData *pDnode, void *pTrans, SRpcMsg *pRpc) {
+  int32_t code = TSDB_CODE_INVALID_MSG;
+  dError("failed to update rpc ip-white since: %s", tstrerror(code));
+  rpcFreeCont(pRpc->pCont);
+  pRpc->pCont = NULL;
+  return;
+}
+static int32_t dmIsForbiddenIp(int8_t forbidden, char *user, SIpAddr *clientIp) {
+  if (IP_FORBIDDEN_CHECK_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s not in ip white list or in block white list", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+
+  } else if (IP_FORBIDDEN_CHECK_DATA_TIME_WHITE_LIST(forbidden)) {
+    dError("User:%s host:%s already expired", user, IP_ADDR_STR(clientIp));
+    return TSDB_CODE_MND_USER_DISABLED;
   } else {
-    return false;
+    return 0;
   }
 }
 
-static void dmUpdateAnalFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
-  SRetrieveAnalAlgoRsp rsp = {0};
-  if (tDeserializeRetrieveAnalAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
+static void dmUpdateRpcTimeWhite(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  int32_t        code = 0;
+  SRetrieveDateTimeWhiteListRsp timeWhite = {0};
+  code = tDeserializeSRetrieveDateTimeWhiteListRsp(pRpc->pCont, pRpc->contLen, &timeWhite);
+  if (code < 0) {
+    dError("failed to update rpc datetime-white since: %s", tstrerror(code));
+    return;
+  }
+  // TODO: implement rpcSetTimeWhite
+  code = rpcSetTimeIpWhite(pTrans, &timeWhite);
+  pData->timeWhiteVer = timeWhite.ver;
+
+  (void)tFreeSRetrieveDateTimeWhiteListRsp(&timeWhite);
+
+  rpcFreeCont(pRpc->pCont);
+}
+
+static void dmUpdateAnalyticFunc(SDnodeData *pData, void *pTrans, SRpcMsg *pRpc) {
+  SRetrieveAnalyticAlgoRsp rsp = {0};
+  if (tDeserializeRetrieveAnalyticAlgoRsp(pRpc->pCont, pRpc->contLen, &rsp) == 0) {
     taosAnalyUpdate(rsp.ver, rsp.hash);
     rsp.hash = NULL;
   }
-  tFreeRetrieveAnalAlgoRsp(&rsp);
+  tFreeRetrieveAnalyticAlgoRsp(&rsp);
   rpcFreeCont(pRpc->pCont);
 }
 
@@ -131,11 +185,25 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SDnodeHandle *pHandle = NULL;
 
   const STraceId *trace = &pRpc->info.traceId;
-  dGTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
-          pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
+
+  // The peer fully controls msgType, and TMSG_INDEX() expands to
+  // tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). An undefined segment code reads past
+  // tMsgDict, and the garbage index is then used to read SDnodeHandle and msgFps. Refuse the
+  // frame before any of those tables is touched. The type is not trustworthy enough to answer
+  // with msgType + 1 either, so just drop it.
+  if (!tmsgIsValid(pRpc->msgType)) {
+    dGError("msg:%p, is discarded since msg type:%u is invalid, ip:%s", pRpc, pRpc->msgType,
+            IP_ADDR_STR(&pRpc->info.conn.cliAddr));
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  dGDebug("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64 " %" PRIx64 ":%" PRIx64, TMSG_INFO(pRpc->msgType),
+          pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
   int32_t svrVer = 0;
   code = taosVersionStrToInt(td_version, &svrVer);
@@ -144,14 +212,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   }
   if ((code = taosCheckVersionCompatible(pRpc->info.cliVer, svrVer, 3)) != 0) {
-    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:0x%x", pRpc->info.cliVer, svrVer,
-           pRpc->info.conn.clientIp);
+    dError("Version not compatible, cli ver: %d, svr ver: %d, ip:%s", pRpc->info.cliVer, svrVer,
+           IP_ADDR_STR(&pRpc->info.conn.cliAddr));
     goto _OVER;
   }
 
-  bool isForbidden = dmIsForbiddenIp(pRpc->info.forbiddenIp, pRpc->info.conn.user, pRpc->info.conn.clientIp);
-  if (isForbidden) {
-    code = TSDB_CODE_IP_NOT_IN_WHITE_LIST;
+  code = dmIsForbiddenIp(pRpc->info.forbiddenIp, RPC_MSG_USER(pRpc), &pRpc->info.conn.cliAddr);
+  if (code != 0) {
     goto _OVER;
   }
 
@@ -161,21 +228,45 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       return;
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP:
+    case TDMT_SCH_QUERY_CONTINUE_RSP:
+    case TDMT_SCH_QUERY_HEARTBEAT_RSP:
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
+    case TDMT_SCH_CANCEL_TASK_RSP:
+    case TDMT_SCH_DROP_TASK_RSP:
+    case TDMT_SCH_EXPLAIN_RSP:
+    case TDMT_SCH_TASK_NOTIFY_RSP:
+    case TDMT_SCH_TASK_RELEASE_RSP:
     case TDMT_VND_SUBMIT_RSP:
-      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
+    case TDMT_MND_GET_DB_INFO_RSP:
+    case TDMT_VND_TABLE_META_RSP:
+    case TDMT_VND_VTB_TAG_COND_RSP:
+    case TDMT_STREAM_FETCH_RSP:
+    case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
+    case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
+    case TDMT_STREAM_FETCH_EXT_RSP:  /* P4-E1: EXT fetch response from ETR */
+    case TDMT_VND_SNODE_DROP_TABLE_RSP:
+    case TDMT_VND_VTABLE_REF_RESOLVE_RSP:
+      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, pEpSet, 0);
       return;
     case TDMT_MND_STATUS_RSP:
       if (pEpSet != NULL) {
         dmSetMnodeEpSet(&pDnode->data, pEpSet);
       }
       break;
-    case TDMT_MND_RETRIEVE_IP_WHITE_RSP:
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_RSP:
+      dmUpdateRpcIpWhiteUnused(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
+    case TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP:
       dmUpdateRpcIpWhite(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
+    case TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP:
+      dmUpdateRpcTimeWhite(&pDnode->data, pTrans->serverRpc, pRpc);
+      return;
     case TDMT_MND_RETRIEVE_ANAL_ALGO_RSP:
-      dmUpdateAnalFunc(&pDnode->data, pTrans->serverRpc, pRpc);
+      dmUpdateAnalyticFunc(&pDnode->data, pTrans->serverRpc, pRpc);
       return;
     default:
       break;
@@ -224,7 +315,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
   if (pHandle->needCheckVgId) {
-    if (pRpc->contLen > 0) {
+    if (pRpc->contLen >= (int32_t)sizeof(SMsgHead)) {
       const SMsgHead *pHead = pRpc->pCont;
       const int32_t   vgId = ntohl(pHead->vgId);
       switch (vgId) {
@@ -241,7 +332,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           break;
       }
     } else {
-      dGError("msg:%p, type:%s contLen is 0", pRpc, TMSG_INFO(pRpc->msgType));
+      dGError("msg:%p, type:%s invalid header length:%d", pRpc, TMSG_INFO(pRpc->msgType), pRpc->contLen);
       code = TSDB_CODE_INVALID_MSG_LEN;
       goto _OVER;
     }
@@ -267,8 +358,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   if (code) goto _OVER;
 
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
-  dGTrace("msg:%p, is created, type:%s handle:%p len:%d", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
-          pRpc->contLen);
+  dGDebug("msg:%p, is created, type:%s handle:%p len:%d %" PRIx64 ":%" PRIx64, pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle,
+          pRpc->contLen, TRACE_GET_ROOTID(&pMsg->info.traceId), TRACE_GET_MSGID(&pMsg->info.traceId));
 
   code = dmProcessNodeMsg(pWrapper, pMsg);
 
@@ -294,6 +385,18 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
+    } else if (pRpc->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pRpc->msgType)) {
+      /*
+       * The response never reached the snode trigger worker (queue item
+       * allocation, dispatch or enqueue failed), so nothing else will release
+       * the send handle allocated by the trigger task.  A successful dispatch
+       * transfers ownership to the worker, which releases it exactly once.
+       */
+      dDebug("msg:%p, type:%s ahandle %p freed since dispatch failed, code:%s, trace:0x%" PRIx64 ":0x%" PRIx64,
+             pMsg, TMSG_INFO(pRpc->msgType), pRpc->info.ahandle, tstrerror(code), TRACE_GET_ROOTID(trace),
+             TRACE_GET_MSGID(trace));
+      destroyAhandle(pRpc->info.ahandle);
+      pRpc->info.ahandle = NULL;
     }
 
     if (pMsg != NULL) {
@@ -349,8 +452,10 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
     return code;
   } else {
     pMsg->info.handle = 0;
-    if (rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL) != 0) {
+    code = rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
+    if (code != 0) {
       dError("failed to send rpc msg");
+      return code;
     }
     return 0;
   }
@@ -395,19 +500,45 @@ static bool rpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 static bool rpcNoDelayMsg(tmsg_t msgType) {
-  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_S3MIGRATE || msgType == TDMT_VND_S3MIGRATE ||
-      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE) {
+  if (msgType == TDMT_VND_FETCH_TTL_EXPIRED_TBS || msgType == TDMT_VND_QUERY_SSMIGRATE_PROGRESS ||
+      msgType == TDMT_VND_QUERY_COMPACT_PROGRESS || msgType == TDMT_VND_DROP_TTL_TABLE ||
+      msgType == TDMT_VND_QUERY_SCAN_PROGRESS || msgType == TDMT_VND_QUERY_TRIM_PROGRESS) {
     return true;
   }
   return false;
 }
+static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
+static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  // dmProcessRpcMsg is shared by the inbound server listener and by the dnode's own client
+  // transports, and SRpcMsg carries no indication of which side a frame arrived on. Only
+  // request types can legitimately arrive here: a response to a request this dnode sent comes
+  // back on the client transport that sent it. Without this gate any peer able to reach the
+  // listener could forge mnode replies - TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP,
+  // TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP, TDMT_MND_RETRIEVE_ANAL_ALGO_RSP,
+  // TDMT_MND_STREAM_HEARTBEAT_RSP - and have them applied as trusted configuration.
+  // Note every explicitly named type in tmsgdef.h is odd (TD_DEF_MSG_TYPE emits TYPE and
+  // TYPE##_RSP in pairs after TYPE##_MIN = seg << 8), so sync messages such as
+  // TDMT_SYNC_HEARTBEAT_REPLY and TDMT_SYNC_SNAPSHOT_RSP are requests and still pass.
+  if (!tmsgIsValid(pRpc->msgType) || !IsReq(pRpc)) {
+    dError("msg:%p, type:%u is discarded since a response frame cannot be a server request, ip:%s", pRpc,
+           pRpc->msgType, IP_ADDR_STR(&pRpc->info.conn.cliAddr));
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -441,6 +572,15 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.notWaitAvaliableConn = 0;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -461,7 +601,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -490,6 +630,15 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 0;
   rpcInit.readTimeout = 0;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  rpcInit.enableSSL = tsEnableTLS;
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -511,7 +660,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -540,7 +689,15 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   rpcInit.timeToGetConn = tsTimeToGetAvailableConn;
   rpcInit.startReadTimer = 1;
   rpcInit.readTimeout = tsReadTimeout;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
 
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
   }
@@ -581,20 +738,31 @@ void dmCleanupSyncClient(SDnode *pDnode) {
 }
 
 int32_t dmInitServer(SDnode *pDnode) {
+  int32_t      code = 0;
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessServerRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.shareConnLimit = tsShareConnLimit * 16;
+  rpcInit.ipv6 = tsEnableIpv6;
+  rpcInit.enableSSL = tsEnableTLS;
+  rpcInit.enableSasl = tsEnableSasl;
+
+  memcpy(rpcInit.caPath, tsTLSCaPath, strlen(tsTLSCaPath));
+  memcpy(rpcInit.certPath, tsTLSSvrCertPath, strlen(tsTLSSvrCertPath));
+  memcpy(rpcInit.keyPath, tsTLSSvrKeyPath, strlen(tsTLSSvrKeyPath));
+  memcpy(rpcInit.cliCertPath, tsTLSCliCertPath, strlen(tsTLSCliCertPath));
+  memcpy(rpcInit.cliKeyPath, tsTLSCliKeyPath, strlen(tsTLSCliKeyPath));
 
   if (taosVersionStrToInt(td_version, &rpcInit.compatibilityVer) != 0) {
     dError("failed to convert version string:%s to int", td_version);
@@ -625,6 +793,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .serverRpc = pDnode->trans.serverRpc,
       .statusRpc = pDnode->trans.statusRpc,
       .syncRpc = pDnode->trans.syncRpc,
+      .pCorrelationRuntime = pDnode->pCorrelationRuntime,
+      .pCorrelationOps = NULL == pDnode->pCorrelationRuntime ? NULL : &gDmCorrelationRuntimeOps,
       .sendReqFp = dmSendReq,
       .sendSyncReqFp = dmSendSyncReq,
       .sendRspFp = dmSendRsp,

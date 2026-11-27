@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include "streamexecutorInt.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -64,7 +67,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
-SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
+int32_t getDummyBlock(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -125,13 +128,15 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   pBlock->info.rows = pInfo->numOfRowsPerPage;
 
   pInfo->current += 1;
-  return pBlock;
+  *pResBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
 }
 
-SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
+int32_t get2ColsDummyBlock(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
-    return NULL;
+    *pResBlock = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (pInfo->pBlock == NULL) {
@@ -141,7 +146,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     ASSERT(code == 0);
 
     SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
-    int32_t code = blockDataAppendColInfo(pInfo->pBlock, &colInfo);
+    code = blockDataAppendColInfo(pInfo->pBlock, &colInfo);
     ASSERT(code == 0);
 
     SColumnInfoData colInfo1 = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
@@ -192,7 +197,8 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 
   pBlock->info.dataLoad = 1;
   int32_t code = blockDataUpdateTsWindow(pBlock, 0);
-  return pBlock;
+  *pResBlock = pBlock;
+  return TSDB_CODE_SUCCESS;
 }
 
 SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type,
@@ -949,14 +955,15 @@ TEST(testCase, build_executor_tree_Test) {
   int32_t          code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle,
+                         0, NULL, OPTR_EXEC_MODEL_BATCH, NULL, false);
   ASSERT_EQ(code, 0);
 }
 #if 0
 
 TEST(testCase, inMem_sort_Test) {
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
+  SOrder o = {}; o.order = TSDB_ORDER_ASC;
   o.col.info.colId = 1;
   o.col.info.type = TSDB_DATA_TYPE_INT;
   taosArrayPush(pOrderVal, &o);
@@ -1231,5 +1238,14 @@ TEST(testCase, time_interval_Operator_Test) {
   taosArrayDestroy(pOrderVal);
 }
 #endif
+
+TEST(streamExecutor, calcOutputTbName) {
+  SNode* pNode = NULL;
+  nodesMakeValueNodeFromInt64(1, &pNode);
+  SValueNode* pVal = (SValueNode*)pNode;
+  char tbname[128] = {0};
+  ASSERT_EQ(0, streamCalcOutputTbName(pNode, tbname, 0));
+  ASSERT_STREQ(tbname, "1");
+}
 
 #pragma GCC diagnosti

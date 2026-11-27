@@ -1,0 +1,307 @@
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+
+
+from new_test_framework.utils import tdLog, tdSql, TDSql, TDSetSql, clusterComCheck
+from time import sleep
+from taos.tmq import Consumer
+import threading
+import time
+import psutil
+import taos
+
+
+class TestPerformanceSchema:
+    def init_data(self):
+        self.setsql = TDSetSql()
+        self.dbname = 'db'
+        self.stbname = 'stb'
+        self.binary_length = 20 # the length of binary for column_dict
+        self.nchar_length = 20  # the length of nchar for column_dict
+        self.ts = 1537146000000
+        self.user = "root"
+        self.groupName = "tg2"
+        self.topicName = "tmq_test_topic"
+        self.appName = "python3.10" #todo need to set to fixed name
+        self.ipAdd= "127.0.0.1"
+        self.transTestDBName = "dbwithvgroup"
+        self.lastTranAction = "action:40 code:0x111(Action in progress) msgType:create-vnode numOfEps:1 inUse:0 ep:0-localhost:6030 "
+        self.column_dict = {
+            'ts'  : 'timestamp',                        #8
+            'col1': 'tinyint',                          #1
+            'col2': 'smallint',                         #2
+            'col3': 'int',                              #4                 
+            'col4': 'bigint',                           #8
+            'col5': 'tinyint unsigned',                 #1
+            'col6': 'smallint unsigned',                #2
+            'col7': 'int unsigned',                     #4
+            'col8': 'bigint unsigned',                  #8
+            'col9': 'float',                            #4
+            'col10': 'double',                          #8
+            'col11': 'bool',                            #1
+            'col12': f'binary({self.binary_length})',   #20 + 2
+            'col13': f'nchar({self.nchar_length})'      #20 + 2
+        }                                               #95
+        self.tbnum = 20
+        self.rowNum = 10
+        self.tag_dict = {
+            't0':'int'                                  #4
+        }
+        self.tag_values = [
+            f'1'
+            ]
+        self.binary_str = 'taosdata'
+        self.nchar_str = '涛思数据'
+    
+    def insert_data(self,column_dict,tbname,row_num):
+        insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
+        for i in range(row_num):
+            insert_list = []
+            self.setsql.insert_values(column_dict,i,insert_sql,insert_list,self.ts)
+
+    def prepare_data(self):
+        tdSql.execute(f"create database if not exists {self.dbname} vgroups 2")                                         #1 query
+        tdSql.execute(f'use {self.dbname}')                                                                             #1 query
+        tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))                   #1 query
+        
+        for i in range(self.tbnum):                                                                                     #self.tbnum query
+            tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")           #self.tbnum query
+            self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)                                        #self.stbname*self.rowNum query
+        
+        for i in range(self.tbnum):
+            tdSql.execute(f"select * from {self.stbname}_{i}")                                                          #self.tbnum query
+
+    class myThread (threading.Thread):
+        def __init__(self, obj):
+            threading.Thread.__init__(self)
+            self.obj = obj
+        def run(self):
+            tdSqlTran = TDSql()
+            tdSqlTran.init(self.obj.conn.cursor())
+            tdSqlTran.execute(f"create database if not exists %s vgroups 20 wal_retention_period 3600"%(self.obj.transTestDBName))
+            tdSqlTran.execute(f"DROP DATABASE %s"%(self.obj.transTestDBName))
+
+    def init_tmq_env(self, db, topic):
+        self.conn.execute("drop topic if exists {}".format(topic))
+        self.conn.execute("create database if not exists {} wal_retention_period 3600".format(db))
+        self.conn.select_db(db)
+        self.conn.execute(
+            "create stable if not exists stb_sub (ts timestamp, c1 int, c2 float, c3 varchar(16)) tags(t1 int, t3 varchar(16))")
+        self.conn.execute("create topic if not exists {} as select ts, c1, c2, c3 from stb_sub".format(topic))
+
+    PERF_QUERY_SQL = "select sleep(6)"
+    PERF_QUERY_WAIT_TIMEOUT = 15  # seconds; perf_queries is refreshed by a 1.5s heartbeat
+    PERF_QUERY_POLL_INTERVAL = 0.5
+
+    def start_long_running_query(self):
+        """Run PERF_QUERY_SQL on a dedicated connection.
+
+        Returns (connection, thread, state). The query lifetime is controlled by
+        PERF_QUERY_SQL, so perf_queries can be observed while it is in flight.
+        """
+        conn = taos.connect(host=self.host, port=self.port, config=self.cfg_path)
+        state = {"error": None}
+
+        def run():
+            try:
+                cursor = conn.cursor()
+                cursor.execute(self.PERF_QUERY_SQL)
+                cursor.fetchall()
+            except Exception as exc:  # noqa: BLE001 - reported by the caller
+                state["error"] = exc
+
+        worker = threading.Thread(target=run, daemon=True)
+        worker.start()
+        return conn, worker, state
+
+    def wait_running_query_reported(self, worker, state):
+        """Wait until PERF_QUERY_SQL shows up in perf_queries and return its row.
+
+        perf_queries is a client heartbeat snapshot: it is refreshed every 1.5s,
+        the whole list is replaced on each heartbeat, and a query only appears in
+        the heartbeat that follows its start. A fixed sleep therefore races with
+        the snapshot. Poll for this specific in-flight query instead and bound the
+        wait with a deadline; on timeout report the lifecycle and snapshot state.
+        """
+        sql = ("select `kill_id`,`query_id`,`conn_id`,`app`,`pid`,`user`,`end_point`,"
+               "`create_time`,`exec_usec`,`stable_query`,`sub_query`,`sql` "
+               "from performance_schema.perf_queries")
+        start = time.time()
+        deadline = start + self.PERF_QUERY_WAIT_TIMEOUT
+        last_rows = []
+        while time.time() < deadline:
+            tdSql.query(sql)
+            last_rows = [tuple(row) for row in tdSql.queryResult]
+            for row in last_rows:
+                if self.PERF_QUERY_SQL in str(row[-1]):
+                    return row, time.time() - start
+            sleep(self.PERF_QUERY_POLL_INTERVAL)
+
+        description = ("perf_queries did not report the in-flight query [%s] within %ss "
+                       "(worker_alive=%s, worker_error=%s, actual_rows=%s)"
+                       % (self.PERF_QUERY_SQL, self.PERF_QUERY_WAIT_TIMEOUT,
+                          worker.is_alive(), state["error"], last_rows))
+        tdLog.error(description)
+        raise AssertionError(description)
+
+    def count_check(self):
+        sleep(5) #performance table delay
+        tdSql.query('select * from performance_schema.perf_apps')                                                            #1 query
+        rowIndex = 0 #for debug
+        tdSql.checkRows(1)
+        tdSql.checkNotEqual(tdSql.queryResult[rowIndex][0], 0)                              #column 0:app_id
+        tdSql.checkEqual(tdSql.queryResult[rowIndex][1],self.ipAdd)                         #column 1:ip
+        tdSql.checkNotEqual(tdSql.queryResult[rowIndex][2], 0)                              #column 2:pid               # show child process pid of this running python program, this is maybe related to test framework 
+        P = psutil.Process()
+        tdLog.info(P)
+        chi = P.children()                                           
+        tdLog.info(chi)                                                                                                 # child process pid is not able to get, chi is empty here
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][3],self.appName)                       #column 3:name              
+        tdSql.checkNotEqual(tdSql.queryResult[rowIndex][4], 0)                              #column 4:start_time
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][5], 0)                                 #column 5:insert_req       # zero ???
+        tdSql.checkEqual(tdSql.queryResult[rowIndex][6],self.tbnum * self.rowNum)           #column 6:insert_row
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][7], 0)                                 #column 7:insert_time       #zeor???  
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][8],self.tbnum * self.rowNum * 134)     #column 8:insert_bytes     # 134 bytes ???
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][9], 0)                                 #column 9:fetch_bytes       # zero ???
+        tdSql.checkNotEqual(tdSql.queryResult[rowIndex][10], 0)                             #column 10:query_time       
+        #not check slow_query since slow_query is changing in different environment
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][11],0)                                 #column 11:slow_query       
+        #tdSql.checkEqual(tdSql.queryResult[rowIndex][12],self.tbnum * self.rowNum + self.tbnum * 2 + 4)                               #column 11:total_req
+        tdSql.checkEqual(tdSql.queryResult[rowIndex][13], 1)                                #column 13:current_req
+        tdSql.checkNotEqual(tdSql.queryResult[rowIndex][14], 0)                             #column 14:last_access
+
+
+        tdSql.query('select * from performance_schema.perf_connections')
+        tdSql.checkRows(1)
+        for i in range(1):
+            if tdSql.queryResult[i][2]== self.appName :
+                tdSql.checkNotEqual(tdSql.queryResult[i][0],0)                  #column 0:conn_id
+                tdSql.checkEqual(tdSql.queryResult[i][1],self.user)             #column 1:user
+                tdSql.checkEqual(tdSql.queryResult[i][2],self.appName)          #column 2:app
+                tdSql.checkNotEqual(tdSql.queryResult[i][3],0)                  #column 3:pid
+                tdSql.checkNotEqual(tdSql.queryResult[i][4],0)                  #column 4:end_point
+                tdSql.checkNotEqual(tdSql.queryResult[i][5],0)                  #column 5:login_time
+                tdSql.checkNotEqual(tdSql.queryResult[i][6],0)                  #column 6:last_access
+                self.connId = tdSql.queryResult[i][0]
+            
+        self.init_tmq_env(self.dbname, self.topicName)
+
+        consumer = Consumer(
+            {
+                "group.id": self.groupName,
+                "td.connect.user": self.user,
+                "td.connect.pass": "taosdata",
+                "td.connect.ip": self.ipAdd,
+            }
+        )
+        consumer.subscribe([self.topicName])
+        
+        tdSql.query('select * from performance_schema.perf_consumers')
+        tdSql.checkRows(1)
+        tdSql.checkNotEqual(tdSql.queryResult[0][0],0)                  #consumer_id
+        tdSql.checkEqual(tdSql.queryResult[0][1],self.groupName)        #consumer_group
+        tdSql.checkNotEqual(tdSql.queryResult[0][2],0)                  #client_id
+        tdSql.checkEqual(tdSql.queryResult[0][3],self.user)             #user
+        #tdSql.checkEqual(tdSql.queryResult[0][4],"test")                #fqdn
+        tdSql.checkEqual(tdSql.queryResult[0][5],"ready")               #status
+        tdSql.checkEqual(tdSql.queryResult[0][6],self.topicName)        #topics
+        tdSql.checkNotEqual(tdSql.queryResult[0][7],0)                  #up_time
+        tdSql.checkNotEqual(tdSql.queryResult[0][8],0)                  #subscribe_time
+        tdSql.checkNotEqual(tdSql.queryResult[0][9],0)                  #rebalance_time
+
+        # perf_queries is a heartbeat snapshot, so verify a query whose lifetime
+        # this case controls instead of expecting the previous statement to linger.
+        query_conn, query_worker, query_state = self.start_long_running_query()
+        try:
+            row, waited = self.wait_running_query_reported(query_worker, query_state)
+            tdLog.info("perf_queries reported [%s] after %.1fs" % (self.PERF_QUERY_SQL, waited))
+        finally:
+            # Let the marker query finish so it cannot leak into later checks.
+            query_worker.join(timeout=self.PERF_QUERY_WAIT_TIMEOUT)
+            query_conn.close()
+        if query_state["error"] is not None:
+            raise query_state["error"]
+
+        assert row[0], "kill_id should be set, actual: %r" % (row[0],)  #kill_id
+        tdSql.checkNotEqual(row[1], 0)                                  #query_id
+        tdSql.checkNotEqual(row[2], 0)                                  #conn_id
+        tdSql.checkNotEqual(row[4], 0)                                  #pid
+        tdSql.checkEqual(row[5], self.user)                             #user
+        assert row[6], "end_point should be set, actual: %r" % (row[6],)  #end_point
+        assert row[7] is not None, "create_time should be set"          #create_time
+        tdSql.checkNotEqual(row[8], 0)                                  #exec_usec
+        tdSql.checkEqual(row[9], 0)                                     #stable_query
+        tdSql.checkEqual(row[10], 0)                                    #sub_query
+        tdSql.checkEqual(str(row[11]), self.PERF_QUERY_SQL)             #sql
+        
+        t1 = self.myThread(self) 
+        t1.start()
+
+        sleep(5) #wait for transaction to be created and dropped
+        tdSql.query('select * from performance_schema.perf_trans')
+        clusterComCheck.checkTransactions(300)
+        
+        tdSql.query('describe performance_schema.perf_trans')
+        tdSql.checkRows(11)
+        tdSql.checkData(0, 0, 'id')
+        tdSql.checkData(1, 0, 'create_time')
+        tdSql.checkData(2, 0, 'stage')
+        tdSql.checkData(3, 0, 'oper')
+        tdSql.checkData(4, 0, 'db')
+        tdSql.checkData(5, 0, 'stable')
+        tdSql.checkData(6, 0, 'killable')
+        tdSql.checkData(7, 0, 'failed_times')
+        tdSql.checkData(8, 0, 'last_exec_time')
+        tdSql.checkData(9, 0, 'last_action_info')
+        tdSql.checkData(10, 0, 'type')
+
+        t1.join()
+
+        #tdSql.query('select * from performance_schema.perf_apps')
+        #tdSql.checkNotEqual(tdSql.queryResult[rowIndex][11],0)             #column 11:slow_query  at least one slow query: create db.
+
+    def test_performance_schema(self):
+        """Performance_schema basic
+        
+        1. Create 1 database and 1 super table with full data types
+        2. Create 20 tables under the super table and insert 10 rows data into each table
+        3. Query all data from the 20 tables
+        4. Create a TMQ topic and a consumer to consume data from the topic
+        5. Create and drop a database in a separate thread to generate transaction actions
+        6. Check the performance_schema tables:
+            - perf_apps
+            - perf_connections
+            - perf_consumers
+            - perf_queries
+            - perf_trans
+        7. Check perf_trans table structure
+
+        Since: v3.3.7.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7149139974
+
+        History:
+            - 2025-11-06 Alex Duan Migrated from uncatalog/system-test/0-others/test_performance_schema.py
+            - 2026-11-19 perf_queries check observes a controlled in-flight query
+        """
+        self.init_data()
+        self.prepare_data()
+        self.count_check()

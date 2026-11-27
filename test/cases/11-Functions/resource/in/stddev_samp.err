@@ -1,0 +1,8 @@
+select stddev_samp() from ts_4893.d0;
+select stddev_samp(ts) from ts_4893.d0;
+select stddev_samp(name) from ts_4893.d0;
+select stddev_samp(id, current) from ts_4893.d0;
+select stddev_samp() from ts_4893.meters;
+select stddev_samp(ts) from ts_4893.meters;
+select stddev_samp(name) from ts_4893.meters;
+select stddev_samp(id, current) from ts_4893.meters;

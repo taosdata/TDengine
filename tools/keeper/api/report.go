@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -72,15 +87,26 @@ func (r *Reporter) Init(c gin.IRouter) {
 }
 
 func (r *Reporter) getConn() *db.Connector {
-	conn, err := db.NewConnector(r.username, r.password, r.host, r.port, r.usessl)
+	conn, err := db.NewConnectorWithRetryForever(r.username, r.password, r.host, r.port, r.usessl)
 	if err != nil {
-		qid := util.GetQidOwn()
+		qid := util.GetQidOwn(config.Conf.InstanceID)
 
 		logger := logger.WithFields(
 			logrus.Fields{config.ReqIDKey: qid},
 		)
 		logger.Errorf("connect to database error, msg:%s", err)
 		panic(err)
+	}
+	return conn
+}
+
+// tryGetConn attempts to connect to database without retrying forever.
+// Returns nil connection on error (for use in metrics collection where timeout matters).
+func (r *Reporter) tryGetConn() *db.Connector {
+	conn, err := db.NewConnector(r.username, r.password, r.host, r.port, r.usessl)
+	if err != nil {
+		logger.Tracef("connect to database failed (will skip metrics), msg:%s", err)
+		return nil
 	}
 	return conn
 }
@@ -172,7 +198,7 @@ func (r *Reporter) shouldDetectFields() bool {
 }
 
 func (r *Reporter) serverVersion(ctx context.Context, conn *db.Connector) (version string, err error) {
-	res, err := conn.Query(ctx, "select server_version()", util.GetQidOwn())
+	res, err := conn.QueryWithRetryForever(ctx, "select server_version()", util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get server version error, msg:%s", err)
 		return
@@ -194,7 +220,7 @@ func (r *Reporter) serverVersion(ctx context.Context, conn *db.Connector) (versi
 }
 
 func (r *Reporter) columnInfo(ctx context.Context, conn *db.Connector, table string, field string) (exists bool, colType string) {
-	res, err := conn.Query(ctx, fmt.Sprintf("select col_type from information_schema.ins_columns where table_name='%s' and db_name='%s' and col_name='%s'", table, r.dbname, field), util.GetQidOwn())
+	res, err := conn.QueryWithRetryForever(ctx, fmt.Sprintf("select col_type from information_schema.ins_columns where table_name='%s' and db_name='%s' and col_name='%s'", table, r.dbname, field), util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get %s field type error, msg:%s", r.dbname, err)
 		panic(err)
@@ -216,7 +242,7 @@ func (r *Reporter) columnInfo(ctx context.Context, conn *db.Connector, table str
 }
 
 func (r *Reporter) tagExist(ctx context.Context, conn *db.Connector, stable string, tag string) (exists bool) {
-	res, err := conn.Query(ctx, fmt.Sprintf("select tag_name from information_schema.ins_tags where stable_name='%s' and db_name='%s' and tag_name='%s'", stable, r.dbname, tag), util.GetQidOwn())
+	res, err := conn.QueryWithRetryForever(ctx, fmt.Sprintf("select tag_name from information_schema.ins_tags where stable_name='%s' and db_name='%s' and tag_name='%s'", stable, r.dbname, tag), util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		logger.Errorf("get %s tag_name error, msg:%s", r.dbname, err)
 		panic(err)
@@ -237,21 +263,21 @@ func (r *Reporter) tagExist(ctx context.Context, conn *db.Connector, stable stri
 }
 
 func (r *Reporter) dropColumn(ctx context.Context, conn *db.Connector, table string, field string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter table %s.%s drop column %s", r.dbname, table, field), util.GetQidOwn()); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter table %s.%s drop column %s", r.dbname, table, field), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("drop column %s from table %s error, msg:%s", field, table, err)
 		panic(err)
 	}
 }
 
 func (r *Reporter) dropTag(ctx context.Context, conn *db.Connector, stable string, tag string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter stable %s.%s drop tag %s", r.dbname, stable, tag), util.GetQidOwn()); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter stable %s.%s drop tag %s", r.dbname, stable, tag), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("drop tag %s from stable %s error, msg:%s", tag, stable, err)
 		panic(err)
 	}
 }
 
 func (r *Reporter) addColumn(ctx context.Context, conn *db.Connector, table string, field string, fieldType string) {
-	if _, err := conn.Exec(ctx, fmt.Sprintf("alter table %s.%s add column %s %s", r.dbname, table, field, fieldType), util.GetQidOwn()); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, fmt.Sprintf("alter table %s.%s add column %s %s", r.dbname, table, field, fieldType), util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("add column %s to table %s error, msg:%s", field, table, err)
 		panic(err)
 	}
@@ -265,7 +291,7 @@ func (r *Reporter) createDatabase() {
 	createDBSql := r.generateCreateDBSql()
 	logger.Warningf("create database sql: %s", createDBSql)
 
-	if _, err := conn.Exec(ctx, createDBSql, util.GetQidOwn()); err != nil {
+	if _, err := conn.ExecWithRetryForever(ctx, createDBSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 		logger.Errorf("create database %s error, msg:%v", r.dbname, err)
 		panic(err)
 	}
@@ -292,7 +318,7 @@ func (r *Reporter) generateCreateDBSql() string {
 
 func (r *Reporter) creatTables() {
 	ctx := context.Background()
-	conn, err := db.NewConnectorWithDb(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
+	conn, err := db.NewConnectorWithDbWithRetryForever(r.username, r.password, r.host, r.port, r.dbname, r.usessl)
 	if err != nil {
 		logger.Errorf("connect to database error, msg:%s", err)
 		return
@@ -301,7 +327,7 @@ func (r *Reporter) creatTables() {
 
 	for _, createSql := range createList {
 		logger.Infof("execute sql:%s", createSql)
-		if _, err = conn.Exec(ctx, createSql, util.GetQidOwn()); err != nil {
+		if _, err = conn.ExecWithRetryForever(ctx, createSql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 			logger.Errorf("execute sql:%s, error:%s", createSql, err)
 		}
 	}
@@ -359,7 +385,7 @@ func (r *Reporter) handlerFunc() gin.HandlerFunc {
 
 		for _, sql := range sqls {
 			logger.Tracef("execute sql:%s", sql)
-			if _, err := conn.Exec(ctx, sql, util.GetQidOwn()); err != nil {
+			if _, err := conn.Exec(ctx, sql, util.GetQidOwn(config.Conf.InstanceID)); err != nil {
 				logger.Errorf("execute sql error, sql:%s, error:%s", sql, err)
 			}
 		}
@@ -377,12 +403,33 @@ func (r *Reporter) GetTotalRep() *atomic.Value {
 	return &r.totalRep
 }
 
+// reportSQLTags returns the sanitized values every builder below shares: the
+// cluster_id tag literal and the escaped timestamp.
+func reportSQLTags(clusterID, ts string) (safeClusterID, safeTs string) {
+	return util.EscapeTruncRunes(clusterID, ClusterIDChars), util.EscapeSQLString(ts)
+}
+
+// reportTbSuffix is the child-table suffix shared by the per-dnode tables.
+func reportTbSuffix(clusterID string, dnodeID int) string {
+	return util.ToValidTableName(clusterID + strconv.Itoa(dnodeID))
+}
+
+// reportDnodeTags additionally returns the child-table suffix and the escaped
+// dnode_ep tag literal used by the per-dnode builders.
+func reportDnodeTags(clusterID string, dnodeID int, dnodeEp, ts string) (tbSuffix, safeDnodeEp, safeClusterID, safeTs string) {
+	safeClusterID, safeTs = reportSQLTags(clusterID, ts)
+	tbSuffix = reportTbSuffix(clusterID, dnodeID)
+	safeDnodeEp = util.EscapeTruncRunes(dnodeEp, DnodeEpChars)
+	return
+}
+
 func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts string) []string {
 	var sqls []string
 	var dtotal, dalive, mtotal, malive int
+	safeClusterID, safeTs := reportSQLTags(ClusterID, ts)
 	for _, dnode := range info.Dnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into d_info_%s using d_info tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(dnode.DnodeID), dnode.DnodeID, dnode.DnodeEp, ClusterID, ts, dnode.Status))
+			reportTbSuffix(ClusterID, dnode.DnodeID), dnode.DnodeID, util.EscapeTruncRunes(dnode.DnodeEp, DnodeEpChars), safeClusterID, safeTs, util.EscapeTrunc(dnode.Status, 10)))
 		dtotal++
 		if dnode.Status == "ready" {
 			dalive++
@@ -391,7 +438,7 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 
 	for _, mnode := range info.Mnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into m_info_%s using m_info tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(mnode.MnodeID), mnode.MnodeID, mnode.MnodeEp, ClusterID, ts, mnode.Role))
+			reportTbSuffix(ClusterID, mnode.MnodeID), mnode.MnodeID, util.EscapeTruncRunes(mnode.MnodeEp, DnodeEpChars), safeClusterID, safeTs, util.EscapeTrunc(mnode.Role, 10)))
 		mtotal++
 		// LEADER FOLLOWER CANDIDATE ERROR
 		if mnode.Role != "ERROR" {
@@ -405,16 +452,17 @@ func insertClusterInfoSql(info ClusterInfo, ClusterID string, protocol int, ts s
 			"mnodes_total, mnodes_alive, vgroups_total, vgroups_alive, vnodes_total, vnodes_alive, connections_total, "+
 			"topics_total, streams_total, protocol) values ('%s', '%s', %d, '%s', %f, %d, %d, %d, %d, %d, %d, %d, %d, "+
 			"%d, %d, %d, %d, %d, %d, %d, %d)",
-		ClusterID, ClusterID, ts, info.FirstEp, info.FirstEpDnodeID, info.Version, info.MasterUptime, info.MonitorInterval,
+		util.ToValidTableName(ClusterID), safeClusterID, safeTs, util.EscapeTrunc(info.FirstEp, 255), info.FirstEpDnodeID, util.EscapeTrunc(info.Version, 12), info.MasterUptime, info.MonitorInterval,
 		info.DbsTotal, info.TbsTotal, info.StbsTotal, dtotal, dalive, mtotal, malive, info.VgroupsTotal, info.VgroupsAlive,
 		info.VnodesTotal, info.VnodesAlive, info.ConnectionsTotal, info.TopicsTotal, info.StreamsTotal, protocol))
 	return sqls
 }
 
 func insertDnodeSql(info DnodeInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) string {
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	return fmt.Sprintf("insert into dnode_info_%s using dnodes_info tags (%d, '%s', '%s') values ('%s', %f, %f, %f, %f, %d, %d, %d, %d, %d, %d, %f, %f, %f, %f, %f, %f, %d, %f, %d, %d, %f, %d, %d, %f, %d, %d, %d, %d, %d, %d, %d)",
-		ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-		ts, info.Uptime, info.CPUEngine, info.CPUSystem, info.CPUCores, info.MemEngine, info.MemSystem, info.MemTotal,
+		tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+		safeTs, info.Uptime, info.CPUEngine, info.CPUSystem, info.CPUCores, info.MemEngine, info.MemSystem, info.MemTotal,
 		info.DiskEngine, info.DiskUsed, info.DiskTotal, info.NetIn, info.NetOut, info.IoRead, info.IoWrite,
 		info.IoReadDisk, info.IoWriteDisk, info.ReqSelect, info.ReqSelectRate, info.ReqInsert, info.ReqInsertSuccess,
 		info.ReqInsertRate, info.ReqInsertBatch, info.ReqInsertBatchSuccess, info.ReqInsertBatchRate, info.Errors,
@@ -423,33 +471,35 @@ func insertDnodeSql(info DnodeInfo, DnodeID int, DnodeEp string, ClusterID strin
 
 func insertDataDirSql(disk DiskInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) []string {
 	var sqls []string
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	for _, data := range disk.Datadir {
 		sqls = append(sqls,
 			fmt.Sprintf("insert into data_dir_%s using data_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d, %d)",
-				ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-				ts, data.Name, data.Level, data.Avail.IntPart(), data.Used.IntPart(), data.Total.IntPart()),
+				tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+				safeTs, util.EscapeTruncRunes(data.Name, DirNameChars), data.Level, data.Avail.IntPart(), data.Used.IntPart(), data.Total.IntPart()),
 		)
 	}
 	sqls = append(sqls,
 		fmt.Sprintf("insert into log_dir_%s using log_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d)",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-			ts, disk.Logdir.Name, disk.Logdir.Avail.IntPart(), disk.Logdir.Used.IntPart(), disk.Logdir.Total.IntPart()),
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+			safeTs, util.EscapeTruncRunes(disk.Logdir.Name, DirNameChars), disk.Logdir.Avail.IntPart(), disk.Logdir.Used.IntPart(), disk.Logdir.Total.IntPart()),
 		fmt.Sprintf("insert into temp_dir_%s using temp_dir tags (%d, '%s', '%s') values ('%s', '%s', %d, %d, %d)",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID,
-			ts, disk.Tempdir.Name, disk.Tempdir.Avail.IntPart(), disk.Tempdir.Used.IntPart(), disk.Tempdir.Total.IntPart()),
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID,
+			safeTs, util.EscapeTruncRunes(disk.Tempdir.Name, DirNameChars), disk.Tempdir.Avail.IntPart(), disk.Tempdir.Used.IntPart(), disk.Tempdir.Total.IntPart()),
 	)
 	return sqls
 }
 
 func insertVgroupSql(g VgroupInfo, DnodeID int, DnodeEp string, ClusterID string, ts string) []string {
 	var sqls []string
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	sqls = append(sqls, fmt.Sprintf("insert into vgroups_info_%s using vgroups_info tags (%d, '%s', '%s') "+
 		"(ts, vgroup_id, database_name, tables_num, status, ) values ( '%s','%d', '%s', %d, '%s')",
-		ClusterID+strconv.Itoa(DnodeID)+strconv.Itoa(g.VgroupID), DnodeID, DnodeEp, ClusterID,
-		ts, g.VgroupID, g.DatabaseName, g.TablesNum, g.Status))
+		util.ToValidTableName(ClusterID+strconv.Itoa(DnodeID)+strconv.Itoa(g.VgroupID)), DnodeID, safeDnodeEp, safeClusterID,
+		safeTs, g.VgroupID, util.EscapeTrunc(g.DatabaseName, 33), g.TablesNum, util.EscapeTrunc(g.Status, 512)))
 	for _, v := range g.Vnodes {
 		sqls = append(sqls, fmt.Sprintf("insert into vnodes_role_%s using vnodes_role tags (%d, '%s', '%s') values ('%s', '%s')",
-			ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID, ts, v.VnodeRole))
+			tbSuffix, DnodeID, safeDnodeEp, safeClusterID, safeTs, util.EscapeTrunc(v.VnodeRole, 10)))
 	}
 	return sqls
 }
@@ -468,11 +518,13 @@ func insertLogSummary(log LogInfo, DnodeID int, DnodeEp string, ClusterID string
 			trace = s.Total
 		}
 	}
+	tbSuffix, safeDnodeEp, safeClusterID, safeTs := reportDnodeTags(ClusterID, DnodeID, DnodeEp, ts)
 	return fmt.Sprintf("insert into log_summary_%s using log_summary tags (%d, '%s', '%s') values ('%s', %d, %d, %d, %d)",
-		ClusterID+strconv.Itoa(DnodeID), DnodeID, DnodeEp, ClusterID, ts, e, info, debug, trace)
+		tbSuffix, DnodeID, safeDnodeEp, safeClusterID, safeTs, e, info, debug, trace)
 }
 
 func insertGrantSql(g GrantInfo, DnodeID int, ClusterID string, ts string) string {
+	safeClusterID, safeTs := reportSQLTags(ClusterID, ts)
 	return fmt.Sprintf("insert into grants_info_%s using grants_info tags ('%s') (ts, expire_time, "+
-		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", ClusterID+strconv.Itoa(DnodeID), ClusterID, ts, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
+		"timeseries_used, timeseries_total) values ('%s', %d, %d, %d)", reportTbSuffix(ClusterID, DnodeID), safeClusterID, safeTs, g.ExpireTime, g.TimeseriesUsed, g.TimeseriesTotal)
 }

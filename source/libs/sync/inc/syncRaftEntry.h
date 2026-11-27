@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,17 +30,19 @@ typedef struct SSyncRaftEntry {
   uint32_t  bytes;
   uint32_t  msgType;          // TDMT_SYNC_CLIENT_REQUEST
   uint32_t  originalRpcType;  // origin RpcMsg msgType
+  STraceId  originRpcTraceId;
   uint64_t  seqNum;
   bool      isWeak;
   SyncTerm  term;
   SyncIndex index;
   int64_t   rid;
+  txn_id_t  txnId;    // batch-meta-txn: copied from SRpcMsg.info.txnId; 0 = non-transaction
   uint32_t  dataLen;  // origin RpcMsg.contLen
   char      data[];   // origin RpcMsg.pCont
 } SSyncRaftEntry;
 
 SSyncRaftEntry* syncEntryBuild(int32_t dataLen);
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
+SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, const STraceId *traceId);
 SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuildFromAppendEntries(const SyncAppendEntries* pMsg);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);

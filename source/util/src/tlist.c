@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -92,6 +94,29 @@ int32_t tdListAppend(SList *list, const void *data) {
 
   return 0;
 }
+
+void* tdListPreReserve(SList *list) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) {
+    return NULL;
+  }
+
+  TD_DLIST_PREPEND(list, node);
+
+  return (void*)node->data;
+}
+
+void* tdListReserve(SList *list) {
+  SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
+  if (node == NULL) {
+    return NULL;
+  }
+
+  TD_DLIST_APPEND(list, node);
+
+  return (void*)node->data;
+}
+
 // return the node pointer
 SListNode *tdListAdd(SList *list, const void *data) {
   SListNode *node = (SListNode *)taosMemoryCalloc(1, sizeof(SListNode) + list->eleSize);
@@ -155,6 +180,9 @@ void tdListDiscard(SList *list) {
 void tdListNodeGetData(SList *list, SListNode *node, void *target) { memcpy(target, node->data, listEleSize(list)); }
 
 void tdListInitIter(SList *list, SListIter *pIter, TD_LIST_DIRECTION_T direction) {
+  if (NULL == list) {
+    return;
+  }
   pIter->direction = direction;
   if (direction == TD_LIST_FORWARD) {
     pIter->next = listHead(list);

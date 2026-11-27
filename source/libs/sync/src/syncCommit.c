@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -81,13 +83,13 @@ int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
   return ths->commitIndex;
 }
 
-int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely, const STraceId *trace) {
   int32_t code = 0;
   if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
     SyncIndex commitIndex = indexLikely;
     SyncIndex returnIndex = syncNodeUpdateCommitIndex(ths, commitIndex);
-    sTrace("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index:%" PRId64 ", return:%" PRId64, ths->vgId, ths->state,
-           raftStoreGetTerm(ths), commitIndex, returnIndex);
+    sGDebug(trace, "vgId:%d, index:%" PRId64 ", agreed upon, role:%d term:%" PRId64 " return index:%" PRId64, ths->vgId,
+            commitIndex, ths->state, raftStoreGetTerm(ths), returnIndex);
   }
   return ths->commitIndex;
 }

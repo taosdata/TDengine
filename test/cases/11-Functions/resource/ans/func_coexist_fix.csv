@@ -1,0 +1,112 @@
+
+taos> use ts_4893
+Database changed.
+
+taos> select diff(voltage), diff(current) from fc_d
+     diff(voltage)     |       diff(current)       |
+====================================================
+                    -5 |                        -2 |
+                    10 |                         4 |
+                   -15 |                        -3 |
+                    20 |                         2 |
+
+taos> select diff(voltage), derivative(current, 1s, 0) from fc_d
+     diff(voltage)     | derivative(current, 1s, 0) |
+=====================================================
+                    -5 |                         -2 |
+                    10 |                          4 |
+                   -15 |                         -3 |
+                    20 |                          2 |
+
+taos> select derivative(voltage, 1s, 0), derivative(current, 1s, 0) from fc_d
+ derivative(voltage, 1s, 0) | derivative(current, 1s, 0) |
+==========================================================
+                         -5 |                         -2 |
+                         10 |                          4 |
+                        -15 |                         -3 |
+                         20 |                          2 |
+
+taos> select lag(voltage, 1, 0), fill_forward(current) from fc_d
+ lag(voltage, 1, 0) | fill_forward(current) |
+=============================================
+                  0 |                    10 |
+                220 |                     8 |
+                215 |                    12 |
+                225 |                     9 |
+                210 |                    11 |
+
+taos> select lag(voltage, 1, 0), csum(current) from fc_d
+ lag(voltage, 1, 0) |       csum(current)       |
+=================================================
+                  0 |                        10 |
+                220 |                        18 |
+                215 |                        30 |
+                225 |                        39 |
+                210 |                        50 |
+
+taos> select lead(voltage, 1, 0), csum(current) from fc_d
+ lead(voltage, 1, 0) |       csum(current)       |
+==================================================
+                 215 |                        10 |
+                 225 |                        18 |
+                 210 |                        30 |
+                 230 |                        39 |
+                   0 |                        50 |
+
+taos> select fill_forward(voltage), csum(current) from fc_d
+ fill_forward(voltage) |       csum(current)       |
+====================================================
+                   220 |                        10 |
+                   215 |                        18 |
+                   225 |                        30 |
+                   210 |                        39 |
+                   230 |                        50 |
+
+taos> select lag(voltage, 1, 0), statecount(current, 'GE', 1) from fc_d
+ lag(voltage, 1, 0) | statecount(current, 'GE', 1) |
+====================================================
+                  0 |                            1 |
+                220 |                            2 |
+                215 |                            3 |
+                225 |                            4 |
+                210 |                            5 |
+
+taos> select statecount(voltage, 'GE', 220), stateduration(voltage, 'GE', 220, 1s) from fc_d
+ statecount(voltage, 'GE', 220) | stateduration(voltage, 'GE', 220, 1s) |
+=========================================================================
+                              1 |                                     0 |
+                             -1 |                                    -1 |
+                              1 |                                     0 |
+                             -1 |                                    -1 |
+                              1 |                                     0 |
+
+taos> select top(voltage, 3), bottom(current, 3) from fc_d
+ top(voltage, 3) |  bottom(current, 3)  |
+=========================================
+             220 |                   10 |
+             230 |                    8 |
+             225 |                    9 |
+
+taos> select top(voltage, 5), top(current, 5) from fc_d
+ top(voltage, 5) |   top(current, 5)    |
+=========================================
+             210 |                    8 |
+             215 |                    9 |
+             225 |                   12 |
+             220 |                   10 |
+             230 |                   11 |
+
+taos> select tail(voltage, 3), tail(current, 3) from fc_d
+ tail(voltage, 3) |   tail(current, 3)   |
+==========================================
+              230 |                   11 |
+              210 |                    9 |
+              225 |                   12 |
+
+taos> select histogram(voltage, 'user_input', '[0,100,200,300]', 0), histogram(current, 'user_input', '[0,10,20,30]', 0) from fc_d
+ histogram(voltage, 'user_input', '[0,100,200,300]', 0) | histogram(current, 'user_input', '[0,10,20,30]', 0) |
+===============================================================================================================
+ {"lower_bin":0, "upper_bin":100, "count":0}            | {"lower_bin":0, "upper_bin":10, "count":3}          |
+ {"lower_bin":100, "upper_bin":200, "count":0}          | {"lower_bin":10, "upper_bin":20, "count":2}         |
+ {"lower_bin":200, "upper_bin":300, "count":5}          | {"lower_bin":20, "upper_bin":30, "count":0}         |
+

@@ -1,0 +1,50 @@
+#include <Windows.h>
+
+#include <stdio.h>
+
+LONG WINAPI exceptionHandler(LPEXCEPTION_POINTERS exception)
+{
+  wchar_t currentProcessPath[MAX_PATH + 1];
+  wchar_t dumperProcessPath[MAX_PATH + 1];
+
+  DWORD written = GetModuleFileNameW(NULL, currentProcessPath, sizeof(currentProcessPath) / sizeof(currentProcessPath[0]));
+  /* Iterate with a signed counter to avoid DWORD underflow when no '\\' is found. */
+  for (int i = (int)written - 1; i >= 0; i--)
+  {
+    if (currentProcessPath[i] == L'\\')
+    {
+      /* Use i * sizeof(wchar_t) bytes (not i * sizeof(DWORD)) to copy the
+       * directory portion, then append the dumper executable name. */
+      memcpy_s(dumperProcessPath, sizeof(dumperProcessPath), currentProcessPath,
+               (size_t)i * sizeof(wchar_t));
+      dumperProcessPath[i] = L'\0';
+      wchar_t dumperProcessName[] = L"\\dumper.exe";
+      memcpy_s(dumperProcessPath + i,
+               sizeof(dumperProcessPath) - (size_t)i * sizeof(wchar_t),
+               dumperProcessName, sizeof(dumperProcessName));
+      break;
+    }
+  }
+
+  wchar_t applicationName[MAX_PATH + 3];
+  wchar_t commandLine[32768];
+  swprintf_s(applicationName, sizeof(applicationName) / sizeof(applicationName[0]), L"\"%ls\"", dumperProcessPath);
+  swprintf_s(commandLine, sizeof(commandLine) / sizeof(commandLine[0]), L"\"%ls\" %lu %lu %p", dumperProcessPath, GetCurrentProcessId(), GetCurrentThreadId(), exception);
+
+  STARTUPINFOW startupInfo = { 0 };
+  startupInfo.cb = sizeof(STARTUPINFOW);
+  PROCESS_INFORMATION dumperProcessInfo;
+  if (CreateProcessW(dumperProcessPath, commandLine, NULL, NULL, FALSE, NORMAL_PRIORITY_CLASS, NULL, NULL, &startupInfo, &dumperProcessInfo) == 0)
+  {
+    return FALSE;
+  }
+
+  // Wait to be terminated by dumper. This may look like it's resilient to the dumper crashing, but it isn't.
+  // The dumper will have suspended this thread, so if it crashes without resuming it this process will stay stuck forever.
+  WaitForSingleObject(dumperProcessInfo.hProcess, INFINITE);
+
+  CloseHandle(dumperProcessInfo.hProcess);
+  CloseHandle(dumperProcessInfo.hThread);
+
+  return TRUE;
+}

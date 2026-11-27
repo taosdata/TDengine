@@ -1,29 +1,28 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 aux_source_directory(src SHELL_SRC)
 
-add_executable(shell ${SHELL_SRC})
+add_executable(shell ${SHELL_SRC} ../src/pub.c)
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
+IF(TD_LINUX_64 AND BUILD_JEMALLOC)
     ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
     SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
     ADD_DEPENDENCIES(shell jemalloc)
 ELSE()
     SET(LINK_JEMALLOC "")
-ENDIF()
-
-IF(TD_LINUX AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include -ltaosws)
-    SET(LINK_WEBSOCKET "-L${CMAKE_BINARY_DIR}/build/lib -ltaosws")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_DARWIN AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/libtaosws.dylib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSEIF(TD_WINDOWS AND TD_WEBSOCKET)
-    ADD_DEFINITIONS(-DWEBSOCKET -I${CMAKE_BINARY_DIR}/build/include)
-    SET(LINK_WEBSOCKET "${CMAKE_BINARY_DIR}/build/lib/taosws.lib")
-    ADD_DEPENDENCIES(shell taosws-rs)
-ELSE()
-    SET(LINK_WEBSOCKET "")
 ENDIF()
 
 IF(TD_LINUX AND TD_ALPINE)
@@ -33,48 +32,117 @@ ELSE()
 ENDIF()
 
 if(TD_WINDOWS)
-    target_link_libraries(shell PUBLIC ${TAOS_LIB_STATIC} ${LINK_WEBSOCKET})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB})
 else()
-    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
+    target_link_libraries(shell PUBLIC ${TAOS_LIB} ${LINK_JEMALLOC} ${LINK_ARGP})
 endif()
 
-target_link_libraries(
-    shell
-    PRIVATE os common transport geometry util
+# The shell uses the public API through libtaos.so (the driver dispatcher) and
+# resolves the implicit engine/third-party symbols it needs from
+# libtaosnative.so instead of embedding them itself.  Linking those statics here
+# would pull ~17 MB into the binary (measured) and would also force libtaos.so to
+# keep exporting ~850 engine symbols for this tool alone.
+#
+# libtaos.so is named above, so the dispatcher is always the first definition of
+# the public API on this link line.  The driver is named as well on every platform
+# where the dispatcher is thin: it does not export the public names on Linux (it
+# hands them to the dispatcher through tdNativeApiTable), and on macOS the linker
+# binds each name to the first library that defines it, so taos_options() stays in
+# the dispatcher even if CMake hoists the driver ahead of libtaos.so.
+#
+# Windows keeps the previous setup (engine archives linked in here) because its
+# tools have always embedded them.
+if(NOT TD_WINDOWS)
+    target_link_libraries(
+        shell
+        PUBLIC ${LINK_WEBSOCKET}
+    )
+    target_link_libraries(shell PRIVATE ${TAOS_NATIVE_LIB})
+else()
+    target_link_libraries(
+        shell
+        PUBLIC ${LINK_WEBSOCKET}
+        PRIVATE os common transport geometry util
+    )
+endif()
+
+# Engine headers for compilation only; they used to come in as a side effect of
+# linking os/common/util, which the shell no longer embeds.  Most of the engine
+# tree is advertised by libtaos.so's interface; these are the extra paths the
+# shell needs (geometry for geosWrapper.h, plus private source dirs no interface
+# exposes).
+target_include_directories(shell PRIVATE
+    "${TD_SOURCE_DIR}/include"
+    "${TD_SOURCE_DIR}/include/os"
+    "${TD_SOURCE_DIR}/include/util"
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/libs/transport"
+    "${TD_SOURCE_DIR}/include/libs/geometry"
+    "${TD_SOURCE_DIR}/source/common/inc"
+    "${TD_SOURCE_DIR}/source/os/inc"
+    "${TD_SOURCE_DIR}/source/util/inc"
+    "${TD_SOURCE_DIR}/source/libs/transport/inc"
+    "${TD_SOURCE_DIR}/source/libs/scalar/inc"
 )
+
+IF(TD_WEBSOCKET)
+    IF(TARGET ext_taosws)
+        ADD_DEPENDENCIES(shell ext_taosws)
+    ENDIF()
+ENDIF()
 
 target_include_directories(
     shell
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
+if(TD_DARWIN)
+    td_fix_macos_client_libtaos_dep(shell)
+endif()
+
+# tweaking pitfalls found on Windows
+# both taos.dll and taos.exe targets will generate taos.lib in ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
+# this makes some targets, such as tmq_taosx_ci, which rely on taos.dll,
+# might link with the wrong taos.lib generated by taos.exe target in concurrent building environment
+# to tweak this, we choose taosql as the name of this shell target
+# and add a post-build-command to copy it back to taos.exe to maintain compatibility
+# Attention: do NOT delete taos.exe manually!!!
+SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taosql)
+add_custom_command(TARGET shell
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different $<TARGET_FILE:shell> $<TARGET_FILE_DIR:shell>/taos$<TARGET_FILE_SUFFIX:shell>
+    COMMENT "Copying taosql.exe to taos.exe"
+)
 
 #
 # generator library shell_ut for uint test
 #
-
 IF(TD_LINUX)
     # include
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inc)
-    # shell_ut library
-    add_library(shell_ut STATIC ${SHELL_SRC})
 
-    IF(TD_WEBSOCKET)
-        ADD_DEPENDENCIES(shell_ut taosws-rs)
-    ENDIF()
+    # shell_ut library
+    add_library(shell_ut STATIC ${SHELL_SRC} ../src/pub.c)
+
     target_link_libraries(shell_ut PUBLIC ${TAOS_LIB} ${LINK_WEBSOCKET} ${LINK_JEMALLOC} ${LINK_ARGP})
     target_link_libraries(shell_ut PRIVATE os common transport geometry util)
 
-    # util depends
-    target_link_directories(
-        shell_ut
-        PUBLIC "${TD_SOURCE_DIR}/contrib/lzma2"
-        PUBLIC "${TD_SOURCE_DIR}/contrib/pcre2"
-    )
-
     # unit test
-    IF(${BUILD_TEST})
+    IF(BUILD_TEST)
         ADD_SUBDIRECTORY(test)
-    ENDIF(${BUILD_TEST})    
+    ENDIF()
 ENDIF()
+
+#
+# collect --version information
+#
+MESSAGE(STATUS "collect --version show info:")
+# version
+IF (DEFINED BUILD_VER_NUMBER)
+    # TODO: global compile flags???
+    ADD_DEFINITIONS(-DTD_VER_NUMBER="${BUILD_VER_NUMBER}")
+    MESSAGE(STATUS "taos version:${BUILD_VER_NUMBER}")
+ELSE ()
+    # abort build
+    MESSAGE(FATAL_ERROR "build taos not found BUILD_VER_NUMBER define.")
+ENDIF ()

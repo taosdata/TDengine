@@ -1,4 +1,21 @@
 
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <algorithm>
 #include <iostream>
@@ -41,7 +58,7 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    // fstBuilderFinish(_b);
+    EXPECT_EQ(0, fstBuilderFinish(_b));
     fstBuilderDestroy(_b);
 
     idxFileCtxDestroy(_wc, false);
@@ -262,9 +279,9 @@ void checkFstLongTerm() {
   // FAutoCtx* ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
   // m->Search(ctx, result);
   // std::cout << "size: " << result.size() << std::endl;
-  // assert(result.size() == count);
+  // TD_ALWAYS_ASSERT(result.size() == count);
   // for (int i = 0; i < result.size(); i++) {
-  // assert(result[i] == i);  // check result
+  // TD_ALWAYS_ASSERT(result[i] == i);  // check result
   //}
   // taosMemoryFree(ctx);
   // delete m;
@@ -295,9 +312,9 @@ void checkFstCheckIterator1() {
   FAutoCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
-  // assert(result.size() == count);
+  // TD_ALWAYS_ASSERT(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
-    // assert(result[i] == i);  // check result
+    // TD_ALWAYS_ASSERT(result[i] == i);  // check result
   }
   automCtxDestroy(ctx);
 
@@ -330,9 +347,9 @@ void checkFstCheckIterator2() {
   FAutoCtx* ctx = automCtxCreate((void*)"He", AUTOMATION_ALWAYS);
   m->Search(ctx, result);
   std::cout << "size: " << result.size() << std::endl;
-  // assert(result.size() == count);
+  // TD_ALWAYS_ASSERT(result.size() == count);
   for (int i = 0; i < result.size(); i++) {
-    // assert(result[i] == i);  // check result
+    // TD_ALWAYS_ASSERT(result[i] == i);  // check result
   }
   automCtxDestroy(ctx);
 
@@ -369,7 +386,7 @@ void checkFstCheckIteratorPrefix() {
 
     FAutoCtx* ctx = automCtxCreate((void*)"he", AUTOMATION_PREFIX);
     m->Search(ctx, result);
-    assert(result.size() == 1);
+    TD_ALWAYS_ASSERT(result.size() == 1);
     automCtxDestroy(ctx);
   }
   {
@@ -378,7 +395,7 @@ void checkFstCheckIteratorPrefix() {
 
     FAutoCtx* ctx = automCtxCreate((void*)"Hello", AUTOMATION_PREFIX);
     m->Search(ctx, result);
-    assert(result.size() == 2);
+    TD_ALWAYS_ASSERT(result.size() == 2);
     automCtxDestroy(ctx);
   }
   {
@@ -386,7 +403,7 @@ void checkFstCheckIteratorPrefix() {
 
     FAutoCtx* ctx = automCtxCreate((void*)"jddd", AUTOMATION_PREFIX);
     m->Search(ctx, result);
-    assert(result.size() == 1);
+    TD_ALWAYS_ASSERT(result.size() == 1);
     automCtxDestroy(ctx);
   }
   delete m;
@@ -421,7 +438,7 @@ void checkFstCheckIteratorRange1() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LT, result);
-    assert(result.size() == 3);
+    TD_ALWAYS_ASSERT(result.size() == 3);
     automCtxDestroy(ctx);
   }
   {
@@ -430,7 +447,7 @@ void checkFstCheckIteratorRange1() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LT, result);
-    assert(result.size() == 2);
+    TD_ALWAYS_ASSERT(result.size() == 2);
     automCtxDestroy(ctx);
   }
   {
@@ -439,7 +456,7 @@ void checkFstCheckIteratorRange1() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "e", LE, result);
-    assert(result.size() == 3);
+    TD_ALWAYS_ASSERT(result.size() == 3);
     automCtxDestroy(ctx);
   }
   {
@@ -448,7 +465,7 @@ void checkFstCheckIteratorRange1() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "e", LE, result);
-    assert(result.size() == 4);
+    TD_ALWAYS_ASSERT(result.size() == 4);
     automCtxDestroy(ctx);
   }
   delete m;
@@ -482,7 +499,7 @@ void checkFstCheckIteratorRange2() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LT, result);
-    assert(result.size() == 4);
+    TD_ALWAYS_ASSERT(result.size() == 4);
     automCtxDestroy(ctx);
   }
   {
@@ -491,7 +508,7 @@ void checkFstCheckIteratorRange2() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "bb", GE, "ed", LT, result);
-    assert(result.size() == 3);
+    TD_ALWAYS_ASSERT(result.size() == 3);
     automCtxDestroy(ctx);
   }
   {
@@ -500,7 +517,7 @@ void checkFstCheckIteratorRange2() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "ed", LE, result);
-    assert(result.size() == 5);
+    TD_ALWAYS_ASSERT(result.size() == 5);
     automCtxDestroy(ctx);
     // taosMemoryFree(ctx);
   }
@@ -510,7 +527,7 @@ void checkFstCheckIteratorRange2() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LE, result);
-    assert(result.size() == 4);
+    TD_ALWAYS_ASSERT(result.size() == 4);
     automCtxDestroy(ctx);
   }
   {
@@ -519,7 +536,7 @@ void checkFstCheckIteratorRange2() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GT, "ed", LT, result);
-    assert(result.size() == 3);
+    TD_ALWAYS_ASSERT(result.size() == 3);
     automCtxDestroy(ctx);
   }
   delete m;
@@ -553,7 +570,7 @@ void checkFstCheckIteratorRange3() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "b", GE, "", (RangeType)10, result);
-    assert(result.size() == 5);
+    TD_ALWAYS_ASSERT(result.size() == 5);
     automCtxDestroy(ctx);
   }
   {
@@ -562,7 +579,7 @@ void checkFstCheckIteratorRange3() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "", (RangeType)20, "ab", LE, result);
-    assert(result.size() == 1);
+    TD_ALWAYS_ASSERT(result.size() == 1);
     automCtxDestroy(ctx);
     // taosMemoryFree(ctx);
   }
@@ -572,7 +589,7 @@ void checkFstCheckIteratorRange3() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "", (RangeType)30, "ab", LT, result);
-    assert(result.size() == 0);
+    TD_ALWAYS_ASSERT(result.size() == 0);
     automCtxDestroy(ctx);
   }
   {
@@ -581,7 +598,7 @@ void checkFstCheckIteratorRange3() {
     FAutoCtx*             ctx = automCtxCreate((void*)"he", AUTOMATION_ALWAYS);
     // [b, e)
     m->SearchRange(ctx, "ed", GT, "ed", (RangeType)40, result);
-    assert(result.size() == 0);
+    TD_ALWAYS_ASSERT(result.size() == 0);
     automCtxDestroy(ctx);
   }
   delete m;

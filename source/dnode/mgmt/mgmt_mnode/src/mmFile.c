@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,11 +12,13 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
+#include "sdb.h"
+#include "tencrypt.h"
 #include "tjson.h"
 
 static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
@@ -22,9 +26,14 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
 
   tjsonGetInt32ValueFromDouble(pJson, "deployed", pOption->deploy, code);
   if (code < 0) return code;
+  tjsonGetInt32ValueFromDouble(pJson, "version", pOption->version, code);
+  if (code < 0) return code;
   tjsonGetInt32ValueFromDouble(pJson, "selfIndex", pOption->selfIndex, code);
   if (code < 0) return code;
   tjsonGetInt32ValueFromDouble(pJson, "lastIndex", pOption->lastIndex, code);
+  if (code < 0) return code;
+
+  tjsonGetInt32ValueFromDouble(pJson, "encrypted", pOption->encrypted, code);
   if (code < 0) return code;
 
   SJson *replicas = tjsonGetObjectItem(pJson, "replicas");
@@ -40,7 +49,7 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
     SReplica *pReplica = pOption->replicas + i;
     tjsonGetInt32ValueFromDouble(replica, "id", pReplica->id, code);
     if (code < 0) return code;
-    code = tjsonGetStringValue(replica, "fqdn", pReplica->fqdn);
+    code = tjsonGetStringValue1(replica, "fqdn", pReplica->fqdn, sizeof(pReplica->fqdn));
     if (code < 0) return code;
     tjsonGetUInt16ValueFromDouble(replica, "port", pReplica->port, code);
     if (code < 0) return code;
@@ -59,8 +68,8 @@ static int32_t mmDecodeOption(SJson *pJson, SMnodeOpt *pOption) {
 
 int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   int32_t   code = -1;
-  TdFilePtr pFile = NULL;
   char     *pData = NULL;
+  int32_t   dataLen = 0;
   SJson    *pJson = NULL;
   char      file[PATH_MAX] = {0};
 
@@ -71,37 +80,17 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    dInfo("mnode file:%s not exist, reason:%s", file, tstrerror(terrno));
+    dInfo("mnode file:%s does not exist, reason:%s", file, tstrerror(terrno));
     return 0;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_READ);
-  if (pFile == NULL) {
-    code = terrno;
-    dError("failed to open mnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  int64_t size = 0;
-  code = taosFStatFile(pFile, &size, NULL);
+  // Read file with potential decryption
+  // First try to read with taosReadCfgFile (supports encrypted files)
+  code = taosReadCfgFile(file, &pData, &dataLen);
   if (code != 0) {
-    dError("failed to fstat mnode file:%s since %s", file, tstrerror(code));
-    goto _OVER;
-  }
-
-  pData = taosMemoryMalloc(size + 1);
-  if (pData == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  if (taosReadFile(pFile, pData, size) != size) {
-    code = terrno;
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
     goto _OVER;
   }
-
-  pData[size] = '\0';
 
   pJson = tjsonParse(pData);
   if (pJson == NULL) {
@@ -114,12 +103,11 @@ int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   }
 
   code = 0;
-  dInfo("succceed to read mnode file %s", file);
+  dInfo("succeed to read mnode file %s, sdb.data encrypted flag:%d", file, pOption->encrypted);
 
 _OVER:
   if (pData != NULL) taosMemoryFree(pData);
   if (pJson != NULL) cJSON_Delete(pJson);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to read mnode file:%s since %s", file, tstrerror(code));
@@ -157,6 +145,11 @@ static int32_t mmEncodeOption(SJson *pJson, const SMnodeOpt *pOption) {
 
   if ((code = tjsonAddDoubleToObject(pJson, "deployed", pOption->deploy)) < 0) return code;
 
+  if ((code = tjsonAddDoubleToObject(pJson, "version", pOption->version)) < 0) return code;
+
+  // Add encrypted flag
+  if ((code = tjsonAddDoubleToObject(pJson, "encrypted", pOption->encrypted ? 1 : 0)) < 0) return code;
+
   return code;
 }
 
@@ -164,17 +157,9 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   int32_t   code = -1;
   char     *buffer = NULL;
   SJson    *pJson = NULL;
-  TdFilePtr pFile = NULL;
-  char      file[PATH_MAX] = {0};
   char      realfile[PATH_MAX] = {0};
 
-  int32_t nBytes = snprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
-  if (nBytes <= 0 || nBytes >= sizeof(file)) {
-    code = TSDB_CODE_OUT_OF_BUFFER;
-    goto _OVER;
-  }
-
-  nBytes = snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
+  int32_t nBytes = snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
   if (nBytes <= 0 || nBytes >= sizeof(realfile)) {
     code = TSDB_CODE_OUT_OF_BUFFER;
     goto _OVER;
@@ -195,37 +180,58 @@ int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
     goto _OVER;
   }
 
-  pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
-  if (pFile == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
   int32_t len = strlen(buffer);
-  if (taosWriteFile(pFile, buffer, len) <= 0) {
-    code = terrno;
-    goto _OVER;
-  }
-  if (taosFsyncFile(pFile) < 0) {
-    code = terrno;
+
+  // mnode.json itself is not encrypted, just write as plain JSON
+  // The encrypted flag indicates whether sdb.data is encrypted
+  code = taosWriteCfgFile(realfile, buffer, len);
+  if (code != 0) {
     goto _OVER;
   }
 
-  if (taosCloseFile(&pFile) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _OVER;
-  }
-  TAOS_CHECK_GOTO(taosRenameFile(file, realfile), NULL, _OVER);
-
-  dInfo("succeed to write mnode file:%s, deloyed:%d", realfile, pOption->deploy);
+  dInfo("succeed to write mnode file:%s, deployed:%d, sdb.data encrypted:%d", realfile, pOption->deploy,
+        pOption->encrypted);
 
 _OVER:
   if (pJson != NULL) tjsonDelete(pJson);
   if (buffer != NULL) taosMemoryFree(buffer);
-  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (code != 0) {
     dError("failed to write mnode file:%s since %s, deloyed:%d", realfile, tstrerror(code), pOption->deploy);
   }
   return code;
+}
+
+// Update and persist encrypted flag (exposed via mnode.h for sdb module)
+int32_t mndSetEncryptedFlag(SSdb *pSdb) {
+  int32_t   code = 0;
+  SMnodeOpt option = {0};
+
+  if (pSdb == NULL || pSdb->mnodePath[0] == '\0') {
+    dError("invalid parameters, pSdb:%p", pSdb);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // Read current mnode.json
+  code = mmReadFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    dError("failed to read mnode.json for setting encrypted flag since %s", tstrerror(code));
+    return code;
+  }
+
+  // Update encrypted flag
+  option.encrypted = true;
+  pSdb->encrypted = true;
+
+  // Write back to mnode.json
+  code = mmWriteFile(pSdb->mnodePath, &option);
+  if (code != 0) {
+    dError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
+    // Rollback in-memory flag
+    pSdb->encrypted = false;
+    return code;
+  }
+
+  dInfo("successfully set and persisted encrypted flag in mnode.json");
+  return 0;
 }

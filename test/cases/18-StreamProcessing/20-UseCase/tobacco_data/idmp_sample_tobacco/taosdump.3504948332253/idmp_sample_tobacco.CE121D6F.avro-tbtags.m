@@ -1,0 +1,1 @@
+{"version":1,"name":"belt_conveyor","cols": [{"name":"ts", "type":9},{"name":"motor_signal", "type":6},{"name":"equipment_status", "type":1}],"tags": [{"name":"device_id", "type":10}]}

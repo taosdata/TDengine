@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,14 +17,22 @@
 
 #define _DEFAULT_SOURCE
 // clang-format off
+//#include "storageapi.h"
 #include "dmMgmt.h"
 #include "audit.h"
 #include "libs/function/tudf.h"
+#include "metrics.h"
 #include "tgrant.h"
 #include "tcompare.h"
-#include "tcs.h"
+#include "tss.h"
 #include "tanalytics.h"
+#include "stream.h"
+#include "extConnector.h"
+#include "nodes.h"
+#include "tglobal.h"
 // clang-format on
+
+extern void cryptUnloadProviders();
 
 #define DM_INIT_AUDIT()                       \
   do {                                        \
@@ -75,6 +85,14 @@ static int32_t dmInitMonitor() {
   return code;
 }
 
+static int32_t dmInitMetrics() {
+  int32_t code = 0;
+  if ((code = initMetricsManager()) != 0) {
+    dError("failed to init metrics since %s", tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t dmInitAudit() {
   SAuditCfg auditCfg = {0};
   int32_t   code = 0;
@@ -101,8 +119,8 @@ static int32_t dmCheckDiskSpace() {
   int32_t code = 0;
   code = osUpdate();
   if (code != 0) {
-    code = 0;  // ignore the error, just log it
     dError("failed to update os info since %s", tstrerror(code));
+    code = 0;  // ignore the error, just log it
   }
   if (!dmDataSpaceAvailable()) {
     code = TSDB_CODE_NO_DISKSPACE;
@@ -168,21 +186,45 @@ static int32_t dmCheckDataDirVersionWrapper() {
 int32_t dmInit() {
   dInfo("start to init dnode env");
   int32_t code = 0;
+
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    if ((code = tssInit()) != 0) return code;
+    if ((code = tssCreateDefaultInstance()) != 0) return code;
+  }
+#endif
+
   if ((code = dmDiskInit()) != 0) return code;
   if (!dmCheckDataDirVersion()) {
     code = TSDB_CODE_INVALID_DATA_FMT;
     return code;
   }
+  SDnode* pDnode = dmInstance();
   if ((code = dmCheckDiskSpace()) != 0) return code;
-  if ((code = dmCheckRepeatInit(dmInstance())) != 0) return code;
+  if ((code = dmCheckRepeatInit(pDnode)) != 0) return code;
   if ((code = dmInitSystem()) != 0) return code;
   if ((code = dmInitMonitor()) != 0) return code;
+  if ((code = dmInitMetrics()) != 0) return code;
   if ((code = dmInitAudit()) != 0) return code;
-  if ((code = dmInitDnode(dmInstance())) != 0) return code;
+  if ((code = taosInitCpuAllocation()) != 0) return code;
+  if ((code = dmInitDnode(pDnode)) != 0) return code;
   if ((code = InitRegexCache() != 0)) return code;
-#if defined(USE_S3)
-  if ((code = tcsInit()) != 0) return code;
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    if ((code = extConnectorModuleInit(&extConnCfg)) != 0) return code;
+  }
 #endif
+
+  gExecInfoInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet);
+  if ((code = streamInit(&pDnode->data, (getDnodeId_f)dmGetDnodeId, dmGetMnodeEpSet, dmGetSynEpset)) != 0) return code;
 
   dInfo("dnode env is initialized");
   return 0;
@@ -199,12 +241,25 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 void dmCleanup() {
   dDebug("start to cleanup dnode env");
   SDnode *pDnode = dmInstance();
+
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+  cryptUnloadProviders();
+#endif
+
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+#ifndef TAOSD_INTEGRATED
+  // Standalone taosd: the nodes were closed by dmRun and dmCleanupDnode stopped the scheduler,
+  // so no plan can still borrow a cached timezone handle. When the daemon is embedded in the
+  // client library, the client side owns the cache and releases it after this thread is joined.
+  nodesCleanupTimezoneCache();
+#endif
+  extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
   syncCleanUp();
   walCleanUp();
+  cleanupMetrics();
   if (udfcClose() != 0) {
     dError("failed to close udfc");
   }
@@ -214,8 +269,11 @@ void dmCleanup() {
   (void)dmDiskClose();
   DestroyRegexCache();
 
-#if defined(USE_S3)
-  tcsUninit();
+#ifdef USE_SHARED_STORAGE
+  if (tsSsEnabled) {
+    (void)tssCloseDefaultInstance();
+    (void)tssUninit();
+  }
 #endif
 
   dInfo("dnode env is cleaned up");
@@ -252,6 +310,12 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
       case SNODE:
         code = TSDB_CODE_SNODE_ALREADY_DEPLOYED;
         break;
+      case BNODE:
+        code = TSDB_CODE_BNODE_ALREADY_DEPLOYED;
+        break;
+      case XNODE:
+        code = TSDB_CODE_XNODE_ALREADY_DEPLOYED;
+        break;
       default:
         code = TSDB_CODE_APP_ERROR;
     }
@@ -262,12 +326,15 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   dInfo("start to process create-node-request");
 
   pWrapper = &pDnode->wrappers[ntype];
-  if (taosMkDir(pWrapper->path) != 0) {
+
+  if (taosMulMkDir(pWrapper->path) != 0) {
     dmReleaseWrapper(pWrapper);
     code = terrno;
     dError("failed to create dir:%s since %s", pWrapper->path, tstrerror(code));
     return code;
   }
+
+  dInfo("path %s created", pWrapper->path);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -282,13 +349,58 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
   return code;
 }
+
+
+static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
+  int32_t code = 0;
+  if (SNODE != ntype) {
+    dError("failed to process msgType %d since node type is NOT snode", pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  
+  SDnode *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    // ALTER must not double as a deploy. The acquire result used to be discarded, so a
+    // TDMT_DND_ALTER_SNODE frame ran the create path on a dnode hosting no snode - and the
+    // dmReleaseWrapper below then dropped a reference this function never took.
+    code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+    dError("failed to alter snode since %s", tstrerror(code));
+    return terrno = code;
+  }
+
+  dInfo("start to process alter-node-request");
+
+  (void)taosThreadMutexLock(&pDnode->mutex);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+
+  dInfo("node:%s, start to update", pWrapper->name);
+  code = (*pWrapper->func.createFp)(&input, pMsg);
+  if (code != 0) {
+    dError("node:%s, failed to update since %s", pWrapper->name, tstrerror(code));
+  } else {
+    dInfo("node:%s, has been updated", pWrapper->name);
+  }
+
+  (void)taosThreadMutexUnlock(&pDnode->mutex);
+
+  dmReleaseWrapper(pWrapper);
+  
+  return code;
+}
+
 
 static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   int32_t code = 0;
@@ -296,7 +408,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
-    dError("fail to process alter node type since node not exist");
+    dError("failed to process alter node type since the node does not exist");
     return TSDB_CODE_INVALID_MSG;
   }
   dmReleaseWrapper(pWrapper);
@@ -323,7 +435,7 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     }
   }
 
-  dInfo("node:%s, catched up leader, continue to process alter-node-type-request", pWrapper->name);
+  dInfo("node:%s, caught up leader, continue to process alter-node-type-request", pWrapper->name);
 
   (void)taosThreadMutexLock(&pDnode->mutex);
 
@@ -352,8 +464,13 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
@@ -375,6 +492,9 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
         break;
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+        break;
+      case BNODE:
+        code = TSDB_CODE_BNODE_NOT_DEPLOYED;
         break;
       default:
         code = TSDB_CODE_APP_ERROR;
@@ -415,15 +535,21 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .pTfs = pWrapper->pDnode->pTfs,
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processAlterNodeFp = dmProcessAlterNodeReq,
       .processAlterNodeTypeFp = dmProcessAlterNodeTypeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .sendMonitorReportFp = dmSendMonitorReport,
+      .sendMetricsReportFp = dmSendMetricsReport,
       .monitorCleanExpiredSamplesFp = dmMonitorCleanExpiredSamples,
+      .metricsCleanExpiredSamplesFp = dmMetricsCleanExpiredSamples,
       .sendAuditRecordFp = auditSendRecordsInBatch,
       .getVnodeLoadsFp = dmGetVnodeLoads,
       .getVnodeLoadsLiteFp = dmGetVnodeLoadsLite,
+      .setVnodeSyncTimeoutFp = dmSetVnodeSyncTimeout,
       .getMnodeLoadsFp = dmGetMnodeLoads,
+      .setMnodeSyncTimeoutFp = dmSetMnodeSyncTimeout,
       .getQnodeLoadsFp = dmGetQnodeLoads,
+      .collectVnodeTxnIdleFp = dmCollectVnodeTxnIdle,
       .stopDnodeFp = dmStop,
   };
 

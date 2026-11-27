@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,12 +30,12 @@ extern "C" {
 
 // tsdbDebug ================
 // clang-format off
-#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
-#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TSD FATAL ", DEBUG_FATAL, 255,           __VA_ARGS__); }} while(0)
+#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TSD ERROR ", DEBUG_ERROR, 255,           __VA_ARGS__); }} while(0)
+#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TSD WARN  ", DEBUG_WARN,  255,           __VA_ARGS__); }} while(0)
+#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TSD INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
+#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TSD DEBUG ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD TRACE ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 typedef struct TSDBROW          TSDBROW;
@@ -203,12 +205,22 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
 int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData, SBuffer *assist);
 int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
                                     SBlockData *blockData, SBuffer *assist);
+int32_t tBlockDataDecompressColDataTo(const SDiskDataHdr *hdr,
+                                      const SBlockCol *blockCol,
+                                      SBufferReader *br, SColData *colData,
+                                      SBuffer *assist);
 
 SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid);
 int32_t   tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData);
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr);
+// tsdb file type / RAW snapshot header validation
+int32_t tsdbSnapRAWCheckBlock(const uint8_t *data, int64_t size);
+int32_t tsdbSnapTlvNext(const SSyncTLV *pHead, int64_t *pOffset, const SSyncTLV **ppField);
+// Validation helpers for on-disk descriptors (brin/statis/tomb blocks)
+int32_t tsdbCheckBlkDescSizes(const int32_t *size, int32_t nSize, int32_t numRec, uint32_t avail);
+int32_t tsdbCheckValueColInfo(const SValueColumnCompressInfo *info, int32_t numRec);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -295,7 +307,8 @@ int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap2(STsdbReader *pReader, _query_reseek_func_t reseek, STsdbReadSnap **ppSnap, const char *id);
 void    tsdbUntakeReadSnap2(STsdbReader *pReader, STsdbReadSnap *pSnap, bool proactive);
-int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid);
+int32_t tsdbGetTableSchema(SMeta *pMeta, int64_t uid, STSchema **pSchema, int64_t *suid,
+                           SSchemaWrapper **pSchemaWrapper);
 
 // tsdbMerge.c ==============================================================================================
 typedef struct {
@@ -334,15 +347,21 @@ struct STsdbFS {
 };
 
 typedef struct {
+#ifdef USE_ROCKSDB
   rocksdb_t                           *db;
   rocksdb_comparator_t                *my_comparator;
   rocksdb_block_based_table_options_t *tableoptions;
+  rocksdb_cache_t                     *blockcache;  // per-vnode, sized from half of pVnode->config.cacheLastSize
+                                                     // (remaining half goes to the LRU last-cache)
+  rocksdb_env_t                       *pEnv;        // per-vnode background thread pool env
+  rocksdb_filterpolicy_t              *filterpolicy;
   rocksdb_options_t                   *options;
   rocksdb_flushoptions_t              *flushoptions;
   rocksdb_writeoptions_t              *writeoptions;
   rocksdb_readoptions_t               *readoptions;
   rocksdb_writebatch_t                *writebatch;
   TdThreadMutex                        writeBatchMutex;
+#endif
   int32_t                              sver;
   tb_uid_t                             suid;
   tb_uid_t                             uid;
@@ -356,10 +375,51 @@ typedef struct {
 } SCacheFlushState;
 
 typedef struct SCompMonitor SCompMonitor;
+typedef struct SRetentionMonitor SRetentionMonitor;
+typedef struct SSsMigrateMonitor SSsMigrateMonitor;
+
+// Snapshot send progress tracking structures
+typedef struct {
+  int32_t fid;
+  int32_t fileCount;
+  int32_t finishedFileCount;
+  int64_t totalSize;
+  int64_t readSize;
+  int64_t startTime;
+  int64_t sver;
+  int64_t ever;
+  int8_t  transferType;
+} SSnapSendFileSetStat;
+
+typedef struct {
+  int32_t               vgId;
+  int32_t               totalFileSets;
+  int32_t               finishedFileSets;
+  int64_t               startTime;
+  int32_t               fileSetCount;
+  SSnapSendFileSetStat *pFileSetStats;
+} SSnapSendVnodeStat;
+
+// Progress bucket for a single "send target": one SSnapSendVnodeStat per destDnodeId.
+// Uses a small array + linear scan (replica count is very small, usually 2~3), avoiding a hash
+// table for so few elements.
+typedef struct {
+  int32_t             destDnodeId;  // target follower dnodeId served by this bucket
+  SSnapSendVnodeStat *pStat;        // send-progress stats for this target (heap-allocated, freed on bucket destroy)
+} SSnapSendTargetBucket;
+
+// Byte-level progress summary for a single send target, reported per target to the mnode by vnodeGetLoad.
+// One entry per destDnodeId: total=total bytes to send to this target, transferred=bytes already sent.
+typedef struct {
+  int32_t destDnodeId;  // target follower dnodeId
+  int64_t total;        // sum of totalSize across all filesets for this target
+  int64_t transferred;  // sum of readSize across all filesets for this target
+} STsdbSnapSendGroup;
 
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
+  char                 name[VNODE_TSDB_NAME_LEN];
   STsdbKeepCfg         keepCfg;
   TdThreadMutex        mutex;
   bool                 bgTaskDisabled;
@@ -377,10 +437,15 @@ struct STsdb {
   struct STFileSystem *pFS;  // new
   SRocksCache          rCache;
   SCompMonitor        *pCompMonitor;
+  SRetentionMonitor   *pRetentionMonitor;
+  SSsMigrateMonitor   *pSsMigrateMonitor;
+  SArray              *pSnapBuckets;  // SArray<SSnapSendTargetBucket>: send progress bucketed by target dnodeId; access guarded by snapStatLock
+  TdThreadRwlock       snapStatLock;
   struct {
     SVHashTable *ht;
     SArray      *arr;
   } *commitInfo;
+  struct SScanMonitor *pScanMonitor;
 };
 
 struct TSDBKEY {
@@ -440,6 +505,7 @@ struct TSDBROW {
       int32_t     iRow;
     };
   };
+  void *arg;
 };
 
 struct SMemSkipListNode {
@@ -647,6 +713,7 @@ struct SRowMerger {
   STSchema *pTSchema;
   int64_t   version;
   SArray   *pArray;  // SArray<SColVal>
+  void     *arg;
 };
 
 typedef struct {
@@ -659,11 +726,14 @@ typedef struct {
   int64_t     szFile;
   STsdb      *pTsdb;
   const char *objName;
-  uint8_t     s3File;
+  uint8_t     ssFile;
   int32_t     lcn;
   int32_t     fid;
   int64_t     cid;
   int64_t     blkno;
+  // Read-only data FD permission; shared-storage reads keep their own path.
+  bool        enableBatchRead;
+  SArray     *blockPageRuns;
 } STsdbFD;
 
 struct SDelFWriter {
@@ -715,6 +785,7 @@ typedef enum ETsdbRepFmt {
   TSDB_SNAP_REP_FMT_DEFAULT = 0,
   TSDB_SNAP_REP_FMT_RAW,
   TSDB_SNAP_REP_FMT_HYBRID,
+  TSDB_SNAP_REP_FMT_MEDIUM,
 } ETsdbRepFmt;
 
 typedef struct STsdbRepOpts {
@@ -723,6 +794,72 @@ typedef struct STsdbRepOpts {
 
 int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+
+// MEDIUM snapshot file info (follower  ->  leader)
+typedef struct SMediumSnapFileInfo {
+  int32_t fid;
+  int32_t ftype;
+  int32_t level;
+  int64_t minVer;
+  int64_t maxVer;
+  int32_t lcn;
+  int32_t mid;
+  int64_t cid;
+  int32_t diskLevel;
+  int32_t diskId;
+  int64_t size;
+  int8_t  missing;
+} SMediumSnapFileInfo;
+
+// MEDIUM snapshot file list (follower  ->  leader)
+typedef struct SMediumSnapFileList {
+  int32_t              nFiles;
+  SMediumSnapFileInfo *aFiles;
+} SMediumSnapFileList;
+
+// MEDIUM snapshot file header (leader  ->  follower, per SNAP_DATA message)
+typedef struct SMediumSnapFileHdr {
+  SMediumSnapFileInfo fileInfo;
+  int32_t            opType;  // tsdb_fop_t: TSDB_FOP_CREATE / TSDB_FOP_REMOVE / TSDB_FOP_MODIFY
+} SMediumSnapFileHdr;
+
+// serialization
+int32_t tSerializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tDeserializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tSerializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+int32_t tDeserializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+
+// MEDIUM snapshot reader (leader side)
+typedef struct STsdbSnapMediumReader STsdbSnapMediumReader;
+int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
+                                 SMediumSnapFileList *pFollowerFileList, int64_t beginIndex,
+                                 int32_t destDnodeId, STsdbSnapMediumReader **reader);
+
+// Snapshot-send progress bucket operations (implemented in tsdbSnapshot.c; each holds the snapStatLock write lock internally):
+void tsdbSnapPutTargetStat(STsdb *tsdb, int32_t destDnodeId, SSnapSendVnodeStat *pStat);
+void tsdbSnapRemoveTargetStat(STsdb *tsdb, int32_t destDnodeId);
+void tsdbSnapMarkFileSetStart(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+void tsdbSnapAddReadSize(STsdb *tsdb, int32_t destDnodeId, int32_t idx, int64_t size);
+void tsdbSnapMarkFileSetEnd(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+
+// Aggregate this tsdb's current snapshot-send total and transferred bytes per target, appending
+// the result grouped by target dnodeId to pGroups.
+// pGroups elements are of type STsdbSnapSendGroup, created/freed by the caller; when no snapshot
+// is in progress no elements are appended.
+// Thread-safe: holds the snapStatLock read lock internally.
+void tsdbGetSnapSendSummary(STsdb *tsdb, SArray *pGroups);
+int32_t tsdbSnapMediumReaderClose(STsdbSnapMediumReader **reader);
+int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data);
+
+// MEDIUM snapshot writer (follower side)
+typedef struct STsdbSnapMediumWriter STsdbSnapMediumWriter;
+int32_t tsdbSnapMediumWriterOpen(STsdb *tsdb, int64_t ever, STsdbSnapMediumWriter **writer);
+int32_t tsdbSnapMediumWriterClose(STsdbSnapMediumWriter **writer, int8_t rollback);
+int32_t tsdbSnapMediumWriterPrepareClose(STsdbSnapMediumWriter *writer);
+int32_t tsdbSnapMediumWrite(STsdbSnapMediumWriter *writer, SSnapDataHdr *hdr);
+
+// MEDIUM snapshot helper
+int32_t tsdbBuildMediumSnapFileList(STsdb *tsdb, SMediumSnapFileList *pList);
 
 // snap read
 struct STsdbReadSnap {
@@ -782,6 +919,7 @@ typedef struct SBlockDataInfo {
 
 // todo: move away
 typedef struct {
+  int32_t memSize;
   SArray *pUid;
   SArray *pFirstTs;
   SArray *pLastTs;
@@ -800,6 +938,8 @@ typedef struct SSttBlockLoadInfo {
   bool                  checkRemainingRow;  // todo: no assign value?
   bool                  isLast;
   bool                  sttBlockLoaded;
+  bool                  statisLoaded;  // complete table statistics, including a valid empty result
+  bool                  tombLoaded;  // deletion records installed for the current group
   SSttTableRowsInfo     info;
   SSttBlockLoadCostInfo cost;
 } SSttBlockLoadInfo;
@@ -882,6 +1022,8 @@ typedef struct SMergeTreeConf {
   STimeWindow   timewindow;
   SVersionRange verRange;
   bool          strictTimeRange;
+  bool          skipByTableStats;  // group Reader may reject data using complete table statistics
+  bool          cacheStatis;    // cache the stt statis file info in cache
   SArray       *pSttFileBlockIterArray;
   void         *pCurrentFileset;
   STSchema     *pSchema;
@@ -892,6 +1034,8 @@ typedef struct SMergeTreeConf {
   void         *pReader;
   void         *idstr;
   bool          rspRows;  // response the rows in stt-file, if possible
+  /* optional accumulator for the load cost of dropped STT iterators */
+  SSttBlockLoadCostInfo *pSttLoadCost;
 } SMergeTreeConf;
 
 typedef struct SSttDataInfoForTable {
@@ -910,6 +1054,8 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
+int32_t resetSttBlockReaderForGroup(SArray *pLDataIterArray);
+void    tSttBlockLoadCostAdd(SSttBlockLoadCostInfo *pDst, const SSttBlockLoadCostInfo *pSrc);
 
 // tsdbCache ==============================================================================================
 typedef enum {
@@ -941,6 +1087,7 @@ typedef struct {
 
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
+int32_t tsdbRebuildLastCache(STsdb *pTsdb, int32_t numShardBits);
 int32_t tsdbCacheRowFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, int64_t version, int32_t nRow, SRow **aRow);
 int32_t tsdbCacheColFormatUpdate(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, SBlockData *pBlockData);
 int32_t tsdbCacheDel(STsdb *pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
@@ -952,15 +1099,17 @@ void    tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
 int32_t tsdbCacheGetBlockIdx(SLRUCache *pCache, SDataFReader *pFileReader, LRUHandle **handle);
 int32_t tsdbBICacheRelease(SLRUCache *pCache, LRUHandle *h);
 
-int32_t tsdbCacheGetBlockS3(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
-int32_t tsdbCacheGetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
-void    tsdbCacheSetPageS3(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
+int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle);
+int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle);
+void    tsdbCacheSetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, uint8_t *pPage);
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
 
-int32_t tsdbGetS3Size(STsdb *tsdb, int64_t *size);
+int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **pLastCol);
+int32_t tsdbGetFsSize(STsdb *tsdb, SDbSizeStatisInfo *pInfo);
+int32_t tsdbGetLastCacheStats(STsdb *tsdb, SLastCacheStats *pStats);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
@@ -1082,6 +1231,9 @@ void tsdbRemoveFile(const char *path);
       tsdbTrace("failed to close file"); \
     }                                    \
   } while (0)
+
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId);
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId);
 
 #ifdef __cplusplus
 }

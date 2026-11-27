@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,7 +22,7 @@
 
 #include "az.h"
 
-extern int8_t tsS3Enabled;
+extern int8_t tsSsEnabled;
 
 int32_t azInitEnv() {
   int32_t code = 0;
@@ -74,7 +76,7 @@ int32_t azInitEnv() {
 
   tstrncpy(tsTempDir, "/tmp/", PATH_MAX);
 
-  tsS3Enabled = true;
+  tsSsEnabled = 1;
 
   return code;
 }
@@ -92,7 +94,7 @@ TEST(AzTest, InterfaceTest) {
   }
 
   GTEST_ASSERT_EQ(code, 0);
-  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsSsEnabled, 1);
 
   code = azBegin();
   GTEST_ASSERT_EQ(code, 0);
@@ -213,7 +215,7 @@ TEST(AzTest, InterfaceTestBig) {
   }
 
   GTEST_ASSERT_EQ(code, 0);
-  GTEST_ASSERT_EQ(tsS3Enabled, 1);
+  GTEST_ASSERT_EQ(tsSsEnabled, 1);
 
   code = azBegin();
   GTEST_ASSERT_EQ(code, 0);

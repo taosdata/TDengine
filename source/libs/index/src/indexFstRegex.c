@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -37,7 +39,8 @@ FstRegex *regexCreate(const char *str) {
     return NULL;
   }
 
-  for (int i = 0; i < strlen(str); i++) {
+  int32_t len = strlen(str);
+  for (int32_t i = 0; i < len; i++) {
     uint8_t v = str[i];
     if (taosArrayPush(insts, &v) == NULL) {
       taosArrayDestroy(insts);

@@ -1,0 +1,4 @@
+select to_base64();
+select to_base64(123);
+select to_base64(123.45);
+SELECT to_base64(cast("123" as INTEGER));

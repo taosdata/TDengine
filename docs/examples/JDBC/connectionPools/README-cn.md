@@ -1,22 +1,27 @@
-这个example中，我们适配了java常见的连接池:
+这个 example 中，我们适配了 java 常见的连接池：
+
 * HikariCP（默认）
 * druid
 * dbcp
 * c3p0
 
 ### 说明
-ConnectionPoolDemo的程序逻辑：
-1. 创建到host的connection连接池
-2. 创建名称为pool_test的database，创建表超级weather，创建tableSize个子表
-3. 总共插入totalNumber条数据。
 
-### 如何运行这个例子：
+ConnectionPoolDemo 的程序逻辑：
+
+1. 创建到 host 的 connection 连接池
+2. 创建名称为 pool_test 的 database，创建表超级 weather，创建 tableSize 个子表
+3. 总共插入 totalNumber 条数据。
+
+### 如何运行这个例子
 
 ```shell script
 mvn clean package
 java -jar target/ConnectionPoolDemo-jar-with-dependencies.jar -host 127.0.0.1
 ```
-使用mvn运行ConnectionPoolDemo的main方法，可以指定参数
+
+使用 mvn 运行 ConnectionPoolDemo 的 main 方法，可以指定参数
+
 ```shell script
 Usage: 
 java -jar target/ConnectionPoolDemo-jar-with-dependencies.jar
@@ -29,4 +34,5 @@ java -jar target/ConnectionPoolDemo-jar-with-dependencies.jar
 ```
 
 ### 日志
-使用log4j，将日志和错误分别输出到了debug.log和error.log中
+
+使用 log4j，将日志和错误分别输出到了 debug.log 和 error.log 中

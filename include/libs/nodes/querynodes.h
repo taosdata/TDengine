@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,18 +18,23 @@
 #ifndef _TD_QUERY_NODES_H_
 #define _TD_QUERY_NODES_H_
 
+#include <stdint.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "nodes.h"
+#include "osTimezone.h"
 #include "tmsg.h"
 #include "tsimplehash.h"
 #include "tvariant.h"
+#include "ttypes.h"
+#include "streamMsg.h"
+// SExtTableMeta is defined in extConnector.h; only a pointer is stored here,
+// so a forward declaration is sufficient and avoids a nodes  ->  extconnector
+// header dependency.
+typedef struct SExtTableMeta SExtTableMeta;
 
-#define TABLE_TOTAL_COL_NUM(pMeta) ((pMeta)->tableInfo.numOfColumns + (pMeta)->tableInfo.numOfTags)
-#define TABLE_META_SIZE(pMeta) \
-  (NULL == (pMeta) ? 0 : (sizeof(STableMeta) + TABLE_TOTAL_COL_NUM((pMeta)) * sizeof(SSchema)))
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
 
@@ -44,23 +51,22 @@ typedef struct SRawExprNode {
   bool      isPseudoColumn;
 } SRawExprNode;
 
-typedef struct SDataType {
-  uint8_t type;
-  uint8_t precision;
-  uint8_t scale;
-  int32_t bytes;
-} SDataType;
-
 typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
   char      aliasName[TSDB_COL_NAME_LEN];
   char      userAlias[TSDB_COL_NAME_LEN];
+  char      srcTable[TSDB_TABLE_NAME_LEN];
   SArray*   pAssociation;
   bool      asAlias;
   bool      asParam;
   bool      asPosition;
+  bool      joinSrc;
+  bool      hasNull;
+  //bool      constValue;
   int32_t   projIdx;
+  int32_t   relatedTo;
+  int32_t   bindExprID;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -70,7 +76,9 @@ typedef enum EColumnType {
   COLUMN_TYPE_WINDOW_START,
   COLUMN_TYPE_WINDOW_END,
   COLUMN_TYPE_WINDOW_DURATION,
-  COLUMN_TYPE_GROUP_KEY
+  COLUMN_TYPE_GROUP_KEY,
+  COLUMN_TYPE_IS_WINDOW_FILLED,
+  COLUMN_TYPE_PLACE_HOLDER,
 } EColumnType;
 
 typedef struct SColumnNode {
@@ -86,42 +94,104 @@ typedef struct SColumnNode {
   char        tableName[TSDB_TABLE_NAME_LEN];
   char        tableAlias[TSDB_TABLE_NAME_LEN];
   char        colName[TSDB_COL_NAME_LEN];
-  int16_t     dataBlockId;
+  int64_t     dataBlockId;
   int16_t     slotId;
   int16_t     numOfPKs;
   bool        tableHasPk;
   bool        isPk;
   int32_t     projRefIdx;
   int32_t     resIdx;
+  bool        hasDep;
+  bool        hasRef;
+  union {
+    uint8_t flags;
+    struct {
+      uint8_t hasMask : 1;
+      uint8_t appendByPrivCond : 1;
+      uint8_t isAlignOut : 1;    // TIME_ALIGN output column (planner-side marker)
+      uint8_t alignMethod : 2;   // EAlignMethod; valid when isAlignOut
+      uint8_t alignHasSpan : 1;  // TIME_ALIGN optional time-range parameter present
+      uint8_t isTbnamePlaceholder : 1;  // Unresolved %%tbname.column qualifier.
+      // Virtual origin, including virtual stables; travels with flags.
+      uint8_t isVirtualTable : 1;
+    };
+  };
+  int64_t alignSpanValue;  // TIME_ALIGN duration count; q is folded into months
+  int8_t  alignSpanUnit;   // b/u/a/s/m/h/d/w/n/y; 0 when alignHasSpan is false
+  char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema (SQL Server); empty otherwise
+  char refDbName[TSDB_DB_NAME_LEN];
+  char refTableName[TSDB_TABLE_NAME_LEN];
+  char refColName[TSDB_COL_NAME_LEN];
 } SColumnNode;
 
 typedef struct SColumnRefNode {
   ENodeType type;
-  SDataType resType;
+  int8_t    refPathParts;
+  int8_t    bindingKind;
+  char      referenceAlias[TSDB_COL_NAME_LEN];
+  char      timeColumn[TSDB_COL_NAME_LEN];
   char      colName[TSDB_COL_NAME_LEN];
+  int8_t    refType;                                      // 0=internal, 1=external (DS section 6.2.8)
+  char      refDbName[TSDB_DB_NAME_LEN];
+  char      refTableName[TSDB_TABLE_NAME_LEN];
+  char      refColName[TSDB_COL_NAME_LEN];
+  // [FG-9] Extended for federated query 4-segment path: source.db.table.col
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
+  char      refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema: from the path (5-segment field, or the
+                                                        // middle segment of a 4-segment SQL Server path) or the
+                                                        // source default filled by normalizeExternalRefNamespace()
+  SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
+  SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
+  // Own (extension) column declaration of a virtual child table: set when the col_ref
+  // carries an explicit type (`name TYPE [FROM db.tb.col]`), meaning the column is not
+  // defined in the vstb schema. Only valid in the CREATE VTABLE ... USING column list.
+  bool      hasDataType;
+  SDataType dataType;
 } SColumnRefNode;
 
 typedef struct STargetNode {
   ENodeType type;
-  int16_t   dataBlockId;
+  int64_t   dataBlockId;
   int16_t   slotId;
   SNode*    pExpr;
 } STargetNode;
 
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
+#define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// Set on remote scalar result nodes whose runtime type becomes QUERY_NODE_VALUE
+// while the allocation still owns the trailing pRemotePlan field.
+#define VALUE_FLAG_REMOTE_PLAN      (1 << 3)
+// When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
+// (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
+#define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
+// A restored declared-filter timestamp literal.  The node stays a string so
+// the value can be compared locally and replayed through DDL, but its text is
+// the remote wall clock: Oracle renders it as an ANSI TIMESTAMP literal
+// because a bare string compared with DATE/TIMESTAMP goes through
+// NLS_TIMESTAMP_FORMAT (ORA-01843 on a database with another NLS setting).
+#define VALUE_FLAG_STORED_TS_TEXT (1 << 8)
+#define VALUE_FLAG_DEFERRED_QSTART    (1 << 5)
+#define VALUE_FLAG_DEFERRED_QEND      (1 << 6)
+#define VALUE_FLAG_DEFERRED_QDURATION (1 << 7)
+#define VALUE_FLAG_DEFERRED_QUERY_TIME \
+  (VALUE_FLAG_DEFERRED_QSTART | VALUE_FLAG_DEFERRED_QEND | VALUE_FLAG_DEFERRED_QDURATION)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
+#define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
+#define IS_RAW_SQL_FRAG(_flag)    ((_flag)&VALUE_FLAG_RAW_SQL_FRAG)
 
 typedef struct SValueNode {
-  SExprNode node;  // QUERY_NODE_VALUE
-  char*     literal;
-  int32_t   flag;
-  bool      translate;
-  bool      notReserved;
-  bool      isNull;
-  int16_t   placeholderNo;
+  SExprNode  node;  // QUERY_NODE_VALUE
+  char*      literal;
+  int32_t    flag;
+  bool       translate;
+  bool       notReserved;
+  bool       isNull;
+  int16_t    placeholderNo;
   union {
     bool     b;
     int64_t  i;
@@ -132,8 +202,146 @@ typedef struct SValueNode {
   int64_t    typeData;
   int8_t     unit;
   timezone_t tz;
-  void      *charsetCxt;
+  void*      charsetCxt;
 } SValueNode;
+
+typedef struct SRemoteValueNode {
+  SValueNode val;
+  int32_t    subQIdx;
+  // v2 pushdown: render mode + subquery logic plan for server-side rendering.
+  // pRemotePlan is non-NULL only for ORIG_TYPE_2B and points to the
+  // stage3-attached logic subtree; DIRECT_SQL
+  // inlines val.literal (original SQL).  Owned here; freed in nodesDestroyNode;
+  // cloned/serialized alongside the node.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
+} SRemoteValueNode;
+
+// IDs are allocated within one root semantic analysis and survive node copies.
+// Scope/binding/expression/table-reference IDs start at 1; parameter/template
+// IDs start at 0 and are local to their owning template/root plan respectively.
+typedef struct SOuterRefNode {
+  SExprNode node;
+  int32_t   scopeId;
+  int64_t   bindingId;
+  int64_t   tableRefId;  // Zero denotes an aggregate-result binding.
+  char      tableAlias[TSDB_TABLE_NAME_LEN];
+  char      colName[TSDB_COL_NAME_LEN];
+} SOuterRefNode;
+
+typedef struct SCorrelationParamNode {
+  SExprNode node;
+  int32_t   paramId;  // Internal parameter, never a STMT placeholder.
+} SCorrelationParamNode;
+
+typedef enum ECorrelationSourceKind {
+  CORRELATION_SOURCE_LOGICAL = 1,
+  CORRELATION_SOURCE_BLOCK,
+  CORRELATION_SOURCE_INHERITED,
+} ECorrelationSourceKind;
+
+typedef struct SCorrelationParamBindingNode {
+  ENodeType              type;
+  int32_t                paramId;
+  SDataType              dataType;
+  ECorrelationSourceKind sourceKind;
+  int32_t                scopeId;
+  int64_t                bindingId;
+  int64_t                tableRefId;
+  int64_t                sourceBlockId;     // -1 unless sourced from a block.
+  int16_t                sourceSlotId;      // -1 unless sourced from a block.
+  int32_t                inheritedParamId;  // -1 unless sourced from a parameter.
+  // Owned Column/OuterRef dependency for column retention and slot remapping.
+  // Block sources use Column; inherited sources have no local dependency (NULL).
+  // Aggregate sources reference their result, never re-evaluate the aggregate.
+  SNode*                 pSource;
+} SCorrelationParamBindingNode;
+
+typedef struct SCorrelatedSubqueryNode {
+  SExprNode             node;
+  int32_t               templateId;
+  int64_t               exprId;
+  int32_t               scopeId;        // Scope of the inner query block.
+  int32_t               parentScopeId;  // Scope containing this expression.
+  SNodeList*            pParamBindings;  // Owned parameter-source binding nodes.
+  char*                 pSubquerySql;    // Owned original SELECT, without ().
+  // No result slot or mutable per-invocation state belongs to this expression.
+} SCorrelatedSubqueryNode;
+
+#define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
+
+
+typedef struct SRemoteListBounds {
+  int8_t   type;  // TSDB_DATA_TYPE_NULL until the first ordered non-NULL key.
+  uint64_t min[2];
+  uint64_t max[2];
+} SRemoteListBounds;
+
+typedef struct SRemoteValueListNode {
+  SExprNode  node;
+  int32_t    flag;
+  int32_t    targetType;
+  STypeMod   targetTypeMod;
+  bool       hasValue;
+  bool       hasNull;
+  bool       hasNotNull;
+  bool       hashAllocated;
+  SHashObj  *pHashFilter;
+  SHashObj  *pHashFilterOthers;
+  int32_t    otherKeyType;  // Type used to build the auxiliary hash.
+  bool       droppedKey;    // At least one non-NULL input overflowed during conversion.
+  SRemoteListBounds bounds; // Min/max of the primary hash keys in their native representation.
+  int32_t    filterValueType;
+  STypeMod   filterValueTypeMod;
+  int32_t    subQIdx;
+  uint64_t   streamGen;  // generation when hash was last built (stream mode)
+  // DS section5.3.7.1.3: pre-rendered inner SELECT SQL for same-source IN (subquery).
+  // Non-NULL only for MySQL/PG same-source IN subqueries; allows nodesRemotePlanToSQL
+  // to emit  col IN (SELECT ...)  without a runtime resolve context.
+  // Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      inSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan non-NULL only for ORIG_TYPE_2B and points to
+  // the stage3-attached logic subtree; DIRECT_SQL inlines
+  // inSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
+} SRemoteValueListNode;
+
+typedef struct SRemoteRowNode {
+  SValueNode val;
+  bool       isMinVal;
+  bool       valSet;
+  bool       hasValue;
+  bool       hasNull;
+  int32_t    subQIdx;
+  // Pre-rendered original subquery SQL for same-source ALL/ANY/SOME/scalar
+  // pushdown.  When the optimizer decides the comparison subquery is fully
+  // pushable, nodesRemotePlanToSQL emits  expr op [ALL|ANY] (pSubquerySql)
+  // directly.  Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      pSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan is the stage3-attached logic subtree to render
+  // inside the quantified predicate; DIRECT_SQL inlines
+  // pSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
+} SRemoteRowNode;
+
+typedef SRemoteValueNode SRemoteZeroRowsNode;
+
+
+#define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
+#define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+#define REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH (1 << 2)
+
+typedef struct SRemoteTableNode {
+  ENodeType  type;
+  int32_t    flag;
+  int32_t    resCols;
+  SArray*    pResBlks;
+  int32_t    subQIdx;
+} SRemoteTableNode;
 
 typedef struct SLeftValueNode {
   ENodeType type;
@@ -148,20 +356,48 @@ typedef enum EHintOption {
   HINT_SMALLDATA_TS_SORT,
   HINT_HASH_JOIN,
   HINT_SKIP_TSMA,
+  HINT_WIN_OPTIMIZE_BATCH,
+  HINT_WIN_OPTIMIZE_SINGLE,
+  HINT_SMALLDATA_SCAN_SORT,
+  HINT_FAST_INTERVAL,
+  HINT_EX_INTERVAL,
+  HINT_MERGE_JOIN,
+  HINT_JOIN_ALGO,
+  HINT_SPLIT_SCAN,
+  HINT_INTERVAL_LIMIT,
+  HINT_EXTWIN_PARTITION_BATCH,  // reserved; does not force batch execution
+  HINT_NO_EXTWIN_PARTITION_BATCH,
+  HINT_NO_CONCURRENT_LAST_SCAN,
 } EHintOption;
+
+// A Hint parameter keeps the original token type and text for later consumers.
+// value is heap allocated and owned by the containing SHintNode.
+typedef struct SHintParam {
+  uint32_t type;
+  char*    value;
+} SHintParam;
 
 typedef struct SHintNode {
   ENodeType   type;
   EHintOption option;
-  void*       value;
+  // SArray<SHintParam>; owned by this node and NULL when no parameters exist.
+  SArray* pParams;
 } SHintNode;
+
+#define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+#define OPERATOR_FLAG_BANG_NE          (1 << 1)  // original source was !=, not <>
+#define OPERATOR_FLAG_XNODE_TEXT_BLOB  (1 << 1)
+#define OPERATOR_FLAG_STREAM_EXT_JOIN_AUTO_RANGE (1 << 2)
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;
+  int32_t       flag;
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* IANA name; serialized when non-empty */
+  bool          ownsTimezone;                  /* true when tz was allocated here (needs tzfree) */
   void*         charsetCxt;
 } SOperatorNode;
 
@@ -176,6 +412,46 @@ typedef struct SNodeListNode {
   SNodeList* pNodeList;
 } SNodeListNode;
 
+typedef enum ESqlWindowFrameUnit {
+  WINDOW_FRAME_UNIT_ROWS = 1,
+  WINDOW_FRAME_UNIT_RANGE,
+} ESqlWindowFrameUnit;
+
+typedef enum ESqlWindowBoundType {
+  WINDOW_BOUND_UNBOUNDED_PRECEDING = 1,
+  WINDOW_BOUND_N_PRECEDING,
+  WINDOW_BOUND_CURRENT_ROW,
+  WINDOW_BOUND_N_FOLLOWING,
+  WINDOW_BOUND_UNBOUNDED_FOLLOWING,
+} ESqlWindowBoundType;
+
+typedef struct SSqlWindowBound {
+  ESqlWindowBoundType boundType;
+  SNode*              pOffset;
+} SSqlWindowBound;
+
+typedef struct SWindowFrameNode {
+  ENodeType           type;
+  ESqlWindowFrameUnit frameUnit;
+  SSqlWindowBound     start;
+  SSqlWindowBound     end;
+  bool                explicitFrame;
+} SWindowFrameNode;
+
+typedef struct SWindowSpecNode {
+  ENodeType  type;
+  char       refWindowName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pPartitionByList;
+  SNodeList* pOrderByList;
+  SNode*     pFrame;
+} SWindowSpecNode;
+
+typedef struct SNamedWindowNode {
+  ENodeType type;
+  char      windowName[TSDB_TABLE_NAME_LEN];
+  SNode*    pSpec;
+} SNamedWindowNode;
+
 typedef enum ETrimType {
   TRIM_TYPE_LEADING = 1,
   TRIM_TYPE_TRAILING,
@@ -188,15 +464,23 @@ typedef struct SFunctionNode {
   int32_t    funcId;
   int32_t    funcType;
   SNodeList* pParameterList;
+  SNode*                      pOver;
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
   bool       hasOriginalFunc;
+  bool                        ignoreResultRowCount;  // Synthesized keys carry values without producing aggregate rows.
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
+  bool       isDistinct; // DISTINCT modifier in function arg, e.g. COUNT(DISTINCT col)
   timezone_t tz;
+  char       tzName[TD_TIMEZONE_LEN]; // IANA timezone name (for serialization to taosd)
+  bool       tzAllocated;             // true if tz was allocated by us and must be freed
   void      *charsetCxt;
+  int8_t     firstDayOfWeek;  /* 0-6, from connection/global config */
+  const struct SFunctionNode* pSrcFuncRef;
+  SDataType  srcFuncInputType;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -206,7 +490,14 @@ typedef struct STableNode {
   char      tableAlias[TSDB_TABLE_NAME_LEN];
   uint8_t   precision;
   bool      singleTable;
+  bool      inJoin;
 } STableNode;
+
+typedef struct SStreamNode {
+  SExprNode node;
+  char      dbName[TSDB_DB_NAME_LEN];
+  char      streamName[TSDB_STREAM_NAME_LEN];
+} SStreamNode;
 
 struct STableMeta;
 
@@ -221,18 +512,112 @@ typedef struct SRealTableNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
   int8_t             stbRewrite;
   SArray*            pTsmas;
   SArray*            tsmaTargetTbVgInfo;  // SArray<SVgroupsInfo*>, used for child table or normal table only
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
+  EStreamPlaceholder placeholderType;
+  bool               asSingleTable; // only used in stream calc query
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>
+  bool               outputRaw;
+  // External table without a remote primary key: align in output row order,
+  // with view-like output columns (no implicit timestamp axis).
+  bool               timeAlignRowOrder;
+  // External table path fields (3-segment or 4-segment path)
+  SNode*             pExtTableNode;                      // translated external table node (enterprise only)
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
+  char               extSeg[3][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=mid0 (db or schema); [2]=mid1 (schema; 4-seg only)
 } SRealTableNode;
 
 typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
+  bool       hasExplicitAlias;
+  // TIME_ALIGN over a view/derived table.
+  SArray*    pAlignCols;  // SArray<SAlignOutCol>
+  bool       outputRaw;
 } STempTableNode;
+
+typedef struct STextTableNode {
+  STableNode table;        // QUERY_NODE_TEXT_TABLE
+  SNodeList* pColDefs;     // column definitions, schema source; valid for entire lifetime
+  SNodeList* pRows;        // transient: raw value nodes from parser; released after normalization (set to NULL)
+  int32_t    colCount;
+  int32_t    rowCount;
+  int16_t    primaryTsSlot;  // 0 if first col is TIMESTAMP, -1 otherwise
+  bool       hasPrimaryTs;   // true if first column is TIMESTAMP
+  bool       isSortedByTs;   // true if rows are in ascending primary-ts order
+  uint8_t*   pBlockBuf;    // SSDataBlock binary produced by blockDataToBuf; multi-block: length-prefixed
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} STextTableNode;
+
+typedef struct SFileTableNode {
+  STableNode table;        // QUERY_NODE_FILE_TABLE
+  // ---- parser output (text only, no file I/O) ----
+  char*      path;         // file path literal (taosMemoryStrDup'd)
+  char*      schemaDecl;   // schema string literal, e.g. 'ts timestamp, c1 int'
+  bool       header;       // OPTIONS(header=true/false), default false
+  char       delimiter;    // OPTIONS(delimiter=','), default ','
+  // ---- semantic layer output (valid after translateFileTable) ----
+  SNodeList* pColDefs;     // parsed from schemaDecl; same layout as STextTableNode.pColDefs
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs; // true if first column is TIMESTAMP (not mandatory for FILE)
+  int16_t    primaryTsSlot;
+  bool       isSortedByTs; // true if rows are in ascending primary-ts order after normalization
+  uint8_t*   pBlockBuf;    // SSDataBlock binary; identical format to STextTableNode.pBlockBuf
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} SFileTableNode;
+
+typedef struct STimeAlignTableNode {
+  STableNode table;        // QUERY_NODE_TIME_ALIGN_TABLE
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  bool       outputRaw;    // 2nd argument; default false
+  char*      columnList;   // raw column-def string (quotes stripped); NULL = default '*:PREV:'
+  // Owned input AST for stream triggers and multi-segment table paths.
+  SNode*     pRealTableNode;
+} STimeAlignTableNode;
+
+typedef struct SPlaceHolderTableNode {
+  STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  EStreamPlaceholder placeholderType;
+} SPlaceHolderTableNode;
+
+typedef enum EAlignMethod {
+  ALIGN_METHOD_PREV = 1,
+  ALIGN_METHOD_NEXT = 2,
+} EAlignMethod;
+
+typedef struct SAlignOutCol {
+  col_id_t srcColId;                     // source data column id in the vtable
+  char     outName[TSDB_COL_NAME_LEN];   // output column name = source name + suffix
+  char     srcName[TSDB_COL_NAME_LEN];   // source column name (views/Projection host)
+  int8_t   method;                       // EAlignMethod
+  bool     hasSpan;                      // optional time-range parameter present
+  int64_t  spanValue;                    // duration count; q is folded into months
+  char     spanUnit;                     // b/u/a/s/m/h/d/w/n/y; 0 when !hasSpan
+} SAlignOutCol;
+
+typedef struct SVirtualTableNode {
+  STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
+  struct STableMeta* pMeta;
+  SVgroupsInfo*      pVgroupList;
+  SNodeList*         refTables;
+  SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
+  bool               hasReferenceBinding;
+  bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>; method is PREV or NEXT
+  bool               outputRaw;      // output_raw argument
+  EStreamPlaceholder placeholderType;
+} SVirtualTableNode;
 
 typedef struct SViewNode {
   STableNode         table;  // QUERY_NODE_REAL_TABLE
@@ -240,9 +625,57 @@ typedef struct SViewNode {
   SVgroupsInfo*      pVgroupList;
   char               qualDbName[TSDB_DB_NAME_LEN];  // SHOW qualDbName.TABLES
   double             ratio;
-  SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
+
+// ---- Federated query: external table AST node ----
+// table.dbName  = external database name (the third segment of a 3-part path, or from USE)
+// table.tableName = external table name
+// Connection info and capability are filled by Parser from SParseMetaCache
+// and later copied by Planner into SFederatedScanPhysiNode.
+typedef struct SExtTableNode {
+  STableNode            table;                       // type = QUERY_NODE_EXTERNAL_TABLE
+  char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
+  char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
+  SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
+  // --- connection info (Parser fills from SParseMetaCache  ->  SExtSourceInfo) ---
+  int8_t                sourceType;                  // EExtSourceType
+  char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t               srcPort;
+  char                  srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char                  srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // internal RPC only; never exposed to end user
+  char                  srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char                  srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char                  srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];    // JSON options string
+  int64_t               metaVersion;                 // ext source meta_version (for connector pool invalidation)
+  // --- capability profile (Parser reads from SExtSourceInfo.capability) ---
+  SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog
+  // --- primary key index (computed at translation time) ---
+  int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
+  // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
+  char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
+  // --- subquery DIRECT_SQL eligibility (set by parser) ---
+  // true  = the source name was supplied explicitly in the user's path
+  //         (e.g. "src.tbl" / "src.schema.tbl") - the raw subquery SQL carries a
+  //         TDengine source-name qualifier that the remote DB cannot resolve, so
+  //         the subquery MUST be re-rendered (transform mode) to strip it.
+  // false = the source name came from the active USE <source> context (the user
+  //         wrote a bare table or db.tbl) - the raw subquery SQL has no source
+  //         qualifier and may be inlined verbatim (DIRECT_SQL).
+  bool                  srcNameFromPath;
+  // true  = the object's remote namespace (database + schema for sources with
+  //         two namespace levels) was given entirely by the user's path
+  //         segments, so the raw text is namespace-complete;
+  // false = at least one namespace component came from the source default or
+  //         the USE context.  Consumed by the subquery DIRECT_SQL decision:
+  //         a dialect whose remote connection carries no default namespace
+  //         (SQL Server, DS 5.3.5) must re-render (2b) unless the raw text is
+  //         namespace-complete.
+  bool                  nsFromPathOnly;
+  SNode*                pSeriesCondition;  // explicit virtual SERIES binding; never a user WHERE
+  SNodeList*            pInfluxSchema; // optional raw-column types and Field/Tag roles
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN]; // metadata-bound namespace
+} SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
 
@@ -273,21 +706,33 @@ typedef enum EJoinAlgorithm {
   JOIN_ALGO_UNKNOWN = 0,
   JOIN_ALGO_MERGE,
   JOIN_ALGO_HASH,
+  JOIN_ALGO_THETA,
 } EJoinAlgorithm;
 
 typedef enum EDynQueryType {
   DYN_QTYPE_STB_HASH = 1,
+  DYN_QTYPE_VTB_SCAN,
+  DYN_QTYPE_VTB_WINDOW,
+  DYN_QTYPE_VTB_AGG,
+  DYN_QTYPE_VTB_TS_SCAN,
+  DYN_QTYPE_VTB_INTERVAL,
 } EDynQueryType;
 
 typedef struct SJoinTableNode {
   STableNode   table;  // QUERY_NODE_JOIN_TABLE
   EJoinType    joinType;
   EJoinSubType subType;
+  SNodeList*   pWindowTime;
   SNode*       pWindowOffset;
   SNode*       pJLimit;
   SNode*       addPrimCond;
   bool         hasSubQuery;
+  bool         isCrossJoin;
   bool         isLowLevelJoin;
+  bool         leftNoOrderedSubQuery;
+  bool         rightNoOrderedSubQuery;
+  //bool         condAlwaysTrue;
+  //bool         condAlwaysFalse;
   SNode*       pLeft;
   SNode*       pRight;
   SNode*       pOnCond;
@@ -301,7 +746,7 @@ typedef struct SGroupingSetNode {
   SNodeList*       pParameterList;
 } SGroupingSetNode;
 
-typedef enum EOrder { ORDER_ASC = 1, ORDER_DESC } EOrder;
+typedef enum EOrder { ORDER_UNKNOWN = 0, ORDER_ASC = 1, ORDER_DESC} EOrder;
 
 typedef enum ENullOrder { NULL_ORDER_DEFAULT = 1, NULL_ORDER_FIRST, NULL_ORDER_LAST } ENullOrder;
 
@@ -310,6 +755,8 @@ typedef struct SOrderByExprNode {
   SNode*     pExpr;
   EOrder     order;
   ENullOrder nullOrder;
+  bool       isWindowKey;  // use the same value ordering as OVER partitions and peers
+  bool       isQueryPartitionKey;  // leading query partition in an OVER sort
 } SOrderByExprNode;
 
 typedef struct SLimitNode {
@@ -318,15 +765,24 @@ typedef struct SLimitNode {
   SValueNode* offset;
 } SLimitNode;
 
+typedef enum EStateWinExtendOption {
+  STATE_WIN_EXTEND_OPTION_DEFAULT  = 0,
+  STATE_WIN_EXTEND_OPTION_BACKWARD = 1,
+  STATE_WIN_EXTEND_OPTION_FORWARD  = 2,
+} EStateWinExtendOption;
+
 typedef struct SStateWindowNode {
-  ENodeType type;  // QUERY_NODE_STATE_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
+  ENodeType  type;         // QUERY_NODE_STATE_WINDOW
+  SNode*     pCol;         // timestamp primary key
+  SNodeList* pExprList;    // list of SColumnNode, state keys
+  SNode*     pTrueForLimit;
+  SNode*     pExtend;      // SValueNode
+  SNodeList* pZerothList;  // list of SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
   ENodeType    type;  // QUERY_NODE_SESSION_WINDOW
-  SColumnNode* pCol;  // timestamp primary key
+  SColumnNode* pCol;  // timestamp column used by session window
   SValueNode*  pGap;  // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
@@ -336,6 +792,7 @@ typedef struct SIntervalWindowNode {
   SNode*      pInterval;  // SValueNode
   SNode*      pOffset;    // SValueNode
   SNode*      pSliding;   // SValueNode
+  SNode*      pSOffset;   // SValueNode
   SNode*      pFill;
   STimeWindow timeRange;
   void*       timezone;
@@ -346,21 +803,150 @@ typedef struct SEventWindowNode {
   SNode*    pCol;  // timestamp primary key
   SNode*    pStartCond;
   SNode*    pEndCond;
+  SNode*    pTrueForLimit;
 } SEventWindowNode;
 
+typedef struct SEventStartLeafNode {
+  ENodeType type;      // QUERY_NODE_EVENT_START_LEAF
+  SNode*    pCond;     // search_condition
+  SNode*    pTrueFor;  // QUERY_NODE_TRUE_FOR, QUERY_NODE_VALUE, or NULL
+} SEventStartLeafNode;
+
+typedef enum ETrueForType {
+  TRUE_FOR_DURATION_ONLY = 0,
+  TRUE_FOR_COUNT_ONLY = 1,
+  TRUE_FOR_AND = 2,
+  TRUE_FOR_OR = 3
+} ETrueForType;
+
+typedef struct STrueForNode {
+  ENodeType    type;  // QUERY_NODE_TRUE_FOR
+  ETrueForType trueForType;
+  int32_t      count;     // Row count threshold (0 if duration-only or count tag)
+  SNode*       pDuration;
+  SNode*       pCount;      // SColumnNode* when COUNT references a tag column
+  SNode*       pStartLimit;  // STrueForNode* or NULL: start condition threshold (NULL = no limit)
+  SNode*       pEndLimit;    // STrueForNode* or NULL: end condition threshold (NULL = no limit)
+} STrueForNode;
+
+typedef struct {
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW_PARAM
+  int64_t    count;
+  int64_t    sliding;
+  SNodeList* pColList;
+} SCountWindowArgs;
+
 typedef struct SCountWindowNode {
-  ENodeType type;  // QUERY_NODE_EVENT_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  int64_t   windowCount;
-  int64_t   windowSliding;
+  ENodeType  type;  // QUERY_NODE_COUNT_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  int64_t    windowCount;
+  int64_t    windowSliding;
+  SNodeList* pColList;  // SColumnNodeList
 } SCountWindowNode;
 
 typedef struct SAnomalyWindowNode {
-  ENodeType type;  // QUERY_NODE_ANOMALY_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  char      anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
+  ENodeType  type;  // QUERY_NODE_ANOMALY_WINDOW
+  SNode*     pCol;  // timestamp primary key
+  SNodeList* pExpr;
+  char       anomalyOpt[TSDB_ANALYTIC_ALGO_OPTION_LEN];
 } SAnomalyWindowNode;
+
+typedef struct SSlidingWindowNode {
+  ENodeType type;
+  SNode*    pSlidingVal;
+  SNode*    pOffset;
+} SSlidingWindowNode;
+
+typedef struct SExternalWindowNode {
+  ENodeType   type;  // QUERY_NODE_EXTERNAL_WINDOW
+  SNode*      pCol;  // timestamp primary key
+  SNodeList*  pProjectionList;
+  SNodeList*  pAggFuncList;
+  STimeWindow timeRange;
+  SNode*      pTimeRange;
+  void*       timezone;  // borrowed timezone_t handle
+  SNode*      pSubquery;
+  SNode*      pFill;
+  char        aliasName[TSDB_COL_NAME_LEN];
+} SExternalWindowNode;
+
+typedef struct SStreamWindowPlanNode {
+  ENodeType  type;
+  SNodeList* pLayers;
+} SStreamWindowPlanNode;
+
+typedef struct SStreamWindowLayerNode {
+  ENodeType type;
+  char      name[TSDB_TABLE_NAME_LEN];
+  SNode*    pWindow;
+} SStreamWindowLayerNode;
+
+typedef struct SStreamTriggerOptions {
+  ENodeType type; // QUERY_NODE_STREAM_TRIGGER_OPTIONS
+  SNode*    pPreFilter;
+  SNode*    pWaterMark;
+  SNode*    pMaxDelay;
+  SNode*    pExpiredTime;
+  SNode*    pFillHisStartTime;
+  SNode*    pIdleTimeout;
+  int64_t   pEventType;
+  int64_t   fillHistoryStartTime;
+  bool      ignoreDisorder;
+  bool      deleteRecalc;
+  bool      deleteOutputTable;
+  bool      fillHistory;
+  bool      fillHistoryFirst;
+  bool      calcNotifyOnly;
+  bool      lowLatencyCalc;
+  bool      forceOutput;
+  bool      ignoreNoDataTrigger;
+  bool      flushOnOuterClose;
+} SStreamTriggerOptions;
+
+typedef struct SStreamTriggerNode {
+  ENodeType   type;
+  SNode*      pTriggerWindow;  // concrete window node or SStreamWindowPlanNode
+  SNode*      pTrigerTable;
+  SNode*      pOptions; // SStreamTriggerOptions
+  SNode*      pNotify; // SStreamNotifyOptions
+  SNodeList*  pPartitionList;
+  SNodeList*  pRollupTagList;  // SNodeList<SColumnNode>; NULL = not rollup
+} SStreamTriggerNode;
+
+typedef struct SStreamOutTableNode {
+  ENodeType             type;
+  SNode*                pOutTable; // STableNode
+  SNode*                pSubtable;
+  SNodeList*            pTags; // SStreamTagDefNode
+  SNodeList*            pCols; // SColumnDefNode
+  int8_t                nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default, do not
+} SStreamOutTableNode;
+
+typedef struct SStreamCalcRangeNode {
+  ENodeType             type;
+  bool                  calcAll;
+  SNode*                pStart;
+  SNode*                pEnd;
+} SStreamCalcRangeNode;
+
+typedef struct SStreamTagDefNode {
+  ENodeType type;
+  char      tagName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  SNode*    pTagExpr;
+} SStreamTagDefNode;
+
+typedef struct SPeriodWindowNode {
+  ENodeType type;  // QUERY_NODE_PERIOD_WINDOW
+  SNode*    pPeroid;
+  SNode*    pOffset;
+} SPeriodWindowNode;
+
+typedef enum EWindowMode {
+  WINDOW_MODE_NONE = 1,
+  WINDOW_MODE_SCALAR,
+  WINDOW_MODE_AGG,
+} EWindowMode;
 
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
@@ -385,9 +971,16 @@ typedef enum EShowKind {
   SHOW_KIND_ALL = 1,
   SHOW_KIND_TABLES_NORMAL,
   SHOW_KIND_TABLES_CHILD,
+  SHOW_KIND_TABLES_VIRTUAL,
   SHOW_KIND_DATABASES_USER,
   SHOW_KIND_DATABASES_SYSTEM
 } EShowKind;
+
+typedef struct SSurroundNode {
+  ENodeType  type;       // QUERY_NODE_SURROUND
+  SNode*     pSurroundingTime;
+  SNode*     pValues;
+} SSurroundNode;
 
 typedef struct SFillNode {
   ENodeType   type;  // QUERY_NODE_FILL
@@ -395,6 +988,9 @@ typedef struct SFillNode {
   SNode*      pValues;    // SNodeListNode
   SNode*      pWStartTs;  // _wstart pseudo column
   STimeWindow timeRange;
+  SNode*      pTimeRange; // STimeRangeNode for create stream
+  // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
+  SNode*      pSurroundingTime;
 } SFillNode;
 
 typedef struct SWhenThenNode {
@@ -420,74 +1016,125 @@ typedef struct SWindowOffsetNode {
 
 typedef struct SRangeAroundNode {
   ENodeType type;
-  SNode*    pTimepoint;
+  SNode*    pRange;
   SNode*    pInterval;
 } SRangeAroundNode;
 
+typedef struct STimeRangeNode {
+  ENodeType type; // QUERY_NODE_TIME_RANGE
+  SNode*    pStart;
+  SNode*    pEnd;
+  bool      needCalc;
+} STimeRangeNode;
+
+typedef struct SExtWinTimeWindow {
+  STimeWindow tw;
+  int32_t     resWinIdx;
+} SExtWinTimeWindow;
+
+
+typedef enum ESubQueryType {
+  E_SUB_QUERY_NOT_SET = 0,
+  E_SUB_QUERY_SCALAR = 1,
+  E_SUB_QUERY_COLUMN,
+  E_SUB_QUERY_TABLE,
+  E_SUB_QUERY_ROWNUM,
+  E_SUB_QUERY_ROW,
+} ESubQueryType;
+
 typedef struct SSelectStmt {
-  ENodeType     type;  // QUERY_NODE_SELECT_STMT
-  bool          isDistinct;
-  SNodeList*    pProjectionList;
-  SNode*        pFromTable;
-  SNode*        pWhere;
-  SNodeList*    pPartitionByList;
-  SNodeList*    pTags;      // for create stream
-  SNode*        pSubtable;  // for create stream
-  SNode*        pWindow;
-  SNodeList*    pGroupByList;  // SGroupingSetNode
-  SNode*        pHaving;
-  SNode*        pRange;
-  SNode*        pRangeAround;
-  SNode*        pEvery;
-  SNode*        pFill;
-  SNodeList*    pOrderByList;  // SOrderByExprNode
-  SLimitNode*   pLimit;
-  SLimitNode*   pSlimit;
-  STimeWindow   timeRange;
-  SNodeList*    pHint;
-  char          stmtName[TSDB_TABLE_NAME_LEN];
-  uint8_t       precision;
-  int32_t       selectFuncNum;
-  int32_t       returnRows;  // EFuncReturnRows
-  ETimeLineMode timeLineCurMode;
-  ETimeLineMode timeLineResMode;
-  int32_t       lastProcessByRowFuncId;
-  bool          timeLineFromOrderBy;
-  bool          isEmptyResult;
-  bool          isSubquery;
-  bool          hasAggFuncs;
-  bool          hasRepeatScanFuncs;
-  bool          hasIndefiniteRowsFunc;
-  bool          hasMultiRowsFunc;
-  bool          hasSelectFunc;
-  bool          hasSelectValFunc;
-  bool          hasOtherVectorFunc;
-  bool          hasUniqueFunc;
-  bool          hasTailFunc;
-  bool          hasInterpFunc;
-  bool          hasInterpPseudoColFunc;
-  bool          hasForecastFunc;
-  bool          hasForecastPseudoColFunc;
-  bool          hasLastRowFunc;
-  bool          hasLastFunc;
-  bool          hasTimeLineFunc;
-  bool          hasCountFunc;
-  bool          hasUdaf;
-  bool          hasStateKey;
-  bool          hasTwaOrElapsedFunc;
-  bool          onlyHasKeepOrderFunc;
-  bool          groupSort;
-  bool          tagScan;
-  bool          joinContains;
-  bool          mixSysTableAndActualTable;
+  SExprNode       node;
+  ESubQueryType   subQType;
+  EQuantifyType   quantify;
+  bool            isDistinct;
+  STimeWindow     timeRange;
+  SNode*          pTimeRange; // STimeRangeNode for create stream
+  bool            timeRangeParamDependent;
+  bool            interpRangeParamDependent;
+  bool            deferredFillAllowNoTimeRange;
+  SNodeList*      pProjectionList;
+  SNodeList*      pProjectionBindList;
+  SNode*          pFromTable;
+  SNode*          pWhere;
+  SNodeList*      pPartitionByList;
+  SNode*          pWindow;
+  SNodeList*      pWindowList;   // SNamedWindowNode
+  SNodeList*      pGroupByList;  // SGroupingSetNode
+  SNode*          pHaving;
+  SNode*          pRange;
+  SNode*          pRangeAround;
+  SNode*          pEvery;
+  SNode*          pFill;
+  SNodeList*      pOrderByList;  // SOrderByExprNode
+  SLimitNode*     pLimit;
+  SLimitNode*     pSlimit;
+  SNodeList*      pHint;
+  SNodeList*      pSubQueries;   // non table subqueries
+  char            stmtName[TSDB_TABLE_NAME_LEN];
+  uint8_t         precision;
+  int32_t         selectFuncNum;
+  int32_t         returnRows;  // EFuncReturnRows
+  ETimeLineMode   timeLineCurMode;
+  ETimeLineMode   timeLineResMode;
+  EWindowMode     windowMode;
+  int32_t         lastProcessByRowFuncId;
+  int32_t         multiRowsFuncKParam;
+  int32_t         mavgFuncKParam;          // K param for MAVG coexistence check (0 = no MAVG seen)
+  bool            hasNonLocalSubQ;
+  int32_t         timeLineFromOrderBy;
+  bool            isEmptyResult;
+  // TIME_ALIGN over a view: keep the view's whole projection list so the
+  // alignment Projection can still find the timestamp and source columns.
+  bool            keepAllProjections;
+  bool            isSubquery;
+  bool            implicitPartitionHaving;
+  bool            hasAggFuncs;
+  bool            hasRepeatScanFuncs;
+  bool            hasIndefiniteRowsFunc;
+  bool            hasMultiRowsFunc;
+  bool            hasSelectFunc;
+  bool            hasSelectValFunc;
+  bool            hasOtherVectorFunc;
+  bool            hasUniqueFunc;
+  bool            hasTailFunc;
+  bool            hasInterpFunc;
+  bool            hasInterpPseudoColFunc;
+  bool            hasForecastFunc;
+  bool            hasForecastPseudoColFunc;
+  bool            hasGenericAnalysisFunc;
+  bool            hasLastRowFunc;
+  bool            hasLastFunc;
+  bool            hasTimeLineFunc;
+  bool            hasCountFunc;
+  bool            hasUdaf;
+  bool            hasStateKey;
+  bool            hasTwaOrElapsedFunc;
+  bool            onlyHasKeepOrderFunc;
+  bool            groupSort;
+  bool            tagScan;
+  bool            joinContains;
+  bool            hasWhereCond;
+  bool            mixSysTableAndActualTable;
+  bool            hasScalarExpr;
+  bool            windowScalarMode;
+  // FQ: when this SELECT is the inner statement of a subquery expression
+  // (IN/EXISTS/scalar/ALL/ANY/SOME), this holds the user's ORIGINAL subquery
+  // SQL substring (inner query without outer parentheses), captured at parse
+  // time from SRawExprNode.  Heap-allocated; owned by this node.
+  char*           pOrigSubquerySql;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
 
 typedef struct SSetOperator {
-  ENodeType        type;  // QUERY_NODE_SET_OPERATOR
+  SExprNode        node;
   ESetOperatorType opType;
+  ESubQueryType    subQType;
+  EQuantifyType    quantify;
+  SNodeList*       pSubQueries;   // non table subqueries
   SNodeList*       pProjectionList;
+  // Flattened operands for a consecutive chain using this node's opType.
+  SNodeList*       pOperands;
   SNode*           pLeft;
   SNode*           pRight;
   SNodeList*       pOrderByList;  // SOrderByExprNode
@@ -497,12 +1144,30 @@ typedef struct SSetOperator {
   ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
+  // FQ: original subquery SQL substring when this set-operator is the inner
+  // statement of a subquery expression.  See SSelectStmt.pOrigSubquerySql.
+  char*            pOrigSubquerySql;
 } SSetOperator;
+
+static inline int32_t setOperatorChildCount(const SSetOperator* pSet) {
+  if (pSet == NULL) return 0;
+  if (pSet->pOperands != NULL) return pSet->pOperands->length;
+  return (pSet->pLeft != NULL ? 1 : 0) + (pSet->pRight != NULL ? 1 : 0);
+}
+
+static inline SNode* setOperatorChildAt(const SSetOperator* pSet, int32_t index) {
+  if (pSet == NULL || index < 0) return NULL;
+  if (pSet->pOperands != NULL) return nodesListGetNode(pSet->pOperands, index);
+  if (index == 0) return pSet->pLeft;
+  if (index == 1) return pSet->pRight;
+  return NULL;
+}
 
 typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_EXT_WINDOW,
   SQL_CLAUSE_WINDOW,
   SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,
@@ -512,6 +1177,40 @@ typedef enum ESqlClause {
   SQL_CLAUSE_ORDER_BY
 } ESqlClause;
 
+typedef struct SCorrelationTableRef {
+  int64_t tableRefId;  // Identifies a FROM instance, not the catalog table UID.
+  int32_t scopeId;
+  char    tableAlias[TSDB_TABLE_NAME_LEN];
+} SCorrelationTableRef;
+
+typedef struct SCorrelationBinding {
+  int64_t   bindingId;
+  int32_t   scopeId;
+  int64_t   tableRefId;   // Zero for an aggregate result.
+  int64_t   aggregateId;  // Zero for a table column.
+  col_id_t  colId;
+  SDataType dataType;
+} SCorrelationBinding;
+
+typedef struct SCorrelationAggregate {
+  int64_t    aggregateId;
+  ESqlClause clause;  // Checked in the aggregate's owning scope.
+  SNode*     pExpr;   // Owned complete aggregate expression.
+} SCorrelationAggregate;
+
+// Owned by one translation context (P02), never shared mutable runtime state.
+// All identities are stable values; AST addresses and currLevel are not keys.
+typedef struct SCorrelationScope {
+  int32_t    scopeId;
+  int32_t    parentScopeId;  // Zero at the root.
+  ESqlClause clause;        // Clause in the parent containing this query block.
+  int64_t    exprId;        // Zero at the root.
+  SArray*    pTableRefs;     // Owned SCorrelationTableRef entries.
+  SArray*    pBindings;      // Owned SCorrelationBinding entries.
+  SArray*    pFreeBindings;  // Owned ancestor SCorrelationBinding entries.
+  SArray*    pAggregates;    // Owned SCorrelationAggregate entries/expressions.
+} SCorrelationScope;
+
 typedef struct SDeleteStmt {
   ENodeType   type;        // QUERY_NODE_DELETE_STMT
   SNode*      pFromTable;  // FROM clause
@@ -519,10 +1218,12 @@ typedef struct SDeleteStmt {
   SNode*      pCountFunc;  // count the number of rows affected
   SNode*      pFirstFunc;  // the start timestamp when the data was actually deleted
   SNode*      pLastFunc;   // the end timestamp when the data was actually deleted
-  SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
+  SNode*      pTagCond;       // pWhere divided into pTagCond, pColumnFilter and timeRange
+  SNode*      pColumnFilter;  // ordinary(non-pk, non-tag) column filter, NULL if not used
   STimeWindow timeRange;
   uint8_t     precision;
   bool        deleteZeroRows;
+  int8_t      secureDelete;  // force physical overwrite (from SECURE_DELETE keyword)
 } SDeleteStmt;
 
 typedef struct SInsertStmt {
@@ -561,10 +1262,12 @@ typedef struct SVnodeModifyOpStmt {
   const char*           pBoundCols;
   struct STableMeta*    pTableMeta;
   SNode*                pTagCond;
+  SArray*               pPrivCols;  // SArray<SColNameFlag*> for column-level privileges check
   SArray*               pTableTag;
   SHashObj*             pVgroupsHashObj;     // SHashObj<vgId, SVgInfo>
   SHashObj*             pTableBlockHashObj;  // SHashObj<tuid, STableDataCxt*>
   SHashObj*             pSubTableHashObj;    // SHashObj<table_name, STableMeta*>
+  SHashObj*             pSuperTableHashObj;  // SHashObj<table_name, STableMeta*>
   SHashObj*             pTableNameHashObj;   // set of table names for refreshing meta, sync mode
   SHashObj*             pDbFNameHashObj;     // set of db names for refreshing meta, sync mode
   SHashObj*             pTableCxtHashObj;    // temp SHashObj<tuid, STableDataCxt*> for single request
@@ -583,6 +1286,9 @@ typedef struct SVnodeModifyOpStmt {
   struct SCreateTbInfo*     pCreateTbInfo;
   struct SParseFileContext* pParFileCxt;
   FDestroyParseFileContext  destroyParseFileCxt;
+
+  // CSV parser for resuming batch processing
+  struct SCsvParser* pCsvParser;
 } SVnodeModifyOpStmt;
 
 typedef struct SExplainOptions {
@@ -623,23 +1329,26 @@ typedef struct SQuery {
   ENodeType       type;
   EQueryExecStage execStage;
   EQueryExecMode  execMode;
+  int32_t         msgType;
+  int32_t         numOfResCols;
+  int32_t         placeholderNum;
+  int8_t          precision;
   bool            haveResultSet;
+  bool            hasMySqlContextFunc;  // Requires the execution-time statement clock or connection timezone.
+  bool            showRewrite;
+  int8_t          xnodeDsnOutputMode;
+  bool            stableQuery;
   SNode*          pPrevRoot;
   SNode*          pRoot;
   SNode*          pPostRoot;
-  int32_t         numOfResCols;
   SSchema*        pResSchema;
-  int8_t          precision;
   SCmdMsgInfo*    pCmdMsg;
-  int32_t         msgType;
   SArray*         pTargetTableList;
   SArray*         pTableList;
   SArray*         pDbList;
-  bool            showRewrite;
-  int32_t         placeholderNum;
   SArray*         pPlaceholderValues;
   SNode*          pPrepareRoot;
-  bool            stableQuery;
+  SExtSchema*     pResExtSchema;
 } SQuery;
 
 void nodesWalkSelectStmtImpl(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
@@ -652,6 +1361,8 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
 int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashObj* pMultiTableAlias,
                                ECollectColType type, SNodeList** pCols);
 int32_t nodesCollectColumnsFromNode(SNode* node, const char* pTableAlias, ECollectColType type, SNodeList** pCols);
+int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, const char* pTableAlias,
+                                          ECollectColType type, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, char* tableAlias, FFuncClassifier classifier,
@@ -665,6 +1376,7 @@ bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
+bool nodesIsBasicArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
@@ -673,17 +1385,56 @@ bool nodesIsBitwiseOp(const SOperatorNode* pOp);
 
 bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
+bool nodesExprHasCorrelation(SNode* pNode);
+bool nodesExprsHasCorrelation(SNodeList* pList);
+
+typedef struct SExternalBindingContext {
+  int8_t bindingKind;
+  const char* timeColumn;
+} SExternalBindingContext;
+
+int32_t nodesValidateExternalFilterEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                      SNode* pFilterCond, timezone_t timezone, void* charsetCxt,
+                                      char* pMsg, int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                      const SExternalBindingContext* pBinding);
+int32_t nodesValidateExternalFilterCurrentMetaEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                                 const char* pFilterCondJson, int32_t filterCondLen,
+                                                 timezone_t timezone, void* charsetCxt, char* pMsg,
+                                                 int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                                 const SExternalBindingContext* pBinding);
+
+// Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+                                    timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
+                                    int32_t* pTsPrimaryKeyIndex);
+
+// Revalidate a saved filter against current metadata without changing the saved JSON.
+// A non-relational source without a filter succeeds with a timestamp index of -1.
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
+                                               void* charsetCxt, char* pMsg, int32_t msgLen,
+                                               int32_t* pTsPrimaryKeyIndex);
+
+// Restore saved timestamp strings for remote SQL, or all original literals for SHOW CREATE replay.
+int32_t nodesRestoreExternalFilterLiterals(SNode** ppFilterCond, bool forDdl);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
+int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+// Convert a literal into datum/typeData; callers retain responsibility for resType and translate.
+int32_t nodesConvertValueLiteral(SValueNode* pValue, SDataType targetType, void* charsetCxt, bool strict);
+// Release nested resources owned by a value node without freeing its storage.
+void    nodesClearValueNode(SValueNode* pValue);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
+int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromInt32(int32_t value, SNode** ppNode);
 int32_t nodesMakeValueNodeFromInt64(int64_t value, SNode** ppNode);
+int32_t nodesMakeValueNodeFromTimestamp(int64_t value, SNode** ppNode);
 
-char*   nodesGetFillModeString(EFillMode mode);
+    char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
 
 const char* operatorTypeStr(EOperatorType type);
@@ -692,11 +1443,52 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
 
+// Composite primary keys are stored in (ts, pk) lexicographic order. The planner
+// (sortInputProvesFullOrder) and the executor (sortHasTsPkStorageOrder) must
+// agree on this key shape, so both use this predicate instead of keeping copies
+// that can drift. The planner layers its storage-proof prerequisites on top.
+bool queryNodeSortKeysAreAscPrimTsPk(SNodeList* pKeys);
+
 char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);
 int32_t mergeJoinConds(SNode** ppDst, SNode** ppSrc);
 
+void rewriteExprAliasName(SExprNode* pNode, int64_t num);
+bool isRelatedToOtherExpr(SExprNode* pExpr);
+bool nodesContainsColumn(SNode* pNode);
+int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
+int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
+SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
+
+// nodesRenderCorrelatedExistsBody  -  render the body SQL of a correlated EXISTS
+// subquery that can be pushed down to an external data source.
+//
+// pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
+//                pExtTableNode set).
+// sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
+// ppSQL        : OUT  -  heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Column references in the WHERE clause are rendered as "tableName"."colName"
+// so that the generated SQL is self-contained and can be embedded in a correlated
+// EXISTS clause of the outer query.
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
+                                        int8_t             sourceType,
+                                        char**             ppSQL);
+
+// nodesRenderInSubqueryBody - render the body SQL of an uncorrelated IN (subquery)
+// for same-source MySQL/PG pushdown.
+//
+// pInnerSelect : the inner SSelectStmt (single projection, FROM an ext table).
+// sourceType   : EExtSourceType value (MySQL or PostgreSQL).
+// ppSQL        : OUT - heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
+                                  int8_t             sourceType,
+                                  char**             ppSQL);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -55,6 +57,13 @@ void mndCleanupAcct(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   int32_t  code = 0;
+
+  SAcctObj *pExist = (SAcctObj *)sdbAcquire(pMnode->pSdb, SDB_ACCT, TSDB_DEFAULT_USER);
+  if (pExist != NULL) {
+    sdbRelease(pMnode->pSdb, pExist);
+    TAOS_RETURN(0);
+  }
+
   SAcctObj acctObj = {0};
   tstrncpy(acctObj.acct, TSDB_DEFAULT_USER, TSDB_USER_LEN);
   acctObj.createdTime = taosGetTimestampMs();
@@ -228,7 +237,7 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
 
 static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT);
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_ACCT);
   if (code != 0) {
     TAOS_RETURN(code);
   }
@@ -240,7 +249,7 @@ static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT);
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ALTER_ACCT);
   if (code != 0) {
     TAOS_RETURN(code);
   }
@@ -252,7 +261,8 @@ static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
   int32_t code = 0;
-  if ((code = mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT)) != 0) {
+  code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_DROP_ACCT);
+  if (code != 0) {
     TAOS_RETURN(code);
   }
 

@@ -1,0 +1,7866 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <atomic>
+#include <cerrno>
+#include <chrono>
+#include <condition_variable>
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <deque>
+#include <functional>
+#include <initializer_list>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
+
+#include "cJSON.h"
+#include "cmdnodes.h"
+#include "dataSink.h"
+#include "dataSinkInt.h"
+#include "dataSinkMgt.h"
+#include "dynqueryctrl.h"
+#include "operator.h"
+#include "querytask.h"
+#include "scalar.h"
+#include "snode.h"
+#include "stream.h"
+#include "streamInt.h"
+#include "streamRunner.h"
+#include "streamTaskStats.h"
+#include "stub.h"
+#include "tdatablock.h"
+#include "tglobal.h"
+
+extern "C" {
+#include "tcurl.h"
+
+extern SHashObj *gStreamGrpTableHash;
+int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg *pMsg, SStreamTask *pTask, SStreamTaskStats *pStats);
+int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
+int32_t sndTestBuildStreamFetchRsp(SSDataBlock *pBlock, const SStreamRunnerFetchFrame *pFrame, void **data,
+                                   size_t *size, int8_t precision, bool finished);
+int32_t exchangeTestSerializeStreamFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, int32_t msgType,
+                                            bool needStreamRtInfo, bool needStreamGrpInfo);
+}
+
+namespace {
+
+int64_t packRunnerLineage(int32_t winOutIdx, int32_t rowStartIdx) {
+  return (static_cast<int64_t>(rowStartIdx) << 32) | static_cast<uint32_t>(winOutIdx);
+}
+
+struct RunnerCallState {
+  struct FetchObservation {
+    int64_t publishedGid = 0;
+    int64_t blockBaseGid = 0;
+    int64_t blockGroupId = 0;
+    int64_t rows = 0;
+    bool    eog = false;
+    bool    finished = false;
+  };
+
+  struct SettlementAliases {
+    int64_t       gid = 0;
+    SArray       *pParams = nullptr;
+    SArray       *pGroupCols = nullptr;
+    int8_t       *pCreateTable = nullptr;
+    int32_t       rollupTbCount = 0;
+    int8_t        precision = 0;
+    const SArray *pForceOutputCols = nullptr;
+  };
+
+  struct NotificationIdentity {
+    int64_t     gid = 0;
+    std::string tbname;
+    std::string triggerTableName;
+    TSKEY       wstart = 0;
+    TSKEY       wend = 0;
+  };
+
+  struct TagIdentity {
+    std::string name;
+    int8_t      type = TSDB_DATA_TYPE_NULL;
+    bool        isNull = true;
+    int64_t     value = 0;
+  };
+
+  int32_t                                  resetCalls = 0;
+  int32_t                                  buildCalls = 0;
+  int32_t                                  setTaskIdCalls = 0;
+  int32_t                                  executeCalls = 0;
+  int32_t                                  forceOutputCalls = 0;
+  int32_t                                  sinkCalls = 0;
+  int32_t                                  notifyCalls = 0;
+  int32_t                                  notifyTargets = 0;
+  int32_t                                  sinkCode = TSDB_CODE_SUCCESS;
+  int32_t                                  notifyCode = TSDB_CODE_SUCCESS;
+  int32_t                                  notifyBuildCode = TSDB_CODE_SUCCESS;
+  int32_t                                  forceOutputCode = TSDB_CODE_SUCCESS;
+  int32_t                                  notifyBuildCalls = 0;
+  int32_t                                  requiredNotifyAttempts = 0;
+  bool                                     sinkBlockIsNull = false;
+  bool                                     autoCreateTable = false;
+  int64_t                                  groupId = 0;
+  int64_t                                  monotonicUs = 1000;
+  char                                     tableName[TSDB_TABLE_NAME_LEN] = {0};
+  std::vector<int32_t>                     executeCodes;
+  std::vector<int64_t>                     executeReadyTimes;
+  std::vector<bool>                        executeFinished;
+  std::vector<SSDataBlock *>               executeBlocks;
+  std::vector<int32_t>                     executeOutIndexes;
+  std::vector<int32_t>                     resetAtExecuteCalls;
+  std::vector<int64_t>                     executeGroupIds;
+  std::vector<int64_t>                     sinkGroupIds;
+  std::vector<std::string>                 sinkTableNames;
+  std::vector<int32_t>                     sinkRollupCounts;
+  std::vector<SArray *>                    sinkGroupCols;
+  std::vector<int64_t>                     sinkGroupValues;
+  std::vector<std::vector<TagIdentity>>    sinkTags;
+  std::vector<int64_t>                     calculatedTagGids;
+  std::vector<int64_t>                     calculatedTableNameGids;
+  std::vector<int64_t>                     forceOutputGroupIds;
+  std::vector<int32_t>                     forceOutputWinIndexes;
+  std::vector<int64_t>                     forceOutputRuntimeWinIndexes;
+  std::vector<int32_t>                     forceOutputAtExecuteCalls;
+  std::vector<NotificationIdentity>        notificationIdentities;
+  std::vector<SettlementAliases>           settlementAliases;
+  std::vector<SSHashObj *>                 executeCalcOwners;
+  std::vector<SSHashObj *>                 executeReadOwners;
+  std::vector<SStreamContextFrames *>      executeFrameOwners;
+  std::vector<TSKEY>                       executeAncestorStarts;
+  std::vector<TSKEY>                       executeAncestorCurrentTs;
+  std::vector<SStreamContextPolicy *>      executeContextOwners;
+  std::vector<SStreamAncestorContext *>    executeAncestorOwners;
+  std::vector<std::vector<uint64_t>>       executeGroupOrders;
+  std::vector<bool>                        executeMultiGroupFlags;
+  std::vector<uint64_t>                    outputRounds;
+  std::vector<bool>                        autoCreateTableCalls;
+  std::vector<const SSDataBlock *>         sinkBlocks;
+  std::vector<int32_t>                     notifyBuildCodes;
+  std::vector<int32_t>                     requiredNotifyCodes;
+  std::vector<SArray *>                    executeWindowIndexes;
+  SArray                                  *pDefaultWindowIndexes = nullptr;
+  bool                                     installCurrentGroupRead = false;
+  SArray                                  *installedCurrentGroupRead = nullptr;
+  std::vector<SArray *>                    executeCurrentGroupReads;
+  std::vector<EStreamGroupReadOwnership>   executeCurrentGroupReadOwnerships;
+  bool                                     observeExecLists = false;
+  SStreamRunnerTaskExecMgr                *pExecMgr = nullptr;
+  std::vector<int32_t>                     executeFreeExecCounts;
+  std::vector<int32_t>                     executeRunningExecCounts;
+  std::vector<SListNode *>                 executeRunningExecNodes;
+  std::vector<int32_t>                     resetFreeExecCounts;
+  std::vector<int32_t>                     resetRunningExecCounts;
+  std::vector<SListNode *>                 resetRunningExecNodes;
+  SStreamRuntimeInfo                      *pRuntimeInfo = nullptr;
+  std::vector<std::pair<int64_t, int64_t>> executeBlockingIntervals;
+  std::vector<FetchObservation>            fetchObservations;
+};
+
+RunnerCallState          gCalls;
+std::vector<uint8_t>     gRunnerFetchBatchPayload;
+std::vector<std::string> gRunnerDebugLogs;
+std::atomic<bool>        gBlockRunnerPeriodLog{false};
+std::atomic<bool>        gRunnerPeriodLogEntered{false};
+std::atomic<bool>        gBlockRunnerExecute{false};
+std::atomic<bool>        gRunnerExecuteEntered{false};
+std::atomic<int32_t>     gRunnerUndeployCalls{0};
+SStreamRunnerTask       *gRunnerQuitTask = nullptr;
+int32_t                  gRunnerQuitAfterExecuteCalls = 0;
+bool                     gRunnerQuitLockTaken = false;
+std::vector<int32_t>     gRunnerDestroyEvents;
+SStreamRuntimeInfo      *gRunnerDestroyRuntime = nullptr;
+bool                     gRunnerDestroySawOwners = false;
+bool                     gRunnerDestroySawFrames = false;
+bool                     gRunnerDestroySawPrepared = false;
+bool                     gRunnerMultiGroupJoinProtocol = true;
+constexpr int64_t        kMockExecutorMemoryBytes = 4096;
+
+struct RunnerRotationInterleave {
+  int32_t                   calls = 0;
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  bool                      rotated = false;
+  SStreamTaskPeriodSnapshot snapshot = {};
+};
+
+RunnerRotationInterleave gRunnerRotationInterleave;
+
+void captureRunnerDebugLog(const char *, int32_t, int32_t, const char *format, ...) {
+  char    buffer[4096] = {0};
+  va_list args;
+  va_start(args, format);
+  int32_t len = vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+  if (len >= 0 && len < sizeof(buffer)) gRunnerDebugLogs.emplace_back(buffer);
+  if (strstr(buffer, "record=task_period task_type=runner") != nullptr) {
+    gRunnerPeriodLogEntered.store(true);
+    while (gBlockRunnerPeriodLog.load()) std::this_thread::yield();
+  }
+}
+
+void captureRunnerUndeploy(void *) { ++gRunnerUndeployCalls; }
+
+int32_t mockQAsyncKillTask(qTaskInfo_t, int32_t) { return TSDB_CODE_SUCCESS; }
+
+std::atomic<int32_t> gRunnerMemorySampleCalls{0};
+int32_t gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
+
+int32_t mockQGetTaskMemorySize(qTaskInfo_t task, int64_t *pBytes) {
+  ++gRunnerMemorySampleCalls;
+  if (task == nullptr || pBytes == nullptr) return TSDB_CODE_INVALID_PARA;
+  if (gRunnerMemorySampleCode != TSDB_CODE_SUCCESS) return gRunnerMemorySampleCode;
+  *pBytes = kMockExecutorMemoryBytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+void mockStreamDestroyExecTask(qTaskInfo_t) {
+  gRunnerDestroyEvents.push_back(1);
+  gRunnerDestroySawFrames = gRunnerDestroyRuntime != nullptr && gRunnerDestroyRuntime->pContextFrames != nullptr;
+  gRunnerDestroySawPrepared =
+      gRunnerDestroyRuntime != nullptr && gRunnerDestroyRuntime->pPreparedFetchContext != nullptr;
+  gRunnerDestroySawOwners = gRunnerDestroyRuntime != nullptr &&
+                            gRunnerDestroyRuntime->funcInfo.pGroupCalcInfos != nullptr &&
+                            gRunnerDestroyRuntime->funcInfo.pGroupReadInfos != nullptr;
+}
+
+void mockDsDestroyDataSinker(DataSinkHandle) { gRunnerDestroyEvents.push_back(2); }
+
+void rotateOnRunnerGaugeUpdate(SStreamTaskStats *pStats, int64_t, int64_t, int64_t) {
+  ++gRunnerRotationInterleave.calls;
+  gRunnerRotationInterleave.code = stTaskStatsRotatePeriod(
+      pStats, STREAM_STATS_PERIOD_US + 1, &gRunnerRotationInterleave.snapshot, &gRunnerRotationInterleave.rotated);
+}
+
+int32_t failRunnerStatsLog(SStreamRunnerTask *, const SStreamTaskPeriodSnapshot *) { return TSDB_CODE_FAILED; }
+
+class ScopedRunnerDebugLogCapture {
+ public:
+  ScopedRunnerDebugLogCapture() : previousDebugFlag_(stDebugFlag) {
+    gRunnerDebugLogs.clear();
+    stub_.set(taosPrintLog, captureRunnerDebugLog);
+    stDebugFlag = previousDebugFlag_ | DEBUG_DEBUG | DEBUG_FILE;
+  }
+
+  ~ScopedRunnerDebugLogCapture() {
+    stDebugFlag = previousDebugFlag_;
+    gRunnerDebugLogs.clear();
+  }
+
+ private:
+  Stub    stub_;
+  int32_t previousDebugFlag_;
+};
+
+class ScopedQueryDebugFlag {
+ public:
+  explicit ScopedQueryDebugFlag(bool enable) : previousFlag_(qDebugFlag) {
+    qDebugFlag = enable ? (previousFlag_ | DEBUG_DEBUG) : (previousFlag_ & ~DEBUG_DEBUG);
+  }
+
+  ~ScopedQueryDebugFlag() { qDebugFlag = previousFlag_; }
+
+ private:
+  int32_t previousFlag_;
+};
+
+SSDataBlock             *gRunnerResultBlock = nullptr;
+std::vector<int32_t>     gRunnerSinkCodes;
+std::vector<std::string> gRunnerNotifyPayloads;
+
+enum class RunnerPostAdmissionMappingMutation { None, RemoveTarget, DuplicateTarget };
+
+RunnerPostAdmissionMappingMutation gRunnerPostAdmissionMappingMutation = RunnerPostAdmissionMappingMutation::None;
+SStreamAncestorContext            *gRunnerPostAdmissionContext = nullptr;
+bool                               gRunnerPostAdmissionMutationApplied = false;
+int32_t                            gRunnerPostAdmissionMutationCode = TSDB_CODE_SUCCESS;
+
+void applyRunnerPostAdmissionMappingMutation();
+
+struct CacheResponseState {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t msgType = 0;
+  int32_t contLen = 0;
+  bool    contentIsNull = true;
+};
+
+int32_t              gResponseCode = TSDB_CODE_SUCCESS;
+std::atomic<int32_t> gCalcResponseCount{0};
+CacheResponseState   gCacheResponse;
+std::vector<int32_t> gCacheResponseValues;
+int32_t              gRunnerFetchResponseCount = 0;
+int8_t               gRunnerFetchResponseCompleted = -1;
+std::vector<int8_t>  gRunnerFetchResponseTypes;
+int32_t              gStrictResponseBlockSize = 0;
+int32_t              gStrictResponseAllocationCalls = 0;
+
+int32_t mockRpcSendResponse(const SRpcMsg *pMsg) {
+  if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) ++gCalcResponseCount;
+  gResponseCode = pMsg->code;
+  if (pMsg->msgType == TDMT_STREAM_FETCH_FROM_RUNNER_RSP && pMsg->code == TSDB_CODE_SUCCESS && pMsg->pCont != nullptr) {
+    const auto *response = static_cast<const SRetrieveTableRsp *>(pMsg->pCont);
+    ++gRunnerFetchResponseCount;
+    gRunnerFetchResponseCompleted = response->completed;
+    gRunnerFetchResponseTypes.push_back(response->streamBlockType);
+    if (response->streamBlockType == STREAM_RUNNER_FETCH_BATCH) {
+      const int32_t payloadLen = ntohl(response->payloadLen);
+      EXPECT_EQ(pMsg->contLen, sizeof(SRetrieveTableRsp) + payloadLen);
+      gRunnerFetchBatchPayload.assign(response->data, response->data + payloadLen);
+    }
+  }
+  if (pMsg->msgType == TDMT_STREAM_FETCH_FROM_CACHE_RSP) {
+    gCacheResponse.code = pMsg->code;
+    gCacheResponse.msgType = pMsg->msgType;
+    gCacheResponse.contLen = pMsg->contLen;
+    gCacheResponse.contentIsNull = pMsg->pCont == nullptr;
+  }
+  if (pMsg->msgType == TDMT_STREAM_FETCH_FROM_CACHE_RSP && pMsg->code == TSDB_CODE_SUCCESS && pMsg->pCont != nullptr) {
+    const auto *response = static_cast<const SRetrieveTableRsp *>(pMsg->pCont);
+    if (be64toh(response->numOfRows) > 0) {
+      auto *block = static_cast<SSDataBlock *>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+      EXPECT_NE(nullptr, block);
+      if (block != nullptr) {
+        EXPECT_EQ(TSDB_CODE_SUCCESS, blockDecodeInternal(block, response->data + INT_BYTES * 2, nullptr));
+        if (taosArrayGetSize(block->pDataBlock) > 1) {
+          const auto *values = static_cast<const SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+          for (int32_t row = 0; row < block->info.rows; ++row) {
+            gCacheResponseValues.push_back(*reinterpret_cast<const int32_t *>(colDataGetData(values, row)));
+          }
+        }
+        blockDataDestroy(block);
+      }
+    }
+  }
+  rpcFreeCont(pMsg->pCont);
+  return TSDB_CODE_SUCCESS;
+}
+
+void *failRpcMallocCont(int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+int32_t mockStrictResponseBlockSize(const SSDataBlock *) { return gStrictResponseBlockSize; }
+
+void *recordStrictResponseAllocation(int64_t) {
+  ++gStrictResponseAllocationCalls;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+int32_t failCacheMaintenance(bool) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t rejectScopedCacheLease(int64_t, int64_t, int64_t, SStreamDataCacheLease **, void **) {
+  return TSDB_CODE_INVALID_PARA;
+}
+
+int32_t mockStreamClearStatesForOperators(qTaskInfo_t) {
+  ++gCalls.resetCalls;
+  gCalls.resetAtExecuteCalls.push_back(gCalls.executeCalls);
+  if (gCalls.observeExecLists && gCalls.pExecMgr != nullptr) {
+    gCalls.resetFreeExecCounts.push_back(listNEles(gCalls.pExecMgr->pFreeExecs));
+    gCalls.resetRunningExecCounts.push_back(listNEles(gCalls.pExecMgr->pRunningExecs));
+    gCalls.resetRunningExecNodes.push_back(tdListGetHead(gCalls.pExecMgr->pRunningExecs));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+struct RunnerResetState {
+  int32_t calls = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+};
+
+int32_t resetRunnerOperator(SOperatorInfo *pOperator) {
+  auto *pState = static_cast<RunnerResetState *>(pOperator->info);
+  ++pState->calls;
+  return pState->code;
+}
+
+int32_t mockStreamExecuteTask(qTaskInfo_t, SSDataBlock **ppBlock, bool *pFinished) {
+  const size_t index = static_cast<size_t>(gCalls.executeCalls++);
+  if (gBlockRunnerExecute.load()) {
+    gRunnerExecuteEntered.store(true);
+    while (gBlockRunnerExecute.load()) std::this_thread::yield();
+  }
+  if (gCalls.pRuntimeInfo != nullptr && gCalls.installCurrentGroupRead && index == 0) {
+    SArray *pView = taosArrayInit(3, sizeof(SSTriggerGroupReadInfo));
+    if (pView == nullptr) return terrno;
+    for (const int64_t gid : {202, 101, 303}) {
+      SSTriggerGroupReadInfo read = {};
+      read.gid = gid;
+      read.firstParam.wstart = gid;
+      read.lastParam.wend = gid + 1;
+      if (taosArrayPush(pView, &read) == nullptr) {
+        taosArrayDestroy(pView);
+        return terrno;
+      }
+    }
+    gCalls.pRuntimeInfo->funcInfo.curGrpRead = pView;
+    gCalls.pRuntimeInfo->funcInfo.curGrpReadOwnership = STREAM_GRP_READ_OWNED_SHALLOW_VIEW;
+    gCalls.installedCurrentGroupRead = pView;
+  }
+  if (gCalls.pRuntimeInfo != nullptr) {
+    gCalls.executeCurrentGroupReads.push_back(gCalls.pRuntimeInfo->funcInfo.curGrpRead);
+    gCalls.executeCurrentGroupReadOwnerships.push_back(gCalls.pRuntimeInfo->funcInfo.curGrpReadOwnership);
+  }
+  if (gCalls.observeExecLists && gCalls.pExecMgr != nullptr) {
+    gCalls.executeFreeExecCounts.push_back(listNEles(gCalls.pExecMgr->pFreeExecs));
+    gCalls.executeRunningExecCounts.push_back(listNEles(gCalls.pExecMgr->pRunningExecs));
+    gCalls.executeRunningExecNodes.push_back(tdListGetHead(gCalls.pExecMgr->pRunningExecs));
+  }
+  if (gCalls.pRuntimeInfo != nullptr) {
+    gCalls.executeCalcOwners.push_back(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos);
+    gCalls.executeReadOwners.push_back(gCalls.pRuntimeInfo->funcInfo.pGroupReadInfos);
+    gCalls.executeContextOwners.push_back(gCalls.pRuntimeInfo->funcInfo.pContextPolicy);
+    gCalls.executeFrameOwners.push_back(gCalls.pRuntimeInfo->pContextFrames);
+    const SStreamAncestorParamContext *ancestor = nullptr;
+    if (gCalls.pRuntimeInfo->funcInfo.pAncestorContext != nullptr &&
+        tLookupStreamAncestorParam(gCalls.pRuntimeInfo->funcInfo.pAncestorContext, 101, 0, &ancestor) == 0 &&
+        ancestor != nullptr) {
+      gCalls.executeAncestorStarts.push_back(
+          static_cast<SScopeInstanceId *>(taosArrayGet(ancestor->leafIdentity.lineage.pScopes, 0))->openingTs);
+      gCalls.executeAncestorCurrentTs.push_back(
+          static_cast<SWindowAncestorSnapshot *>(taosArrayGet(ancestor->pSnapshots, 0))->values.sliding.currentTs);
+    }
+    gCalls.executeAncestorOwners.push_back(gCalls.pRuntimeInfo->funcInfo.pAncestorContext);
+    if (gCalls.executeGroupOrders.empty()) {
+      const SArray         *pOrder = gCalls.pRuntimeInfo->funcInfo.pGroupCalcOrder;
+      std::vector<uint64_t> order;
+      for (int32_t i = 0; pOrder != nullptr && i < taosArrayGetSize(pOrder); ++i) {
+        order.push_back(*static_cast<const uint64_t *>(taosArrayGet(pOrder, i)));
+      }
+      gCalls.executeGroupOrders.push_back(std::move(order));
+      gCalls.executeMultiGroupFlags.push_back(gCalls.pRuntimeInfo->funcInfo.isMultiGroupCalc);
+    }
+  }
+  if (gCalls.pRuntimeInfo != nullptr && gCalls.pRuntimeInfo->blockingStatsFp != nullptr) {
+    for (const auto &interval : gCalls.executeBlockingIntervals) {
+      gCalls.monotonicUs = interval.first;
+      gCalls.pRuntimeInfo->blockingStatsFp(gCalls.pRuntimeInfo->pBlockingStatsParam, true);
+      gCalls.monotonicUs = interval.second;
+      gCalls.pRuntimeInfo->blockingStatsFp(gCalls.pRuntimeInfo->pBlockingStatsParam, false);
+    }
+  }
+  if (index < gCalls.executeReadyTimes.size()) {
+    gCalls.monotonicUs = gCalls.executeReadyTimes[index];
+  }
+  if (gCalls.pRuntimeInfo != nullptr && index < gCalls.executeOutIndexes.size()) {
+    gCalls.pRuntimeInfo->funcInfo.curOutIdx = gCalls.executeOutIndexes[index];
+  }
+  if (gCalls.pRuntimeInfo != nullptr && index < gCalls.executeGroupIds.size()) {
+    const int64_t gid = gCalls.executeGroupIds[index];
+    gCalls.pRuntimeInfo->funcInfo.groupId = gid;
+    gCalls.pRuntimeInfo->funcInfo.curGrpCalc = static_cast<SSTriggerGroupCalcInfo *>(
+        tSimpleHashGet(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos, &gid, sizeof(gid)));
+  }
+  *ppBlock = index < gCalls.executeBlocks.size() ? gCalls.executeBlocks[index] : nullptr;
+  *pFinished = index < gCalls.executeFinished.size() ? gCalls.executeFinished[index] : true;
+  if (gCalls.pRuntimeInfo != nullptr && index < gCalls.executeWindowIndexes.size()) {
+    gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx = gCalls.executeWindowIndexes[index];
+  } else if (gCalls.pRuntimeInfo != nullptr && *ppBlock != nullptr && (*ppBlock)->info.rows > 0 &&
+             gCalls.pRuntimeInfo->funcInfo.isMultiGroupCalc) {
+    gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx = gCalls.pDefaultWindowIndexes;
+  } else if (gCalls.pRuntimeInfo != nullptr && qIsMultiGroupEogBlock(*ppBlock)) {
+    gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx = nullptr;
+  }
+  RunnerCallState::FetchObservation observation;
+  observation.publishedGid = gCalls.pRuntimeInfo == nullptr ? 0 : gCalls.pRuntimeInfo->funcInfo.groupId;
+  observation.blockBaseGid = *ppBlock == nullptr ? 0 : (*ppBlock)->info.id.baseGId;
+  observation.blockGroupId = *ppBlock == nullptr ? 0 : (*ppBlock)->info.id.groupId;
+  observation.rows = *ppBlock == nullptr ? 0 : (*ppBlock)->info.rows;
+  observation.eog = qIsMultiGroupEogBlock(*ppBlock);
+  observation.finished = *pFinished;
+  gCalls.fetchObservations.push_back(observation);
+  if (gRunnerQuitTask != nullptr && !gRunnerQuitLockTaken && gCalls.executeCalls == gRunnerQuitAfterExecuteCalls) {
+    gRunnerQuitLockTaken = taosWTryForceLockLatch(&gRunnerQuitTask->task.entryLock) == TSDB_CODE_SUCCESS;
+  }
+  return index < gCalls.executeCodes.size() ? gCalls.executeCodes[index] : TSDB_CODE_SUCCESS;
+}
+
+int32_t failCreateOneDataBlock(const SSDataBlock *, bool, SSDataBlock **) { return TSDB_CODE_OUT_OF_MEMORY; }
+
+int32_t mockStreamForceOutput(qTaskInfo_t, SSDataBlock **ppBlock, int32_t winIndex) {
+  ++gCalls.forceOutputCalls;
+  gCalls.forceOutputAtExecuteCalls.push_back(gCalls.executeCalls);
+  gCalls.forceOutputWinIndexes.push_back(winIndex);
+  gCalls.forceOutputGroupIds.push_back(gCalls.pRuntimeInfo == nullptr ? 0 : gCalls.pRuntimeInfo->funcInfo.groupId);
+  int64_t runtimeWinIndex = -1;
+  if (gCalls.pRuntimeInfo != nullptr && gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx != nullptr &&
+      taosArrayGetSize(gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx) > 0) {
+    runtimeWinIndex = *static_cast<int64_t *>(taosArrayGet(gCalls.pRuntimeInfo->funcInfo.pStreamBlkWinIdx, 0));
+  }
+  gCalls.forceOutputRuntimeWinIndexes.push_back(runtimeWinIndex);
+  *ppBlock = nullptr;
+  return gCalls.forceOutputCode;
+}
+
+int32_t mockDsPutDataBlock(DataSinkHandle, const SInputData *pInput, bool *pContinue) {
+  ++gCalls.sinkCalls;
+  const auto *admission = pInput->pStreamDataInserterInfo->resultAdmission;
+  gCalls.outputRounds.push_back(admission ? admission->roundId : 0);
+  gCalls.sinkBlockIsNull = pInput->pData == nullptr;
+  gCalls.autoCreateTable = pInput->pStreamDataInserterInfo->isAutoCreateTable;
+  gCalls.autoCreateTableCalls.push_back(pInput->pStreamDataInserterInfo->isAutoCreateTable);
+  gCalls.sinkBlocks.push_back(pInput->pData);
+  gCalls.groupId = pInput->pStreamDataInserterInfo->groupId;
+  gCalls.sinkGroupIds.push_back(gCalls.groupId);
+  gCalls.sinkTableNames.emplace_back(pInput->pStreamDataInserterInfo->tbName);
+  std::vector<RunnerCallState::TagIdentity> tags;
+  const SArray                             *pTagVals = pInput->pStreamDataInserterInfo->pTagVals;
+  for (int32_t i = 0; pTagVals != nullptr && i < taosArrayGetSize(pTagVals); ++i) {
+    const auto *pTag = static_cast<const SStreamTagInfo *>(taosArrayGet(pTagVals, i));
+    if (pTag == nullptr) continue;
+    RunnerCallState::TagIdentity tag;
+    tag.name = pTag->tagName;
+    tag.type = pTag->val.data.type;
+    tag.isNull = pTag->val.isNull;
+    tag.value = pTag->val.data.val;
+    tags.push_back(std::move(tag));
+  }
+  gCalls.sinkTags.push_back(std::move(tags));
+  if (gCalls.pRuntimeInfo != nullptr) {
+    const SStreamRuntimeFuncInfo      &runtime = gCalls.pRuntimeInfo->funcInfo;
+    RunnerCallState::SettlementAliases aliases;
+    aliases.gid = runtime.groupId;
+    aliases.pParams = runtime.pStreamPesudoFuncVals;
+    aliases.pGroupCols = runtime.pStreamPartColVals;
+    aliases.pCreateTable = runtime.createTable;
+    aliases.rollupTbCount = runtime.rollupTbCount;
+    aliases.precision = runtime.precision;
+    aliases.pForceOutputCols = gCalls.pRuntimeInfo->pForceOutputCols;
+    gCalls.settlementAliases.push_back(aliases);
+    gCalls.sinkRollupCounts.push_back(runtime.rollupTbCount);
+    gCalls.sinkGroupCols.push_back(runtime.pStreamPartColVals);
+    const auto *pGroupValue = runtime.pStreamPartColVals == nullptr
+                                  ? nullptr
+                                  : static_cast<const SStreamGroupValue *>(taosArrayGet(runtime.pStreamPartColVals, 0));
+    gCalls.sinkGroupValues.push_back(pGroupValue == nullptr ? 0 : pGroupValue->data.val);
+  }
+  tstrncpy(gCalls.tableName, pInput->pStreamDataInserterInfo->tbName, sizeof(gCalls.tableName));
+  *pContinue = false;
+  return gCalls.sinkCalls <= gRunnerSinkCodes.size() ? gRunnerSinkCodes[gCalls.sinkCalls - 1] : gCalls.sinkCode;
+}
+
+char gRunnerBuiltExecutor = 0;
+char gRunnerBuiltSink = 0;
+
+int32_t mockQCreateStreamExecTaskInfo(qTaskInfo_t *ppInfo, void *, SReadHandle *pReadHandle,
+                                      SStreamInserterParam *pInsertParams, int32_t, int32_t) {
+  ++gCalls.buildCalls;
+  *ppInfo = &gRunnerBuiltExecutor;
+  if (pReadHandle != nullptr) gCalls.pRuntimeInfo = static_cast<SStreamRuntimeInfo *>(pReadHandle->streamRtInfo);
+  if (pInsertParams != nullptr) pInsertParams->pSinkHandle = &gRunnerBuiltSink;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockQSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
+  ++gCalls.setTaskIdCalls;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool mockQTaskUsesMultiGroupJoinProtocol(qTaskInfo_t) { return gRunnerMultiGroupJoinProtocol; }
+
+/* Mimics the failure semantics of qCreateStreamExecTaskInfo(): it destroys the task it created and
+ * then reports the failure, so a caller can still be handed the handle of a destroyed task. */
+int32_t mockQCreateStreamExecTaskInfoFailedBuild(qTaskInfo_t *ppInfo, void *, SReadHandle *,
+                                                 SStreamInserterParam *, int32_t, int32_t) {
+  ++gCalls.buildCalls;
+  *ppInfo = &gRunnerBuiltExecutor;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t mockStreamCalcOutputTbName(SNode *, char *tbname, SStreamRuntimeFuncInfo *pRuntime) {
+  if (pRuntime == nullptr) return TSDB_CODE_INVALID_PARA;
+  gCalls.calculatedTableNameGids.push_back(pRuntime->groupId);
+  snprintf(tbname, TSDB_TABLE_NAME_LEN, "group_%" PRId64, pRuntime->groupId);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockStreamCalcTagExpr(SNode *, SScalarParam *pDst, const SStreamRuntimeFuncInfo *pRuntime) {
+  if (pDst == nullptr || pDst->columnData == nullptr || pRuntime == nullptr) return TSDB_CODE_INVALID_PARA;
+  const int64_t value = pRuntime->groupId + 5000;
+  gCalls.calculatedTagGids.push_back(pRuntime->groupId);
+  return colDataSetVal(pDst->columnData, 0, reinterpret_cast<const char *>(&value), false);
+}
+
+int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, const char *, int32_t, int64_t, int8_t,
+                                    const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *, int32_t) {
+  ++gCalls.notifyCalls;
+  gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
+  return gCalls.notifyCode;
+}
+
+int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *tbname,
+                                              const char *triggerTableName, int32_t, int64_t groupId, int8_t,
+                                              const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *pParams,
+                                              int32_t nParam, bool *pAttempted, bool *pAccepted) {
+  ++gCalls.notifyCalls;
+  gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
+  if (pParams == nullptr || nParam <= 0) {
+    *pAttempted = false;
+    *pAccepted = false;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pParams != nullptr && nParam > 0) {
+    RunnerCallState::NotificationIdentity identity;
+    identity.gid = groupId;
+    identity.tbname = tbname == nullptr ? "" : tbname;
+    identity.triggerTableName = triggerTableName == nullptr ? "" : triggerTableName;
+    identity.wstart = pParams[0].wstart;
+    identity.wend = pParams[0].wend;
+    gCalls.notificationIdentities.push_back(identity);
+  }
+  *pAttempted = true;
+  const int32_t attempt = gCalls.requiredNotifyAttempts++;
+  if (attempt < gCalls.requiredNotifyCodes.size()) {
+    const int32_t code = gCalls.requiredNotifyCodes[attempt];
+    *pAccepted = code == TSDB_CODE_SUCCESS;
+    return code;
+  }
+  *pAccepted = gCalls.notifyCode == TSDB_CODE_SUCCESS;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockStreamBuildBlockResultNotifyContent(const SStreamRunnerTask *, const SSDataBlock *, char **ppContent,
+                                                const SArray *, int32_t, int32_t, bool *pHasNotifyRows) {
+  const int32_t call = gCalls.notifyBuildCalls++;
+  const int32_t code = call < gCalls.notifyBuildCodes.size() ? gCalls.notifyBuildCodes[call] : gCalls.notifyBuildCode;
+  if (code != TSDB_CODE_SUCCESS) return code;
+  applyRunnerPostAdmissionMappingMutation();
+  if (gRunnerPostAdmissionMutationCode != TSDB_CODE_SUCCESS) return gRunnerPostAdmissionMutationCode;
+  *ppContent = taosStrdup("{}");
+  *pHasNotifyRows = true;
+  return *ppContent == nullptr ? terrno : TSDB_CODE_SUCCESS;
+}
+
+int64_t mockStreamTaskGetMonotonicUs() { return gCalls.monotonicUs; }
+
+int32_t mockRunnerExecuteTask(qTaskInfo_t, SSDataBlock **ppBlock, bool *pFinished) {
+  ++gCalls.executeCalls;
+  *ppBlock = gRunnerResultBlock;
+  *pFinished = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockRunnerForceOutput(qTaskInfo_t, SSDataBlock **ppBlock, int32_t) {
+  ++gCalls.forceOutputCalls;
+  *ppBlock = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t captureRunnerNotifyConnect(CURL **ppConn, const char *) {
+  *ppConn = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t captureRunnerNotifySend(SCURL *, const void *pBuffer, size_t len, size_t *pSent, curl_off_t, unsigned int) {
+  gRunnerNotifyPayloads.emplace_back(static_cast<const char *>(pBuffer), len);
+  *pSent = len;
+  return CURLE_OK;
+}
+
+void captureRunnerNotifyClose(void *pConn) {
+  auto *pCurl = static_cast<SCURL *>(pConn);
+  taosMemoryFreeClear(pCurl->url);
+  pCurl->pConn = nullptr;
+}
+
+std::vector<std::string> runnerNotifyTriggerIds(const std::string &payload) {
+  std::vector<std::string> result;
+  cJSON *root = cJSON_Parse(payload.c_str());
+  if (root == nullptr) {
+    ADD_FAILURE() << "invalid notification JSON: " << payload;
+    return result;
+  }
+  cJSON *streams = cJSON_GetObjectItemCaseSensitive(root, "streams");
+  cJSON *stream = cJSON_IsArray(streams) ? cJSON_GetArrayItem(streams, 0) : nullptr;
+  cJSON *events = cJSON_IsObject(stream) ? cJSON_GetObjectItemCaseSensitive(stream, "events") : nullptr;
+  if (!cJSON_IsArray(events)) {
+    ADD_FAILURE() << "notification has no events array: " << payload;
+  } else {
+    for (int32_t i = 0; i < cJSON_GetArraySize(events); ++i) {
+      cJSON *event = cJSON_GetArrayItem(events, i);
+      cJSON *triggerId = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "triggerId") : nullptr;
+      if (!cJSON_IsString(triggerId)) {
+        ADD_FAILURE() << "notification event has no string triggerId: " << payload;
+        result.clear();
+        break;
+      }
+      result.emplace_back(cJSON_GetStringValue(triggerId));
+    }
+  }
+  cJSON_Delete(root);
+  return result;
+}
+
+std::string runnerNotifyTriggerId(const std::string &payload) {
+  const std::vector<std::string> triggerIds = runnerNotifyTriggerIds(payload);
+  return triggerIds.empty() ? std::string() : triggerIds.front();
+}
+
+struct RunnerNestedNotificationIdentity {
+  int64_t     gid = 0;
+  std::string tbname;
+  TSKEY       wstart = 0;
+  TSKEY       wend = 0;
+  std::string triggerId;
+  std::string lineageMarker;
+};
+
+RunnerNestedNotificationIdentity runnerNestedNotificationIdentity(const std::string &payload) {
+  RunnerNestedNotificationIdentity identity;
+  cJSON                           *root = cJSON_Parse(payload.c_str());
+  if (root == nullptr) {
+    ADD_FAILURE() << "invalid notification JSON: " << payload;
+    return identity;
+  }
+  cJSON *streams = cJSON_GetObjectItemCaseSensitive(root, "streams");
+  cJSON *stream = cJSON_IsArray(streams) ? cJSON_GetArrayItem(streams, 0) : nullptr;
+  cJSON *events = cJSON_IsObject(stream) ? cJSON_GetObjectItemCaseSensitive(stream, "events") : nullptr;
+  cJSON *event = cJSON_IsArray(events) ? cJSON_GetArrayItem(events, 0) : nullptr;
+  cJSON *groupId = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "groupId") : nullptr;
+  cJSON *tableName = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "tableName") : nullptr;
+  cJSON *windowStart = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "windowStart") : nullptr;
+  cJSON *windowEnd = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "windowEnd") : nullptr;
+  cJSON *triggerId = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "triggerId") : nullptr;
+  cJSON *lineageMarker = cJSON_IsObject(event) ? cJSON_GetObjectItemCaseSensitive(event, "lineageMarker") : nullptr;
+  if (!cJSON_IsString(groupId) || !cJSON_IsString(tableName) || !cJSON_IsNumber(windowStart) ||
+      !cJSON_IsNumber(windowEnd) || !cJSON_IsString(triggerId) || !cJSON_IsString(lineageMarker)) {
+    ADD_FAILURE() << "notification has incomplete identity: " << payload;
+  } else {
+    errno = 0;
+    char         *pEnd = nullptr;
+    const int64_t parsedGid = taosStr2Int64(groupId->valuestring, &pEnd, 10);
+    if (errno == ERANGE || pEnd == groupId->valuestring || *pEnd != '\0') {
+      ADD_FAILURE() << "notification has invalid groupId: " << payload;
+    } else {
+      identity.gid = parsedGid;
+      identity.tbname = tableName->valuestring;
+      identity.wstart = static_cast<TSKEY>(windowStart->valuedouble);
+      identity.wend = static_cast<TSKEY>(windowEnd->valuedouble);
+      identity.triggerId = triggerId->valuestring;
+      identity.lineageMarker = lineageMarker->valuestring;
+    }
+  }
+  cJSON_Delete(root);
+  return identity;
+}
+
+void destroyRuntimeInfoInList(SList *pList) {
+  SListNode *pNode = tdListGetHead(pList);
+  while (pNode != nullptr) {
+    auto *pExec = reinterpret_cast<SStreamRunnerTaskExecution *>(pNode->data);
+    if (pExec->runtimeInfo.funcInfo.isMultiGroupCalc) {
+      pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = nullptr;
+      pExec->runtimeInfo.funcInfo.pStreamPartColVals = nullptr;
+      pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = nullptr;
+      pExec->runtimeInfo.funcInfo.curGrpCalc = nullptr;
+      pExec->runtimeInfo.funcInfo.createTable = nullptr;
+      qCleanupExternalWindowGroupCtx(pExec->runtimeInfo.funcInfo.pGroupCalcInfos);
+    }
+    tDestroyStRtFuncInfo(&pExec->runtimeInfo.funcInfo);
+    blockDataDestroy(pExec->pOutBlock);
+    pExec->pOutBlock = nullptr;
+    pNode = pNode->dl_next_;
+  }
+}
+
+SStreamAncestorContext *makeRunnerAncestorContext(int64_t gid, int32_t paramIndex) {
+  auto *context = static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  EXPECT_NE(context, nullptr);
+  if (context == nullptr) return nullptr;
+  context->pParamContexts = taosArrayInit(1, sizeof(SStreamAncestorParamContext));
+  EXPECT_NE(context->pParamContexts, nullptr);
+  if (context->pParamContexts == nullptr) return context;
+
+  SStreamAncestorParamContext param = {};
+  param.paramIndex = paramIndex;
+  param.leafIdentity.gid = gid;
+  param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  param.leafIdentity.openingTs = 1000;
+  param.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+  EXPECT_NE(param.leafIdentity.lineage.pScopes, nullptr);
+  const SScopeInstanceId scope = {
+      .layerIndex = 0, .triggerType = WINDOW_TYPE_INTERVAL, .openingTs = 100, .nativeDiscriminator = 1};
+  EXPECT_NE(taosArrayPush(param.leafIdentity.lineage.pScopes, &scope), nullptr);
+  param.pSnapshots = taosArrayInit(1, sizeof(SWindowAncestorSnapshot));
+  EXPECT_NE(param.pSnapshots, nullptr);
+  const SWindowAncestorSnapshot snapshot = {
+      .layerIndex = 0, .triggerType = WINDOW_TYPE_INTERVAL, .values = {.sliding = {.currentTs = 100}}};
+  EXPECT_NE(taosArrayPush(param.pSnapshots, &snapshot), nullptr);
+  EXPECT_NE(taosArrayPush(context->pParamContexts, &param), nullptr);
+  return context;
+}
+
+SStreamContextPolicyEntry makeRunnerContextPolicyEntry(int64_t gid, int32_t paramIndex, int8_t contextPolicy) {
+  SStreamContextPolicyEntry entry = {};
+  entry.gid = gid;
+  entry.paramIndex = paramIndex;
+  entry.contextPolicy = contextPolicy;
+  return entry;
+}
+
+SStreamContextPolicy *makeRunnerContextPolicy(std::initializer_list<SStreamContextPolicyEntry> entries = {}) {
+  auto *policy = static_cast<SStreamContextPolicy *>(taosMemoryCalloc(1, sizeof(SStreamContextPolicy)));
+  EXPECT_NE(policy, nullptr);
+  if (policy == nullptr) return nullptr;
+  policy->pEntries = taosArrayInit(entries.size() == 0 ? 1 : entries.size(), sizeof(SStreamContextPolicyEntry));
+  EXPECT_NE(policy->pEntries, nullptr);
+  if (policy->pEntries == nullptr) return policy;
+  for (const auto &entry : entries) {
+    EXPECT_NE(taosArrayPush(policy->pEntries, &entry), nullptr);
+  }
+  return policy;
+}
+
+struct OwnedTriggerCalcRequest {
+  OwnedTriggerCalcRequest() = default;
+  ~OwnedTriggerCalcRequest() { tDestroySTriggerCalcRequest(&value); }
+  OwnedTriggerCalcRequest(const OwnedTriggerCalcRequest &) = delete;
+  OwnedTriggerCalcRequest &operator=(const OwnedTriggerCalcRequest &) = delete;
+  OwnedTriggerCalcRequest(OwnedTriggerCalcRequest &&) = delete;
+  OwnedTriggerCalcRequest &operator=(OwnedTriggerCalcRequest &&) = delete;
+
+  SSTriggerCalcRequest value = {};
+};
+
+bool appendRunnerGroupCalcInfo(SSTriggerCalcRequest *request, int64_t gid) {
+  SSTriggerGroupCalcInfo info = {};
+  info.pParams = taosArrayInit(3, sizeof(SSTriggerCalcParam));
+  if (info.pParams == nullptr) return false;
+
+  const SSTriggerCalcParam noContext = {.notifyType = STRIGGER_EVENT_WINDOW_NONE};
+  SSTriggerCalcParam target = {};
+  target.wstart = 100;
+  target.wend = 199;
+  target.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  if (taosArrayPush(info.pParams, &noContext) == nullptr || taosArrayPush(info.pParams, &noContext) == nullptr ||
+      taosArrayPush(info.pParams, &target) == nullptr) {
+    taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+    return false;
+  }
+  if (tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)) != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+    return false;
+  }
+  info.pParams = nullptr;
+  return true;
+}
+
+bool appendRunnerAncestorMapping(SStreamAncestorContext *context, int64_t gid, int32_t paramIndex, TSKEY ancestorStart,
+                                 TSKEY leafStart) {
+  SStreamAncestorParamContext param = {};
+  param.paramIndex = paramIndex;
+  param.leafIdentity.gid = gid;
+  param.leafIdentity.triggerType = WINDOW_TYPE_COUNT;
+  param.leafIdentity.openingTs = leafStart;
+  param.leafIdentity.lineage.pScopes = taosArrayInit(1, sizeof(SScopeInstanceId));
+  if (param.leafIdentity.lineage.pScopes == nullptr) return false;
+
+  SScopeInstanceId scope = {};
+  scope.layerIndex = 0;
+  scope.triggerType = WINDOW_TYPE_INTERVAL;
+  scope.openingTs = ancestorStart;
+  scope.nativeDiscriminator = gid + paramIndex;
+  if (taosArrayPush(param.leafIdentity.lineage.pScopes, &scope) == nullptr) {
+    taosArrayDestroy(param.leafIdentity.lineage.pScopes);
+    return false;
+  }
+  param.pSnapshots = taosArrayInit(1, sizeof(SWindowAncestorSnapshot));
+  if (param.pSnapshots == nullptr) {
+    taosArrayDestroy(param.leafIdentity.lineage.pScopes);
+    return false;
+  }
+  const SWindowAncestorSnapshot snapshot = {
+      .layerIndex = 0, .triggerType = WINDOW_TYPE_INTERVAL, .values = {.sliding = {.currentTs = 100}}};
+  if (taosArrayPush(param.pSnapshots, &snapshot) == nullptr) {
+    taosArrayDestroy(param.leafIdentity.lineage.pScopes);
+    taosArrayDestroy(param.pSnapshots);
+    return false;
+  }
+  if (taosArrayPush(context->pParamContexts, &param) == nullptr) {
+    taosArrayDestroy(param.leafIdentity.lineage.pScopes);
+    taosArrayDestroy(param.pSnapshots);
+    return false;
+  }
+  param.leafIdentity.lineage.pScopes = nullptr;
+  param.pSnapshots = nullptr;
+  return true;
+}
+
+void applyRunnerPostAdmissionMappingMutation() {
+  if (gRunnerPostAdmissionMappingMutation == RunnerPostAdmissionMappingMutation::None ||
+      gRunnerPostAdmissionMutationApplied) {
+    return;
+  }
+  gRunnerPostAdmissionMutationApplied = true;
+  if (gRunnerPostAdmissionContext == nullptr || gRunnerPostAdmissionContext->pParamContexts == nullptr) {
+    gRunnerPostAdmissionMutationCode = TSDB_CODE_INVALID_PARA;
+    return;
+  }
+
+  if (gRunnerPostAdmissionMappingMutation == RunnerPostAdmissionMappingMutation::RemoveTarget) {
+    for (int32_t i = 0; i < taosArrayGetSize(gRunnerPostAdmissionContext->pParamContexts); ++i) {
+      auto *param =
+          static_cast<SStreamAncestorParamContext *>(taosArrayGet(gRunnerPostAdmissionContext->pParamContexts, i));
+      if (param != nullptr && param->leafIdentity.gid == 42 && param->paramIndex == 2) {
+        param->paramIndex = 1;
+        return;
+      }
+    }
+    gRunnerPostAdmissionMutationCode = TSDB_CODE_INVALID_PARA;
+    return;
+  }
+
+  if (!appendRunnerAncestorMapping(gRunnerPostAdmissionContext, 42, 2, 100, 1000)) {
+    gRunnerPostAdmissionMutationCode = terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : terrno;
+  }
+}
+
+enum class RunnerAncestorMappingOrder { TargetFirst, TargetMiddle, TargetLast };
+
+bool makeNestedRunnerNoticeRequest(SSTriggerCalcRequest *request, TSKEY targetAncestorStart,
+                                   RunnerAncestorMappingOrder mappingOrder) {
+  constexpr int64_t     kTargetGid = 42;
+  constexpr int64_t     kOtherGid = 84;
+  constexpr int32_t     kTargetParamIndex = 2;
+  constexpr TSKEY       kLeafStart = 1000;
+
+  request->brandNew = true;
+  request->execId = -1;
+  request->gid = 0;
+  request->createTable = 0;
+  request->sessionId = 1;
+  request->triggerType = STREAM_TRIGGER_COUNT;
+  request->isWindowTrigger = true;
+  request->isMultiGroupCalc = true;
+  request->pGroupCalcInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (request->pGroupCalcInfos == nullptr) return false;
+  tSimpleHashSetFreeFp(request->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  if (!appendRunnerGroupCalcInfo(request, kTargetGid) || !appendRunnerGroupCalcInfo(request, kOtherGid)) return false;
+  auto *pOtherGroup =
+      static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request->pGroupCalcInfos, &kOtherGid, sizeof(kOtherGid)));
+  auto *pOtherTarget = pOtherGroup == nullptr
+                           ? nullptr
+                           : static_cast<SSTriggerCalcParam *>(taosArrayGet(pOtherGroup->pParams, kTargetParamIndex));
+  if (pOtherTarget == nullptr) return false;
+  pOtherTarget->notifyType = STRIGGER_EVENT_WINDOW_NONE;
+
+  request->pContextPolicy = makeRunnerContextPolicy({
+      {.gid = kTargetGid, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+      {.gid = kTargetGid, .paramIndex = 1, .contextPolicy = STREAM_CONTEXT_POLICY_NONE},
+      {.gid = kTargetGid, .paramIndex = kTargetParamIndex, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+      {.gid = kOtherGid, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_NONE},
+      {.gid = kOtherGid, .paramIndex = 1, .contextPolicy = STREAM_CONTEXT_POLICY_NONE},
+      {.gid = kOtherGid, .paramIndex = kTargetParamIndex, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+  });
+  if (request->pContextPolicy == nullptr || taosArrayGetSize(request->pContextPolicy->pEntries) != 6) return false;
+
+  request->pAncestorContext =
+      static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  if (request->pAncestorContext == nullptr) return false;
+  request->pAncestorContext->pParamContexts = taosArrayInit(3, sizeof(SStreamAncestorParamContext));
+  if (request->pAncestorContext->pParamContexts == nullptr) return false;
+  switch (mappingOrder) {
+    case RunnerAncestorMappingOrder::TargetFirst:
+      return appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, kTargetParamIndex, targetAncestorStart,
+                                         kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kOtherGid, kTargetParamIndex, 300, kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, 0, 400, kLeafStart);
+    case RunnerAncestorMappingOrder::TargetMiddle:
+      return appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, 0, 400, kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, kTargetParamIndex, targetAncestorStart,
+                                         kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kOtherGid, kTargetParamIndex, 300, kLeafStart);
+    case RunnerAncestorMappingOrder::TargetLast:
+      return appendRunnerAncestorMapping(request->pAncestorContext, kOtherGid, kTargetParamIndex, 300, kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, 0, 400, kLeafStart) &&
+             appendRunnerAncestorMapping(request->pAncestorContext, kTargetGid, kTargetParamIndex, targetAncestorStart,
+                                         kLeafStart);
+  }
+  return false;
+}
+
+SSTriggerCalcParam *runnerGroupParam(SSTriggerCalcRequest *request, int64_t gid, int32_t paramIndex) {
+  if (request == nullptr || request->pGroupCalcInfos == nullptr) return nullptr;
+  auto *pGroup = static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request->pGroupCalcInfos, &gid, sizeof(gid)));
+  return pGroup == nullptr ? nullptr : static_cast<SSTriggerCalcParam *>(taosArrayGet(pGroup->pParams, paramIndex));
+}
+
+bool appendRunnerDualLeafGroupCalcInfo(SSTriggerCalcRequest *request, int64_t gid) {
+  SSTriggerGroupCalcInfo info = {};
+  info.pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  if (info.pParams == nullptr) return false;
+
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 10;
+  idle.idleend = 20;
+  idle.notifyType = STRIGGER_EVENT_IDLE;
+  SSTriggerCalcParam noNotice = {};
+  noNotice.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  SSTriggerCalcParam firstLeaf = {};
+  firstLeaf.wstart = 1000;
+  firstLeaf.wend = 1099;
+  firstLeaf.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  SSTriggerCalcParam secondLeaf = firstLeaf;
+  if (taosArrayPush(info.pParams, &idle) == nullptr || taosArrayPush(info.pParams, &noNotice) == nullptr ||
+      taosArrayPush(info.pParams, &firstLeaf) == nullptr || taosArrayPush(info.pParams, &secondLeaf) == nullptr) {
+    taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+    return false;
+  }
+  if (tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)) != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+    return false;
+  }
+  info.pParams = nullptr;
+  return true;
+}
+
+bool makeNestedRunnerDualLeafNoticeRequest(SSTriggerCalcRequest *request) {
+  constexpr int64_t kGid = 42;
+  request->brandNew = true;
+  request->execId = -1;
+  request->gid = 0;
+  request->createTable = 0;
+  request->sessionId = 1;
+  request->triggerType = STREAM_TRIGGER_COUNT;
+  request->isWindowTrigger = true;
+  request->isMultiGroupCalc = true;
+  request->pGroupCalcInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (request->pGroupCalcInfos == nullptr) return false;
+  tSimpleHashSetFreeFp(request->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  if (!appendRunnerDualLeafGroupCalcInfo(request, kGid)) return false;
+
+  request->pContextPolicy = makeRunnerContextPolicy({
+      makeRunnerContextPolicyEntry(kGid, 0, STREAM_CONTEXT_POLICY_NONE),
+      makeRunnerContextPolicyEntry(kGid, 1, STREAM_CONTEXT_POLICY_NONE),
+      makeRunnerContextPolicyEntry(kGid, 2, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(kGid, 3, STREAM_CONTEXT_POLICY_ANCESTOR),
+  });
+  if (request->pContextPolicy == nullptr) return false;
+  request->pAncestorContext =
+      static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  if (request->pAncestorContext == nullptr) return false;
+  request->pAncestorContext->pParamContexts = taosArrayInit(2, sizeof(SStreamAncestorParamContext));
+  if (request->pAncestorContext->pParamContexts == nullptr) return false;
+  return appendRunnerAncestorMapping(request->pAncestorContext, kGid, 2, 100, 1000) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, kGid, 3, 200, 1000);
+}
+
+bool appendRunnerNestedGroup(SSTriggerCalcRequest *request, int64_t gid, int32_t targetParamIndex, TSKEY leafStart,
+                             const char *lineageMarker) {
+  SSTriggerGroupCalcInfo info = {};
+  info.pParams = taosArrayInit(targetParamIndex + 1, sizeof(SSTriggerCalcParam));
+  if (info.pParams == nullptr) return false;
+  for (int32_t paramIndex = 0; paramIndex <= targetParamIndex; ++paramIndex) {
+    SSTriggerCalcParam param = {};
+    param.wstart = leafStart;
+    param.wend = leafStart + 99;
+    if (paramIndex == targetParamIndex) {
+      param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+      std::string extraContent = std::string("{\"lineageMarker\":\"") + lineageMarker + "\"}";
+      param.extraNotifyContent = taosStrdup(extraContent.c_str());
+    }
+    if ((paramIndex == targetParamIndex && param.extraNotifyContent == nullptr) ||
+        taosArrayPush(info.pParams, &param) == nullptr) {
+      taosMemoryFree(param.extraNotifyContent);
+      taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+      return false;
+    }
+    param.extraNotifyContent = nullptr;
+  }
+  if (tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)) != TSDB_CODE_SUCCESS) {
+    taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+    return false;
+  }
+  info.pParams = nullptr;
+  return true;
+}
+
+bool makeNestedRunnerThreeGroupNoticeRequest(SSTriggerCalcRequest *request) {
+  request->brandNew = true;
+  request->execId = -1;
+  request->sessionId = 1;
+  request->triggerType = STREAM_TRIGGER_COUNT;
+  request->isWindowTrigger = true;
+  request->isMultiGroupCalc = true;
+  request->pGroupCalcInfos = tSimpleHashInit(3, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (request->pGroupCalcInfos == nullptr) return false;
+  tSimpleHashSetFreeFp(request->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  if (!appendRunnerNestedGroup(request, 101, 1, 2101, "lineage-101") ||
+      !appendRunnerNestedGroup(request, 202, 2, 2202, "lineage-202") ||
+      !appendRunnerNestedGroup(request, 303, 0, 2303, "lineage-303")) {
+    return false;
+  }
+
+  request->pContextPolicy = makeRunnerContextPolicy({
+      makeRunnerContextPolicyEntry(101, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(101, 1, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(202, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(202, 1, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(202, 2, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(303, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+  });
+  if (request->pContextPolicy == nullptr) return false;
+  request->pAncestorContext =
+      static_cast<SStreamAncestorContext *>(taosMemoryCalloc(1, sizeof(SStreamAncestorContext)));
+  if (request->pAncestorContext == nullptr) return false;
+  request->pAncestorContext->pParamContexts = taosArrayInit(6, sizeof(SStreamAncestorParamContext));
+  if (request->pAncestorContext->pParamContexts == nullptr) return false;
+  return appendRunnerAncestorMapping(request->pAncestorContext, 202, 0, 9200, 8200) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, 303, 0, 1303, 2303) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, 101, 0, 9101, 8101) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, 101, 1, 1101, 2101) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, 202, 1, 9201, 8201) &&
+         appendRunnerAncestorMapping(request->pAncestorContext, 202, 2, 1202, 2202);
+}
+
+bool makeNestedRunnerGroupNoticeRequest(SSTriggerCalcRequest *request, int32_t notifyType) {
+  request->execId = 7;
+  request->gid = 42;
+  request->sessionId = 1;
+  request->triggerType = STREAM_TRIGGER_COUNT;
+  request->isWindowTrigger = true;
+  request->params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  if (request->params == nullptr) return false;
+  SSTriggerCalcParam param = {};
+  param.idlestart = 10;
+  param.idleend = 20;
+  param.notifyType = notifyType;
+  if (taosArrayPush(request->params, &param) == nullptr) return false;
+  request->pContextPolicy =
+      makeRunnerContextPolicy({makeRunnerContextPolicyEntry(request->gid, 0, STREAM_CONTEXT_POLICY_NONE)});
+  return request->pContextPolicy != nullptr;
+}
+
+bool configureRunnerEventNoticeRequest(SSTriggerCalcRequest *request, int32_t runtimeTriggerType,
+                                       int8_t leafTriggerType, int64_t nativeDiscriminator,
+                                       const char *extraNotifyContent) {
+  if (!makeNestedRunnerNoticeRequest(request, 100, RunnerAncestorMappingOrder::TargetFirst)) {
+    return false;
+  }
+  request->triggerType = runtimeTriggerType;
+  SStreamAncestorParamContext *mapping = nullptr;
+  for (int32_t i = 0; i < taosArrayGetSize(request->pAncestorContext->pParamContexts); ++i) {
+    auto *candidate =
+        static_cast<SStreamAncestorParamContext *>(taosArrayGet(request->pAncestorContext->pParamContexts, i));
+    if (candidate != nullptr && candidate->leafIdentity.gid == 42 && candidate->paramIndex == 2) {
+      mapping = candidate;
+      break;
+    }
+  }
+  if (mapping == nullptr) return false;
+  mapping->leafIdentity.triggerType = leafTriggerType;
+  mapping->leafIdentity.nativeDiscriminator = nativeDiscriminator;
+
+  auto *runtimeParam = runnerGroupParam(request, 42, 2);
+  if (runtimeParam == nullptr) return false;
+  runtimeParam->extraNotifyContent = extraNotifyContent == nullptr ? nullptr : taosStrdup(extraNotifyContent);
+  return extraNotifyContent == nullptr || runtimeParam->extraNotifyContent != nullptr;
+}
+
+void setRunnerPolicy(SSTriggerCalcRequest *request, int32_t paramIndex, int8_t contextPolicy) {
+  request->pContextPolicy =
+      makeRunnerContextPolicy({{.gid = request->gid, .paramIndex = paramIndex, .contextPolicy = contextPolicy}});
+}
+
+void addRunnerGroupCalcInfo(SSTriggerCalcRequest *request, int64_t gid) {
+  SSTriggerGroupCalcInfo info = {};
+  info.pParams = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(info.pParams, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = gid;
+  window.wend = gid + 99;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(info.pParams, &window), nullptr);
+  ASSERT_EQ(tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)), TSDB_CODE_SUCCESS);
+}
+
+bool prepareRunnerMultiGroupRequest(SSTriggerCalcRequest *request, std::initializer_list<int64_t> gids,
+                                    int32_t paramsPerGroup = 1, bool createTable = true) {
+  request->isMultiGroupCalc = true;
+  request->gid = 0;
+  request->createTable = 0;
+  request->rollupTbCount = 0;
+  request->pGroupCalcInfos =
+      tSimpleHashInit(static_cast<int32_t>(gids.size()), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (request->pGroupCalcInfos == nullptr) return false;
+  tSimpleHashSetFreeFp(request->pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  request->pGroupReadInfos =
+      tSimpleHashInit(static_cast<int32_t>(gids.size()), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (request->pGroupReadInfos == nullptr) return false;
+  tSimpleHashSetFreeFp(request->pGroupReadInfos, tDestroySSTriggerGroupReadInfoArray);
+
+  for (const int64_t gid : gids) {
+    SSTriggerGroupCalcInfo info = {};
+    info.pParams = taosArrayInit(paramsPerGroup, sizeof(SSTriggerCalcParam));
+    info.pGroupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    if (info.pParams == nullptr || info.pGroupColVals == nullptr) {
+      taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+      taosArrayDestroyEx(info.pGroupColVals, tDestroySStreamGroupValue);
+      return false;
+    }
+    for (int32_t i = 0; i < paramsPerGroup; ++i) {
+      SSTriggerCalcParam param = {};
+      param.wstart = gid + i;
+      param.wend = gid + i + 1;
+      param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+      if (taosArrayPush(info.pParams, &param) == nullptr) {
+        taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+        taosArrayDestroyEx(info.pGroupColVals, tDestroySStreamGroupValue);
+        return false;
+      }
+    }
+    info.createTable = createTable;
+    info.rollupTbCount = static_cast<int32_t>(gid % 100) + 1;
+    if (tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)) != TSDB_CODE_SUCCESS) {
+      taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
+      taosArrayDestroyEx(info.pGroupColVals, tDestroySStreamGroupValue);
+      return false;
+    }
+  }
+  return true;
+}
+
+SSDataBlock *makeCacheBlock(TSKEY ts, int32_t value);
+
+class StreamRunnerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gCalls = {};
+    gRunnerMultiGroupJoinProtocol = true;
+    gCalls.pDefaultWindowIndexes = NewWindowIndexes({packRunnerLineage(0, 0)});
+    ASSERT_NE(gCalls.pDefaultWindowIndexes, nullptr);
+    gBlockRunnerPeriodLog.store(false);
+    gRunnerPeriodLogEntered.store(false);
+    gBlockRunnerExecute.store(false);
+    gRunnerExecuteEntered.store(false);
+    gRunnerMemorySampleCalls.store(0);
+    gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
+    gRunnerUndeployCalls.store(0);
+    gRunnerQuitTask = nullptr;
+    gRunnerQuitAfterExecuteCalls = 0;
+    gRunnerQuitLockTaken = false;
+    gRunnerDestroyEvents.clear();
+    gRunnerDestroyRuntime = nullptr;
+    gRunnerDestroySawOwners = false;
+    gRunnerDestroySawFrames = false;
+    gRunnerDestroySawPrepared = false;
+    gResponseCode = TSDB_CODE_SUCCESS;
+    gCalcResponseCount.store(0);
+    gCacheResponse = {};
+    gCacheResponseValues.clear();
+    gRunnerFetchResponseCount = 0;
+    gRunnerFetchResponseCompleted = -1;
+    gRunnerFetchResponseTypes.clear();
+    gRunnerFetchBatchPayload.clear();
+    gRunnerResultBlock = nullptr;
+    gRunnerSinkCodes.clear();
+    gRunnerPostAdmissionMappingMutation = RunnerPostAdmissionMappingMutation::None;
+    gRunnerPostAdmissionContext = nullptr;
+    gRunnerPostAdmissionMutationApplied = false;
+    gRunnerPostAdmissionMutationCode = TSDB_CODE_SUCCESS;
+    stub_.set(streamClearStatesForOperators, mockStreamClearStatesForOperators);
+    stub_.set(streamExecuteTask, mockStreamExecuteTask);
+    stub_.set(streamForceOutput, mockStreamForceOutput);
+    stub_.set(dsPutDataBlock, mockDsPutDataBlock);
+    stub_.set(streamSendNotifyContent, mockStreamSendNotifyContent);
+    stub_.set(streamSendNotifyContentWithResult, mockStreamSendNotifyContentWithResult);
+    stub_.set(streamBuildBlockResultNotifyContent, mockStreamBuildBlockResultNotifyContent);
+    stub_.set(streamTaskGetMonotonicUs, mockStreamTaskGetMonotonicUs);
+    stub_.set(qTaskUsesMultiGroupJoinProtocol, mockQTaskUsesMultiGroupJoinProtocol);
+    stub_.set(qGetTaskMemorySize, mockQGetTaskMemorySize);
+
+    ASSERT_EQ(taosThreadMutexInit(&task_.execMgr.lock, nullptr), TSDB_CODE_SUCCESS);
+    task_.execMgr.lockInited = true;
+    ASSERT_EQ(taosThreadMutexInit(&task_.execMgr.stateLock, nullptr), TSDB_CODE_SUCCESS);
+    task_.execMgr.stateLockInited = true;
+    task_.execMgr.pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+    task_.execMgr.pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+    ASSERT_NE(task_.execMgr.pFreeExecs, nullptr);
+    ASSERT_NE(task_.execMgr.pRunningExecs, nullptr);
+    gCalls.pExecMgr = &task_.execMgr;
+
+    auto *pExec = static_cast<SStreamRunnerTaskExecution *>(tdListReserve(task_.execMgr.pFreeExecs));
+    ASSERT_NE(pExec, nullptr);
+    pExec->pExecutor = &executorSentinel_;
+    pExec->outputMemoryValid = true;
+    pExec->executorMemoryValid = true;
+    pExec->executorMemoryBytes = kMockExecutorMemoryBytes;
+    pExec->pSinkHandle = &sinkSentinel_;
+    pExec->runtimeInfo.execId = 7;
+    tstrncpy(pExec->tbname, "out_zero_window", sizeof(pExec->tbname));
+    pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+    ASSERT_NE(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, nullptr);
+    SSTriggerCalcParam staleWindow = {};
+    staleWindow.wstart = 1000;
+    staleWindow.wend = 2000;
+    ASSERT_NE(taosArrayPush(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, &staleWindow), nullptr);
+
+    task_.topTask = true;
+    task_.task.type = STREAM_RUNNER_TASK;
+    task_.output.outTblType = TSDB_NORMAL_TABLE;
+    task_.task.streamId = 0x1234;
+    task_.task.taskId = 23;
+    task_.task.seriousId = 45;
+    task_.task.nodeId = 67;
+    task_.task.status = STREAM_STATUS_RUNNING;
+    task_.parallelExecutionNun = 3;
+    task_.notification.pNotifyAddrUrls = taosArrayInit(1, sizeof(char *));
+    ASSERT_NE(task_.notification.pNotifyAddrUrls, nullptr);
+    char *notifyUrl = notifyUrl_;
+    ASSERT_NE(taosArrayPush(task_.notification.pNotifyAddrUrls, &notifyUrl), nullptr);
+
+    request_.brandNew = true;
+    request_.execId = -1;
+    request_.createTable = 1;
+    request_.gid = 42;
+    request_.sessionId = 1;
+
+    ASSERT_EQ(stTaskStatsCreate(STREAM_RUNNER_TASK, STREAM_METRIC_DELIVERED_OUTPUT | STREAM_METRIC_RESULT_LATENCY, 1,
+                                1000, &task_.pStats),
+              TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(gStreamMgmt.taskMap, nullptr);
+    gStreamMgmt.taskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    ASSERT_NE(gStreamMgmt.taskMap, nullptr);
+    SStreamTask *pTask = &task_.task;
+    ASSERT_EQ(taosHashPut(gStreamMgmt.taskMap, &task_.task.streamId,
+                          sizeof(task_.task.streamId) + sizeof(task_.task.taskId), &pTask, POINTER_BYTES),
+              TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    if (cacheTaskRegistered_) {
+      EXPECT_EQ(cacheTask_.task.entryLock, 0);
+      EXPECT_EQ(taosHashRemove(gStreamMgmt.taskMap, &cacheTask_.task.streamId,
+                               sizeof(cacheTask_.task.streamId) + sizeof(cacheTask_.task.taskId)),
+                TSDB_CODE_SUCCESS);
+      cacheTaskRegistered_ = false;
+    }
+    taosHashCleanup(cacheRealtime_.pCalcDataCacheIters);
+    cacheRealtime_.pCalcDataCacheIters = nullptr;
+    if (dataSinkOwned_) {
+      destroyDataSinkMgr();
+      dataSinkOwned_ = false;
+    }
+    if (snode_ != nullptr) {
+      sndClose(snode_);
+      snode_ = nullptr;
+    }
+    EXPECT_EQ(task_.task.entryLock, 0);
+    EXPECT_EQ(taosHashRemove(gStreamMgmt.taskMap, &task_.task.streamId,
+                             sizeof(task_.task.streamId) + sizeof(task_.task.taskId)),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(taosHashGetSize(gStreamMgmt.taskMap), 0);
+    taosHashCleanup(gStreamMgmt.taskMap);
+    gStreamMgmt.taskMap = nullptr;
+    tDestroySTriggerCalcRequest(&request_);
+    if (task_.execMgr.pRunningExecs != nullptr) {
+      destroyRuntimeInfoInList(task_.execMgr.pRunningExecs);
+      task_.execMgr.pRunningExecs = static_cast<SList *>(tdListFree(task_.execMgr.pRunningExecs));
+    }
+    if (task_.execMgr.pFreeExecs != nullptr) {
+      destroyRuntimeInfoInList(task_.execMgr.pFreeExecs);
+      task_.execMgr.pFreeExecs = static_cast<SList *>(tdListFree(task_.execMgr.pFreeExecs));
+    }
+    if (task_.execMgr.lockInited) {
+      EXPECT_EQ(taosThreadMutexDestroy(&task_.execMgr.lock), TSDB_CODE_SUCCESS);
+    }
+    if (task_.execMgr.stateLockInited) {
+      EXPECT_EQ(taosThreadMutexDestroy(&task_.execMgr.stateLock), TSDB_CODE_SUCCESS);
+    }
+    taosArrayDestroy(task_.notification.pNotifyAddrUrls);
+    taosArrayDestroy(task_.forceOutCols);
+    nodesDestroyList(task_.output.pTagValExprs);
+    taosArrayDestroy(task_.output.outTags);
+    stTaskStatsDestroy(&task_.pStats);
+    for (SSDataBlock *pBlock : ownedBlocks_) {
+      blockDataDestroy(pBlock);
+    }
+    for (SArray *pIndexes : ownedWindowIndexes_) {
+      taosArrayDestroy(pIndexes);
+    }
+    blockDataDestroy(gRunnerResultBlock);
+    gRunnerResultBlock = nullptr;
+  }
+
+  bool setUpPublicSnode(const SMsgCb *msgCb = nullptr) {
+    taosInitRWLatch(&task_.task.entryLock);
+    request_.streamId = task_.task.streamId;
+    request_.runnerTaskId = task_.task.taskId;
+
+    stub_.set(rpcSendResponse, mockRpcSendResponse);
+    SSnodeOpt option = {};
+    if (msgCb) option.msgCb = *msgCb;
+    snode_ = sndOpen(".", &option);
+    return snode_ != nullptr;
+  }
+
+  bool setUpCacheTask(bool nested, int32_t cleanMode = DATA_CLEAN_IMMEDIATE) {
+    if (gStreamMgmt.taskMap == nullptr || initStreamDataSink() != TSDB_CODE_SUCCESS) return false;
+    dataSinkOwned_ = true;
+
+    cacheRealtime_.sessionId = 0x9abc;
+    if (stCreateCalcDataCacheIterMap(&cacheRealtime_.pCalcDataCacheIters) != TSDB_CODE_SUCCESS) return false;
+    cacheTask_.task.type = STREAM_TRIGGER_TASK;
+    cacheTask_.task.streamId = 0x3456;
+    cacheTask_.task.taskId = 0x789a;
+    cacheTask_.task.nodeId = 7;
+    cacheTask_.triggerType = STREAM_TRIGGER_COUNT;
+    cacheTask_.addOptions = nested ? STREAM_OPTION_NESTED_WINDOW_PLAN : 0;
+    cacheTask_.pRealtimeContext = &cacheRealtime_;
+    taosInitRWLatch(&cacheTask_.task.entryLock);
+    if (initStreamDataCache(cacheTask_.task.streamId, cacheTask_.task.taskId, cacheRealtime_.sessionId, cleanMode, 0,
+                            &cache_) != TSDB_CODE_SUCCESS) {
+      return false;
+    }
+    cacheRealtime_.pCalcDataCache = cache_;
+    SStreamTask *pTask = reinterpret_cast<SStreamTask *>(&cacheTask_);
+    if (taosHashPut(gStreamMgmt.taskMap, &cacheTask_.task.streamId,
+                    sizeof(cacheTask_.task.streamId) + sizeof(cacheTask_.task.taskId), &pTask,
+                    POINTER_BYTES) != TSDB_CODE_SUCCESS) {
+      return false;
+    }
+    cacheTaskRegistered_ = true;
+    return true;
+  }
+
+  bool setUpCacheSnode(bool nested, int32_t cleanMode = DATA_CLEAN_IMMEDIATE) {
+    if (!setUpCacheTask(nested, cleanMode)) return false;
+    stub_.set(rpcSendResponse, mockRpcSendResponse);
+    SSnodeOpt option = {};
+    snode_ = sndOpen(".", &option);
+    return snode_ != nullptr;
+  }
+
+  int32_t processCacheFetch(SResFetchReq *request) {
+    const int32_t bodyLen = tSerializeSResFetchReq(nullptr, 0, request, false, false);
+    if (bodyLen <= 0) return bodyLen;
+    std::vector<uint8_t> body(static_cast<size_t>(bodyLen));
+    const int32_t        encoded = tSerializeSResFetchReq(body.data(), bodyLen, request, false, false);
+    if (encoded != bodyLen) return encoded;
+
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_FETCH_FROM_CACHE;
+    msg.contLen = bodyLen;
+    msg.pCont = body.data();
+    return sndProcessStreamMsg(snode_, nullptr, &msg);
+  }
+
+  int32_t processRunnerFetch(SResFetchReq *request) {
+    const int32_t bodyLen =
+        exchangeTestSerializeStreamFetchReq(nullptr, 0, request, TDMT_STREAM_FETCH_FROM_RUNNER, true, false);
+    if (bodyLen <= 0) return bodyLen;
+    std::vector<uint8_t> body(static_cast<size_t>(bodyLen));
+    const int32_t        encoded =
+        exchangeTestSerializeStreamFetchReq(body.data(), bodyLen, request, TDMT_STREAM_FETCH_FROM_RUNNER, true, false);
+    if (encoded != bodyLen) return encoded;
+
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_FETCH_FROM_RUNNER;
+    msg.contLen = bodyLen;
+    msg.pCont = body.data();
+    return sndProcessStreamMsg(snode_, nullptr, &msg);
+  }
+
+  int32_t processPublicCalc(void *worker = nullptr) {
+    const int32_t bodyLen = tSerializeSTriggerCalcRequest(nullptr, 0, &request_);
+    if (bodyLen <= 0) {
+      ADD_FAILURE() << "failed to size trigger calc request: " << bodyLen;
+      return bodyLen;
+    }
+
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_TRIGGER_CALC;
+    msg.contLen = sizeof(SMsgHead) + bodyLen;
+    msg.pCont = rpcMallocCont(msg.contLen);
+    if (msg.pCont == nullptr) {
+      ADD_FAILURE() << "failed to allocate trigger calc request";
+      return terrno;
+    }
+
+    const int32_t encoded =
+        tSerializeSTriggerCalcRequest(POINTER_SHIFT(msg.pCont, sizeof(SMsgHead)), bodyLen, &request_);
+    if (encoded != bodyLen) {
+      ADD_FAILURE() << "failed to encode trigger calc request: " << encoded;
+      rpcFreeCont(msg.pCont);
+      return encoded;
+    }
+    reinterpret_cast<SMsgHead *>(msg.pCont)->contLen = htonl(msg.contLen);
+
+    const int32_t code = sndProcessStreamMsg(snode_, worker, &msg);
+    rpcFreeCont(msg.pCont);
+    return code;
+  }
+
+  void SetWindows(int32_t count) {
+    request_.params = taosArrayInit(count, sizeof(SSTriggerCalcParam));
+    ASSERT_NE(request_.params, nullptr);
+    for (int32_t i = 0; i < count; ++i) {
+      SSTriggerCalcParam param = {};
+      param.wstart = i * 1000;
+      param.wend = (i + 1) * 1000;
+      param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+      ASSERT_NE(taosArrayPush(request_.params, &param), nullptr);
+    }
+    request_.createTable = 0;
+  }
+
+  void UseRealOperatorResetTree() {
+    stub_.reset(streamClearStatesForOperators);
+    auto wire = [](SOperatorInfo *pOperator, RunnerResetState *pState) {
+      pOperator->info = pState;
+      pOperator->status = OP_EXEC_DONE;
+      setOperatorResetStateFn(pOperator, resetRunnerOperator);
+    };
+    wire(&resetRoot_, &rootReset_);
+    wire(&resetLeft_, &leftReset_);
+    wire(&resetRight_, &rightReset_);
+    resetRoot_.pDownstream = resetDownstream_;
+    resetRoot_.numOfDownstream = 2;
+    resetDownstream_[0] = &resetLeft_;
+    resetDownstream_[1] = &resetRight_;
+    resetExecutor_.pRoot = &resetRoot_;
+    resetExecutor_.code = TSDB_CODE_INVALID_PARA;
+    Exec()->pExecutor = &resetExecutor_;
+  }
+
+  SSDataBlock *NewBlock(int64_t rows) {
+    SSDataBlock *pBlock = nullptr;
+    EXPECT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+    if (pBlock != nullptr) {
+      pBlock->info.rows = rows;
+      ownedBlocks_.push_back(pBlock);
+    }
+    return pBlock;
+  }
+
+  SSDataBlock *NewMultiGroupDataBlock(int64_t rows, int64_t gid) {
+    EXPECT_GT(rows, 0);
+    EXPECT_NE(gid, 0);
+    SSDataBlock *pBlock = NewBlock(rows);
+    if (pBlock != nullptr) {
+      pBlock->info.id.baseGId = gid;
+      pBlock->info.id.groupId = gid;
+    }
+    return pBlock;
+  }
+
+  SSDataBlock *NewMultiGroupEog(int64_t gid) {
+    EXPECT_NE(gid, 0);
+    SSDataBlock *pBlock = NewBlock(0);
+    if (pBlock != nullptr) EXPECT_EQ(qSetMultiGroupEogBlock(pBlock, gid), TSDB_CODE_SUCCESS);
+    return pBlock;
+  }
+
+  SArray *NewWindowIndexes(std::initializer_list<int64_t> indexes) {
+    SArray *pIndexes = taosArrayInit(static_cast<int32_t>(indexes.size()), sizeof(int64_t));
+    EXPECT_NE(pIndexes, nullptr);
+    if (pIndexes == nullptr) return nullptr;
+    for (const int64_t index : indexes) {
+      EXPECT_NE(taosArrayPush(pIndexes, &index), nullptr);
+    }
+    ownedWindowIndexes_.push_back(pIndexes);
+    return pIndexes;
+  }
+
+  void QueuePublishedGroups(std::initializer_list<int64_t> gids) {
+    auto *pExec = Exec();
+    ASSERT_NE(pExec, nullptr);
+    gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+    const size_t consumed = static_cast<size_t>(gCalls.executeCalls);
+    gCalls.executeGroupIds.resize(consumed);
+    gCalls.executeBlocks.resize(consumed);
+    gCalls.executeFinished.resize(consumed);
+    for (const int64_t gid : gids) {
+      gCalls.executeGroupIds.push_back(gid);
+      gCalls.executeBlocks.push_back(NewMultiGroupEog(gid));
+      gCalls.executeFinished.push_back(false);
+    }
+    gCalls.executeBlocks.push_back(nullptr);
+    gCalls.executeFinished.push_back(true);
+  }
+
+  SStreamRunnerPeriodStats RotateRunnerStats() { return RotateRunnerSnapshot().period.runner; }
+
+  SStreamTaskPeriodSnapshot RotateRunnerSnapshot() {
+    SStreamTaskPeriodSnapshot snapshot = {};
+    bool                      rotated = false;
+    EXPECT_EQ(stTaskStatsRotatePeriod(task_.pStats, STREAM_STATS_PERIOD_US + 1, &snapshot, &rotated),
+              TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(rotated);
+    return snapshot;
+  }
+
+  SStreamTaskPeriodSnapshot EmptyRunnerSnapshot() const {
+    SStreamTaskPeriodSnapshot snapshot = {};
+    snapshot.taskType = STREAM_RUNNER_TASK;
+    snapshot.statsStartAtMs = 1000;
+    snapshot.uptimeMs = 180000;
+    snapshot.statsWindowMs = 180000;
+    return snapshot;
+  }
+
+  std::string EmitRunnerDebugPeriod(const SStreamTaskPeriodSnapshot &snapshot) {
+    ScopedRunnerDebugLogCapture capture;
+    EXPECT_EQ(stRunnerTaskLogStats(&task_, &snapshot), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gRunnerDebugLogs.size(), 1);
+    return gRunnerDebugLogs.empty() ? std::string{} : gRunnerDebugLogs.front();
+  }
+
+  SStreamRunnerTaskExecution *Exec() {
+    EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+    SListNode *pNode = tdListGetHead(task_.execMgr.pFreeExecs);
+    return pNode == nullptr ? nullptr : reinterpret_cast<SStreamRunnerTaskExecution *>(pNode->data);
+  }
+
+  SStreamRunnerTaskExecution *RunningExec() {
+    SListNode *pNode = tdListGetHead(task_.execMgr.pRunningExecs);
+    return pNode == nullptr ? nullptr : reinterpret_cast<SStreamRunnerTaskExecution *>(pNode->data);
+  }
+
+  void UndeployRunnerForCleanup() {
+    stub_.set(qAsyncKillTask, mockQAsyncKillTask);
+    stub_.set(streamDestroyExecTask, mockStreamDestroyExecTask);
+    stub_.set(dsDestroyDataSinker, mockDsDestroyDataSinker);
+    taosArrayClear(task_.notification.pNotifyAddrUrls);
+    task_.task.undeployCb = captureRunnerUndeploy;
+    SStreamRunnerTask *pRunner = &task_;
+    EXPECT_EQ(stRunnerTaskUndeploy(&pRunner, true), TSDB_CODE_SUCCESS);
+    task_.execMgr.pRunningExecs = nullptr;
+    task_.execMgr.pFreeExecs = nullptr;
+    task_.execMgr.lockInited = false;
+    task_.execMgr.stateLockInited = false;
+    task_.notification.pNotifyAddrUrls = nullptr;
+    gCalls.pRuntimeInfo = nullptr;
+  }
+
+  Stub                       stub_;
+  char                       executorSentinel_ = 0;
+  char                       sinkSentinel_ = 0;
+  char                       notifyUrl_[32] = "ws://unused/zero-window";
+  RunnerResetState           rootReset_ = {};
+  RunnerResetState           leftReset_ = {};
+  RunnerResetState           rightReset_ = {};
+  SOperatorInfo              resetRoot_ = {};
+  SOperatorInfo              resetLeft_ = {};
+  SOperatorInfo              resetRight_ = {};
+  SOperatorInfo             *resetDownstream_[2] = {};
+  SExecTaskInfo              resetExecutor_ = {};
+  SStreamRunnerTask          task_ = {};
+  SSTriggerCalcRequest       request_ = {};
+  SSnode                    *snode_ = nullptr;
+  std::vector<SSDataBlock *> ownedBlocks_;
+  std::vector<SArray *>      ownedWindowIndexes_;
+  SStreamTriggerTask       cacheTask_ = {};
+  SSTriggerRealtimeContext cacheRealtime_ = {};
+  void                    *cache_ = nullptr;
+  bool                     cacheTaskRegistered_ = false;
+  bool                     dataSinkOwned_ = false;
+};
+
+int32_t failRunnerContextReset(qTaskInfo_t) { return TSDB_CODE_OUT_OF_MEMORY; }
+
+int32_t failRunnerContextIndex(SStreamAncestorContext *) { return TSDB_CODE_OUT_OF_MEMORY; }
+
+int32_t gPreparedFetchFailures = 0;
+int32_t failPreparedFetchContext(const SStreamRuntimeFuncInfo *, const SStreamContextFrames *,
+                                 SStreamPreparedFetchContext **ppPrepared) {
+  ++gPreparedFetchFailures;
+  *ppPrepared = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+class StreamRunnerContextForwardingTest : public StreamRunnerTest {
+ protected:
+  void SetUp() override {
+    StreamRunnerTest::SetUp();
+    task_.topTask = false;
+    task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+    taosArrayClear(task_.notification.pNotifyAddrUrls);
+    auto *exec = Exec();
+    ASSERT_NE(exec, nullptr);
+    exec->runtimeInfo.funcInfo.withExternalWindow = true;
+    gCalls.pRuntimeInfo = &exec->runtimeInfo;
+    ASSERT_TRUE(setUpPublicSnode());
+  }
+
+  void TearDown() override {
+    if (task_.execMgr.lockInited) UndeployRunnerForCleanup();
+    StreamRunnerTest::TearDown();
+  }
+
+  bool Prepare(SSTriggerCalcRequest *request, TSKEY ancestorStart = 100) {
+    request->brandNew = true;
+    request->execId = -1;
+    request->sessionId = 1;
+    request->streamId = task_.task.streamId;
+    request->runnerTaskId = task_.task.taskId;
+    request->triggerType = STREAM_TRIGGER_COUNT;
+    request->isWindowTrigger = true;
+    if (!prepareRunnerMultiGroupRequest(request, {101, 202}, 1, false)) return false;
+    request->pContextPolicy = makeRunnerContextPolicy({
+        makeRunnerContextPolicyEntry(101, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+        makeRunnerContextPolicyEntry(202, 0, STREAM_CONTEXT_POLICY_NONE),
+    });
+    request->pAncestorContext = makeRunnerAncestorContext(101, 0);
+    if (request->pContextPolicy == nullptr || request->pAncestorContext == nullptr) return false;
+    auto *param =
+        static_cast<SStreamAncestorParamContext *>(taosArrayGet(request->pAncestorContext->pParamContexts, 0));
+    static_cast<SScopeInstanceId *>(taosArrayGet(param->leafIdentity.lineage.pScopes, 0))->openingTs = ancestorStart;
+    auto *snapshot = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+    snapshot->placeholderMask = PLACE_HOLDER_CURRENT_TS;
+    snapshot->values.sliding.currentTs = ancestorStart;
+    return true;
+  }
+
+  bool PrepareWithReader(SSTriggerCalcRequest *request, TSKEY ancestorStart = 100) {
+    if (!Prepare(request, ancestorStart)) return false;
+    const int32_t nodeId = 7;
+    const int64_t gid = 101;
+    auto *calc = static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request->pGroupCalcInfos, &gid, sizeof(gid)));
+    if (calc == nullptr) return false;
+    auto *param = static_cast<SSTriggerCalcParam *>(taosArrayGet(calc->pParams, 0));
+    if (param == nullptr) return false;
+    SArray *reads = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
+    if (reads == nullptr) return false;
+    SSTriggerGroupReadInfo read = {};
+    read.gid = gid;
+    read.firstParam = *param;
+    read.lastParam = *param;
+    if (taosArrayPush(reads, &read) == nullptr ||
+        tSimpleHashPut(request->pGroupReadInfos, &nodeId, sizeof(nodeId), &reads, POINTER_BYTES) != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(reads);
+      return false;
+    }
+    auto *ancestor =
+        static_cast<SStreamAncestorParamContext *>(taosArrayGet(request->pAncestorContext->pParamContexts, 0));
+    if (ancestor == nullptr) return false;
+    request->pAncestorContext->pReadScopeBindings = taosArrayInit(1, sizeof(SStreamReadScopeBinding));
+    if (request->pAncestorContext->pReadScopeBindings == nullptr) return false;
+    SStreamReadScopeBinding binding = {};
+    binding.vgId = nodeId;
+    binding.readInfoIndex = 0;
+    binding.scope.gid = gid;
+    binding.scope.lineage.pScopes = taosArrayDup(ancestor->leafIdentity.lineage.pScopes, nullptr);
+    if (binding.scope.lineage.pScopes == nullptr) return false;
+    if (taosArrayPush(request->pAncestorContext->pReadScopeBindings, &binding) == nullptr) {
+      taosArrayDestroy(binding.scope.lineage.pScopes);
+      return false;
+    }
+    return true;
+  }
+
+  int32_t Decode(const SSTriggerCalcRequest &source, SSTriggerCalcRequest *decoded) {
+    auto    view = source;
+    int32_t len = tSerializeSTriggerCalcRequest(nullptr, 0, &view);
+    if (len <= 0) return len;
+    std::vector<uint8_t> bytes(len);
+    if (tSerializeSTriggerCalcRequest(bytes.data(), len, &view) != len) return TSDB_CODE_INVALID_MSG;
+    int32_t code = tDeserializeSTriggerCalcRequestWithContextFrames(bytes.data(), len, decoded);
+    decoded->brandNew = true;
+    decoded->execId = -1;
+    return code;
+  }
+
+  void DataThenEof() {
+    gCalls.executeGroupIds = {101, 101, 202};
+    gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+    gCalls.executeFinished = {false, false, false, true};
+  }
+
+  int32_t Continue(int32_t execId = 7) {
+    OwnedTriggerCalcRequest next;
+    next.value.execId = execId;
+    next.value.sessionId = 1;
+    next.value.isMultiGroupCalc = true;
+    return stRunnerTaskExecute(&task_, &next.value, 2000);
+  }
+
+  int64_t ExpectOwners(int count) {
+    int actualCount = 0;
+    int bytes = 0;
+    for (auto *list : {task_.execMgr.pRunningExecs, task_.execMgr.pFreeExecs}) {
+      for (auto *node = tdListGetHead(list); node != nullptr; node = node->dl_next_) {
+        auto *exec = reinterpret_cast<SStreamRunnerTaskExecution *>(node->data);
+        if (exec->runtimeInfo.pContextFrames != nullptr) {
+          ++actualCount;
+          bytes += exec->runtimeInfo.pContextFrames->size;
+        }
+      }
+    }
+    EXPECT_EQ(actualCount, count);
+    RecordProperty("last_live_frame_owners", actualCount);
+    RecordProperty("last_live_frame_bytes", bytes);
+    if (count == 0)
+      EXPECT_EQ(bytes, 0);
+    else
+      EXPECT_GT(bytes, 0);
+    return bytes;
+  }
+};
+
+TEST(StreamRunnerDeployTest, FailedDerivativeStateDoesNotAcquireExecutionResources) {
+  Stub stub;
+  stub.set(scalarCreateStreamDerivativeLogState,
+           +[](SStreamDerivativeLogState**) -> int32_t { return TSDB_CODE_OUT_OF_MEMORY; });
+  SStreamRunnerTask runner = {};
+  runner.task.type = STREAM_RUNNER_TASK;
+  SStreamRunnerDeployMsg msg = {};
+  char streamName[] = "derivative_state_failure";
+  msg.streamName = streamName;
+  msg.execReplica = 1;
+  msg.addOptions = STREAM_OPTION_DERIVATIVE_TAG;
+  SArray* outputCols = taosArrayInit(1, sizeof(SFieldWithOptions));
+  ASSERT_NE(nullptr, outputCols);
+  msg.outCols = outputCols;
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, stRunnerTaskDeploy(&runner, &msg));
+  EXPECT_EQ(STREAM_STATUS_FAILED, runner.task.status);
+  EXPECT_EQ(nullptr, runner.pDerivativeLogState);
+  EXPECT_FALSE(runner.execMgr.lockInited);
+  EXPECT_FALSE(runner.execMgr.stateLockInited);
+  EXPECT_EQ(nullptr, runner.execMgr.pFreeExecs);
+  EXPECT_EQ(nullptr, runner.execMgr.pRunningExecs);
+  EXPECT_EQ(outputCols, msg.outCols);
+  EXPECT_EQ(nullptr, runner.output.outCols);
+
+  // Clean both layouts so this regression also runs safely against the old code.
+  if (runner.execMgr.lockInited) {
+    SStreamRunnerTask* task = &runner;
+    runner.task.undeployCb = [](void*) {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskUndeploy(&task, true));
+  } else {
+    taosMemoryFree(runner.streamName);
+  }
+  taosArrayDestroy(msg.outCols);
+}
+
+TEST(StreamRunnerDeployTest, FailedExpressionsLeaveNoDerivativeLogState) {
+  for (bool failTagExpr : {true, false}) {
+    SStreamRunnerTask runner = {};
+    runner.task.type = STREAM_RUNNER_TASK;
+    SStreamRunnerDeployMsg msg = {};
+    char streamName[] = "derivative_deploy_failure";
+    char invalidExpr[] = "{";
+    char emptyTags[] = "[]";
+    msg.streamName = streamName;
+    msg.execReplica = 1;
+    msg.addOptions = STREAM_OPTION_DERIVATIVE_TAG;
+    msg.tagValueExpr = failTagExpr ? invalidExpr : emptyTags;
+    msg.subTblNameExpr = invalidExpr;
+
+    EXPECT_NE(TSDB_CODE_SUCCESS, stRunnerTaskDeploy(&runner, &msg));
+    EXPECT_EQ(STREAM_STATUS_FAILED, runner.task.status);
+    // Failed deployments are discarded directly by management, without undeploy.
+    EXPECT_EQ(nullptr, runner.pDerivativeLogState);
+
+    // Release the pre-existing deployment resources owned by this test fixture.
+    SStreamRunnerTask* task = &runner;
+    runner.task.undeployCb = [](void*) {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskUndeploy(&task, true));
+  }
+}
+
+TEST_F(StreamRunnerContextForwardingTest, DecodedRequestTransfersOwnerThroughDataEogAndEof) {
+  ASSERT_TRUE(Prepare(&request_));
+  request_.derivativeLogEpoch = 123;
+  const int64_t gid = 101;
+  auto* config = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(request_.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  config->derivativeLogEpoch = 567;
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  auto *frames = decoded.value.pContextFrames;
+  ASSERT_NE(frames, nullptr);
+  DataThenEof();
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded.value.pContextFrames, nullptr);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames, frames);
+  EXPECT_EQ(123, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  config = static_cast<SSTriggerGroupCalcInfo*>(
+      tSimpleHashGet(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  EXPECT_EQ(567, config->derivativeLogEpoch);
+  ExpectOwners(1);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames, frames);
+  EXPECT_EQ(123, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  EXPECT_EQ(567, config->derivativeLogEpoch);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  EXPECT_EQ(Continue(), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, InstalledCanonicalReaderBatchOwnsPreparedContextUntilTail) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, TerminalCleanupClearsEntireBorrowedFetchRuntime) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  auto *runtime = gCalls.pRuntimeInfo;
+  ASSERT_NE(nullptr, runtime->pPreparedFetchContext);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  const SStreamFetchContextSelection *selection = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSelectStreamFetchContextForNode(runtime->pPreparedFetchContext, &runtime->funcInfo, 7, &selection));
+  ASSERT_NE(nullptr, selection);
+  runtime->fetchInfo.funcInfo = runtime->funcInfo;
+  runtime->fetchInfo.pContextSelection = selection;
+  runtime->fetchInfo.reuseReader = true;
+  runtime->fetchInfo.active = true;
+
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(nullptr, runtime->pPreparedFetchContext);
+  EXPECT_FALSE(runtime->fetchInfo.active);
+  EXPECT_EQ(nullptr, runtime->fetchInfo.funcInfo.pContextPolicy);
+  EXPECT_EQ(nullptr, runtime->fetchInfo.pContextSelection);
+  EXPECT_FALSE(runtime->fetchInfo.reuseReader);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, PublicCalcRetainsIndependentFramesAfterReceiveBufferDies) {
+  ASSERT_TRUE(Prepare(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  ASSERT_NE(gCalls.pRuntimeInfo->pContextFrames, nullptr);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames->pContextPolicy, gCalls.pRuntimeInfo->funcInfo.pContextPolicy);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, PublicFetchRetainsFramesUntilTerminalResponse) {
+  ASSERT_TRUE(Prepare(&request_));
+  DataThenEof();
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = 1;
+  runtime.derivativeLogEpoch = 456;
+  runtime.triggerType = request_.triggerType;
+  runtime.isWindowTrigger = true;
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = task_.addOptions;
+  runtime.pGroupCalcInfos = request_.pGroupCalcInfos;
+  const int64_t gid = 101;
+  auto* config = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  config->derivativeLogEpoch = 789;
+  runtime.pGroupReadInfos = request_.pGroupReadInfos;
+  runtime.pContextPolicy = request_.pContextPolicy;
+  runtime.pAncestorContext = request_.pAncestorContext;
+  SResFetchReq fetch = {};
+  fetch.queryId = task_.task.streamId;
+  fetch.taskId = task_.task.taskId;
+  fetch.reset = true;
+  fetch.execId = -1;
+  fetch.pStRtFuncInfo = &runtime;
+  ASSERT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(456, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  config = static_cast<SSTriggerGroupCalcInfo*>(
+      tSimpleHashGet(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  EXPECT_EQ(789, config->derivativeLogEpoch);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  ExpectOwners(1);
+  fetch.reset = false;
+  fetch.execId = 7;
+  for (int i = 0; i < 3; ++i) ASSERT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 1);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, CandidateSurvivesAdmissionRejectionInRequestOnly) {
+  ASSERT_TRUE(Prepare(&request_));
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  auto *frames = decoded.value.pContextFrames;
+  ASSERT_NE(frames, nullptr);
+  task_.addOptions = 0;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(decoded.value.pContextFrames, frames);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  ExpectOwners(0);
+  tDestroySTriggerCalcRequest(&decoded.value);
+  EXPECT_EQ(decoded.value.pContextFrames, nullptr);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, PublicCalcRejectsCandidateWithMissingNestedReadBindings) {
+  ASSERT_TRUE(Prepare(&request_));
+  const int32_t nodeId = 7;
+  SArray       *reads = taosArrayInit_s(sizeof(SSTriggerGroupReadInfo), 1);
+  ASSERT_NE(reads, nullptr);
+  auto *read = static_cast<SSTriggerGroupReadInfo *>(taosArrayGet(reads, 0));
+  read->gid = 101;
+  read->firstParam = *runnerGroupParam(&request_, 101, 0);
+  read->lastParam = read->firstParam;
+  ASSERT_EQ(tSimpleHashPut(request_.pGroupReadInfos, &nodeId, sizeof(nodeId), &reads, POINTER_BYTES),
+            TSDB_CODE_SUCCESS);
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  ASSERT_NE(decoded.value.pContextFrames, nullptr);
+  EXPECT_NE(tValidateSTriggerCalcRequestAncestorContext(&decoded.value, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(processPublicCalc(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, ResetFailureBeforeInstallLeavesCandidateInRequest) {
+  ASSERT_TRUE(Prepare(&request_));
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  auto *frames = decoded.value.pContextFrames;
+  ASSERT_NE(frames, nullptr);
+  stub_.set(streamClearStatesForOperators, failRunnerContextReset);
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(decoded.value.pContextFrames, frames);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, IndexInstallFailureLeavesCandidateInRequest) {
+  ASSERT_TRUE(Prepare(&request_));
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  auto *frames = decoded.value.pContextFrames;
+  ASSERT_NE(frames, nullptr);
+  stub_.set(tPrepareStreamAncestorParamIndex, failRunnerContextIndex);
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(decoded.value.pContextFrames, frames);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, TerminalResetFailureStillReleasesInstalledOwner) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  ASSERT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  stub_.set(streamClearStatesForOperators, failRunnerContextReset);
+  EXPECT_EQ(Continue(), TSDB_CODE_OUT_OF_MEMORY);
+  ExpectOwners(0);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, TaskDestroyKeepsFramesAliveUntilOperatorStops) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  ASSERT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  gRunnerDestroyRuntime = gCalls.pRuntimeInfo;
+  UndeployRunnerForCleanup();
+  EXPECT_TRUE(gRunnerDestroySawOwners);
+  EXPECT_TRUE(gRunnerDestroySawFrames);
+  EXPECT_TRUE(gRunnerDestroySawPrepared);
+  EXPECT_EQ(gRunnerDestroyEvents, (std::vector<int32_t>{1, 2}));
+  gRunnerDestroyRuntime = nullptr;
+}
+
+TEST_F(StreamRunnerContextForwardingTest, WrongExecAndRetainedReuseCannotReplaceFrameOwner) {
+  ASSERT_TRUE(Prepare(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  auto *frames = gCalls.pRuntimeInfo->pContextFrames;
+  EXPECT_NE(frames, nullptr);
+  EXPECT_EQ(Continue(8), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  OwnedTriggerCalcRequest competing;
+  ASSERT_EQ(Decode(request_, &competing.value), TSDB_CODE_SUCCESS);
+  auto *candidate = competing.value.pContextFrames;
+  ASSERT_NE(candidate, nullptr);
+  competing.value.execId = 7;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &competing.value, 2000), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  EXPECT_EQ(competing.value.pContextFrames, candidate);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames, frames);
+  ExpectOwners(1);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, ExecutorErrorReleasesInstalledOwner) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  ASSERT_NE(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+  gCalls.executeCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_OUT_OF_MEMORY};
+  EXPECT_EQ(Continue(), TSDB_CODE_OUT_OF_MEMORY);
+  ExpectOwners(0);
+  EXPECT_EQ(gCalls.pRuntimeInfo->pPreparedFetchContext, nullptr);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, MissingOptionalFramesExecutesNormally) {
+  ASSERT_TRUE(Prepare(&request_));
+  DataThenEof();
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, OptionalPrepareOomFallsBackOnceForRetainedBatch) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  gPreparedFetchFailures = 0;
+  stub_.set(tPrepareStreamFetchContext, failPreparedFetchContext);
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(1, gPreparedFetchFailures);
+  EXPECT_EQ(nullptr, gCalls.pRuntimeInfo->pPreparedFetchContext);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(1, gPreparedFetchFailures);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, ReusedExecutionInstallsNewSameGidAncestorValues) {
+  ASSERT_TRUE(Prepare(&request_, 100));
+  DataThenEof();
+  auto *exec = Exec();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+  EXPECT_EQ(Exec(), exec);
+  tDestroySTriggerCalcRequest(&request_);
+  ASSERT_TRUE(Prepare(&request_, 900));
+  gCalls.executeGroupIds.push_back(101);
+  gCalls.executeBlocks.push_back(NewMultiGroupDataBlock(1, 101));
+  gCalls.executeFinished.push_back(false);
+  OwnedTriggerCalcRequest decoded;
+  ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
+  auto *newFrames = decoded.value.pContextFrames;
+  ASSERT_NE(newFrames, nullptr);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(RunningExec(), exec);
+  EXPECT_EQ(exec->runtimeInfo.pContextFrames, newFrames);
+  EXPECT_EQ(decoded.value.pContextFrames, nullptr);
+  EXPECT_EQ(gCalls.executeAncestorStarts.back(), 900);
+  ExpectOwners(1);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, ReusedSlotClearsPreparedOwnerBeforeLegacyBatch) {
+  ASSERT_TRUE(PrepareWithReader(&request_));
+  DataThenEof();
+  auto *exec = Exec();
+  ASSERT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(exec->runtimeInfo.pPreparedFetchContext, nullptr);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(exec->runtimeInfo.pPreparedFetchContext, nullptr);
+  tDestroySTriggerCalcRequest(&request_);
+  task_.addOptions = 0;
+  ASSERT_TRUE(Prepare(&request_, 900));
+  tDestroyStreamContextPolicy(&request_.pContextPolicy);
+  tDestroyStreamAncestorContext(&request_.pAncestorContext);
+  gCalls.executeGroupIds.push_back(101);
+  gCalls.executeBlocks.push_back(NewMultiGroupDataBlock(1, 101));
+  gCalls.executeFinished.push_back(false);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(RunningExec(), exec);
+  EXPECT_EQ(exec->runtimeInfo.funcInfo.addOptions, 0);
+  EXPECT_EQ(exec->runtimeInfo.pPreparedFetchContext, nullptr);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, FiftySequentialBatchesReleaseAlternatingAncestorOwners) {
+  int64_t retainedBytes = 0;
+  for (int32_t batch = 0; batch < 50; ++batch) {
+    SCOPED_TRACE(batch);
+    EXPECT_EQ(ExpectOwners(0), 0);
+    tDestroySTriggerCalcRequest(&request_);
+    const TSKEY ancestorStart = batch % 2 == 0 ? 100 : 900;
+    ASSERT_TRUE(Prepare(&request_, ancestorStart));
+    OwnedTriggerCalcRequest decoded;
+    ASSERT_EQ(Decode(request_, &decoded.value), 0);
+    ASSERT_NE(decoded.value.pContextFrames, nullptr);
+    const int32_t candidateBytes = decoded.value.pContextFrames->size;
+    gCalls.executeGroupIds.insert(gCalls.executeGroupIds.end(), {101, 101, 202, 202});
+    gCalls.executeBlocks.insert(gCalls.executeBlocks.end(), {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101),
+                                                             NewMultiGroupEog(202), nullptr});
+    gCalls.executeFinished.insert(gCalls.executeFinished.end(), {false, false, false, true});
+    ASSERT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000 + batch), 0);
+    EXPECT_EQ(decoded.value.pContextFrames, nullptr);
+    EXPECT_EQ(gCalls.executeAncestorStarts.back(), ancestorStart);
+    EXPECT_EQ(gCalls.executeAncestorCurrentTs.back(), ancestorStart);
+    retainedBytes = ExpectOwners(1);
+    EXPECT_EQ(retainedBytes, candidateBytes);
+    ASSERT_EQ(Continue(), 0);
+    ASSERT_EQ(Continue(), 0);
+    EXPECT_EQ(ExpectOwners(1), retainedBytes);
+    ASSERT_EQ(Continue(), 0);
+    EXPECT_EQ(ExpectOwners(0), 0);
+  }
+  RecordProperty("sequential_batches", 50);
+  RecordProperty("retained_frame_bytes", retainedBytes);
+  RecordProperty("frame_bytes_before_install", 0);
+  RecordProperty("frame_bytes_after_eof", 0);
+}
+
+TEST_F(StreamRunnerContextForwardingTest, SimultaneousSameGidExecutionsKeepTheirOwnAncestorValues) {
+  ASSERT_TRUE(PrepareWithReader(&request_, 100));
+  auto *first = Exec();
+  auto *second = static_cast<SStreamRunnerTaskExecution *>(tdListReserve(task_.execMgr.pFreeExecs));
+  ASSERT_NE(second, nullptr);
+  second->pExecutor = &executorSentinel_;
+  second->pSinkHandle = &sinkSentinel_;
+  second->runtimeInfo.execId = 8;
+  second->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.executeGroupIds = {101, 101, 101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupDataBlock(2, 101),
+                          NewMultiGroupDataBlock(3, 101), NewMultiGroupDataBlock(4, 101)};
+  gCalls.executeFinished = {false, false, false, false};
+  OwnedTriggerCalcRequest firstRequest;
+  ASSERT_EQ(Decode(request_, &firstRequest.value), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &firstRequest.value, 1000), TSDB_CODE_SUCCESS);
+  tDestroySTriggerCalcRequest(&request_);
+  ASSERT_TRUE(PrepareWithReader(&request_, 900));
+  OwnedTriggerCalcRequest secondRequest;
+  ASSERT_EQ(Decode(request_, &secondRequest.value), TSDB_CODE_SUCCESS);
+  gCalls.pRuntimeInfo = &second->runtimeInfo;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &secondRequest.value, 1000), TSDB_CODE_SUCCESS);
+  const int64_t liveBytes = ExpectOwners(2);
+  EXPECT_EQ(liveBytes, first->runtimeInfo.pContextFrames->size + second->runtimeInfo.pContextFrames->size);
+  RecordProperty("overlapping_executions", 2);
+  RecordProperty("retained_frame_bytes", liveBytes);
+  EXPECT_NE(first->runtimeInfo.pContextFrames, second->runtimeInfo.pContextFrames);
+  ASSERT_NE(first->runtimeInfo.pPreparedFetchContext, nullptr);
+  ASSERT_NE(second->runtimeInfo.pPreparedFetchContext, nullptr);
+  EXPECT_NE(first->runtimeInfo.pPreparedFetchContext, second->runtimeInfo.pPreparedFetchContext);
+  gCalls.pRuntimeInfo = &first->runtimeInfo;
+  ASSERT_EQ(Continue(7), TSDB_CODE_SUCCESS);
+  gCalls.pRuntimeInfo = &second->runtimeInfo;
+  ASSERT_EQ(Continue(8), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeAncestorStarts, (std::vector<TSKEY>{100, 900, 100, 900}));
+  EXPECT_EQ(gCalls.executeAncestorCurrentTs, (std::vector<TSKEY>{100, 900, 100, 900}));
+  ASSERT_EQ(gCalls.executeFrameOwners.size(), 4);
+  EXPECT_EQ(gCalls.executeFrameOwners[0], gCalls.executeFrameOwners[2]);
+  EXPECT_EQ(gCalls.executeFrameOwners[1], gCalls.executeFrameOwners[3]);
+  EXPECT_NE(gCalls.executeFrameOwners[0], gCalls.executeFrameOwners[1]);
+  gCalls.executeGroupIds.insert(gCalls.executeGroupIds.end(), {101, 202, 202, 101, 202, 202});
+  gCalls.executeBlocks.insert(gCalls.executeBlocks.end(), {NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr,
+                                                           NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr});
+  gCalls.executeFinished.insert(gCalls.executeFinished.end(), {false, false, true, false, false, true});
+  gCalls.pRuntimeInfo = &first->runtimeInfo;
+  for (int32_t step = 0; step < 3; ++step) ASSERT_EQ(Continue(7), TSDB_CODE_SUCCESS);
+  ExpectOwners(1);
+  EXPECT_EQ(first->runtimeInfo.pPreparedFetchContext, nullptr);
+  EXPECT_NE(second->runtimeInfo.pPreparedFetchContext, nullptr);
+  gCalls.pRuntimeInfo = &second->runtimeInfo;
+  for (int32_t step = 0; step < 3; ++step) ASSERT_EQ(Continue(8), TSDB_CODE_SUCCESS);
+  ExpectOwners(0);
+  EXPECT_EQ(second->runtimeInfo.pPreparedFetchContext, nullptr);
+  UndeployRunnerForCleanup();
+}
+
+class StreamRunnerMultiGroupTest : public StreamRunnerTest {};
+
+TEST_F(StreamRunnerTest, RunnerPeriodUsesSameCountsAsMinuteSnapshot) {
+  stTaskStatsRecordRunnerRequest(task_.pStats, 2, 1000001, 2000);
+  stTaskStatsRecordRunnerInput(task_.pStats, 400, 20, 1000001);
+  stTaskStatsRecordRunnerCalcDuration(task_.pStats, 6003, 1000001, 2000);
+  stTaskStatsRecordRunnerWindow(task_.pStats, true, 5000, 1000001, 3000);
+  stTaskStatsRecordRunnerOutput(task_.pStats, 100, 10, 1000001, 4000);
+
+  SStreamTaskMetricsSnapshot minute = {};
+  ASSERT_EQ(stTaskStatsSnapshot1m(task_.pStats, STREAM_STATS_BUCKET_COUNT * STREAM_STATS_BUCKET_US + 1, &minute),
+            TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(minute.windowReady);
+
+  const SStreamTaskPeriodSnapshot period = RotateRunnerSnapshot();
+  EXPECT_EQ(period.period.runner.outputRows, minute.deliveredOutputRows1m);
+  EXPECT_EQ(period.period.runner.resultLatency.totalUs, minute.resultLatencyUs1m);
+  EXPECT_EQ(period.period.runner.resultLatency.samples, minute.resultLatencySamples1m);
+
+  const std::string line = EmitRunnerDebugPeriod(period);
+  EXPECT_NE(line.find("calc_request_count=1"), std::string::npos);
+  EXPECT_NE(line.find("logical_window_count=2"), std::string::npos);
+  EXPECT_NE(line.find("input_rows=400"), std::string::npos);
+  EXPECT_NE(line.find("input_blocks=20"), std::string::npos);
+  EXPECT_NE(line.find("output_rows=100"), std::string::npos);
+  EXPECT_NE(line.find("output_blocks=10"), std::string::npos);
+  EXPECT_NE(line.find("input_rows_per_sec=2.222"), std::string::npos);
+  EXPECT_NE(line.find("input_blocks_per_sec=0.111"), std::string::npos);
+  EXPECT_NE(line.find("output_rows_per_sec=0.556"), std::string::npos);
+  EXPECT_NE(line.find("output_blocks_per_sec=0.056"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_avg_ms=6.003"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_max_ms=6.003"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_lifetime_max_ms=6.003"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_lifetime_max_at=2000"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_avg_ms=5.000"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_max_ms=5.000"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_lifetime_max_ms=5.000"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_lifetime_max_at=3000"), std::string::npos);
+  EXPECT_NE(line.find("executor_memory_bytes_estimate=4096"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodUsesCachedMemoryWhileExecutionIsActive) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  auto* pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->executorMemoryBytes = 8192;
+  gCalls.monotonicUs = 2000000;
+  gBlockRunnerExecute.store(true);
+  int32_t executeCode = TSDB_CODE_FAILED;
+  std::thread worker([&] { executeCode = stRunnerTaskExecute(&task_, &request_, 1000); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerExecuteEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  const bool entered = gRunnerExecuteEntered.load();
+  if (entered) {
+    const std::string line = EmitRunnerDebugPeriod(EmptyRunnerSnapshot());
+    EXPECT_NE(line.find("executor_memory_bytes_estimate=8192"), std::string::npos);
+    EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  }
+  gBlockRunnerExecute.store(false);
+  worker.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(executeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+  EXPECT_EQ(pExec->executorMemoryBytes, kMockExecutorMemoryBytes);
+  EXPECT_TRUE(pExec->memorySnapshotPublished);
+  EXPECT_TRUE(pExec->outputMemoryValid);
+  EXPECT_TRUE(pExec->executorMemoryValid);
+}
+
+TEST_F(StreamRunnerTest, RunnerMemorySamplingIsThrottledAndHandlesClockRollback) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+
+  gCalls.monotonicUs = 2999999;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 1);
+  gCalls.monotonicUs = 3000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 2);
+  gCalls.monotonicUs = 1000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 3);
+}
+
+TEST_F(StreamRunnerTest, RunnerMemorySampleFailureDoesNotFailCalculationAndCanRecover) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  gRunnerMemorySampleCode = TSDB_CODE_OUT_OF_MEMORY;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=NA"),
+            std::string::npos);
+
+  gCalls.monotonicUs += 1000000;
+  gRunnerMemorySampleCode = TSDB_CODE_SUCCESS;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=4096"),
+            std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerExecutorMemoryWalkIsSkippedWithoutQueryDebug) {
+  ScopedQueryDebugFlag scopedQueryDebug(false);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  EXPECT_TRUE(pExec->memorySnapshotPublished);
+  EXPECT_TRUE(pExec->outputMemoryValid);
+  EXPECT_TRUE(pExec->executorMemoryValid);
+  EXPECT_EQ(pExec->executorMemoryBytes, kMockExecutorMemoryBytes);
+}
+
+TEST_F(StreamRunnerTest, RunnerExecutorMemoryIsUnavailableUntilSampled) {
+  ScopedQueryDebugFlag scopedQueryDebug(false);
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  ASSERT_TRUE(pExec->executorMemoryValid);  // fresh exec: no executor yet, so 0 bytes is accurate
+  pExec->pExecutor = nullptr;               // force the executor creation path
+  stub_.set(qCreateStreamExecTaskInfo, mockQCreateStreamExecTaskInfo);
+  stub_.set(qSetTaskId, mockQSetTaskId);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  // An executor now exists but was never sampled, so the initial 0 bytes must not be published as
+  // a real estimate while the walk stays disabled.
+  EXPECT_EQ(gCalls.buildCalls, 1);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  EXPECT_FALSE(pExec->executorMemoryValid);
+  EXPECT_EQ(pExec->executorMemoryBytes, 0);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("executor_memory_bytes_estimate=NA"),
+            std::string::npos);
+  EXPECT_NE(EmitRunnerDebugPeriod(EmptyRunnerSnapshot()).find("runner_owned_memory_bytes_estimate="),
+            std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerDropsExecutorDestroyedByFailedBuild) {
+  ScopedQueryDebugFlag scopedQueryDebug(true);  // the sample is the read that would touch the stale handle
+  SetWindows(1);
+  gCalls.monotonicUs = 2000000;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->pExecutor = nullptr;  // force the executor creation path
+  stub_.set(qCreateStreamExecTaskInfo, mockQCreateStreamExecTaskInfoFailedBuild);
+
+  EXPECT_NE(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  // The failed build reported the handle of a task it already destroyed.  Keeping it would let the
+  // cleanup path sample that freed memory (and reset it on the multi-group path).
+  EXPECT_EQ(gCalls.buildCalls, 1);
+  EXPECT_EQ(gCalls.setTaskIdCalls, 0);
+  EXPECT_EQ(pExec->pExecutor, nullptr);
+  EXPECT_EQ(gRunnerMemorySampleCalls.load(), 0);
+  // The exec was released through the cleanup path that performs the sampling.
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodPrintsNoResultAndThreeFailureClasses) {
+  SStreamTaskPeriodSnapshot snapshot = EmptyRunnerSnapshot();
+  snapshot.period.runner.noResultWindowCount = 7;
+  snapshot.period.runner.calcFailureCount = 2;
+  snapshot.period.runner.sinkFailureCount = 3;
+  snapshot.period.runner.notifyFailureCount = 5;
+
+  const std::string line = EmitRunnerDebugPeriod(snapshot);
+  EXPECT_NE(line.find("no_result_window_count=7"), std::string::npos);
+  EXPECT_NE(line.find("calc_failure_count=2"), std::string::npos);
+  EXPECT_NE(line.find("sink_failure_count=3"), std::string::npos);
+  EXPECT_NE(line.find("notify_failure_count=5"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodUsesActualWindowForRates) {
+  SStreamTaskPeriodSnapshot snapshot = EmptyRunnerSnapshot();
+  snapshot.statsWindowMs = 200000;
+  snapshot.period.runner.inputRows = 400;
+  snapshot.period.runner.inputBlocks = 20;
+  snapshot.period.runner.outputRows = 100;
+  snapshot.period.runner.outputBlocks = 10;
+
+  const std::string line = EmitRunnerDebugPeriod(snapshot);
+  EXPECT_NE(line.find("input_rows_per_sec=2.000"), std::string::npos);
+  EXPECT_NE(line.find("input_blocks_per_sec=0.100"), std::string::npos);
+  EXPECT_NE(line.find("output_rows_per_sec=0.500"), std::string::npos);
+  EXPECT_NE(line.find("output_blocks_per_sec=0.050"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodNoSamplesPrintsNa) {
+  const std::string line = EmitRunnerDebugPeriod(EmptyRunnerSnapshot());
+  EXPECT_NE(line.find("calc_duration_avg_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_max_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_lifetime_max_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("calc_duration_lifetime_max_at=NA"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_avg_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_max_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_lifetime_max_ms=NA"), std::string::npos);
+  EXPECT_NE(line.find("result_latency_lifetime_max_at=NA"), std::string::npos);
+  EXPECT_NE(line.find("last_calc_at=NA"), std::string::npos);
+  EXPECT_NE(line.find("last_result_at=NA"), std::string::npos);
+  EXPECT_NE(line.find("last_output_at=NA"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerExecCountsAreReadUnderLock) {
+  ScopedRunnerDebugLogCapture capture;
+  SStreamTaskPeriodSnapshot   snapshot = EmptyRunnerSnapshot();
+  std::atomic<bool>           entered{false};
+  std::atomic<bool>           finished{false};
+  int32_t                     logCode = TSDB_CODE_FAILED;
+
+  ASSERT_EQ(taosThreadMutexLock(&task_.execMgr.lock), TSDB_CODE_SUCCESS);
+  std::thread logger([&] {
+    entered.store(true);
+    logCode = stRunnerTaskLogStats(&task_, &snapshot);
+    finished.store(true);
+  });
+  while (!entered.load()) std::this_thread::yield();
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  EXPECT_FALSE(finished.load());
+
+  SStreamRunnerTaskExecution secondExec = {};
+  EXPECT_EQ(tdListAppend(task_.execMgr.pFreeExecs, &secondExec), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosThreadMutexUnlock(&task_.execMgr.lock), TSDB_CODE_SUCCESS);
+  logger.join();
+
+  ASSERT_EQ(logCode, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(finished.load());
+  ASSERT_EQ(gRunnerDebugLogs.size(), 1);
+  EXPECT_NE(gRunnerDebugLogs.front().find("free_exec_count=2"), std::string::npos);
+  EXPECT_NE(gRunnerDebugLogs.front().find("running_exec_count=0"), std::string::npos);
+  EXPECT_NE(gRunnerDebugLogs.front().find("parallel_execution_limit=3"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodUninitializedExecManagerDoesNotFabricateCounts) {
+  ScopedRunnerDebugLogCapture capture;
+  SStreamTaskPeriodSnapshot   snapshot = EmptyRunnerSnapshot();
+  snapshot.period.runner.calcRequestCount = 7;
+  task_.execMgr.lockInited = false;
+  const int32_t logCode = stRunnerTaskLogStats(&task_, &snapshot);
+  task_.execMgr.lockInited = true;
+
+  EXPECT_EQ(logCode, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gRunnerDebugLogs.size(), 1);
+  EXPECT_NE(gRunnerDebugLogs.front().find("calc_request_count=7"), std::string::npos);
+  EXPECT_NE(gRunnerDebugLogs.front().find("free_exec_count=NA"), std::string::npos);
+  EXPECT_NE(gRunnerDebugLogs.front().find("running_exec_count=NA"), std::string::npos);
+  EXPECT_NE(gRunnerDebugLogs.front().find("parallel_execution_limit=NA"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodEntryWriterSkipsPoisonedExecManagerAndPrintsNa) {
+  ScopedRunnerDebugLogCapture capture;
+  SStreamTaskPeriodSnapshot   snapshot = EmptyRunnerSnapshot();
+  SList                      *pFreeExecs = task_.execMgr.pFreeExecs;
+  SList                      *pRunningExecs = task_.execMgr.pRunningExecs;
+
+  ASSERT_EQ(taosWTryForceLockLatch(&task_.task.entryLock), TSDB_CODE_SUCCESS);
+  task_.execMgr.pFreeExecs = reinterpret_cast<SList *>(static_cast<uintptr_t>(1));
+  task_.execMgr.pRunningExecs = reinterpret_cast<SList *>(static_cast<uintptr_t>(1));
+
+  const int32_t logCode = stRunnerTaskLogStats(&task_, &snapshot);
+  std::string   line;
+  int32_t       periodLogs = 0;
+  for (const std::string &log : gRunnerDebugLogs) {
+    if (log.find("record=task_period task_type=runner") != std::string::npos) {
+      ++periodLogs;
+      line = log;
+    }
+  }
+
+  task_.execMgr.pFreeExecs = pFreeExecs;
+  task_.execMgr.pRunningExecs = pRunningExecs;
+  taosWUnLockLatch(&task_.task.entryLock);
+
+  EXPECT_EQ(logCode, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(periodLogs, 1);
+  EXPECT_NE(line.find("free_exec_count=NA"), std::string::npos);
+  EXPECT_NE(line.find("running_exec_count=NA"), std::string::npos);
+  EXPECT_NE(line.find("parallel_execution_limit=NA"), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerLoggerEntryReadPreventsTeardownUntilExecSnapshotCompletes) {
+  ScopedRunnerDebugLogCapture capture;
+  SStreamRunnerTask           runner = {};
+  runner.task.type = STREAM_RUNNER_TASK;
+  runner.task.streamId = 0x5678;
+  runner.task.taskId = 89;
+  runner.task.status = STREAM_STATUS_RUNNING;
+  runner.task.undeployCb = captureRunnerUndeploy;
+  runner.parallelExecutionNun = 2;
+  ASSERT_EQ(taosThreadMutexInit(&runner.execMgr.lock, nullptr), TSDB_CODE_SUCCESS);
+  runner.execMgr.lockInited = true;
+  ASSERT_EQ(taosThreadMutexInit(&runner.execMgr.stateLock, nullptr), TSDB_CODE_SUCCESS);
+  runner.execMgr.stateLockInited = true;
+  runner.execMgr.pFreeExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+  runner.execMgr.pRunningExecs = tdListNew(sizeof(SStreamRunnerTaskExecution));
+  ASSERT_NE(runner.execMgr.pFreeExecs, nullptr);
+  ASSERT_NE(runner.execMgr.pRunningExecs, nullptr);
+  SStreamTask *pRegisteredTask = &runner.task;
+  ASSERT_EQ(taosHashPut(gStreamMgmt.taskMap, &runner.task.streamId,
+                        sizeof(runner.task.streamId) + sizeof(runner.task.taskId), &pRegisteredTask, POINTER_BYTES),
+            TSDB_CODE_SUCCESS);
+
+  SStreamTaskPeriodSnapshot snapshot = EmptyRunnerSnapshot();
+  int32_t                   logCode = TSDB_CODE_FAILED;
+  gBlockRunnerPeriodLog.store(true);
+  std::thread logger([&] { logCode = stRunnerTaskLogStats(&runner, &snapshot); });
+  const auto  deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerPeriodLogEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  bool    entered = gRunnerPeriodLogEntered.load();
+  int32_t undeployCode = TSDB_CODE_FAILED;
+  if (entered) {
+    EXPECT_EQ(taosHashRemove(gStreamMgmt.taskMap, &runner.task.streamId,
+                             sizeof(runner.task.streamId) + sizeof(runner.task.taskId)),
+              TSDB_CODE_SUCCESS);
+    SStreamRunnerTask *pRunner = &runner;
+    undeployCode = stRunnerTaskUndeploy(&pRunner, false);
+    EXPECT_EQ(gRunnerUndeployCalls.load(), 0);
+    EXPECT_TRUE(taosHasRWWFlag(&runner.task.entryLock));
+  }
+
+  gBlockRunnerPeriodLog.store(false);
+  logger.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(undeployCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(logCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  if (!entered) {
+    TAOS_UNUSED(taosHashRemove(gStreamMgmt.taskMap, &runner.task.streamId,
+                               sizeof(runner.task.streamId) + sizeof(runner.task.taskId)));
+    tdListFreeP(runner.execMgr.pRunningExecs, nullptr);
+    tdListFreeP(runner.execMgr.pFreeExecs, nullptr);
+    TAOS_UNUSED(taosThreadMutexDestroy(&runner.execMgr.lock));
+    TAOS_UNUSED(taosThreadMutexDestroy(&runner.execMgr.stateLock));
+  }
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodDoesNotContainWriteRetryOrQueueDepth) {
+  const std::string line = EmitRunnerDebugPeriod(EmptyRunnerSnapshot());
+  EXPECT_EQ(line.find("write_retry_count="), std::string::npos);
+  EXPECT_EQ(line.find("queue_depth="), std::string::npos);
+  EXPECT_EQ(line.find("invalid_result_latency_count="), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodContainsCommonIdentity) {
+  SStreamTaskPeriodSnapshot snapshot = EmptyRunnerSnapshot();
+  snapshot.statsOverflow = true;
+  const std::string line = EmitRunnerDebugPeriod(snapshot);
+
+  EXPECT_NE(line.find("record=task_period task_type=runner"), std::string::npos);
+  EXPECT_NE(line.find("stream_id=4660"), std::string::npos);
+  EXPECT_NE(line.find("task_id=23"), std::string::npos);
+  EXPECT_NE(line.find("serious_id=45"), std::string::npos);
+  EXPECT_NE(line.find("node_id=67"), std::string::npos);
+  EXPECT_NE(line.find("task_type=runner"), std::string::npos);
+  EXPECT_NE(line.find("status=Running"), std::string::npos);
+  EXPECT_NE(line.find("stats_start_at=1000"), std::string::npos);
+  EXPECT_NE(line.find("uptime_ms=180000"), std::string::npos);
+  EXPECT_NE(line.find("stats_window_ms=180000"), std::string::npos);
+  EXPECT_NE(line.find("stats_overflow=true"), std::string::npos);
+
+  const char *requiredFields[] = {
+      "calc_request_count=",
+      "logical_window_count=",
+      "input_rows=",
+      "input_blocks=",
+      "output_rows=",
+      "output_blocks=",
+      "no_result_window_count=",
+      "calc_failure_count=",
+      "sink_failure_count=",
+      "notify_failure_count=",
+      "input_rows_per_sec=",
+      "input_blocks_per_sec=",
+      "output_rows_per_sec=",
+      "output_blocks_per_sec=",
+      "calc_duration_samples=",
+      "calc_duration_avg_ms=",
+      "calc_duration_max_ms=",
+      "calc_duration_lifetime_max_ms=",
+      "calc_duration_lifetime_max_at=",
+      "result_latency_samples=",
+      "result_latency_avg_ms=",
+      "result_latency_max_ms=",
+      "result_latency_lifetime_max_ms=",
+      "result_latency_lifetime_max_at=",
+      "free_exec_count=",
+      "running_exec_count=",
+      "parallel_execution_limit=",
+      "last_calc_at=",
+      "last_result_at=",
+      "last_output_at=",
+      "runner_owned_memory_bytes_estimate=",
+      "executor_memory_bytes_estimate=",
+  };
+  for (const char *field : requiredFields) EXPECT_NE(line.find(field), std::string::npos) << field;
+}
+
+TEST_F(StreamRunnerTest, RunnerLastEventGaugesUseWallClockAtNaturalBoundaries) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  task_.lowLatencyCalc = true;
+
+  const int64_t beforeWallMs = taosGetTimestampMs();
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  const int64_t afterWallMs = taosGetTimestampMs();
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_GE(snapshot.runnerGauges.lastCalcAtMs, beforeWallMs);
+  EXPECT_LE(snapshot.runnerGauges.lastCalcAtMs, afterWallMs);
+  EXPECT_GE(snapshot.runnerGauges.lastResultAtMs, beforeWallMs);
+  EXPECT_LE(snapshot.runnerGauges.lastResultAtMs, afterWallMs);
+  EXPECT_GE(snapshot.runnerGauges.lastOutputAtMs, beforeWallMs);
+  EXPECT_LE(snapshot.runnerGauges.lastOutputAtMs, afterWallMs);
+  EXPECT_NE(snapshot.runnerGauges.lastCalcAtMs, gCalls.monotonicUs);
+
+  const std::string line = EmitRunnerDebugPeriod(snapshot);
+  EXPECT_NE(line.find("last_calc_at=" + std::to_string(snapshot.runnerGauges.lastCalcAtMs)), std::string::npos);
+  EXPECT_NE(line.find("last_result_at=" + std::to_string(snapshot.runnerGauges.lastResultAtMs)), std::string::npos);
+  EXPECT_NE(line.find("last_output_at=" + std::to_string(snapshot.runnerGauges.lastOutputAtMs)), std::string::npos);
+}
+
+TEST_F(StreamRunnerTest, RunnerGaugeSetterDoesNotRegressOnOutOfOrderCallbacks) {
+  stTaskStatsSetRunnerGauges(task_.pStats, 100, 200, 300);
+  stTaskStatsSetRunnerGauges(task_.pStats, 90, 0, 250);
+  stTaskStatsSetRunnerGauges(task_.pStats, 110, 0, 0);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_EQ(snapshot.runnerGauges.lastCalcAtMs, 110);
+  EXPECT_EQ(snapshot.runnerGauges.lastResultAtMs, 200);
+  EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 300);
+}
+
+TEST_F(StreamRunnerTest, RunnerNoResultAdvancesResultGaugeButNotOutputGauge) {
+  SetWindows(1);
+  gCalls.executeReadyTimes = {6000};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_GT(snapshot.runnerGauges.lastCalcAtMs, 0);
+  EXPECT_GT(snapshot.runnerGauges.lastResultAtMs, 0);
+  EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerSinkFailureDoesNotAdvanceOutputGauge) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  gCalls.sinkCode = TSDB_CODE_INVALID_PARA;
+  task_.lowLatencyCalc = true;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerCalcFailureBeforeReadyDoesNotAdvanceResultGauge) {
+  SetWindows(1);
+  gCalls.executeCodes = {TSDB_CODE_INVALID_PARA};
+  gCalls.executeReadyTimes = {6000};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_GT(snapshot.runnerGauges.lastCalcAtMs, 0);
+  EXPECT_EQ(snapshot.runnerGauges.lastResultAtMs, 0);
+  EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerNotifyQueueFailureDoesNotAdvanceOutputGauge) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  gCalls.notifyCode = TSDB_CODE_INVALID_PARA;
+  task_.notification.calcNotifyOnly = true;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_EQ(snapshot.runnerGauges.lastOutputAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerSinkAndNotifyRecordOutputOnce) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  task_.lowLatencyCalc = true;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gCalls.sinkCalls, 1);
+  ASSERT_EQ(gCalls.notifyCalls, 1);
+
+  const SStreamTaskPeriodSnapshot snapshot = RotateRunnerSnapshot();
+  EXPECT_EQ(snapshot.period.runner.outputRows, 7);
+  EXPECT_EQ(snapshot.period.runner.outputBlocks, 1);
+  EXPECT_GT(snapshot.runnerGauges.lastOutputAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerRequestAndCalcGaugeCannotSplitAcrossRotation) {
+  SetWindows(1);
+  gCalls.executeCodes = {TSDB_CODE_INVALID_PARA};
+  gRunnerRotationInterleave = {};
+  {
+    Stub gaugeStub;
+    gaugeStub.set(stTaskStatsSetRunnerGauges, rotateOnRunnerGaugeUpdate);
+    EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  }
+
+  if (gRunnerRotationInterleave.calls == 0) {
+    gRunnerRotationInterleave.code =
+        stTaskStatsRotatePeriod(task_.pStats, STREAM_STATS_PERIOD_US + 1, &gRunnerRotationInterleave.snapshot,
+                                &gRunnerRotationInterleave.rotated);
+  }
+  ASSERT_EQ(gRunnerRotationInterleave.code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(gRunnerRotationInterleave.rotated);
+  EXPECT_EQ(gRunnerRotationInterleave.snapshot.period.runner.calcRequestCount, 1);
+  EXPECT_GT(gRunnerRotationInterleave.snapshot.runnerGauges.lastCalcAtMs, 0);
+}
+
+TEST_F(StreamRunnerTest, RunnerPeriodLoggerFailureDoesNotAffectHeartbeat) {
+  gCalls.monotonicUs = STREAM_STATS_PERIOD_US + 1;
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  ScopedRunnerDebugLogCapture capture;
+  {
+    Stub failLogStub;
+    failLogStub.set(stRunnerTaskLogStats, failRunnerStatsLog);
+    EXPECT_EQ(stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats), TSDB_CODE_SUCCESS);
+  }
+
+  ASSERT_EQ(taosArrayGetSize(heartbeat.pStreamStatus), 1);
+  EXPECT_EQ(taosArrayGetSize(heartbeat.pTaskMetrics), 1);
+  EXPECT_EQ(task_.task.status, STREAM_STATUS_RUNNING);
+  ASSERT_EQ(gRunnerDebugLogs.size(), 1);
+  EXPECT_NE(gRunnerDebugLogs.front().find("failed to rotate or log task statistics"), std::string::npos);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, BrandNewZeroWindowRequestOnReusedExecCreatesTableWithoutExecutingOrNotifying) {
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.resetCalls, 1);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(gCalls.forceOutputCalls, 0);
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+  EXPECT_TRUE(gCalls.sinkBlockIsNull);
+  EXPECT_TRUE(gCalls.autoCreateTable);
+  EXPECT_EQ(gCalls.groupId, 42);
+  EXPECT_STREQ(gCalls.tableName, "out_zero_window");
+  EXPECT_EQ(gCalls.notifyCalls, 0);
+
+  ASSERT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  ASSERT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  auto *pExec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, nullptr);
+  ASSERT_NE(request_.params, nullptr);
+  EXPECT_EQ(taosArrayGetSize(request_.params), 1);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.calcRequestCount, 1);
+  EXPECT_EQ(stats.logicalWindowCount, 0);
+  EXPECT_EQ(stats.resultLatency.samples, 0);
+}
+
+TEST_F(StreamRunnerTest, ReusedExecUsesRealRecursiveResetBeforeEachRun) {
+  UseRealOperatorResetTree();
+  SetWindows(1);
+  task_.topTask = false;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 2000),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(rootReset_.calls, 2);
+  EXPECT_EQ(leftReset_.calls, 2);
+  EXPECT_EQ(rightReset_.calls, 2);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(resetExecutor_.code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resetRoot_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetLeft_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetRight_.status, OP_NOT_OPENED);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, ReusedExecPropagatesChildResetFailure) {
+  UseRealOperatorResetTree();
+  SetWindows(1);
+  task_.topTask = false;
+  leftReset_.code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  EXPECT_EQ(rootReset_.calls, 1);
+  EXPECT_EQ(leftReset_.calls, 1);
+  EXPECT_EQ(rightReset_.calls, 0);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(resetExecutor_.code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resetRoot_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetLeft_.status, OP_NOT_OPENED);
+  EXPECT_EQ(resetRight_.status, OP_EXEC_DONE);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, ExplicitRequestStartDrivesBatchWindowLatency) {
+  SetWindows(2);
+  gCalls.executeReadyTimes = {6000, 10000};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.calcRequestCount, 1);
+  EXPECT_EQ(stats.logicalWindowCount, 2);
+  EXPECT_EQ(stats.resultLatency.samples, 2);
+  EXPECT_EQ(stats.resultLatency.totalUs, 5000 + 9000);
+  EXPECT_EQ(stats.noResultWindowCount, 2);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupRequestCountsWindowsFromEveryGroup) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  const int64_t firstGid = 101;
+  auto         *pFirstGroup =
+      static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request_.pGroupCalcInfos, &firstGid, sizeof(firstGid)));
+  ASSERT_NE(pFirstGroup, nullptr);
+  SSTriggerCalcParam extraParam = {};
+  extraParam.wstart = 102;
+  extraParam.wend = 103;
+  extraParam.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(pFirstGroup->pParams, &extraParam), nullptr);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.calcRequestCount, 1);
+  EXPECT_EQ(stats.logicalWindowCount, 3);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupTransfersFullBatchIntoRuntime) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}));
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.notification.pNotifyAddrUrls->size = 0;
+  request_.triggerType = STREAM_TRIGGER_COUNT;
+  request_.isWindowTrigger = true;
+  request_.pContextPolicy = makeRunnerContextPolicy({
+      makeRunnerContextPolicyEntry(101, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(202, 0, STREAM_CONTEXT_POLICY_NONE),
+  });
+  request_.pAncestorContext = makeRunnerAncestorContext(101, 0);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  SSHashObj              *pCalcInfos = request_.pGroupCalcInfos;
+  SSHashObj              *pReadInfos = request_.pGroupReadInfos;
+  SStreamContextPolicy   *pPolicy = request_.pContextPolicy;
+  SStreamAncestorContext *pAncestor = request_.pAncestorContext;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(request_.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(request_.pGroupReadInfos, nullptr);
+  EXPECT_EQ(request_.pContextPolicy, nullptr);
+  EXPECT_EQ(request_.pAncestorContext, nullptr);
+  ASSERT_FALSE(gCalls.executeCalcOwners.empty());
+  EXPECT_EQ(gCalls.executeCalcOwners.front(), pCalcInfos);
+  EXPECT_EQ(gCalls.executeReadOwners.front(), pReadInfos);
+  EXPECT_EQ(gCalls.executeContextOwners.front(), pPolicy);
+  EXPECT_EQ(gCalls.executeAncestorOwners.front(), pAncestor);
+  pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupInstallsSortedCanonicalGroupOrder) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {303, 101, 202}));
+  auto *pExec = Exec();
+  ASSERT_NE(nullptr, pExec);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupEog(303), nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request_, 1000));
+  ASSERT_EQ(1, gCalls.executeGroupOrders.size());
+  EXPECT_THAT(gCalls.executeGroupOrders[0], ::testing::ElementsAre(101, 202, 303));
+}
+
+TEST_F(StreamRunnerTest, SingletonMultiGroupRequestKeepsEogProtocol) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202}));
+  auto *pExec = Exec();
+  ASSERT_NE(nullptr, pExec);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {202};
+  gCalls.executeBlocks = {NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, true};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request_, 1000));
+  ASSERT_EQ(1, gCalls.executeGroupOrders.size());
+  EXPECT_THAT(gCalls.executeGroupOrders[0], ::testing::ElementsAre(202));
+  ASSERT_EQ(1, gCalls.executeMultiGroupFlags.size());
+  EXPECT_TRUE(gCalls.executeMultiGroupFlags[0]);
+}
+
+TEST_F(StreamRunnerTest, UsesOneExecAndOneExecutorTreeForWholeBatch) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->pExecutor = nullptr;
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupEog(303), nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+  stub_.set(qCreateStreamExecTaskInfo, mockQCreateStreamExecTaskInfo);
+  stub_.set(qSetTaskId, mockQSetTaskId);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.buildCalls, 1);
+  EXPECT_EQ(gCalls.setTaskIdCalls, 1);
+  EXPECT_EQ(gCalls.executeCalls, 4);
+  ASSERT_EQ(gCalls.resetAtExecuteCalls.size(), 1);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls[0], 4);
+  EXPECT_EQ(Exec(), pExec);
+}
+
+TEST_F(StreamRunnerTest, ConsumesCanonicalOrderWithoutTreeResetBetweenGroups) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}));
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202, 303}));
+  EXPECT_EQ(gCalls.calculatedTableNameGids, (std::vector<int64_t>{101, 202, 303}));
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 7}));
+}
+
+TEST_F(StreamRunnerTest, MultiGroupSettlesOnlyOnOrderedEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {303, 101, 202}, 2));
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  task_.forceOutCols = taosArrayInit(1, sizeof(SStreamOutCol));
+  ASSERT_NE(task_.forceOutCols, nullptr);
+  const SStreamOutCol forceOutCol = {};
+  ASSERT_NE(taosArrayPush(task_.forceOutCols, &forceOutCol), nullptr);
+  gCalls.executeGroupIds = {101, 101, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 101), NewMultiGroupEog(101), NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(3, 303), NewMultiGroupEog(303), nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, true};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({0}), nullptr, nullptr, NewWindowIndexes({0}), nullptr};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.calculatedTableNameGids, (std::vector<int64_t>{101, 202, 303}));
+  EXPECT_EQ(gCalls.forceOutputGroupIds, (std::vector<int64_t>{101, 202, 202, 303}));
+  EXPECT_EQ(gCalls.forceOutputWinIndexes, (std::vector<int32_t>{1, 0, 1, 1}));
+  EXPECT_EQ(gCalls.forceOutputAtExecuteCalls, (std::vector<int32_t>{2, 3, 3, 5}));
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 6}));
+  ASSERT_EQ(gCalls.fetchObservations.size(), 6);
+  EXPECT_FALSE(gCalls.fetchObservations[0].eog);
+  EXPECT_TRUE(gCalls.fetchObservations[1].eog);
+  EXPECT_TRUE(gCalls.fetchObservations[2].eog);
+  EXPECT_FALSE(gCalls.fetchObservations[3].eog);
+  EXPECT_TRUE(gCalls.fetchObservations[4].eog);
+}
+
+TEST_F(StreamRunnerTest, EmptyGroupEogBeginsAndFinalizesExactlyOnce) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 2, true));
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.forceOutCols = taosArrayInit(1, sizeof(SStreamOutCol));
+  ASSERT_NE(task_.forceOutCols, nullptr);
+  const SStreamOutCol forceOutCol = {};
+  ASSERT_NE(taosArrayPush(task_.forceOutCols, &forceOutCol), nullptr);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  ASSERT_EQ(createDataBlock(&pExec->pOutBlock), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pExec->pOutBlock, 5), TSDB_CODE_SUCCESS);
+  pExec->pOutBlock->info.rows = 5;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, true};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.forceOutputGroupIds, (std::vector<int64_t>{101, 101}));
+  EXPECT_EQ(gCalls.forceOutputWinIndexes, (std::vector<int32_t>{0, 1}));
+  EXPECT_EQ(gCalls.forceOutputAtExecuteCalls, (std::vector<int32_t>{1, 1}));
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101}));
+  ASSERT_EQ(gCalls.sinkBlocks.size(), 1);
+  EXPECT_EQ(gCalls.sinkBlocks[0], nullptr);
+  EXPECT_EQ(gCalls.calculatedTableNameGids, (std::vector<int64_t>{101}));
+  ASSERT_NE(pExec->pOutBlock, nullptr);
+  EXPECT_EQ(pExec->pOutBlock->info.rows, 0);
+}
+
+TEST_F(StreamRunnerTest, RuntimeAliasChangeDoesNotSettleGroup) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupDataBlock(1, 202), NewMultiGroupEog(202),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101}));
+  EXPECT_TRUE(gCalls.forceOutputAtExecuteCalls.empty());
+}
+
+TEST_F(StreamRunnerTest, TopAcceptsUnpartitionedGroupIdWithExactBaseIdentity) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  SSDataBlock *pData = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(pData, nullptr);
+  pData->info.id.groupId = 0;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {pData, NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101}));
+}
+
+TEST_F(StreamRunnerTest, StandaloneExternalWindowKeepsLegacyGroupSwitchProtocol) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  gRunnerMultiGroupJoinProtocol = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  SSDataBlock *pFirst = NewMultiGroupDataBlock(1, 101);
+  SSDataBlock *pSecond = NewMultiGroupDataBlock(1, 202);
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+  pFirst->info.id.groupId = 0;
+  pSecond->info.id.groupId = 0;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {pFirst, pSecond, nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202}));
+}
+
+TEST_F(StreamRunnerTest, PlainZeroRowBlockIsNotMultiGroupEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  SSDataBlock *pPlainZero = NewBlock(0);
+  ASSERT_NE(pPlainZero, nullptr);
+  pPlainZero->info.id.baseGId = 101;
+  pPlainZero->info.id.groupId = 101;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {pPlainZero, nullptr};
+  gCalls.executeFinished = {false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, RejectsOutOfOrderOrDuplicateEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {202, 101};
+  gCalls.executeBlocks = {NewMultiGroupEog(202), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, RejectsDataAfterCurrentGroupEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, RejectsEarlyExecutorEof) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), nullptr};
+  gCalls.executeFinished = {false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupRejectsReappearingSettledGidAndReleasesOwners) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 101};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupEog(101)};
+  gCalls.executeFinished = {false, false, false};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 3}));
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+  EXPECT_FALSE(pExec->runtimeInfo.funcInfo.isMultiGroupCalc);
+}
+
+TEST_F(StreamRunnerTest, InstallsParamsColumnsCreateAndRollupForSettlement) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}));
+  std::vector<RunnerCallState::SettlementAliases> expectedAliases;
+  for (const int64_t gid : {101, 202}) {
+    auto *pGroup = static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request_.pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(pGroup, nullptr);
+    RunnerCallState::SettlementAliases expected;
+    expected.gid = gid;
+    expected.pParams = pGroup->pParams;
+    expected.pGroupCols = pGroup->pGroupColVals;
+    expected.pCreateTable = &pGroup->createTable;
+    expected.rollupTbCount = pGroup->rollupTbCount;
+    expected.precision = TSDB_TIME_PRECISION_NANO;
+    expectedAliases.push_back(expected);
+  }
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  task_.forceOutCols = taosArrayInit(1, sizeof(SStreamOutCol));
+  ASSERT_NE(task_.forceOutCols, nullptr);
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  request_.precision = TSDB_TIME_PRECISION_NANO;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(gCalls.settlementAliases.size(), 2);
+  for (size_t i = 0; i < gCalls.settlementAliases.size(); ++i) {
+    const auto &aliases = gCalls.settlementAliases[i];
+    const auto &expected = expectedAliases[i];
+    EXPECT_EQ(aliases.gid, expected.gid);
+    EXPECT_EQ(aliases.pParams, expected.pParams);
+    EXPECT_EQ(aliases.pGroupCols, expected.pGroupCols);
+    EXPECT_EQ(aliases.pCreateTable, expected.pCreateTable);
+    EXPECT_EQ(aliases.rollupTbCount, expected.rollupTbCount);
+    EXPECT_EQ(aliases.precision, expected.precision);
+    EXPECT_EQ(aliases.pForceOutputCols, task_.forceOutCols);
+  }
+}
+
+TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  request_.stbPartByTbname = true;
+  const int64_t         gids[] = {101, 202, 303};
+  const int8_t          createTables[] = {0, 1, 1};
+  const int32_t         rollupCounts[] = {11, 22, 33};
+  std::vector<SArray *> groupCols;
+  for (size_t i = 0; i < 3; ++i) {
+    auto *pGroup =
+        static_cast<SSTriggerGroupCalcInfo *>(tSimpleHashGet(request_.pGroupCalcInfos, &gids[i], sizeof(gids[i])));
+    ASSERT_NE(pGroup, nullptr);
+    pGroup->createTable = createTables[i];
+    pGroup->rollupTbCount = rollupCounts[i];
+    SStreamGroupValue groupValue = {};
+    groupValue.data.type = TSDB_DATA_TYPE_BIGINT;
+    groupValue.data.val = gids[i] + 1000;
+    ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &groupValue), nullptr);
+    SStreamGroupValue nameValue = {};
+    const std::string sourceName = "source_" + std::to_string(gids[i]);
+    nameValue.isTbname = true;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup(sourceName.c_str()));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(sourceName.size());
+    ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &nameValue), nullptr);
+    groupCols.push_back(pGroup->pGroupColVals);
+  }
+
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202, 303}));
+  EXPECT_EQ(gCalls.sinkTableNames, (std::vector<std::string>{"group_101", "group_202", "group_303"}));
+  EXPECT_EQ(gCalls.autoCreateTableCalls, (std::vector<bool>{false, true, true}));
+  EXPECT_EQ(gCalls.sinkRollupCounts, (std::vector<int32_t>{11, 22, 33}));
+  EXPECT_EQ(gCalls.sinkGroupCols, groupCols);
+  EXPECT_EQ(gCalls.sinkGroupValues, (std::vector<int64_t>{1101, 1202, 1303}));
+  EXPECT_EQ(gCalls.calculatedTableNameGids, (std::vector<int64_t>{101, 202, 303}));
+  ASSERT_EQ(gCalls.notificationIdentities.size(), 3);
+  for (size_t i = 0; i < 3; ++i) {
+    EXPECT_EQ(gCalls.notificationIdentities[i].gid, gids[i]);
+    EXPECT_EQ(gCalls.notificationIdentities[i].tbname, "group_" + std::to_string(gids[i]));
+    EXPECT_EQ(gCalls.notificationIdentities[i].triggerTableName, "source_" + std::to_string(gids[i]));
+    EXPECT_EQ(gCalls.notificationIdentities[i].wstart, gids[i]);
+    EXPECT_EQ(gCalls.notificationIdentities[i].wend, gids[i] + 1);
+  }
+}
+
+TEST_F(StreamRunnerTest, MultiGroupCreateSuperTableTagsUsePublishedGroup) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, true));
+  task_.output.outTblType = TSDB_SUPER_TABLE;
+  task_.output.outTags = taosArrayInit(1, sizeof(SFieldWithOptions));
+  ASSERT_NE(task_.output.outTags, nullptr);
+  SFieldWithOptions tagField = {};
+  tstrncpy(tagField.name, "tag_gid", sizeof(tagField.name));
+  tagField.type = TSDB_DATA_TYPE_BIGINT;
+  tagField.bytes = sizeof(int64_t);
+  ASSERT_NE(taosArrayPush(task_.output.outTags, &tagField), nullptr);
+  SColumnNode *tagExpr = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&tagExpr)), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tagExpr, nullptr);
+  tagExpr->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  tagExpr->node.resType.bytes = sizeof(int64_t);
+  ASSERT_EQ(nodesListMakeStrictAppend(&task_.output.pTagValExprs, reinterpret_cast<SNode *>(tagExpr)),
+            TSDB_CODE_SUCCESS);
+
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->tbname[0] = '\0';
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+  stub_.set(streamCalcOneScalarExpr, mockStreamCalcTagExpr);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.calculatedTagGids, (std::vector<int64_t>{101, 202, 303}));
+  ASSERT_EQ(gCalls.sinkTags.size(), 3);
+  const int64_t gids[] = {101, 202, 303};
+  for (size_t i = 0; i < gCalls.sinkTags.size(); ++i) {
+    SCOPED_TRACE(i);
+    ASSERT_EQ(gCalls.sinkTags[i].size(), 1);
+    EXPECT_EQ(gCalls.sinkTags[i][0].name, "tag_gid");
+    EXPECT_EQ(gCalls.sinkTags[i][0].type, TSDB_DATA_TYPE_BIGINT);
+    EXPECT_FALSE(gCalls.sinkTags[i][0].isNull);
+    EXPECT_EQ(gCalls.sinkTags[i][0].value, gids[i] + 5000);
+  }
+}
+
+TEST_F(StreamRunnerTest, MultiGroupForceOutputUsesPublishedGroupWindowIndex) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101}, 2, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.forceOutCols = taosArrayInit(1, sizeof(SStreamOutCol));
+  ASSERT_NE(task_.forceOutCols, nullptr);
+  const SStreamOutCol forceOutCol = {};
+  ASSERT_NE(taosArrayPush(task_.forceOutCols, &forceOutCol), nullptr);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({1}), nullptr, NewWindowIndexes({0}), nullptr};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(gCalls.forceOutputCalls, 2);
+  EXPECT_EQ(gCalls.forceOutputGroupIds, (std::vector<int64_t>{101, 202}));
+  EXPECT_EQ(gCalls.forceOutputWinIndexes, (std::vector<int32_t>{0, 1}));
+}
+
+TEST_F(StreamRunnerTest, FirstPublishedGroupFailureStopsTheBatch) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupDataBlock(1, 303)};
+  gCalls.executeFinished = {false, false, false};
+  gCalls.executeCodes = {TSDB_CODE_INVALID_PARA, TSDB_CODE_SUCCESS, TSDB_CODE_SUCCESS};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 1}));
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, ResumedEmptyWriteKeepsSmallResultsBatchedAcrossWindows) {
+  SetWindows(3);
+  task_.addOptions = STREAM_OPTION_TIME_ALIGN;
+  request_.runnerTaskId = task_.task.taskId;
+  request_.streamId = task_.task.streamId;
+  request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+  ASSERT_FALSE(task_.lowLatencyCalc);
+  ASSERT_GE(tsStreamBatchRequestWaitMs, 1000);
+  auto *first = makeCacheBlock(101, 8);
+  auto *last = makeCacheBlock(102, 9);
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, last);
+  ownedBlocks_.push_back(first);
+  ownedBlocks_.push_back(last);
+  gCalls.executeBlocks = {first, nullptr, last};
+  gRunnerSinkCodes = {TSDB_CODE_ACTION_IN_PROGRESS, 0, 0};
+
+  SStreamResultWait wait = {};
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  ASSERT_EQ(2, gCalls.executeCalls);
+  ASSERT_EQ(1u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(nullptr, gCalls.sinkBlocks[0]);
+  ASSERT_EQ(0, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  ASSERT_EQ(3u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(nullptr, gCalls.sinkBlocks[1]);
+  EXPECT_NE(nullptr, gCalls.sinkBlocks[2]);
+  EXPECT_EQ(3, gCalls.executeCalls);
+  const auto stats = RotateRunnerStats();
+  EXPECT_EQ(1u, stats.outputBlocks);
+  EXPECT_EQ(2u, stats.outputRows);
+}
+
+TEST_F(StreamRunnerTest, ParkedGroupedOutputKeepsItsWindowNotificationAndExecutorPosition) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.addOptions = NOTIFY_ON_FAILURE_PAUSE | STREAM_OPTION_TIME_ALIGN;
+  task_.lowLatencyCalc = true;
+  request_.streamId = task_.task.streamId;
+  request_.runnerTaskId = task_.task.taskId;
+  request_.resultAdmission = {task_.task.streamId, 123, task_.task.taskId, request_.sessionId, 92, 0, 1, 3};
+  auto *exec = Exec();
+  ASSERT_NE(nullptr, exec);
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &exec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+  gRunnerSinkCodes = {0, TSDB_CODE_ACTION_IN_PROGRESS, TSDB_CODE_ACTION_IN_PROGRESS, 0};
+  SStreamResultWait wait = {};
+  for (int i = 0; i < 2; ++i) {
+    ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+    EXPECT_EQ(3, gCalls.executeCalls);
+    EXPECT_EQ(exec, RunningExec());
+    ASSERT_EQ(1u, gCalls.notificationIdentities.size());
+    EXPECT_EQ(101, gCalls.notificationIdentities.front().gid);
+  }
+  ASSERT_EQ(0, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  EXPECT_EQ(nullptr, wait.runnerState);
+  EXPECT_EQ(5, gCalls.executeCalls);
+  EXPECT_EQ((std::vector<int64_t>{101, 202, 202, 202}), gCalls.sinkGroupIds);
+  ASSERT_EQ(4u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(gCalls.sinkBlocks[1], gCalls.sinkBlocks[2]);
+  EXPECT_EQ(gCalls.sinkBlocks[1], gCalls.sinkBlocks[3]);
+  ASSERT_EQ(2u, gCalls.notificationIdentities.size());
+  EXPECT_EQ(202, gCalls.notificationIdentities.back().gid);
+  EXPECT_EQ(exec, Exec());
+}
+
+TEST_F(StreamRunnerTest, MiddlePublishedGroupFailureStopsLaterGroups) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false, false};
+  gRunnerSinkCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202}));
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 3}));
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, LastPublishedGroupFailureFailsWholeRequest) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  task_.addOptions = NOTIFY_ON_FAILURE_PAUSE;
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), NewMultiGroupDataBlock(1, 303)};
+  gCalls.executeFinished = {false, false, false, false, false};
+  gCalls.requiredNotifyCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 5);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202, 303}));
+  ASSERT_EQ(gCalls.notificationIdentities.size(), 3);
+  EXPECT_EQ(gCalls.notificationIdentities[0].gid, 101);
+  EXPECT_EQ(gCalls.notificationIdentities[1].gid, 202);
+  EXPECT_EQ(gCalls.notificationIdentities[2].gid, 303);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 5}));
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, SinkFailureClearsReusableOutputBeforeExecRelease) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 202)};
+  gCalls.executeFinished = {false};
+  gCalls.executeOutIndexes = {1};
+  gCalls.sinkCode = TSDB_CODE_INVALID_PARA;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  ASSERT_NE(pExec->pOutBlock, nullptr);
+  EXPECT_EQ(pExec->pOutBlock->info.rows, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, EveryFailureClearsAliasesContextsAndHashesOnce) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202}, 2, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.forceOutCols = taosArrayInit(1, sizeof(SStreamOutCol));
+  ASSERT_NE(task_.forceOutCols, nullptr);
+  const SStreamOutCol forceOutCol = {};
+  ASSERT_NE(taosArrayPush(task_.forceOutCols, &forceOutCol), nullptr);
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 202), NewMultiGroupEog(202)};
+  gCalls.executeFinished = {false, false};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({0}), nullptr};
+  gCalls.installCurrentGroupRead = true;
+  gCalls.forceOutputCode = TSDB_CODE_INVALID_PARA;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.forceOutputCalls, 1);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 2}));
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamPartColVals, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpCalc, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.createTable, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.groupId, 0);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  ASSERT_EQ(gCalls.executeCurrentGroupReads.size(), 2);
+  EXPECT_NE(gCalls.installedCurrentGroupRead, nullptr);
+  EXPECT_EQ(gCalls.executeCurrentGroupReads,
+            (std::vector<SArray *>{gCalls.installedCurrentGroupRead, gCalls.installedCurrentGroupRead}));
+  EXPECT_EQ(
+      gCalls.executeCurrentGroupReadOwnerships,
+      (std::vector<EStreamGroupReadOwnership>{STREAM_GRP_READ_OWNED_SHALLOW_VIEW, STREAM_GRP_READ_OWNED_SHALLOW_VIEW}));
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpRead, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpReadOwnership, STREAM_GRP_READ_BORROWED);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupNodeReadViewSurvivesSwitchAndSlotReturnsOnce) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  SListNode *pOriginalNode = tdListGetHead(task_.execMgr.pFreeExecs);
+  ASSERT_NE(pOriginalNode, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  gCalls.installCurrentGroupRead = true;
+  gCalls.observeExecLists = true;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_NE(gCalls.installedCurrentGroupRead, nullptr);
+  EXPECT_EQ(gCalls.executeCurrentGroupReads,
+            (std::vector<SArray *>{gCalls.installedCurrentGroupRead, gCalls.installedCurrentGroupRead,
+                                   gCalls.installedCurrentGroupRead, gCalls.installedCurrentGroupRead,
+                                   gCalls.installedCurrentGroupRead, gCalls.installedCurrentGroupRead,
+                                   gCalls.installedCurrentGroupRead}));
+  EXPECT_EQ(
+      gCalls.executeCurrentGroupReadOwnerships,
+      (std::vector<EStreamGroupReadOwnership>{STREAM_GRP_READ_OWNED_SHALLOW_VIEW, STREAM_GRP_READ_OWNED_SHALLOW_VIEW,
+                                              STREAM_GRP_READ_OWNED_SHALLOW_VIEW, STREAM_GRP_READ_OWNED_SHALLOW_VIEW,
+                                              STREAM_GRP_READ_OWNED_SHALLOW_VIEW, STREAM_GRP_READ_OWNED_SHALLOW_VIEW,
+                                              STREAM_GRP_READ_OWNED_SHALLOW_VIEW}));
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpRead, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpReadOwnership, STREAM_GRP_READ_BORROWED);
+  EXPECT_EQ(gCalls.executeFreeExecCounts, (std::vector<int32_t>{0, 0, 0, 0, 0, 0, 0}));
+  EXPECT_EQ(gCalls.executeRunningExecCounts, (std::vector<int32_t>{1, 1, 1, 1, 1, 1, 1}));
+  EXPECT_EQ(gCalls.executeRunningExecNodes,
+            (std::vector<SListNode *>{pOriginalNode, pOriginalNode, pOriginalNode, pOriginalNode, pOriginalNode,
+                                      pOriginalNode, pOriginalNode}));
+  EXPECT_EQ(gCalls.resetFreeExecCounts, (std::vector<int32_t>{0, 0}));
+  EXPECT_EQ(gCalls.resetRunningExecCounts, (std::vector<int32_t>{1, 1}));
+  EXPECT_EQ(gCalls.resetRunningExecNodes, (std::vector<SListNode *>{pOriginalNode, pOriginalNode}));
+  ASSERT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(tdListGetHead(task_.execMgr.pFreeExecs), pOriginalNode);
+}
+
+TEST_F(StreamRunnerTest, WholeRequestRetryRepeatsEarlierPublishedIdentity) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false, false};
+  gRunnerSinkCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202}));
+
+  OwnedTriggerCalcRequest retry;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&retry.value, {202, 101, 303}, 1, false));
+  retry.value.brandNew = true;
+  retry.value.execId = -1;
+  retry.value.sessionId = request_.sessionId;
+  gCalls.executeCalls = 0;
+  gCalls.sinkCalls = 0;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  gCalls.executeCodes.clear();
+  gRunnerSinkCodes.clear();
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &retry.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202, 101, 202, 303}));
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationReturnsDataEogAndEof) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+
+  SArray *firstLineage = NewWindowIndexes({packRunnerLineage(0, 0)});
+  SArray *secondLineage = NewWindowIndexes({packRunnerLineage(1, 0)});
+  SArray *thirdLineage = NewWindowIndexes({packRunnerLineage(2, 0), packRunnerLineage(3, 2)});
+  ASSERT_NE(firstLineage, nullptr);
+  ASSERT_NE(secondLineage, nullptr);
+  ASSERT_NE(thirdLineage, nullptr);
+  gCalls.executeGroupIds = {101, 101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 101), NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(3, 202), NewMultiGroupEog(202),          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, true};
+  gCalls.executeWindowIndexes = {firstLineage, secondLineage, nullptr, thirdLineage, nullptr};
+
+  auto assertData = [](const SSTriggerCalcRequest &request, int64_t gid, int64_t rows,
+                       std::initializer_list<int64_t> lineage) {
+    ASSERT_NE(request.pOutBlock, nullptr);
+    const auto *block = static_cast<const SSDataBlock *>(request.pOutBlock);
+    EXPECT_EQ(block->info.rows, rows);
+    EXPECT_EQ(block->info.id.baseGId, gid);
+    EXPECT_EQ(block->info.id.groupId, gid);
+    EXPECT_FALSE(request.outFinished);
+    EXPECT_EQ(request.outFrame.type, STREAM_RUNNER_FETCH_DATA);
+    EXPECT_EQ(request.outFrame.baseGId, static_cast<uint64_t>(gid));
+    ASSERT_NE(request.outFrame.pLineage, nullptr);
+    ASSERT_EQ(taosArrayGetSize(request.outFrame.pLineage), lineage.size());
+    int32_t index = 0;
+    for (int64_t expected : lineage) {
+      ASSERT_NE(taosArrayGet(request.outFrame.pLineage, index), nullptr);
+      EXPECT_EQ(*static_cast<const int64_t *>(taosArrayGet(request.outFrame.pLineage, index)), expected);
+      ++index;
+    }
+  };
+  auto assertEog = [](const SSTriggerCalcRequest &request, int64_t gid) {
+    EXPECT_EQ(request.pOutBlock, nullptr);
+    EXPECT_FALSE(request.outFinished);
+    EXPECT_EQ(request.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+    EXPECT_EQ(request.outFrame.baseGId, static_cast<uint64_t>(gid));
+    EXPECT_EQ(request.outFrame.pLineage, nullptr);
+  };
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  assertData(request_, 101, 2, {packRunnerLineage(0, 0)});
+  ASSERT_NE(request_.outFrame.pLineage, firstLineage);
+  *static_cast<int64_t *>(taosArrayGet(firstLineage, 0)) = packRunnerLineage(9, 0);
+  EXPECT_EQ(*static_cast<const int64_t *>(taosArrayGet(request_.outFrame.pLineage, 0)), packRunnerLineage(0, 0));
+
+  OwnedTriggerCalcRequest second;
+  second.value.brandNew = false;
+  second.value.execId = request_.execId;
+  second.value.sessionId = request_.sessionId;
+  second.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &second.value, 2000), TSDB_CODE_SUCCESS);
+  assertData(second.value, 101, 1, {packRunnerLineage(1, 0)});
+
+  OwnedTriggerCalcRequest firstEog;
+  firstEog.value.brandNew = false;
+  firstEog.value.execId = request_.execId;
+  firstEog.value.sessionId = request_.sessionId;
+  firstEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &firstEog.value, 3000), TSDB_CODE_SUCCESS);
+  assertEog(firstEog.value, 101);
+
+  OwnedTriggerCalcRequest third;
+  third.value.brandNew = false;
+  third.value.execId = request_.execId;
+  third.value.sessionId = request_.sessionId;
+  third.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &third.value, 4000), TSDB_CODE_SUCCESS);
+  assertData(third.value, 202, 3, {packRunnerLineage(2, 0), packRunnerLineage(3, 2)});
+
+  OwnedTriggerCalcRequest secondEog;
+  secondEog.value.brandNew = false;
+  secondEog.value.execId = request_.execId;
+  secondEog.value.sessionId = request_.sessionId;
+  secondEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &secondEog.value, 5000), TSDB_CODE_SUCCESS);
+  assertEog(secondEog.value, 202);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 6000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.pOutBlock, nullptr);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(terminal.value.outFrame.baseGId, 0);
+  EXPECT_EQ(terminal.value.outFrame.pLineage, nullptr);
+  EXPECT_EQ(gCalls.executeCalls, 6);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationReturnsEmptyFirstAndMiddleGroupEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {404, 202, 101, 303}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 202, 303, 404, 404};
+  gCalls.executeBlocks = {NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupEog(303),
+                          NewMultiGroupDataBlock(1, 404),
+                          NewMultiGroupEog(404),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+
+  auto assertFetch = [](const SSTriggerCalcRequest &request, EStreamRunnerFetchType type, uint64_t gid) {
+    EXPECT_EQ(request.outFrame.type, type);
+    EXPECT_EQ(request.outFrame.baseGId, gid);
+    EXPECT_EQ(request.outFinished, type == STREAM_RUNNER_FETCH_LEGACY);
+    EXPECT_EQ(request.pOutBlock == nullptr, type != STREAM_RUNNER_FETCH_DATA);
+  };
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  assertFetch(request_, STREAM_RUNNER_FETCH_EOG, 101);
+
+  OwnedTriggerCalcRequest data202;
+  data202.value.brandNew = false;
+  data202.value.execId = request_.execId;
+  data202.value.sessionId = request_.sessionId;
+  data202.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &data202.value, 2000), TSDB_CODE_SUCCESS);
+  assertFetch(data202.value, STREAM_RUNNER_FETCH_DATA, 202);
+
+  OwnedTriggerCalcRequest eog202;
+  eog202.value.brandNew = false;
+  eog202.value.execId = request_.execId;
+  eog202.value.sessionId = request_.sessionId;
+  eog202.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &eog202.value, 3000), TSDB_CODE_SUCCESS);
+  assertFetch(eog202.value, STREAM_RUNNER_FETCH_EOG, 202);
+
+  OwnedTriggerCalcRequest emptyMiddle;
+  emptyMiddle.value.brandNew = false;
+  emptyMiddle.value.execId = request_.execId;
+  emptyMiddle.value.sessionId = request_.sessionId;
+  emptyMiddle.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &emptyMiddle.value, 4000), TSDB_CODE_SUCCESS);
+  assertFetch(emptyMiddle.value, STREAM_RUNNER_FETCH_EOG, 303);
+
+  OwnedTriggerCalcRequest data404;
+  data404.value.brandNew = false;
+  data404.value.execId = request_.execId;
+  data404.value.sessionId = request_.sessionId;
+  data404.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &data404.value, 5000), TSDB_CODE_SUCCESS);
+  assertFetch(data404.value, STREAM_RUNNER_FETCH_DATA, 404);
+
+  OwnedTriggerCalcRequest eog404;
+  eog404.value.brandNew = false;
+  eog404.value.execId = request_.execId;
+  eog404.value.sessionId = request_.sessionId;
+  eog404.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &eog404.value, 6000), TSDB_CODE_SUCCESS);
+  assertFetch(eog404.value, STREAM_RUNNER_FETCH_EOG, 404);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 7000), TSDB_CODE_SUCCESS);
+  assertFetch(terminal.value, STREAM_RUNNER_FETCH_LEGACY, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationReturnsEveryAllEmptyGroupEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(request_.outFrame.baseGId, 101);
+  EXPECT_FALSE(request_.outFinished);
+
+  OwnedTriggerCalcRequest second;
+  second.value.brandNew = false;
+  second.value.execId = request_.execId;
+  second.value.sessionId = request_.sessionId;
+  second.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &second.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(second.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(second.value.outFrame.baseGId, 202);
+  EXPECT_FALSE(second.value.outFinished);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_TRUE(terminal.value.outFinished);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationRejectsDuplicateEogAndClearsOutput) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(101)};
+  gCalls.executeFinished = {false, false};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest duplicate;
+  duplicate.value.brandNew = false;
+  duplicate.value.execId = request_.execId;
+  duplicate.value.sessionId = request_.sessionId;
+  duplicate.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &duplicate.value, 2000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(duplicate.value.pOutBlock, nullptr);
+  EXPECT_EQ(duplicate.value.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(duplicate.value.outFrame.baseGId, 0);
+  EXPECT_EQ(duplicate.value.outFrame.pLineage, nullptr);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationRejectsNextGroupDataBeforeEog) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_DATA);
+
+  OwnedTriggerCalcRequest premature;
+  premature.value.brandNew = false;
+  premature.value.execId = request_.execId;
+  premature.value.sessionId = request_.sessionId;
+  premature.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &premature.value, 2000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(premature.value.pOutBlock, nullptr);
+  EXPECT_EQ(premature.value.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, GroupedContinuationRejectsDataWithoutLineage) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101)};
+  gCalls.executeFinished = {false};
+  gCalls.executeWindowIndexes = {nullptr};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(request_.outFrame.pLineage, nullptr);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, TriggerCalcRequestCodecIgnoresOwnedFetchOutput) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  const int32_t encodedLen = tSerializeSTriggerCalcRequest(nullptr, 0, &request_);
+  ASSERT_GT(encodedLen, 0);
+  std::vector<uint8_t> before(static_cast<size_t>(encodedLen));
+  ASSERT_EQ(tSerializeSTriggerCalcRequest(before.data(), encodedLen, &request_), encodedLen);
+
+  request_.pOutBlock = NewMultiGroupDataBlock(1, 101);
+  request_.outFrame.type = STREAM_RUNNER_FETCH_DATA;
+  request_.outFrame.baseGId = 101;
+  request_.outFrame.pLineage = taosArrayDup(gCalls.pDefaultWindowIndexes, nullptr);
+  ASSERT_NE(request_.outFrame.pLineage, nullptr);
+  std::vector<uint8_t> after(static_cast<size_t>(encodedLen));
+  ASSERT_EQ(tSerializeSTriggerCalcRequest(after.data(), encodedLen, &request_), encodedLen);
+  EXPECT_EQ(after, before);
+
+  request_.pOutBlock = nullptr;
+}
+
+TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(2, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(dataBlock, &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(dataBlock, 2), TSDB_CODE_SUCCESS);
+  auto *valueCol = static_cast<SColumnInfoData *>(taosArrayGet(dataBlock->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  const int32_t values[] = {11, 22};
+  ASSERT_EQ(colDataSetVal(valueCol, 0, reinterpret_cast<const char *>(&values[0]), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(valueCol, 1, reinterpret_cast<const char *>(&values[1]), false), TSDB_CODE_SUCCESS);
+  SArray *lineage = NewWindowIndexes({packRunnerLineage(3, 0)});
+  ASSERT_NE(lineage, nullptr);
+  SStreamRunnerFetchFrame dataFrame = {};
+  dataFrame.type = STREAM_RUNNER_FETCH_DATA;
+  dataFrame.baseGId = 101;
+  dataFrame.pLineage = lineage;
+
+  void  *data = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(dataBlock, &dataFrame, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto   *dataRsp = static_cast<const SRetrieveTableRsp *>(data);
+  const int32_t blockSize = blockGetInternalEncodeSize(dataBlock);
+  const int32_t frameSize = tSerializeSStreamRunnerFetchFrame(nullptr, 0, &dataFrame);
+  ASSERT_GT(blockSize, 0);
+  ASSERT_GT(frameSize, 0);
+  EXPECT_EQ(size, sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize + frameSize);
+  EXPECT_EQ(ntohl(dataRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(dataRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(be64toh(dataRsp->numOfRows), 2);
+  EXPECT_EQ(ntohl(dataRsp->numOfBlocks), 1);
+  EXPECT_EQ(be64toh(dataRsp->numOfCols), 1);
+  EXPECT_EQ(static_cast<uint64_t>(dataRsp->numOfCols), htobe64(UINT64_C(1)));
+  EXPECT_EQ(dataRsp->completed, 0);
+  EXPECT_EQ(dataRsp->streamBlockType, STREAM_RUNNER_FETCH_DATA);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(dataRsp->data), blockSize);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(dataRsp->data + INT_BYTES), blockSize);
+  auto *decodedBlock = static_cast<SSDataBlock *>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+  ASSERT_NE(decodedBlock, nullptr);
+  ownedBlocks_.push_back(decodedBlock);
+  const char *decodedBlockEnd = nullptr;
+  ASSERT_EQ(blockDecodeInternal(decodedBlock, dataRsp->data + INT_BYTES * 2, &decodedBlockEnd), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedBlockEnd, dataRsp->data + INT_BYTES * 2 + blockSize);
+  ASSERT_EQ(decodedBlock->info.rows, 2);
+  ASSERT_EQ(taosArrayGetSize(decodedBlock->pDataBlock), 1);
+  const auto *decodedValueCol = static_cast<const SColumnInfoData *>(taosArrayGet(decodedBlock->pDataBlock, 0));
+  ASSERT_NE(decodedValueCol, nullptr);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(colDataGetData(decodedValueCol, 0)), values[0]);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(colDataGetData(decodedValueCol, 1)), values[1]);
+  SStreamRunnerFetchFrame decodedDataFrame = {};
+  ASSERT_EQ(
+      tDeserializeSStreamRunnerFetchFrame(dataRsp->data + INT_BYTES * 2 + blockSize, frameSize, &decodedDataFrame),
+      TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedDataFrame.type, STREAM_RUNNER_FETCH_DATA);
+  EXPECT_EQ(decodedDataFrame.baseGId, 101);
+  tDestroySStreamRunnerFetchFrame(&decodedDataFrame);
+  rpcFreeCont(data);
+
+  data = nullptr;
+  size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto *legacyDataRsp = static_cast<const SRetrieveTableRsp *>(data);
+  EXPECT_EQ(ntohl(legacyDataRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(legacyDataRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(legacyDataRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(ntohl(legacyDataRsp->numOfBlocks), 1);
+  EXPECT_EQ(legacyDataRsp->compressed, 0);
+  rpcFreeCont(data);
+
+  SStreamRunnerFetchFrame eogFrame = {};
+  eogFrame.type = STREAM_RUNNER_FETCH_EOG;
+  eogFrame.baseGId = 101;
+  data = nullptr;
+  size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(nullptr, &eogFrame, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto   *eogRsp = static_cast<const SRetrieveTableRsp *>(data);
+  const int32_t eogFrameSize = tSerializeSStreamRunnerFetchFrame(nullptr, 0, &eogFrame);
+  ASSERT_GT(eogFrameSize, 0);
+  EXPECT_EQ(size, sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + eogFrameSize);
+  EXPECT_EQ(ntohl(eogRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(eogRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(be64toh(eogRsp->numOfRows), 0);
+  EXPECT_EQ(ntohl(eogRsp->numOfBlocks), 0);
+  EXPECT_EQ(be64toh(eogRsp->numOfCols), 0);
+  EXPECT_EQ(eogRsp->completed, 0);
+  EXPECT_EQ(eogRsp->streamBlockType, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(eogRsp->data), 0);
+  EXPECT_EQ(*reinterpret_cast<const int32_t *>(eogRsp->data + INT_BYTES), 0);
+  SStreamRunnerFetchFrame decodedEogFrame = {};
+  ASSERT_EQ(tDeserializeSStreamRunnerFetchFrame(eogRsp->data + INT_BYTES * 2, eogFrameSize, &decodedEogFrame),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decodedEogFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(decodedEogFrame.baseGId, 101);
+  tDestroySStreamRunnerFetchFrame(&decodedEogFrame);
+  rpcFreeCont(data);
+
+  const SStreamRunnerFetchFrame legacyFrame = {};
+  void                         *legacyWithFrame = nullptr;
+  size_t                        legacyWithFrameSize = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(nullptr, &legacyFrame, &legacyWithFrame, &legacyWithFrameSize, 3, true),
+            TSDB_CODE_SUCCESS);
+  void  *legacyWithoutFrame = nullptr;
+  size_t legacyWithoutFrameSize = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(nullptr, nullptr, &legacyWithoutFrame, &legacyWithoutFrameSize, 3, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(legacyWithFrameSize, legacyWithoutFrameSize);
+  EXPECT_EQ(memcmp(legacyWithFrame, legacyWithoutFrame, legacyWithFrameSize), 0);
+  const auto *eofRsp = static_cast<const SRetrieveTableRsp *>(legacyWithFrame);
+  EXPECT_EQ(eofRsp->completed, 1);
+  EXPECT_EQ(eofRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(legacyWithFrameSize, sizeof(SRetrieveTableRsp) + INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->payloadLen), INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->compLen), INT_BYTES * 2);
+  rpcFreeCont(legacyWithFrame);
+  rpcFreeCont(legacyWithoutFrame);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseFailureLeavesNoPartialPayload) {
+  SStreamRunnerFetchFrame invalidFrame = {};
+  invalidFrame.type = STREAM_RUNNER_FETCH_EOG;
+  void                         *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t                        size = 123;
+  EXPECT_EQ(sndTestBuildStreamFetchRsp(nullptr, &invalidFrame, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(data, nullptr);
+  EXPECT_EQ(size, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseRejectsTotalLengthBeforeAllocation) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  SArray *lineage = NewWindowIndexes({packRunnerLineage(0, 0)});
+  ASSERT_NE(lineage, nullptr);
+  SStreamRunnerFetchFrame dataFrame = {};
+  dataFrame.type = STREAM_RUNNER_FETCH_DATA;
+  dataFrame.baseGId = 101;
+  dataFrame.pLineage = lineage;
+  const int32_t                 frameSize = tSerializeSStreamRunnerFetchFrame(nullptr, 0, &dataFrame);
+  ASSERT_GT(frameSize, 0);
+  gStrictResponseBlockSize = INT32_MAX - INT_BYTES * 2 - frameSize;
+  ASSERT_GT(gStrictResponseBlockSize, 0);
+  const int64_t payloadSize = (int64_t)INT_BYTES * 2 + gStrictResponseBlockSize + frameSize;
+  ASSERT_EQ(payloadSize, INT32_MAX);
+  ASSERT_GT(payloadSize + (int64_t)sizeof(SRetrieveTableRsp), INT32_MAX);
+  gStrictResponseAllocationCalls = 0;
+
+  Stub sizeAndAllocationStub;
+  sizeAndAllocationStub.set(blockGetInternalEncodeSize, mockStrictResponseBlockSize);
+  sizeAndAllocationStub.set(rpcMallocCont, recordStrictResponseAllocation);
+
+  void  *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t size = 123;
+  EXPECT_EQ(sndTestBuildStreamFetchRsp(dataBlock, &dataFrame, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(gStrictResponseAllocationCalls, 0);
+  EXPECT_EQ(data, nullptr);
+  EXPECT_EQ(size, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, LegacyFetchResponseRejectsInvalidLengthBeforeAllocation) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  Stub sizeAndAllocationStub;
+  sizeAndAllocationStub.set(blockGetInternalEncodeSize, mockStrictResponseBlockSize);
+  sizeAndAllocationStub.set(rpcMallocCont, recordStrictResponseAllocation);
+
+  for (int32_t invalidSize : {-1, INT32_MAX}) {
+    gStrictResponseBlockSize = invalidSize;
+    gStrictResponseAllocationCalls = 0;
+    void *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+    size_t size = 123;
+    EXPECT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStrictResponseAllocationCalls, 0);
+    EXPECT_EQ(data, nullptr);
+    EXPECT_EQ(size, 0);
+  }
+}
+
+TEST_F(StreamRunnerTest, ContinuationResumesAtCanonicalCursor) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {303, 101, 202}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupDataBlock(2, 202),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(3, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  SSHashObj *pCalcInfos = request_.pGroupCalcInfos;
+  SSHashObj *pReadInfos = request_.pGroupReadInfos;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.rows, 1);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.id.baseGId, 101);
+  EXPECT_FALSE(request_.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(request_.execId, 7);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+  EXPECT_EQ(RunningExec(), pExec);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, pCalcInfos);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, pReadInfos);
+
+  OwnedTriggerCalcRequest continuation;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&continuation.value, {101, 202, 303}, 1, false));
+  SSHashObj *pContinuationCalc = continuation.value.pGroupCalcInfos;
+  SSHashObj *pContinuationRead = continuation.value.pGroupReadInfos;
+  continuation.value.brandNew = false;
+  continuation.value.execId = request_.execId;
+  continuation.value.sessionId = request_.sessionId;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &continuation.value, 2000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(continuation.value.pOutBlock, nullptr);
+  EXPECT_EQ(continuation.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(continuation.value.outFrame.baseGId, 101);
+  EXPECT_FALSE(continuation.value.outFinished);
+  EXPECT_EQ(RunningExec(), pExec);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, pCalcInfos);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, pReadInfos);
+  EXPECT_EQ(continuation.value.pGroupCalcInfos, pContinuationCalc);
+  EXPECT_EQ(continuation.value.pGroupReadInfos, pContinuationRead);
+
+  OwnedTriggerCalcRequest secondData;
+  secondData.value.brandNew = false;
+  secondData.value.execId = request_.execId;
+  secondData.value.sessionId = request_.sessionId;
+  secondData.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &secondData.value, 3000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(secondData.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(secondData.value.pOutBlock)->info.rows, 2);
+  EXPECT_EQ(static_cast<SSDataBlock *>(secondData.value.pOutBlock)->info.id.baseGId, 202);
+
+  OwnedTriggerCalcRequest secondEog;
+  secondEog.value.brandNew = false;
+  secondEog.value.execId = request_.execId;
+  secondEog.value.sessionId = request_.sessionId;
+  secondEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &secondEog.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(secondEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(secondEog.value.outFrame.baseGId, 202);
+
+  OwnedTriggerCalcRequest thirdData;
+  thirdData.value.brandNew = false;
+  thirdData.value.execId = request_.execId;
+  thirdData.value.sessionId = request_.sessionId;
+  thirdData.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &thirdData.value, 5000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(thirdData.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(thirdData.value.pOutBlock)->info.rows, 3);
+  EXPECT_EQ(static_cast<SSDataBlock *>(thirdData.value.pOutBlock)->info.id.baseGId, 303);
+
+  OwnedTriggerCalcRequest thirdEog;
+  thirdEog.value.brandNew = false;
+  thirdEog.value.execId = request_.execId;
+  thirdEog.value.sessionId = request_.sessionId;
+  thirdEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &thirdEog.value, 6000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(thirdEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(thirdEog.value.outFrame.baseGId, 303);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 7000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.pOutBlock, nullptr);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(Exec(), pExec);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+  EXPECT_FALSE(pExec->runtimeInfo.funcInfo.isMultiGroupCalc);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.calcRequestCount, 1);
+  EXPECT_EQ(stats.logicalWindowCount, 3);
+}
+
+TEST_F(StreamRunnerTest, PublicRunnerFetchKeepsGroupedContinuationIncomplete) {
+  ASSERT_TRUE(setUpPublicSnode());
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.topTask = false;
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = request_.sessionId;
+  runtime.triggerType = request_.triggerType;
+  runtime.isWindowTrigger = request_.isWindowTrigger;
+  runtime.isMultiGroupCalc = true;
+  runtime.addOptions = task_.addOptions;
+  runtime.pContextPolicy = makeRunnerContextPolicy({
+      makeRunnerContextPolicyEntry(101, 0, STREAM_CONTEXT_POLICY_ANCESTOR),
+      makeRunnerContextPolicyEntry(202, 0, STREAM_CONTEXT_POLICY_NONE),
+  });
+  runtime.pAncestorContext = makeRunnerAncestorContext(101, 0);
+  ASSERT_NE(runtime.pContextPolicy, nullptr);
+  ASSERT_NE(runtime.pAncestorContext, nullptr);
+  TSWAP(runtime.pGroupCalcInfos, request_.pGroupCalcInfos);
+  TSWAP(runtime.pGroupReadInfos, request_.pGroupReadInfos);
+  SResFetchReq fetch = {};
+  fetch.queryId = task_.task.streamId;
+  fetch.taskId = task_.task.taskId;
+  fetch.reset = true;
+  fetch.execId = -1;
+  fetch.forceFetchCompleted = true;
+  fetch.pStRtFuncInfo = &runtime;
+
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCount, 1);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  const auto *groupCalcInfos = pExec->runtimeInfo.funcInfo.pGroupCalcInfos;
+  const auto *contextPolicy = pExec->runtimeInfo.funcInfo.pContextPolicy;
+  const auto *ancestorContext = pExec->runtimeInfo.funcInfo.pAncestorContext;
+  ASSERT_NE(groupCalcInfos, nullptr);
+  ASSERT_NE(contextPolicy, nullptr);
+  ASSERT_NE(ancestorContext, nullptr);
+  ASSERT_NE(ancestorContext->pParamIndex, nullptr);
+  const SStreamAncestorParamContext *indexed = nullptr;
+  ASSERT_EQ(tLookupStreamAncestorParam(ancestorContext, 101, 0, &indexed), TSDB_CODE_SUCCESS);
+  EXPECT_NE(indexed, nullptr);
+  fetch.reset = false;
+  fetch.execId = 7;
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCount, 2);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, groupCalcInfos);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, contextPolicy);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, ancestorContext);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCount, 3);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCount, 4);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCount, 5);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+  EXPECT_EQ(gRunnerFetchResponseTypes,
+            (std::vector<int8_t>{STREAM_RUNNER_FETCH_DATA, STREAM_RUNNER_FETCH_EOG, STREAM_RUNNER_FETCH_DATA,
+                                 STREAM_RUNNER_FETCH_EOG, STREAM_RUNNER_FETCH_LEGACY}));
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST_F(StreamRunnerTest, NonTopRejectsNullUnfinishedAndReleasesOwners) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeBlocks = {nullptr};
+  gCalls.executeFinished = {false};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+}
+
+TEST_F(StreamRunnerTest, NonTopStandaloneExternalWindowKeepsLegacyGroupSwitchProtocolAcrossCalls) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.topTask = false;
+  gRunnerMultiGroupJoinProtocol = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  SSDataBlock *pFirst = NewMultiGroupDataBlock(1, 101);
+  SSDataBlock *pSecond = NewMultiGroupDataBlock(1, 202);
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+  pFirst->info.id.groupId = 0;
+  pSecond->info.id.groupId = 0;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {pFirst, pSecond, nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.id.baseGId, 101);
+  EXPECT_FALSE(request_.outFinished);
+
+  OwnedTriggerCalcRequest second;
+  second.value.brandNew = false;
+  second.value.execId = request_.execId;
+  second.value.sessionId = request_.sessionId;
+  second.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &second.value, 2000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(second.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(second.value.pOutBlock)->info.id.baseGId, 202);
+  EXPECT_FALSE(second.value.outFinished);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.pOutBlock, nullptr);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, NonTopSettlesOrderedEogAcrossCallsWithoutSettlingSameGidTwice) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 101, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101),
+                          NewMultiGroupDataBlock(2, 101),
+                          NewMultiGroupEog(101),
+                          NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(3, 303),
+                          NewMultiGroupEog(303),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, false, true};
+  SSHashObj *pCalcInfos = request_.pGroupCalcInfos;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.pOutBlock, nullptr);
+  EXPECT_FALSE(request_.outFinished);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.id.baseGId, 101);
+
+  OwnedTriggerCalcRequest sameGroup;
+  sameGroup.value.brandNew = false;
+  sameGroup.value.execId = request_.execId;
+  sameGroup.value.sessionId = request_.sessionId;
+  sameGroup.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &sameGroup.value, 2000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(sameGroup.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(sameGroup.value.pOutBlock)->info.id.baseGId, 101);
+
+  OwnedTriggerCalcRequest groupChange;
+  groupChange.value.brandNew = false;
+  groupChange.value.execId = request_.execId;
+  groupChange.value.sessionId = request_.sessionId;
+  groupChange.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &groupChange.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(groupChange.value.pOutBlock, nullptr);
+  EXPECT_EQ(groupChange.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(groupChange.value.outFrame.baseGId, 101);
+
+  OwnedTriggerCalcRequest emptyGroup;
+  emptyGroup.value.brandNew = false;
+  emptyGroup.value.execId = request_.execId;
+  emptyGroup.value.sessionId = request_.sessionId;
+  emptyGroup.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &emptyGroup.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(emptyGroup.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(emptyGroup.value.outFrame.baseGId, 202);
+
+  OwnedTriggerCalcRequest lastData;
+  lastData.value.brandNew = false;
+  lastData.value.execId = request_.execId;
+  lastData.value.sessionId = request_.sessionId;
+  lastData.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &lastData.value, 5000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(lastData.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(lastData.value.pOutBlock)->info.id.baseGId, 303);
+  auto *pGroup303 = static_cast<SSTriggerGroupCalcInfo *>(
+      tSimpleHashGet(pCalcInfos, &gCalls.executeGroupIds[4], sizeof(gCalls.executeGroupIds[4])));
+  ASSERT_NE(pGroup303, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.curGrpCalc, pGroup303);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pGroup303->pParams);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pGroup303->pGroupColVals);
+
+  OwnedTriggerCalcRequest lastEog;
+  lastEog.value.brandNew = false;
+  lastEog.value.execId = request_.execId;
+  lastEog.value.sessionId = request_.sessionId;
+  lastEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &lastEog.value, 6000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(lastEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(lastEog.value.outFrame.baseGId, 303);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 7000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 7);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, NonTopRejectsSettledGidReappearanceAcrossCalls) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 303, 303, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303), NewMultiGroupEog(303), NewMultiGroupEog(101)};
+  gCalls.executeFinished = {false, false, false, false, false, false};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  OwnedTriggerCalcRequest groupChange;
+  groupChange.value.brandNew = false;
+  groupChange.value.execId = request_.execId;
+  groupChange.value.sessionId = request_.sessionId;
+  groupChange.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &groupChange.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(groupChange.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(groupChange.value.outFrame.baseGId, 101);
+
+  OwnedTriggerCalcRequest emptyMiddle;
+  emptyMiddle.value.brandNew = false;
+  emptyMiddle.value.execId = request_.execId;
+  emptyMiddle.value.sessionId = request_.sessionId;
+  emptyMiddle.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &emptyMiddle.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(emptyMiddle.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(emptyMiddle.value.outFrame.baseGId, 202);
+
+  OwnedTriggerCalcRequest lastData;
+  lastData.value.brandNew = false;
+  lastData.value.execId = request_.execId;
+  lastData.value.sessionId = request_.sessionId;
+  lastData.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &lastData.value, 4000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(lastData.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(lastData.value.pOutBlock)->info.id.baseGId, 303);
+
+  OwnedTriggerCalcRequest lastEog;
+  lastEog.value.brandNew = false;
+  lastEog.value.execId = request_.execId;
+  lastEog.value.sessionId = request_.sessionId;
+  lastEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &lastEog.value, 5000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(lastEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest duplicate;
+  duplicate.value.brandNew = false;
+  duplicate.value.execId = request_.execId;
+  duplicate.value.sessionId = request_.sessionId;
+  duplicate.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &duplicate.value, 6000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 6);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+}
+
+TEST_F(StreamRunnerTest, RetainedExecCannotBeReusedByBrandNewRequest) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  ASSERT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  OwnedTriggerCalcRequest competing;
+  competing.value.brandNew = true;
+  competing.value.execId = -1;
+  competing.value.sessionId = 2;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&competing.value, {202}, 1, false));
+  SSHashObj *pCompetingCalc = competing.value.pGroupCalcInfos;
+  SSHashObj *pCompetingRead = competing.value.pGroupReadInfos;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &competing.value, 2000), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  EXPECT_EQ(competing.value.pGroupCalcInfos, pCompetingCalc);
+  EXPECT_EQ(competing.value.pGroupReadInfos, pCompetingRead);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(RunningExec(), pExec);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 1);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(eof.value.outFinished);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, BrandNewPositiveExecIdCannotAcquireRetainedContinuation) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RunningExec(), pExec);
+  auto      *pContinuation = pExec->pGroupedContinuation;
+  SSHashObj *pCalcInfos = pExec->runtimeInfo.funcInfo.pGroupCalcInfos;
+  SSHashObj *pReadInfos = pExec->runtimeInfo.funcInfo.pGroupReadInfos;
+
+  OwnedTriggerCalcRequest competing;
+  competing.value.brandNew = true;
+  competing.value.execId = request_.execId;
+  competing.value.sessionId = 2;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&competing.value, {202}, 1, false));
+  SSHashObj *pCompetingCalc = competing.value.pGroupCalcInfos;
+  SSHashObj *pCompetingRead = competing.value.pGroupReadInfos;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &competing.value, 2000), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.resetCalls, 1);
+  EXPECT_EQ(RunningExec(), pExec);
+  EXPECT_EQ(pExec->pGroupedContinuation, pContinuation);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, pCalcInfos);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, pReadInfos);
+  EXPECT_EQ(competing.value.pGroupCalcInfos, pCompetingCalc);
+  EXPECT_EQ(competing.value.pGroupReadInfos, pCompetingRead);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, SpoofedSingleGroupEnvelopeFatallyCleansRetainedContinuation) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101)};
+  gCalls.executeFinished = {false};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RunningExec(), pExec);
+
+  OwnedTriggerCalcRequest spoofed;
+  spoofed.value.brandNew = false;
+  spoofed.value.execId = request_.execId;
+  spoofed.value.sessionId = request_.sessionId;
+  spoofed.value.isMultiGroupCalc = false;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &spoofed.value, 2000), TSDB_CODE_INVALID_PARA);
+
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->pGroupedContinuation, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  EXPECT_FALSE(pExec->runtimeInfo.funcInfo.isMultiGroupCalc);
+
+  OwnedTriggerCalcRequest reusable;
+  reusable.value.brandNew = true;
+  reusable.value.execId = request_.execId;
+  reusable.value.createTable = 1;
+  reusable.value.gid = 202;
+  reusable.value.sessionId = 2;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &reusable.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+
+  if (pExec->pGroupedContinuation != nullptr) UndeployRunnerForCleanup();
+}
+
+TEST_F(StreamRunnerTest, ContinuationWithWrongExecIdDoesNotTouchRetainedState) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  auto      *pContinuation = pExec->pGroupedContinuation;
+  SSHashObj *pCalcInfos = pExec->runtimeInfo.funcInfo.pGroupCalcInfos;
+
+  OwnedTriggerCalcRequest wrongExec;
+  wrongExec.value.brandNew = false;
+  wrongExec.value.execId = request_.execId + 1;
+  wrongExec.value.sessionId = request_.sessionId;
+  wrongExec.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &wrongExec.value, 2000), TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  EXPECT_EQ(RunningExec(), pExec);
+  EXPECT_EQ(pExec->pGroupedContinuation, pContinuation);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, pCalcInfos);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(eof.value.outFinished);
+}
+
+TEST_F(StreamRunnerTest, NonTopConsumesConsecutiveEogBoundariesBeforeNonEmptyResponse) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupDataBlock(1, 303),
+                          NewMultiGroupEog(303), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(request_.outFrame.baseGId, 101);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(RunningExec(), pExec);
+
+  OwnedTriggerCalcRequest secondEog;
+  secondEog.value.brandNew = false;
+  secondEog.value.execId = request_.execId;
+  secondEog.value.sessionId = request_.sessionId;
+  secondEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &secondEog.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(secondEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(secondEog.value.outFrame.baseGId, 202);
+
+  OwnedTriggerCalcRequest data;
+  data.value.brandNew = false;
+  data.value.execId = request_.execId;
+  data.value.sessionId = request_.sessionId;
+  data.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &data.value, 3000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data.value.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(data.value.pOutBlock)->info.id.baseGId, 303);
+
+  OwnedTriggerCalcRequest lastEog;
+  lastEog.value.brandNew = false;
+  lastEog.value.execId = request_.execId;
+  lastEog.value.sessionId = request_.sessionId;
+  lastEog.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &lastEog.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(lastEog.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 5000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 5);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 3);
+  EXPECT_EQ(stats.noResultWindowCount, 2);
+  EXPECT_EQ(stats.outputRows, 1);
+  EXPECT_EQ(stats.outputBlocks, 1);
+}
+
+TEST_F(StreamRunnerTest, AggregateWindowsKeepCountsAndOrderAcrossEarlyGroupBoundaries) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 2, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 101), NewMultiGroupEog(101), NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303), NewMultiGroupEog(303), nullptr};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({packRunnerLineage(0, 0), packRunnerLineage(1, 1)}), nullptr, nullptr,
+                                 NewWindowIndexes({packRunnerLineage(1, 0)}), nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_DATA);
+  EXPECT_EQ(request_.outFrame.baseGId, 101);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  ASSERT_NE(request_.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.rows, 2);
+
+  const uint64_t expectedGroups[] = {101, 202, 303, 303};
+  for (int32_t index = 0; index < 5; ++index) {
+    OwnedTriggerCalcRequest next;
+    next.value.brandNew = false;
+    next.value.execId = request_.execId;
+    next.value.sessionId = request_.sessionId;
+    next.value.isMultiGroupCalc = true;
+    ASSERT_EQ(stRunnerTaskExecute(&task_, &next.value, 2000 + index * 1000), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gCalls.executeCalls, index + 2);
+    if (index < 4) {
+      EXPECT_EQ(next.value.outFrame.baseGId, expectedGroups[index]);
+      EXPECT_EQ(next.value.outFrame.type, index == 2 ? STREAM_RUNNER_FETCH_DATA : STREAM_RUNNER_FETCH_EOG);
+      EXPECT_FALSE(next.value.outFinished);
+    } else {
+      EXPECT_TRUE(next.value.outFinished);
+    }
+  }
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 3);
+  EXPECT_EQ(stats.noResultWindowCount, 1);
+  EXPECT_EQ(stats.outputRows, 3);
+  EXPECT_EQ(stats.outputBlocks, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+}
+
+TEST_F(StreamRunnerTest, TopAggregateCountsEachWindowAcrossEarlyGroupBoundaries) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 2));
+  task_.lowLatencyCalc = true;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 303, 303};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 101), NewMultiGroupEog(101), NewMultiGroupEog(202),
+                          NewMultiGroupDataBlock(1, 303), NewMultiGroupEog(303), nullptr};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({packRunnerLineage(0, 0), packRunnerLineage(1, 1)}), nullptr, nullptr,
+                                 NewWindowIndexes({packRunnerLineage(1, 0)}), nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.sinkGroupIds, (std::vector<int64_t>{101, 202, 303}));
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 6);
+  EXPECT_EQ(stats.noResultWindowCount, 3);
+  EXPECT_EQ(stats.outputRows, 3);
+  EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 6}));
+}
+
+TEST_F(StreamRunnerTest, NonTopAllEmptyGroupEogBatchReachesTrueTerminalWithoutFetchBlock) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupEog(303), nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+  EXPECT_FALSE(request_.outFinished);
+  EXPECT_EQ(request_.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(request_.outFrame.baseGId, 101);
+
+  OwnedTriggerCalcRequest second;
+  second.value.brandNew = false;
+  second.value.execId = request_.execId;
+  second.value.sessionId = request_.sessionId;
+  second.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &second.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(second.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(second.value.outFrame.baseGId, 202);
+
+  OwnedTriggerCalcRequest third;
+  third.value.brandNew = false;
+  third.value.execId = request_.execId;
+  third.value.sessionId = request_.sessionId;
+  third.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &third.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(third.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(third.value.outFrame.baseGId, 303);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 4);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->pGroupedContinuation, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 3);
+  EXPECT_EQ(stats.noResultWindowCount, 3);
+  EXPECT_EQ(stats.outputRows, 0);
+  EXPECT_EQ(stats.outputBlocks, 0);
+}
+
+TEST_F(StreamRunnerTest, NonTopQuitStopsBeforeNextEogBoundaryAndCleansOwners) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202, 303}, 1, false));
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupDataBlock(1, 303)};
+  gCalls.executeFinished = {false, false, false};
+  gRunnerQuitTask = &task_;
+  gRunnerQuitAfterExecuteCalls = 1;
+
+  const int32_t topCode = stRunnerTaskExecute(&task_, &request_, 1000);
+
+  EXPECT_TRUE(gRunnerQuitLockTaken);
+  EXPECT_EQ(topCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(task_.task.status, STREAM_STATUS_FAILED);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  if (gRunnerQuitLockTaken) taosWUnLockLatch(&task_.task.entryLock);
+
+  OwnedTriggerCalcRequest nonTop;
+  nonTop.value.brandNew = true;
+  nonTop.value.execId = -1;
+  nonTop.value.sessionId = 2;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&nonTop.value, {101, 202, 303}, 1, false));
+  task_.topTask = false;
+  task_.task.status = STREAM_STATUS_RUNNING;
+  gCalls = {};
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202, 303};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), NewMultiGroupDataBlock(1, 303)};
+  gCalls.executeFinished = {false, false, false};
+  gRunnerQuitLockTaken = false;
+  gRunnerQuitAfterExecuteCalls = 1;
+
+  const int32_t nonTopCode = stRunnerTaskExecute(&task_, &nonTop.value, 2000);
+
+  EXPECT_TRUE(gRunnerQuitLockTaken);
+  EXPECT_EQ(nonTopCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(task_.task.status, STREAM_STATUS_FAILED);
+  EXPECT_EQ(nonTop.value.pOutBlock, nullptr);
+  EXPECT_EQ(nonTop.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+
+  OwnedTriggerCalcRequest quitContinuation;
+  quitContinuation.value.brandNew = false;
+  quitContinuation.value.execId = nonTop.value.execId;
+  quitContinuation.value.sessionId = nonTop.value.sessionId;
+  quitContinuation.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &quitContinuation.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->pGroupedContinuation, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+  if (gRunnerQuitLockTaken) taosWUnLockLatch(&task_.task.entryLock);
+  gRunnerQuitTask = nullptr;
+
+  if (listNEles(task_.execMgr.pRunningExecs) != 0) UndeployRunnerForCleanup();
+}
+
+TEST_F(StreamRunnerTest, ConcurrentUseOfRetainedExecIdIsRejected) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupDataBlock(2, 101), NewMultiGroupEog(101),
+                          nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  OwnedTriggerCalcRequest firstContinuation;
+  firstContinuation.value.brandNew = false;
+  firstContinuation.value.execId = request_.execId;
+  firstContinuation.value.sessionId = request_.sessionId;
+  firstContinuation.value.isMultiGroupCalc = true;
+  OwnedTriggerCalcRequest competingContinuation;
+  competingContinuation.value.brandNew = false;
+  competingContinuation.value.execId = request_.execId;
+  competingContinuation.value.sessionId = request_.sessionId;
+  competingContinuation.value.isMultiGroupCalc = true;
+
+  int32_t firstCode = TSDB_CODE_FAILED;
+  gBlockRunnerExecute.store(true);
+  std::thread first([&] { firstCode = stRunnerTaskExecute(&task_, &firstContinuation.value, 2000); });
+  const auto  deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerExecuteEntered.load() && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+  const bool entered = gRunnerExecuteEntered.load();
+  int32_t    competingCode = TSDB_CODE_FAILED;
+  if (entered) competingCode = stRunnerTaskExecute(&task_, &competingContinuation.value, 3000);
+  gBlockRunnerExecute.store(false);
+  first.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(competingCode, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
+  EXPECT_EQ(firstCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(firstContinuation.value.pOutBlock, nullptr);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(RunningExec(), pExec);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 4000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 5000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, CopyFailureAfterEogBoundaryCleansRetainedStateAndOwners) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false};
+  Stub copyStub;
+  copyStub.set(createOneDataBlock, failCreateOneDataBlock);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+
+  OwnedTriggerCalcRequest continuation;
+  continuation.value.brandNew = false;
+  continuation.value.execId = request_.execId;
+  continuation.value.sessionId = request_.sessionId;
+  continuation.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &continuation.value, 2000), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(continuation.value.pOutBlock, nullptr);
+  EXPECT_EQ(continuation.value.outFrame.type, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(continuation.value.outFrame.pLineage, nullptr);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(gCalls.resetCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupCalcInfos, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pGroupReadInfos, nullptr);
+}
+
+TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingContinuationReservation) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  SArray *pVgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(pVgList, nullptr);
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+  SStreamOReaderDeployRsp rsp = {};
+  rsp.execId = request_.execId;
+  rsp.vgList = pVgList;
+  ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
+
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  auto *pStoredRsp = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0));
+  ASSERT_NE(pStoredRsp, nullptr);
+  EXPECT_EQ(pStoredRsp->vgList, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, pVgList);
+  EXPECT_EQ(RunningExec(), pExec);
+  taosArrayDestroy(pRspList);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  taosArrayDestroy(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo);
+  pExec->runtimeInfo.vtableDeployInfo.addedVgInfo = nullptr;
+}
+
+class StreamRunnerRedeployCleanupTest : public StreamRunnerTest, public ::testing::WithParamInterface<bool> {};
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeManagementRequestReleasesVgroupIds) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployGot = &task_.vtableDeployGot;
+  SExecTaskInfo executor = {};
+  executor.pStreamRuntimeInfo = &pExec->runtimeInfo;
+  SVtbScanDynCtrlInfo scan = {};
+  scan.uid = 123;
+  scan.existOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  scan.curOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(scan.existOrgTbVg, nullptr);
+  ASSERT_NE(scan.curOrgTbVg, nullptr);
+  int32_t vgId = 42;
+  ASSERT_EQ(taosHashPut(scan.curOrgTbVg, &vgId, sizeof(vgId), nullptr, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(processOrgTbVg(&scan, &executor, 2), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
+  taosHashCleanup(scan.existOrgTbVg);
+  taosHashCleanup(scan.curOrgTbVg);
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  // Shutdown can precede the heartbeat that transfers addVgIds into pMgmtReq.
+  // LSan must find no orphaned array after the real execution destructor runs.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeResponseConsumptionReleasesVgroupInfo) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  SArray *pResponses = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pResponses, nullptr);
+  SStreamOReaderDeployRsp response = {};
+  response.execId = pExec->runtimeInfo.execId;
+  response.vgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(response.vgList, nullptr);
+  SStreamTaskAddr addr = {};
+  addr.nodeId = 42;
+  ASSERT_NE(taosArrayPush(response.vgList, &addr), nullptr);
+  ASSERT_NE(taosArrayPush(pResponses, &response), nullptr);
+  ASSERT_EQ(stRunnerSetMgmtRsp(&task_, pResponses, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  auto *pResponse = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pResponses, 0));
+  EXPECT_EQ(pResponse->vgList, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, response.vgList);
+  taosArrayDestroy(pResponses);
+
+  // The execution now owns the response, even if no scan consumes it before shutdown.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(FreeAndRunning, StreamRunnerRedeployCleanupTest, ::testing::Bool());
+
+TEST_F(StreamRunnerTest, UndeployReleasesPendingReaderRequestAndPreservesHeartbeatCopy) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  auto &deploy = pExec->runtimeInfo.vtableDeployInfo;
+  deploy.uid = 123;
+  deploy.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(deploy.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(deploy.addVgIds, &vgId), nullptr);
+
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(deploy.addVgIds, nullptr);
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  ASSERT_EQ(stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats), TSDB_CODE_SUCCESS);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  ASSERT_NE(pStatus, nullptr);
+  ASSERT_NE(pStatus->pMgmtReq, nullptr);
+  EXPECT_NE(pStatus->pMgmtReq, task_.task.pMgmtReq);
+
+  // DROP can undeploy the runner before its management response is handled.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  // The heartbeat owns a separate copy; runner teardown must not invalidate it.
+  EXPECT_EQ(pStatus->pMgmtReq->type, STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER);
+  auto *pReq = static_cast<SStreamOReaderDeployReq *>(taosArrayGet(pStatus->pMgmtReq->cont.pReqs, 0));
+  ASSERT_NE(pReq, nullptr);
+  EXPECT_EQ(pReq->uid, 123);
+  EXPECT_EQ(*static_cast<int32_t *>(taosArrayGet(pReq->vgIds, 0)), vgId);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, HeartbeatPeriodLogCanCompleteDeferredUndeploy) {
+  ScopedRunnerDebugLogCapture capture;
+  gCalls.monotonicUs = STREAM_STATS_PERIOD_US + 1;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployInfo.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(pExec->runtimeInfo.vtableDeployInfo.addVgIds, &vgId), nullptr);
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+
+  stub_.set(qAsyncKillTask, mockQAsyncKillTask);
+  stub_.set(streamDestroyExecTask, mockStreamDestroyExecTask);
+  stub_.set(dsDestroyDataSinker, mockDsDestroyDataSinker);
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.task.undeployCb = captureRunnerUndeploy;
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  int32_t heartbeatCode = TSDB_CODE_FAILED;
+  gBlockRunnerPeriodLog.store(true);
+  std::thread heartbeatThread(
+      [&] { heartbeatCode = stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerPeriodLogEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  const bool entered = gRunnerPeriodLogEntered.load();
+  if (entered) {
+    SStreamRunnerTask *pRunner = &task_;
+    EXPECT_EQ(stRunnerTaskUndeploy(&pRunner, false), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gRunnerUndeployCalls.load(), 0);
+    EXPECT_TRUE(taosHasRWWFlag(&task_.task.entryLock));
+  }
+  // Releasing the logger's last entry reference completes undeploy on this thread.
+  gBlockRunnerPeriodLog.store(false);
+  heartbeatThread.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(heartbeatCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(taosArrayGetSize(heartbeat.pStreamReq), 0);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  EXPECT_NE(pStatus, nullptr);
+  if (pStatus != nullptr) EXPECT_EQ(pStatus->pMgmtReq, nullptr);
+  if (gRunnerUndeployCalls.load() == 0) {
+    UndeployRunnerForCleanup();
+  } else {
+    task_.execMgr.pRunningExecs = nullptr;
+    task_.execMgr.pFreeExecs = nullptr;
+    task_.execMgr.lockInited = false;
+    task_.execMgr.stateLockInited = false;
+    task_.notification.pNotifyAddrUrls = nullptr;
+  }
+  taosWUnLockLatch(&task_.task.entryLock);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspRejectedWithoutDeployRecordsKeepsTaskAlive) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // mnode rejected the deploy request before producing any deploy record
+  // (transient state, e.g. runner snapshot still recovering). Keep the
+  // pre-timeout behavior of not failing the task; the executor-side 60s
+  // timeout still guards the case where no response ever arrives.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspPartialFailureReturnsMnodeCodeWithoutSwapping) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pVgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(pVgList, nullptr);
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+  SStreamOReaderDeployRsp rsp = {};
+  rsp.execId = request_.execId;
+  rsp.vgList = pVgList;
+  ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
+
+  // mnode failed mid-deploy with a partially built deploy record: propagate
+  // the real mnode error and never swap in a half-baked vg list that would let
+  // the calc proceed on undeployed vgroups.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  EXPECT_NE(static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0))->vgList, nullptr);
+  taosArrayDestroy(pVgList);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspSuccessWithoutDeployRecordsReturnsRedeployTimeout) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // A success response without deploy records means the redeploy chain is
+  // broken: fail with the explicit timeout so the calc stops retrying
+  // need-redeploy forever (defect 7138880370).
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, TaskDestroyStopsOperatorBeforeCleaningRetainedOwners) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101)};
+  gCalls.executeFinished = {false};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RunningExec(), pExec);
+
+  Stub destroyStub;
+  destroyStub.set(qAsyncKillTask, mockQAsyncKillTask);
+  destroyStub.set(streamDestroyExecTask, mockStreamDestroyExecTask);
+  destroyStub.set(dsDestroyDataSinker, mockDsDestroyDataSinker);
+  gRunnerDestroyRuntime = &pExec->runtimeInfo;
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.task.undeployCb = captureRunnerUndeploy;
+  SStreamRunnerTask *pRunner = &task_;
+
+  EXPECT_EQ(stRunnerTaskUndeploy(&pRunner, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_TRUE(gRunnerDestroySawOwners);
+  EXPECT_EQ(gRunnerDestroyEvents, (std::vector<int32_t>{1, 2}));
+
+  task_.execMgr.pRunningExecs = nullptr;
+  task_.execMgr.pFreeExecs = nullptr;
+  task_.execMgr.lockInited = false;
+  task_.notification.pNotifyAddrUrls = nullptr;
+  gCalls.pRuntimeInfo = nullptr;
+  gRunnerDestroyRuntime = nullptr;
+}
+
+TEST_F(StreamRunnerTest, AcceptsRequestWide40960Params) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, STREAM_CALC_REQ_MAX_WIN_NUM, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, true};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_NE(request_.pOutBlock, nullptr);
+
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.brandNew = false;
+  terminal.value.execId = request_.execId;
+  terminal.value.sessionId = request_.sessionId;
+  terminal.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 2000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(terminal.value.outFrame.type, STREAM_RUNNER_FETCH_EOG);
+
+  OwnedTriggerCalcRequest eof;
+  eof.value.brandNew = false;
+  eof.value.execId = request_.execId;
+  eof.value.sessionId = request_.sessionId;
+  eof.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &eof.value, 3000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(eof.value.outFinished);
+}
+
+TEST_F(StreamRunnerTest, RejectsRequestWide40961BeforeAcquire) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, STREAM_CALC_REQ_MAX_WIN_NUM + 1, false));
+
+  SListNode *pUnusedExec = tdListPopHead(task_.execMgr.pFreeExecs);
+  ASSERT_NE(pUnusedExec, nullptr);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(gCalls.resetCalls, 0);
+  EXPECT_EQ(gCalls.buildCalls, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+
+  tdListAppendNode(task_.execMgr.pFreeExecs, pUnusedExec);
+}
+
+TEST_F(StreamRunnerTest, RejectsMalformedLegacyCreateOnlyBeforeAcquire) {
+  request_.groupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+  ASSERT_NE(request_.groupColVals, nullptr);
+  request_.groupColVals->elemSize = sizeof(int32_t);
+  SListNode *pUnusedExec = tdListPopHead(task_.execMgr.pFreeExecs);
+  ASSERT_NE(pUnusedExec, nullptr);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(gCalls.resetCalls, 0);
+  EXPECT_EQ(gCalls.buildCalls, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+
+  request_.groupColVals->elemSize = sizeof(SStreamGroupValue);
+  tdListAppendNode(task_.execMgr.pFreeExecs, pUnusedExec);
+}
+
+TEST_F(StreamRunnerTest, SingleGroupKeepsLegacyExecutionPath) {
+  SetWindows(1);
+  task_.lowLatencyCalc = true;
+  gCalls.executeBlocks = {NewBlock(3)};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+  EXPECT_EQ(gCalls.groupId, 42);
+}
+
+TEST_F(StreamRunnerTest, EmptySuccessfulWindowHasLatencySample) {
+  SetWindows(1);
+  gCalls.executeReadyTimes = {7000};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 2000), TSDB_CODE_SUCCESS);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.resultLatency.totalUs, 5000);
+  EXPECT_EQ(stats.noResultWindowCount, 1);
+  EXPECT_EQ(stats.outputRows, 0);
+  EXPECT_EQ(stats.outputBlocks, 0);
+}
+
+TEST_F(StreamRunnerTest, MultipleBlocksForOneWindowRecordOneReadySample) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(3), NewBlock(4), nullptr};
+  gCalls.executeReadyTimes = {4000, 6000, 8000};
+  gCalls.executeFinished = {false, false, true};
+  task_.lowLatencyCalc = true;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(gCalls.sinkCalls, 2);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.resultLatency.totalUs, 3000);
+  EXPECT_EQ(stats.outputRows, 7);
+  EXPECT_EQ(stats.outputBlocks, 2);
+}
+
+TEST_F(StreamRunnerTest, LaterBatchFailureKeepsEarlierLatencySample) {
+  SetWindows(2);
+  gCalls.executeCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+  gCalls.executeReadyTimes = {6000, 10000};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.resultLatency.totalUs, 5000);
+  EXPECT_EQ(stats.calcFailureCount, 1);
+  EXPECT_EQ(stats.calcDuration.samples, 1);
+  EXPECT_EQ(stats.calcDuration.totalUs, 9000);
+}
+
+TEST_F(StreamRunnerTest, ExecutorBlockingIntervalsAreExcludedFromCalcDuration) {
+  SetWindows(1);
+  gCalls.executeReadyTimes = {10000};
+  gCalls.executeBlockingIntervals = {{2000, 4000}, {5000, 8000}};
+  SStreamRunnerTaskExecution *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.calcDuration.samples, 1);
+  EXPECT_EQ(stats.calcDuration.totalUs, 4000);
+}
+
+TEST_F(StreamRunnerTest, SinkFailureDoesNotCountOutputOrLoseReadyLatency) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  gCalls.sinkCode = TSDB_CODE_INVALID_PARA;
+  task_.lowLatencyCalc = true;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.outputRows, 0);
+  EXPECT_EQ(stats.outputBlocks, 0);
+  EXPECT_EQ(stats.sinkFailureCount, 1);
+  EXPECT_EQ(stats.calcFailureCount, 0);
+}
+
+TEST_F(StreamRunnerTest, NotificationTargetsDoNotMultiplyCalcNotifyOnlyOutput) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  task_.notification.calcNotifyOnly = true;
+  char  secondNotifyUrl[] = "ws://unused/second";
+  char *pSecondNotifyUrl = secondNotifyUrl;
+  ASSERT_NE(taosArrayPush(task_.notification.pNotifyAddrUrls, &pSecondNotifyUrl), nullptr);
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+  EXPECT_EQ(gCalls.notifyCalls, 1);
+  EXPECT_EQ(gCalls.notifyTargets, 2);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.outputRows, 7);
+  EXPECT_EQ(stats.outputBlocks, 1);
+}
+
+TEST_F(StreamRunnerTest, SuccessfulTopSinkAndNotificationCountLogicalOutputOnce) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  task_.lowLatencyCalc = true;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+  EXPECT_EQ(gCalls.notifyCalls, 1);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.outputRows, 7);
+  EXPECT_EQ(stats.outputBlocks, 1);
+}
+
+TEST_F(StreamRunnerTest, DroppedNotificationQueueFailureCountsFailureButNotOutput) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(7)};
+  gCalls.executeReadyTimes = {6000};
+  gCalls.notifyCode = TSDB_CODE_INVALID_PARA;
+  task_.notification.calcNotifyOnly = true;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.notifyFailureCount, 1);
+  EXPECT_EQ(stats.outputRows, 0);
+  EXPECT_EQ(stats.calcFailureCount, 0);
+}
+
+TEST_F(StreamRunnerTest, DroppedNotifyQueueFailureDoesNotHideLaterCalcFailure) {
+  SetWindows(2);
+  gCalls.executeBlocks = {NewBlock(7), nullptr};
+  gCalls.executeCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+  gCalls.executeReadyTimes = {6000, 10000};
+  gCalls.notifyCode = TSDB_CODE_INVALID_PARA;
+  task_.notification.calcNotifyOnly = true;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.notifyFailureCount, 1);
+  EXPECT_EQ(stats.calcFailureCount, 1);
+  EXPECT_EQ(stats.outputRows, 0);
+}
+
+TEST_F(StreamRunnerTest, OrdinaryCalculationExecutesEachWindowInABatch) {
+  SetWindows(2);
+  ASSERT_NE(Exec(), nullptr);
+  Exec()->runtimeInfo.funcInfo.withExternalWindow = false;
+  gCalls.executeBlocks = {NewBlock(1), NewBlock(1)};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request_, 1000));
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(2, RotateRunnerStats().resultLatency.samples);
+}
+
+TEST_F(StreamRunnerTest, ExternalWindowIndexesRecordDataAndGapWindowsExactlyOnce) {
+  SetWindows(3);
+  SSDataBlock *pBlock = NewBlock(3);
+  gCalls.executeBlocks = {pBlock};
+  gCalls.executeReadyTimes = {6000};
+  task_.lowLatencyCalc = true;
+  SStreamRunnerTaskExecution *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  SArray *pIndexes = taosArrayInit(2, sizeof(int64_t));
+  ASSERT_NE(pIndexes, nullptr);
+  int64_t first = 0;
+  int64_t third = (INT64_C(2) << 32) | 2;
+  ASSERT_NE(taosArrayPush(pIndexes, &first), nullptr);
+  ASSERT_NE(taosArrayPush(pIndexes, &third), nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = pIndexes;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = nullptr;
+  taosArrayDestroy(pIndexes);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.logicalWindowCount, 3);
+  EXPECT_EQ(stats.resultLatency.samples, 3);
+  EXPECT_EQ(stats.noResultWindowCount, 1);
+}
+
+TEST_F(StreamRunnerTest, ExternalWindowContinuationBlocksRecordOneReadySample) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(3), NewBlock(4)};
+  gCalls.executeReadyTimes = {4000, 6000};
+  gCalls.executeFinished = {false, false};
+  task_.lowLatencyCalc = true;
+  SStreamRunnerTaskExecution *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  gCalls.pRuntimeInfo = &pExec->runtimeInfo;
+  gCalls.executeOutIndexes = {0, 1};
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  SArray *pIndexes = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIndexes, nullptr);
+  int64_t first = 0;
+  ASSERT_NE(taosArrayPush(pIndexes, &first), nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = pIndexes;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = nullptr;
+  taosArrayDestroy(pIndexes);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(gCalls.sinkCalls, 2);
+  EXPECT_EQ(gCalls.notifyCalls, 2);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.resultLatency.totalUs, 3000);
+  EXPECT_EQ(stats.outputRows, 7);
+  EXPECT_EQ(stats.outputBlocks, 2);
+  EXPECT_EQ(stats.notifyFailureCount, 0);
+}
+
+TEST_F(StreamRunnerTest, ExternalReadySampleSurvivesNotificationPreparationFailure) {
+  SetWindows(1);
+  SSDataBlock *pBlock = NewBlock(1);
+  gCalls.executeBlocks = {pBlock};
+  gCalls.executeReadyTimes = {6000};
+  gCalls.notifyBuildCode = TSDB_CODE_INVALID_PARA;
+  task_.addOptions = NOTIFY_ON_FAILURE_PAUSE;
+  SStreamRunnerTaskExecution *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.withExternalWindow = true;
+  SArray *pIndexes = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(pIndexes, nullptr);
+  int64_t first = 0;
+  ASSERT_NE(taosArrayPush(pIndexes, &first), nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = pIndexes;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx = nullptr;
+  taosArrayDestroy(pIndexes);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.resultLatency.samples, 1);
+  EXPECT_EQ(stats.resultLatency.totalUs, 5000);
+  EXPECT_EQ(stats.notifyFailureCount, 1);
+  EXPECT_EQ(stats.calcFailureCount, 0);
+}
+
+TEST_F(StreamRunnerTest, NonTopRunnerCountsReturnedBlock) {
+  SetWindows(1);
+  gCalls.executeBlocks = {NewBlock(5)};
+  gCalls.executeReadyTimes = {6000};
+  task_.topTask = false;
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_NE(request_.pOutBlock, nullptr);
+  EXPECT_EQ(static_cast<SSDataBlock *>(request_.pOutBlock)->info.rows, 5);
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.outputRows, 5);
+  EXPECT_EQ(stats.outputBlocks, 1);
+}
+
+TEST_F(StreamRunnerTest, RuntimeInputCallbackRecordsRemoteAndFilteredLocalRows) {
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  auto *pExec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(pExec->runtimeInfo.inputStatsFp, nullptr);
+  pExec->runtimeInfo.inputStatsFp(pExec->runtimeInfo.pInputStatsParam, 11, 1);
+  pExec->runtimeInfo.inputStatsFp(pExec->runtimeInfo.pInputStatsParam, 3, 1);
+
+  const SStreamRunnerPeriodStats stats = RotateRunnerStats();
+  EXPECT_EQ(stats.inputRows, 14);
+  EXPECT_EQ(stats.inputBlocks, 2);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextRejectsMissingNestedMapping) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextRejectsMissingMultiGroupMapping) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.isMultiGroupCalc = true;
+  request_.pGroupCalcInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request_.pGroupCalcInfos, nullptr);
+  tSimpleHashSetFreeFp(request_.pGroupCalcInfos, tDestroySSTriggerGroupCalcInfo);
+  addRunnerGroupCalcInfo(&request_, 101);
+  addRunnerGroupCalcInfo(&request_, 202);
+  request_.pContextPolicy = makeRunnerContextPolicy({
+      {.gid = 101, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+      {.gid = 202, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+  });
+  request_.pAncestorContext = makeRunnerAncestorContext(101, 0);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextRejectsMalformedLineageBeforeExecution) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+  auto *mapping =
+      static_cast<SStreamAncestorParamContext *>(taosArrayGet(request_.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(mapping, nullptr);
+  auto *scope = static_cast<SScopeInstanceId *>(taosArrayGet(mapping->leafIdentity.lineage.pScopes, 0));
+  ASSERT_NE(scope, nullptr);
+  scope->layerIndex = 1;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextAcceptsMixedBatchWindowMapping) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam resume = {};
+  resume.idlestart = 100;
+  resume.idleend = 200;
+  resume.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  SSTriggerCalcParam window = {};
+  window.wstart = 201;
+  window.wend = 299;
+  window.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  ASSERT_NE(taosArrayPush(request_.params, &resume), nullptr);
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  request_.pContextPolicy = makeRunnerContextPolicy({
+      {.gid = request_.gid, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_NONE},
+      {.gid = request_.gid, .paramIndex = 1, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+  });
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 1);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextRejectsMixedBatchGroupMapping) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 100;
+  idle.idleend = 200;
+  idle.notifyType = STRIGGER_EVENT_IDLE;
+  SSTriggerCalcParam window = {};
+  window.wstart = 201;
+  window.wend = 299;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  request_.pContextPolicy = makeRunnerContextPolicy({
+      {.gid = request_.gid, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_NONE},
+      {.gid = request_.gid, .paramIndex = 1, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR},
+  });
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextClearsPreviousIdleOnlyBatch) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  auto *firstExec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(firstExec, nullptr);
+
+  taosArrayDestroyEx(request_.params, tDestroySSTriggerCalcParam);
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 200;
+  idle.idleend = 300;
+  idle.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_NONE);
+  request_.brandNew = false;
+  request_.execId = firstExec->runtimeInfo.execId;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  auto *secondExec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_EQ(firstExec, secondExec);
+  ASSERT_EQ(taosArrayGetSize(secondExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals), 1);
+  const auto *stored =
+      static_cast<const SSTriggerCalcParam *>(taosArrayGet(secondExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, 0));
+  ASSERT_NE(stored, nullptr);
+  EXPECT_EQ(stored->notifyType, STRIGGER_EVENT_WINDOW_NONE);
+  EXPECT_EQ(stored->idlestart, 200);
+  EXPECT_EQ(stored->idleend, 300);
+}
+
+TEST_F(StreamRunnerTest, AncestorContextRejectsContextForNonNestedRunner) {
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, RuntimeContextTransfersAncestorContextOnce) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+  SStreamContextPolicy   *policy = request_.pContextPolicy;
+  SStreamAncestorContext *owned = request_.pAncestorContext;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(request_.pContextPolicy, nullptr);
+  EXPECT_EQ(request_.pAncestorContext, nullptr);
+  auto *exec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(exec, nullptr);
+  EXPECT_EQ(exec->runtimeInfo.funcInfo.pContextPolicy, policy);
+  EXPECT_EQ(exec->runtimeInfo.funcInfo.pAncestorContext, owned);
+  ASSERT_NE(owned->pParamIndex, nullptr);
+  const SStreamAncestorParamContext *indexed = nullptr;
+  ASSERT_EQ(tLookupStreamAncestorParam(owned, request_.gid, 0, &indexed), TSDB_CODE_SUCCESS);
+  EXPECT_NE(indexed, nullptr);
+}
+
+TEST_F(StreamRunnerTest, RuntimeContextClearsBeforeIdleOnlyBatch) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+
+  auto *exec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(exec, nullptr);
+  ASSERT_NE(exec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  ASSERT_NE(exec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+  taosArrayDestroyEx(request_.params, tDestroySSTriggerCalcParam);
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 200;
+  idle.idleend = 300;
+  idle.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_NONE);
+  request_.brandNew = false;
+  request_.execId = exec->runtimeInfo.execId;
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  exec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(exec, nullptr);
+  ASSERT_NE(exec->runtimeInfo.funcInfo.pContextPolicy, nullptr);
+  EXPECT_EQ(exec->runtimeInfo.funcInfo.pAncestorContext, nullptr);
+}
+
+TEST_F(StreamRunnerTest, NestedBrandNewCreateTableCreatesWithoutCalcOrNotify) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.pContextPolicy = makeRunnerContextPolicy();
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.resetCalls, 1);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+  EXPECT_EQ(gCalls.forceOutputCalls, 0);
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+  EXPECT_EQ(gCalls.notifyCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, SnodePublicEntryAdmitsEmptyNestedCreateTablePolicy) {
+  ASSERT_TRUE(setUpPublicSnode());
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.triggerType = STREAM_TRIGGER_COUNT;
+  request_.isWindowTrigger = true;
+  request_.pContextPolicy = makeRunnerContextPolicy();
+
+  EXPECT_EQ(processPublicCalc(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, SnodePublicEntryRejectsMissingNestedCreateTablePolicy) {
+  ASSERT_TRUE(setUpPublicSnode());
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.triggerType = STREAM_TRIGGER_COUNT;
+  request_.isWindowTrigger = true;
+
+  EXPECT_EQ(processPublicCalc(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.sinkCalls, 0);
+  EXPECT_EQ(gCalls.executeCalls, 0);
+}
+
+TEST_F(StreamRunnerTest, SnodePublicEntryTransfersAndRollsBackNestedContextPair) {
+  ASSERT_TRUE(setUpPublicSnode());
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  request_.createTable = 0;
+  request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(request_.params, nullptr);
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
+  setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
+  request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
+
+  EXPECT_EQ(processPublicCalc(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+
+  auto *pExec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(pExec, nullptr);
+  SStreamContextPolicy   *pStoredPolicy = pExec->runtimeInfo.funcInfo.pContextPolicy;
+  SStreamAncestorContext *pStoredContext = pExec->runtimeInfo.funcInfo.pAncestorContext;
+  ASSERT_NE(pStoredPolicy, nullptr);
+  ASSERT_NE(pStoredContext, nullptr);
+  EXPECT_EQ(tAdmitStreamContext(pStoredPolicy, pStoredContext, true), TSDB_CODE_SUCCESS);
+
+  task_.addOptions = 0;
+  gResponseCode = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(processPublicCalc(), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pContextPolicy, pStoredPolicy);
+  EXPECT_EQ(pExec->runtimeInfo.funcInfo.pAncestorContext, pStoredContext);
+}
+
+SStreamRuntimeFuncInfo makeCacheFetchRuntime(int64_t gid, int32_t vgId, int64_t discriminator, bool multiGroup) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.isMultiGroupCalc = multiGroup;
+  runtime.curNodeId = vgId;
+  runtime.groupId = gid;
+  runtime.curIdx = 0;
+  runtime.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  runtime.pContextPolicy =
+      makeRunnerContextPolicy({{.gid = gid, .paramIndex = 0, .contextPolicy = STREAM_CONTEXT_POLICY_ANCESTOR}});
+  runtime.pAncestorContext = makeRunnerAncestorContext(gid, 0);
+  auto *param = static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0));
+  auto *scope = static_cast<SScopeInstanceId *>(taosArrayGet(param->leafIdentity.lineage.pScopes, 0));
+  scope->nativeDiscriminator = discriminator;
+  if (multiGroup) {
+    runtime.pAncestorContext->pReadScopeBindings = taosArrayInit(1, sizeof(SStreamReadScopeBinding));
+    EXPECT_NE(nullptr, runtime.pAncestorContext->pReadScopeBindings);
+    SStreamReadScopeBinding binding = {.vgId = vgId, .readInfoIndex = 3, .scope = {.gid = gid}};
+    binding.scope.lineage.pScopes = taosArrayDup(param->leafIdentity.lineage.pScopes, nullptr);
+    EXPECT_NE(nullptr, binding.scope.lineage.pScopes);
+    EXPECT_NE(nullptr, taosArrayPush(runtime.pAncestorContext->pReadScopeBindings, &binding));
+  }
+  return runtime;
+}
+
+void destroyCacheFetchRuntime(SStreamRuntimeFuncInfo *runtime) {
+  tDestroyStreamContextPolicy(&runtime->pContextPolicy);
+  tDestroyStreamAncestorContext(&runtime->pAncestorContext);
+}
+
+struct OwnedFetchRequest {
+  ~OwnedFetchRequest() { tDestroySResFetchReq(&value); }
+
+  SResFetchReq value = {};
+};
+
+SSDataBlock *makeCacheBlock(std::initializer_list<TSKEY> timestamps, std::initializer_list<int32_t> values) {
+  if (timestamps.size() != values.size()) {
+    ADD_FAILURE() << "timestamp and value counts differ";
+    return nullptr;
+  }
+  SSDataBlock *block = nullptr;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&block));
+  if (block == nullptr) return nullptr;
+  SColumnInfoData tsInfo = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 1);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(block, &tsInfo));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(block, &valueInfo));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(block, timestamps.size()));
+  auto *tsCol = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+  auto *valueCol = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+  auto  ts = timestamps.begin();
+  auto  value = values.begin();
+  for (int32_t row = 0; ts != timestamps.end(); ++row, ++ts, ++value) {
+    EXPECT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(tsCol, row, reinterpret_cast<const char *>(&*ts), false));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(valueCol, row, reinterpret_cast<const char *>(&*value), false));
+  }
+  block->info.rows = timestamps.size();
+  return block;
+}
+
+SSDataBlock *makeCacheBlock(TSKEY ts, int32_t value) { return makeCacheBlock({ts}, {value}); }
+
+int32_t putCacheRowsAsSeparateSourceBlocks(void *pCache, const SStreamCacheScope *pScope, SSDataBlock *pBlock) {
+  if (pCache == nullptr || pScope == nullptr || pBlock == nullptr || pBlock->info.rows != 2) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  const auto *pTsCol = static_cast<const SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  if (pTsCol == nullptr) return TSDB_CODE_INVALID_PARA;
+  for (int32_t row = 0; row < pBlock->info.rows; ++row) {
+    const TSKEY ts = *reinterpret_cast<const TSKEY *>(colDataGetData(pTsCol, row));
+    pBlock->info.id.blockId = row + 1;
+    const int32_t code = putStreamDataCacheScoped(pCache, pScope, ts, ts, pBlock, row, row);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t putCacheRowsAsMergedSourceBlock(void *pCache, const SStreamCacheScope *pScope, SSDataBlock *pBlock) {
+  if (pCache == nullptr || pScope == nullptr || pBlock == nullptr || pBlock->info.rows != 2) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return putStreamDataCacheScoped(pCache, pScope, 100, 101, pBlock, 0, 1);
+}
+
+bool prepareRunnerOutputRequest(SSTriggerCalcRequest *request) {
+  request->createTable = 0;
+  request->params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  if (request->params == nullptr) return false;
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  if (taosArrayPush(request->params, &window) == nullptr) return false;
+  gRunnerResultBlock = makeCacheBlock(100, 7);
+  return gRunnerResultBlock != nullptr;
+}
+
+TEST_F(StreamRunnerTest, NormalOutputRetriesMissingTableWithSameComputedBlock) {
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+  gRunnerSinkCodes = {TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, TSDB_CODE_SUCCESS};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gCalls.sinkCalls, 2);
+  ASSERT_EQ(gCalls.autoCreateTableCalls.size(), 2);
+  EXPECT_EQ((std::vector<uint64_t>{0, 0}), gCalls.outputRounds);
+  EXPECT_FALSE(gCalls.autoCreateTableCalls[0]);
+  EXPECT_TRUE(gCalls.autoCreateTableCalls[1]);
+  ASSERT_EQ(gCalls.sinkBlocks.size(), 2);
+  EXPECT_NE(gCalls.sinkBlocks[0], nullptr);
+  EXPECT_EQ(gCalls.sinkBlocks[0], gCalls.sinkBlocks[1]);
+  EXPECT_EQ(gCalls.notifyCalls, 2);
+}
+
+TEST_F(StreamRunnerTest, AlignedOutputIncludesTheRoundOnTableCreationRetry) {
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+  request_.streamId = task_.task.streamId;
+  request_.runnerTaskId = task_.task.taskId;
+  task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, stRunnerTaskExecute(&task_, &request_, 1000));
+  EXPECT_TRUE(gCalls.outputRounds.empty());
+  request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+  gRunnerSinkCodes = {TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, TSDB_CODE_STREAM_EXEC_CANCELLED};
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, stRunnerTaskExecute(&task_, &request_, 2000));
+  EXPECT_EQ((std::vector<uint64_t>{92, 92}), gCalls.outputRounds);
+}
+
+// Use the public calc RPC and real row encoder. The fixture supplies local table metadata and destination replies.
+struct AdmissionBatchTransport {
+  std::vector<std::vector<char>> arrivals;
+  std::vector<int32_t>           replies;
+  int32_t                        routed = 0;
+  int32_t                        released = 0;
+  int32_t                        resumed = 0;
+  SStreamRunnerTask             *dropAfterReply = nullptr;
+  std::function<void()>          onFirstSend;
+
+  static int32_t route(void *ctx, const char *, const char *, SVgroupInfo *vg) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->routed;
+    vg->vgId = 7;
+    return 0;
+  }
+
+  static int32_t send(void *ctx, SEpSet *, int64_t *, SMsgSendInfo *info) {
+    auto *state = static_cast<AdmissionBatchTransport *>(ctx);
+    auto *data = static_cast<char *>(info->msgInfo.pData);
+    state->arrivals.emplace_back(data, data + info->msgInfo.len);
+    size_t   i = state->arrivals.size() - 1;
+    if (i == 0 && state->onFirstSend) state->onFirstSend();
+    int32_t  reply = i < state->replies.size() ? state->replies[i] : TSDB_CODE_INVALID_MSG;
+    SDataBuf rsp = {};
+    if (reply == 0) {
+      SSubmitRsp2 result = {};
+      SEncoder    enc = {};
+      tEncoderInit(&enc, nullptr, 0);
+      EXPECT_EQ(0, tEncodeSSubmitRsp2(&enc, &result));
+      rsp.len = enc.pos;
+      tEncoderClear(&enc);
+      rsp.pData = taosMemoryMalloc(rsp.len);
+      tEncoderInit(&enc, static_cast<uint8_t *>(rsp.pData), rsp.len);
+      EXPECT_EQ(0, tEncodeSSubmitRsp2(&enc, &result));
+      tEncoderClear(&enc);
+    }
+    EXPECT_EQ(0, info->fp(info->param, &rsp, reply));
+    destroySendMsgInfo(info);
+    if (state->dropAfterReply) (void)taosWTryForceLockLatch(&state->dropAfterReply->task.entryLock);
+    return 0;
+  }
+
+  static int32_t release(void *ctx) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->released;
+    return 0;
+  }
+  static int32_t recover(void *ctx) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->resumed;
+    return 0;
+  }
+};
+
+class StreamRunnerAdmissionBatchTest : public StreamRunnerTest {
+ protected:
+  void SetUp() override {
+    StreamRunnerTest::SetUp();
+    SMsgCb scheduler = {};
+    scheduler.mgmt = this;
+    scheduler.putToQueueFp = [](void *ptr, EQueueType kind, SRpcMsg *msg) -> int32_t {
+      auto *fixture = static_cast<StreamRunnerAdmissionBatchTest *>(ptr);
+      if (kind != STREAM_RUNNER_QUEUE || msg->pCont) return TSDB_CODE_INVALID_MSG;
+      std::lock_guard<std::mutex> lock(fixture->queueMutex_);
+      fixture->resumeQueue_.push_back(*msg);
+      fixture->queueChanged_.notify_one();
+      return 0;
+    };
+    ASSERT_TRUE(setUpPublicSnode(&scheduler));
+    ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+    task_.lowLatencyCalc = true;
+    task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+    request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+    auto *second = makeCacheBlock(101, 8);
+    ASSERT_NE(nullptr, second);
+    ownedBlocks_.push_back(second);
+    gCalls.executeBlocks = {gRunnerResultBlock, second};
+    gCalls.executeFinished = {false, true};
+    worker_.pPool = &transport_;
+    worker_.beforeBlocking = AdmissionBatchTransport::release;
+    worker_.afterRecoverFromBlocking = AdmissionBatchTransport::recover;
+    msgCb_.clientRpc = &transport_;
+    auto *params = static_cast<SInserterParam *>(taosMemoryCalloc(1, sizeof(SInserterParam)));
+    ASSERT_NE(nullptr, params);
+    params->streamInserterParam =
+        static_cast<SStreamInserterParam *>(taosMemoryCalloc(1, sizeof(SStreamInserterParam)));
+    params->readHandle = static_cast<SReadHandle *>(taosMemoryCalloc(1, sizeof(SReadHandle)));
+    ASSERT_NE(nullptr, params->streamInserterParam);
+    ASSERT_NE(nullptr, params->readHandle);
+    ASSERT_EQ(nullptr, gStreamGrpTableHash);
+    ASSERT_EQ(0, initInserterGrpInfo());
+    auto *table = static_cast<SInsertTableInfo *>(taosMemoryCalloc(1, sizeof(SInsertTableInfo)));
+    ASSERT_NE(nullptr, table);
+    table->uid = 77;
+    table->version = 1;
+    table->tbname = taosStrdup("out_zero_window");
+    SSchema columns[2] = {};
+    columns[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    columns[0].bytes = sizeof(TSKEY);
+    columns[0].colId = 1;
+    columns[1].type = TSDB_DATA_TYPE_INT;
+    columns[1].bytes = sizeof(int32_t);
+    columns[1].colId = 2;
+    table->pSchema = tBuildTSchema(columns, 2, 1);
+    ASSERT_NE(nullptr, table->pSchema);
+    int64_t key[2] = {task_.task.streamId, 0};
+    ASSERT_EQ(0, taosHashPut(gStreamGrpTableHash, key, sizeof(key), &table, sizeof(table)));
+    auto *inserter = params->streamInserterParam;
+    inserter->tbType = TSDB_NORMAL_TABLE;
+    inserter->pFields = taosArrayInit(2, sizeof(SFieldWithOptions));
+    for (auto &col : columns) {
+      SFieldWithOptions field = {};
+      field.type = col.type;
+      field.bytes = col.bytes;
+      ASSERT_NE(nullptr, taosArrayPush(inserter->pFields, &field));
+    }
+    params->readHandle->pMsgCb = &msgCb_;
+    ASSERT_EQ(0, createStreamDataInserter(nullptr, &sink_, params));
+    Exec()->pSinkHandle = sink_;
+    stub_.reset(dsPutDataBlock);
+    stub_.set(getDbVgInfoForExec, AdmissionBatchTransport::route);
+    stub_.set(asyncSendMsgToServer, AdmissionBatchTransport::send);
+  }
+  void TearDown() override {
+    dsDestroyDataSinker(sink_);
+    taosHashCleanup(gStreamGrpTableHash);
+    gStreamGrpTableHash = nullptr;
+    StreamRunnerTest::TearDown();
+  }
+  bool pumpUntilReplies(int32_t count) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (gCalcResponseCount < count) {
+      std::unique_lock<std::mutex> lock(queueMutex_);
+      if (!queueChanged_.wait_until(lock, deadline, [&]() { return !resumeQueue_.empty(); })) return false;
+      SRpcMsg resume = resumeQueue_.front();
+      resumeQueue_.pop_front();
+      lock.unlock();
+      (void)sndProcessStreamMsg(snode_, &worker_, &resume);
+      if (duplicateWake_) {
+        duplicateWake_ = false;
+        const auto    writes = transport_.arrivals.size();
+        const int32_t operators = gCalls.executeCalls;
+        (void)sndProcessStreamMsg(snode_, &worker_, &resume);
+        EXPECT_EQ(writes, transport_.arrivals.size());
+        EXPECT_EQ(operators, gCalls.executeCalls);
+      }
+    }
+    return true;
+  }
+  std::mutex              queueMutex_;
+  std::condition_variable queueChanged_;
+  bool                    duplicateWake_ = false;
+  std::deque<SRpcMsg>     resumeQueue_;
+  AdmissionBatchTransport transport_;
+  SQueryAutoQWorkerPoolCB worker_ = {};
+  SMsgCb                  msgCb_ = {};
+  DataSinkHandle          sink_ = nullptr;
+};
+
+TEST_F(StreamRunnerAdmissionBatchTest, ResumesOnlyTheDeferredBatchBeforeAnsweringCalc) {
+  duplicateWake_ = true;
+  transport_.replies = {0, TSDB_CODE_NEED_RETRY, 0};
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  ASSERT_TRUE(pumpUntilReplies(1));
+  EXPECT_EQ(0, gResponseCode);
+  ASSERT_EQ(3u, transport_.arrivals.size());
+  EXPECT_NE(transport_.arrivals[0], transport_.arrivals[1]);
+  EXPECT_EQ(transport_.arrivals[1], transport_.arrivals[2]);
+  EXPECT_EQ(2, transport_.routed);
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+  EXPECT_EQ(0, transport_.released);
+  EXPECT_EQ(0, transport_.resumed);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, RevocationAfterDeferralAbandonsTheRoundWithoutFailingTheRunner) {
+  transport_.replies = {TSDB_CODE_NEED_RETRY, TSDB_CODE_STREAM_EXEC_CANCELLED};
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  ASSERT_TRUE(pumpUntilReplies(1));
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, gResponseCode);
+  ASSERT_EQ(2u, transport_.arrivals.size());
+  EXPECT_EQ(transport_.arrivals[0], transport_.arrivals[1]);
+  EXPECT_EQ(1, transport_.routed);
+  EXPECT_EQ(1, gCalls.executeCalls);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, BusyProducerReturnsBeforeComputingAnotherBatch) {
+  // One conditional writer and one ordinary worker. Reenter while the first batch is at the destination.
+  const int32_t savedThreads = tsNumOfStreamRunnerThreads;
+  tsNumOfStreamRunnerThreads = 2;
+  transport_.replies = {0, 0};
+  transport_.onFirstSend = [&]() {
+    EXPECT_EQ(0, processPublicCalc(&worker_));
+    EXPECT_EQ(TSDB_CODE_STREAM_INPUTQ_FULL, gResponseCode);
+    EXPECT_EQ(1, gCalls.executeCalls);
+    EXPECT_EQ(1u, transport_.arrivals.size());
+  };
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  tsNumOfStreamRunnerThreads = savedThreads;
+  ASSERT_TRUE(pumpUntilReplies(2));
+  EXPECT_EQ(0, gResponseCode);
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(2u, transport_.arrivals.size());
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, UndeployInterruptsDeferredBatchBeforeAnotherSend) {
+  transport_.replies = {TSDB_CODE_NEED_RETRY};
+  transport_.dropAfterReply = &task_;
+  task_.pWorkerCb = &worker_;
+  SStreamResultWait wait = {};
+  int32_t           code = stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) code = stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait);
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, code);
+  EXPECT_EQ(nullptr, wait.runnerState);
+  EXPECT_EQ(nullptr, wait.sinkState);
+  EXPECT_EQ(1u, transport_.arrivals.size());
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+  if (taosHasRWWFlag(&task_.task.entryLock)) taosWUnLockLatch(&task_.task.entryLock);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, SinkPollsOneReceiptAndReleasesAnOutstandingSubmitOnCancel) {
+  static SMsgSendInfo *pending;
+  static int64_t       now;
+  pending = nullptr;
+  now = 1000;
+  stub_.reset(asyncSendMsgToServer);
+  stub_.set(
+      asyncSendMsgToServer, +[](void *, SEpSet *, int64_t *, SMsgSendInfo *send) -> int32_t {
+        EXPECT_EQ(nullptr, pending);
+        pending = send;
+        return 0;
+      });
+  Stub clock;
+  clock.set(
+      taosClockGetTime, +[](int, struct timespec *ts) -> int32_t {
+        ts->tv_sec = now / 1000;
+        ts->tv_nsec = (now % 1000) * NANOSECOND_PER_MSEC;
+        return 0;
+      });
+  SStreamResultWait       wait = {};
+  SStreamDataInserterInfo info = {};
+  char                    table[TSDB_TABLE_NAME_LEN] = {};
+  info.streamId = task_.task.streamId;
+  info.tbName = table;
+  info.resultAdmission = &request_.resultAdmission;
+  info.resultWait = &wait;
+  SInputData input = {};
+  input.pData = gRunnerResultBlock;
+  input.pTask = &task_;
+  input.pStreamDataInserterInfo = &info;
+  bool cont = false;
+  auto put = [&]() { return dsPutDataBlock(sink_, &input, &cont); };
+  auto reply = [&](int32_t code) {
+    ASSERT_NE(nullptr, pending);
+    SDataBuf msg = {};
+    if (!code) {
+      SSubmitRsp2 result = {};
+      result.affectedRows = 1;
+      SEncoder encoder = {};
+      tEncoderInit(&encoder, nullptr, 0);
+      ASSERT_EQ(0, tEncodeSSubmitRsp2(&encoder, &result));
+      msg.len = encoder.pos;
+      tEncoderClear(&encoder);
+      msg.pData = taosMemoryMalloc(msg.len);
+      ASSERT_NE(nullptr, msg.pData);
+      tEncoderInit(&encoder, static_cast<uint8_t *>(msg.pData), msg.len);
+      ASSERT_EQ(0, tEncodeSSubmitRsp2(&encoder, &result));
+      tEncoderClear(&encoder);
+    }
+    EXPECT_EQ(0, pending->fp(pending->param, &msg, code));
+    destroySendMsgInfo(pending);
+    pending = nullptr;
+  };
+
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_NE(nullptr, pending);
+  auto             *first = static_cast<const char *>(pending->msgInfo.pData);
+  std::vector<char> encoded(first, first + pending->msgInfo.len);
+  auto             *firstAttempt = pending;
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  EXPECT_EQ(firstAttempt, pending);
+  reply(TSDB_CODE_NEED_RETRY);
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_GT(wait.delayMs, 0);
+  ASSERT_EQ(nullptr, pending);
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_EQ(nullptr, pending);
+  now += wait.delayMs;
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_NE(nullptr, pending);
+  auto *second = static_cast<const char *>(pending->msgInfo.pData);
+  EXPECT_EQ(encoded, std::vector<char>(second, second + pending->msgInfo.len));
+  EXPECT_EQ(1, transport_.routed);
+  reply(0);
+  ASSERT_EQ(0, put());
+  EXPECT_TRUE(cont);
+  EXPECT_EQ(nullptr, wait.sinkState);
+  int64_t rows = 0, raw = 0;
+  bool    ended = false;
+  dsGetDataLength(sink_, &rows, &raw, &ended);
+  EXPECT_EQ(1, rows);
+
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  wait.cancelled = true;
+  ASSERT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, put());
+  EXPECT_EQ(nullptr, wait.sinkState);
+  dsDestroyDataSinker(sink_);
+  Exec()->pSinkHandle = sink_ = nullptr;
+  reply(0);
+}
+
+TEST_F(StreamRunnerTest, NormalOutputReturnsRetryErrorAfterMissingTable) {
+  constexpr int32_t kRetryError = TSDB_CODE_OUT_OF_MEMORY;
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+  gRunnerSinkCodes = {TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, kRetryError};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), kRetryError);
+  EXPECT_EQ(gCalls.sinkCalls, 2);
+}
+
+TEST_F(StreamRunnerTest, NormalOutputSuccessDoesNotRetry) {
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gCalls.sinkCalls, 1);
+  ASSERT_EQ(gCalls.autoCreateTableCalls.size(), 1);
+  EXPECT_FALSE(gCalls.autoCreateTableCalls[0]);
+}
+
+TEST_F(StreamRunnerTest, ChildOutputMissingTableDoesNotRetry) {
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+  gRunnerSinkCodes = {TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, TSDB_CODE_SUCCESS};
+
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND);
+  EXPECT_EQ(gCalls.sinkCalls, 1);
+}
+
+int32_t cacheBlockValue(const SSDataBlock *block, int32_t row = 0) {
+  const auto *valueCol = static_cast<const SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+  return *reinterpret_cast<const int32_t *>(colDataGetData(valueCol, row));
+}
+
+TEST_F(StreamRunnerTest, TriggerAndResultNoticeUseSameNestedTriggerId) {
+  constexpr TSKEY       kFirstAncestorStart = 100;
+  constexpr TSKEY       kSecondAncestorStart = 200;
+  constexpr const char *kFirstExpectedId = "5d4db351f40826b67261959dd081f8a2";
+  constexpr const char *kSecondExpectedId = "86e1e9b91a9c40215a968723e302bf7e";
+  ASSERT_STRNE(kFirstExpectedId, kSecondExpectedId);
+
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_notice");
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockStreamExecuteTask);
+  stub_.set(streamForceOutput, mockRunnerForceOutput);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = reinterpret_cast<SStreamRunnerTaskExecution *>(tdListGetHead(task_.execMgr.pFreeExecs)->data);
+  ASSERT_NE(exec, nullptr);
+
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  OwnedTriggerCalcRequest oneForOne;
+  ASSERT_TRUE(
+      makeNestedRunnerNoticeRequest(&oneForOne.value, kFirstAncestorStart, RunnerAncestorMappingOrder::TargetFirst));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequestAncestorContext(&oneForOne.value, true));
+  QueuePublishedGroups({42, 84});
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &oneForOne.value, 1000));
+  ASSERT_EQ(gRunnerNotifyPayloads.size(), 1);
+  EXPECT_EQ(runnerNotifyTriggerId(gRunnerNotifyPayloads[0]), kFirstExpectedId);
+
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  OwnedTriggerCalcRequest externalBatch;
+  ASSERT_TRUE(makeNestedRunnerNoticeRequest(&externalBatch.value, kSecondAncestorStart,
+                                            RunnerAncestorMappingOrder::TargetMiddle));
+  QueuePublishedGroups({42, 84});
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &externalBatch.value, 1000));
+  ASSERT_EQ(gRunnerNotifyPayloads.size(), 2);
+  EXPECT_EQ(runnerNotifyTriggerId(gRunnerNotifyPayloads[1]), kSecondExpectedId);
+
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  exec->pOutBlock = makeCacheBlock(100, 7);
+  ASSERT_NE(exec->pOutBlock, nullptr);
+  OwnedTriggerCalcRequest currentWins;
+  ASSERT_TRUE(
+      makeNestedRunnerNoticeRequest(&currentWins.value, kFirstAncestorStart, RunnerAncestorMappingOrder::TargetLast));
+  currentWins.value.curWinIdx = 3;
+  QueuePublishedGroups({42, 84});
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &currentWins.value, 1000));
+  blockDataDestroy(exec->pOutBlock);
+  exec->pOutBlock = nullptr;
+  ASSERT_EQ(gRunnerNotifyPayloads.size(), 3);
+  EXPECT_EQ(runnerNotifyTriggerId(gRunnerNotifyPayloads[2]), kFirstExpectedId);
+
+  OwnedTriggerCalcRequest missing;
+  ASSERT_TRUE(
+      makeNestedRunnerNoticeRequest(&missing.value, kFirstAncestorStart, RunnerAncestorMappingOrder::TargetLast));
+  tDestroyStreamAncestorContext(&missing.value.pAncestorContext);
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerTaskExecute(&task_, &missing.value, 1000));
+
+  OwnedTriggerCalcRequest duplicate;
+  ASSERT_TRUE(
+      makeNestedRunnerNoticeRequest(&duplicate.value, kFirstAncestorStart, RunnerAncestorMappingOrder::TargetLast));
+  ASSERT_TRUE(appendRunnerAncestorMapping(duplicate.value.pAncestorContext, 42, 2, kFirstAncestorStart, 1000));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerTaskExecute(&task_, &duplicate.value, 1000));
+
+  EXPECT_EQ(gRunnerNotifyPayloads.size(), 3);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupNestedNoticesUseExactPublishedLineage) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_three_groups");
+  task_.output.outTblType = TSDB_CHILD_TABLE;
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockStreamExecuteTask);
+  stub_.set(streamForceOutput, mockRunnerForceOutput);
+  stub_.set(streamCalcOutputTbName, mockStreamCalcOutputTbName);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = Exec();
+  ASSERT_NE(exec, nullptr);
+  exec->tbname[0] = '\0';
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  OwnedTriggerCalcRequest request;
+  ASSERT_TRUE(makeNestedRunnerThreeGroupNoticeRequest(&request.value));
+  ASSERT_EQ(tValidateSTriggerCalcRequestAncestorContext(&request.value, true), TSDB_CODE_SUCCESS);
+  QueuePublishedGroups({101, 202, 303});
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request.value, 1000), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(gRunnerNotifyPayloads.size(), 3);
+  const int64_t gids[] = {101, 202, 303};
+  const TSKEY   windowStarts[] = {2101, 2202, 2303};
+  const char   *triggerIds[] = {"23cd0ce17e650f33d1ff34b73c511b20", "53daff64de1831afac1c748ec15e7162",
+                                "21040ded57b725e97ef1b13f2b3d6f9f"};
+  const char   *lineageMarkers[] = {"lineage-101", "lineage-202", "lineage-303"};
+  for (size_t i = 0; i < gRunnerNotifyPayloads.size(); ++i) {
+    SCOPED_TRACE(i);
+    const RunnerNestedNotificationIdentity identity = runnerNestedNotificationIdentity(gRunnerNotifyPayloads[i]);
+    EXPECT_EQ(identity.gid, gids[i]);
+    EXPECT_EQ(identity.tbname, "group_" + std::to_string(gids[i]));
+    EXPECT_EQ(identity.wstart, windowStarts[i]);
+    EXPECT_EQ(identity.wend, windowStarts[i] + 99);
+    EXPECT_EQ(identity.triggerId, triggerIds[i]);
+    EXPECT_EQ(identity.lineageMarker, lineageMarkers[i]);
+  }
+  EXPECT_EQ(gCalls.calculatedTableNameGids, (std::vector<int64_t>{101, 202, 303}));
+}
+
+TEST_F(StreamRunnerTest, NestedGroupNoticesDoNotRequireLeafIdentity) {
+  constexpr const char *kGroupTriggerId = "4136590351924762991";
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_group_notice");
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = Exec();
+  ASSERT_NE(exec, nullptr);
+  exec->runtimeInfo.funcInfo.withExternalWindow = false;
+
+  const int32_t notifyTypes[] = {STRIGGER_EVENT_IDLE, STRIGGER_EVENT_RESUME};
+  for (int32_t notifyType : notifyTypes) {
+    OwnedTriggerCalcRequest request;
+    ASSERT_TRUE(makeNestedRunnerGroupNoticeRequest(&request.value, notifyType));
+    request.value.stbPartByTbname = false;  // Direct child sources keep this execution flag clear.
+    request.value.groupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(request.value.groupColVals, nullptr);
+    SStreamGroupValue nameValue = {};
+    nameValue.isTbname = notifyType == STRIGGER_EVENT_IDLE;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup("source_subtable"));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(strlen("source_subtable"));
+    ASSERT_NE(taosArrayPush(request.value.groupColVals, &nameValue), nullptr);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request.value, 1000));
+  }
+
+  ASSERT_EQ(2U, gRunnerNotifyPayloads.size());
+  for (size_t i = 0; i < 2; ++i) {
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(gRunnerNotifyPayloads[i].c_str()), cJSON_Delete);
+    ASSERT_NE(root, nullptr);
+    cJSON *stream = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root.get(), "streams"), 0);
+    cJSON *event = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(stream, "events"), 0);
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
+    ASSERT_TRUE(cJSON_IsString(name));
+    EXPECT_STREQ(name->valuestring, i == 0 ? "source_subtable" : "");
+  }
+  EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[0]));
+  EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[1]));
+}
+
+TEST_F(StreamRunnerTest, NestedExternalAndCurrentBatchesKeepEachDerivedLeafId) {
+  constexpr const char          *kGroupTriggerId = "4136590351924762991";
+  constexpr const char          *kFirstExpectedId = "5d4db351f40826b67261959dd081f8a2";
+  constexpr const char          *kSecondExpectedId = "86e1e9b91a9c40215a968723e302bf7e";
+  const std::vector<std::string> expected = {kGroupTriggerId, kFirstExpectedId, kSecondExpectedId};
+
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_batch_notice");
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockStreamExecuteTask);
+  stub_.set(streamForceOutput, mockRunnerForceOutput);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = Exec();
+  ASSERT_NE(exec, nullptr);
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  OwnedTriggerCalcRequest externalBatch;
+  ASSERT_TRUE(makeNestedRunnerDualLeafNoticeRequest(&externalBatch.value));
+  QueuePublishedGroups({42});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &externalBatch.value, 1000));
+  ASSERT_EQ(1U, gRunnerNotifyPayloads.size());
+  EXPECT_EQ(expected, runnerNotifyTriggerIds(gRunnerNotifyPayloads[0]));
+
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  exec->pOutBlock = makeCacheBlock(100, 7);
+  ASSERT_NE(exec->pOutBlock, nullptr);
+  OwnedTriggerCalcRequest currentWins;
+  ASSERT_TRUE(makeNestedRunnerDualLeafNoticeRequest(&currentWins.value));
+  currentWins.value.curWinIdx = 4;
+  QueuePublishedGroups({42});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &currentWins.value, 1000));
+  blockDataDestroy(exec->pOutBlock);
+  exec->pOutBlock = nullptr;
+  ASSERT_EQ(2U, gRunnerNotifyPayloads.size());
+  EXPECT_EQ(expected, runnerNotifyTriggerIds(gRunnerNotifyPayloads[1]));
+}
+
+TEST_F(StreamRunnerTest, NestedResultIdRequiresOnePostAdmissionExactMapping) {
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_mapping_notice");
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockStreamExecuteTask);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = Exec();
+  ASSERT_NE(exec, nullptr);
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  const RunnerPostAdmissionMappingMutation mutations[] = {
+      RunnerPostAdmissionMappingMutation::RemoveTarget,
+      RunnerPostAdmissionMappingMutation::DuplicateTarget,
+  };
+  for (RunnerPostAdmissionMappingMutation mutation : mutations) {
+    OwnedTriggerCalcRequest request;
+    ASSERT_TRUE(makeNestedRunnerNoticeRequest(&request.value, 100, RunnerAncestorMappingOrder::TargetFirst));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tValidateSTriggerCalcRequestAncestorContext(&request.value, true));
+    gRunnerPostAdmissionMappingMutation = mutation;
+    gRunnerPostAdmissionContext = request.value.pAncestorContext;
+    gRunnerPostAdmissionMutationApplied = false;
+    gRunnerPostAdmissionMutationCode = TSDB_CODE_SUCCESS;
+    const int32_t executeCallsBefore = gCalls.executeCalls;
+    QueuePublishedGroups({42, 84});
+
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerTaskExecute(&task_, &request.value, 1000));
+    EXPECT_GT(gCalls.executeCalls, executeCallsBefore);
+    EXPECT_TRUE(gRunnerPostAdmissionMutationApplied);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, gRunnerPostAdmissionMutationCode);
+  }
+  EXPECT_TRUE(gRunnerNotifyPayloads.empty());
+}
+
+TEST_F(StreamRunnerTest, NestedEventResultIdRequiresConsistentRuntimeLeafAndMetadata) {
+  constexpr int32_t     kWindowIndex = INT32_C(0x01020304);
+  constexpr const char *kParentTriggerId = "21d98cbc2c95e4238b634e5464885aef";
+  constexpr const char *kExpectedId = "37e23355fcfd36c8a4040556311b110d";
+  const std::string     validMetadata =
+      std::string("{\"windowIndex\":16909060,\"parentTriggerId\":\"") + kParentTriggerId + "\"}";
+
+  task_.addOptions = STREAM_OPTION_NESTED_WINDOW_PLAN;
+  task_.streamName = const_cast<char *>("1.runner_nested_event_notice");
+  stub_.reset(streamSendNotifyContent);
+  stub_.set(streamExecuteTask, mockStreamExecuteTask);
+  stub_.set(tcurlConnect, captureRunnerNotifyConnect);
+  stub_.set(tcurlSend, captureRunnerNotifySend);
+  stub_.set(tcurlClose, captureRunnerNotifyClose);
+  gRunnerNotifyPayloads.clear();
+  gRunnerResultBlock = nullptr;
+
+  auto *exec = Exec();
+  ASSERT_NE(exec, nullptr);
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  {
+    OwnedTriggerCalcRequest valid;
+    ASSERT_TRUE(configureRunnerEventNoticeRequest(&valid.value, STREAM_TRIGGER_EVENT, WINDOW_TYPE_EVENT, kWindowIndex,
+                                                  validMetadata.c_str()));
+    QueuePublishedGroups({42, 84});
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &valid.value, 1000));
+    ASSERT_EQ(1U, gRunnerNotifyPayloads.size());
+    EXPECT_EQ(kExpectedId, runnerNotifyTriggerId(gRunnerNotifyPayloads[0]));
+  }
+
+  struct InvalidIdentityCase {
+    const char *name;
+    int32_t     runtimeTriggerType;
+    int8_t      leafTriggerType;
+    int64_t     nativeDiscriminator;
+    const char *extraNotifyContent;
+  };
+  const InvalidIdentityCase invalidCases[] = {
+      {"runtime-non-event", STREAM_TRIGGER_COUNT, WINDOW_TYPE_EVENT, kWindowIndex, validMetadata.c_str()},
+      {"leaf-non-event", STREAM_TRIGGER_EVENT, WINDOW_TYPE_COUNT, kWindowIndex, validMetadata.c_str()},
+      {"index-mismatch", STREAM_TRIGGER_EVENT, WINDOW_TYPE_EVENT, kWindowIndex,
+       "{\"windowIndex\":67305985,\"parentTriggerId\":\"21d98cbc2c95e4238b634e5464885aef\"}"},
+      {"below-missing-index", STREAM_TRIGGER_EVENT, WINDOW_TYPE_EVENT, -2, "{\"windowIndex\":-1}"},
+      {"non-event-metadata-index", STREAM_TRIGGER_COUNT, WINDOW_TYPE_COUNT, 7, "{\"windowIndex\":7}"},
+  };
+  for (const InvalidIdentityCase &testCase : invalidCases) {
+    SCOPED_TRACE(testCase.name);
+    OwnedTriggerCalcRequest invalid;
+    ASSERT_TRUE(configureRunnerEventNoticeRequest(&invalid.value, testCase.runtimeTriggerType, testCase.leafTriggerType,
+                                                  testCase.nativeDiscriminator, testCase.extraNotifyContent));
+    QueuePublishedGroups({42, 84});
+    EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerTaskExecute(&task_, &invalid.value, 1000));
+  }
+  EXPECT_EQ(1U, gRunnerNotifyPayloads.size());
+}
+
+TEST_F(StreamRunnerTest, NestedCacheFetchUsesProjectedReadScope) {
+  ASSERT_TRUE(setUpCacheTask(true));
+  SStreamRuntimeFuncInfo runtime = makeCacheFetchRuntime(42, 7, 11, true);
+  SResFetchReq           source = {};
+  source.pStRtFuncInfo = &runtime;
+  const int32_t wireSize = tSerializeSResFetchReq(nullptr, 0, &source, false, false);
+  ASSERT_GT(wireSize, 0);
+  std::vector<uint8_t> wire(static_cast<size_t>(wireSize));
+  ASSERT_EQ(wireSize, tSerializeSResFetchReq(wire.data(), wireSize, &source, false, false));
+  OwnedFetchRequest decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(wire.data(), wireSize, &decoded.value));
+  ASSERT_NE(nullptr, decoded.value.pStRtFuncInfo);
+  SStreamRuntimeFuncInfo *decodedRuntime = decoded.value.pStRtFuncInfo;
+  EXPECT_EQ(0, decodedRuntime->addOptions);
+  EXPECT_EQ(0, decodedRuntime->curNodeId);
+  EXPECT_EQ(runtime.groupId, decodedRuntime->groupId);
+
+  SStreamCacheReadInfo   readInfo = {};
+  readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+  readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+  readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+  readInfo.gid = decodedRuntime->groupId;
+  readInfo.start = 100;
+  readInfo.end = 100;
+  readInfo.pRuntime = decodedRuntime;
+
+  SSDataBlock *legacy = makeCacheBlock(100, 10);
+  SSDataBlock *scoped = makeCacheBlock(100, 20);
+  ASSERT_NE(nullptr, legacy);
+  ASSERT_NE(nullptr, scoped);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCache(cache_, decodedRuntime->groupId, 100, 100, legacy, 0, 0));
+  const auto *binding = static_cast<const SStreamReadScopeBinding *>(
+      taosArrayGet(decodedRuntime->pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, binding);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCacheScoped(cache_, &binding->scope, 100, 100, scoped, 0, 0));
+
+  bool finished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerFetchDataFromCache(&readInfo, &finished));
+  ASSERT_NE(nullptr, readInfo.pBlock);
+  EXPECT_EQ(20, cacheBlockValue(readInfo.pBlock));
+  blockDataDestroy(readInfo.pBlock);
+  blockDataDestroy(legacy);
+  blockDataDestroy(scoped);
+  stClearStreamCacheReadScope(&readInfo);
+  destroyCacheFetchRuntime(&runtime);
+}
+
+TEST_F(StreamRunnerTest, CacheFetchResetRestartsCanonicalIterator) {
+  ASSERT_TRUE(setUpCacheSnode(true));
+  SStreamRuntimeFuncInfo targetRuntime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamRuntimeFuncInfo sideRuntime = makeCacheFetchRuntime(42, 7, 12, true);
+  for (auto *runtime : {&targetRuntime, &sideRuntime}) {
+    runtime->sessionId = cacheRealtime_.sessionId;
+    runtime->curWindow.skey = 100;
+    runtime->curWindow.ekey = 101;
+  }
+  const auto *targetBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(targetRuntime.pAncestorContext->pReadScopeBindings, 0));
+  const auto *sideBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(sideRuntime.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, targetBinding);
+  ASSERT_NE(nullptr, sideBinding);
+  SSDataBlock *targetSource = makeCacheBlock({100, 101}, {10, 11});
+  SSDataBlock *sideSource = makeCacheBlock({100, 101}, {20, 21});
+  ASSERT_NE(nullptr, targetSource);
+  ASSERT_NE(nullptr, sideSource);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &targetBinding->scope, targetSource));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &sideBinding->scope, sideSource));
+
+  SResFetchReq targetRequest = {};
+  targetRequest.queryId = cacheTask_.task.streamId;
+  targetRequest.taskId = cacheTask_.task.taskId;
+  targetRequest.pStRtFuncInfo = &targetRuntime;
+  targetRequest.reset = true;
+  SResFetchReq sideRequest = targetRequest;
+  sideRequest.pStRtFuncInfo = &sideRuntime;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10}), gCacheResponseValues);
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{20}), gCacheResponseValues);
+  EXPECT_EQ(2, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10}), gCacheResponseValues);
+  EXPECT_EQ(2, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  sideRequest.reset = false;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{21}), gCacheResponseValues);
+  EXPECT_EQ(1, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  targetRequest.reset = false;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{11}), gCacheResponseValues);
+  EXPECT_EQ(0, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  blockDataDestroy(targetSource);
+  blockDataDestroy(sideSource);
+  destroyCacheFetchRuntime(&targetRuntime);
+  destroyCacheFetchRuntime(&sideRuntime);
+}
+
+TEST_F(StreamRunnerTest, CacheFetchResponseAllocationFailureRestartsCanonicalIterator) {
+  ASSERT_TRUE(setUpCacheSnode(true));
+  SStreamRuntimeFuncInfo targetRuntime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamRuntimeFuncInfo sideRuntime = makeCacheFetchRuntime(42, 7, 12, true);
+  for (auto *runtime : {&targetRuntime, &sideRuntime}) {
+    runtime->sessionId = cacheRealtime_.sessionId;
+    runtime->curWindow.skey = 100;
+    runtime->curWindow.ekey = 101;
+  }
+  const auto *targetBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(targetRuntime.pAncestorContext->pReadScopeBindings, 0));
+  const auto *sideBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(sideRuntime.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, targetBinding);
+  ASSERT_NE(nullptr, sideBinding);
+  SSDataBlock *targetSource = makeCacheBlock({100, 101}, {10, 11});
+  SSDataBlock *sideSource = makeCacheBlock({100, 101}, {20, 21});
+  ASSERT_NE(nullptr, targetSource);
+  ASSERT_NE(nullptr, sideSource);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &targetBinding->scope, targetSource));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &sideBinding->scope, sideSource));
+
+  SResFetchReq targetRequest = {};
+  targetRequest.queryId = cacheTask_.task.streamId;
+  targetRequest.taskId = cacheTask_.task.taskId;
+  targetRequest.pStRtFuncInfo = &targetRuntime;
+  targetRequest.reset = true;
+  SResFetchReq sideRequest = targetRequest;
+  sideRequest.pStRtFuncInfo = &sideRuntime;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{20}), gCacheResponseValues);
+  EXPECT_EQ(1, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+  gCacheResponseValues.clear();
+  {
+    Stub responseAllocationFailure;
+    responseAllocationFailure.set(rpcMallocCont, failRpcMallocCont);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, processCacheFetch(&targetRequest));
+    EXPECT_EQ(TDMT_STREAM_FETCH_FROM_CACHE_RSP, gCacheResponse.msgType);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, gCacheResponse.code);
+    EXPECT_EQ(0, gCacheResponse.contLen);
+    EXPECT_TRUE(gCacheResponse.contentIsNull);
+  }
+  EXPECT_EQ(1, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  sideRequest.reset = false;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{21}), gCacheResponseValues);
+  targetRequest.reset = false;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10}), gCacheResponseValues);
+
+  blockDataDestroy(targetSource);
+  blockDataDestroy(sideSource);
+  destroyCacheFetchRuntime(&targetRuntime);
+  destroyCacheFetchRuntime(&sideRuntime);
+}
+
+TEST_F(StreamRunnerTest, MergedCacheBlockPaginationAndResetStayScopeIsolated) {
+  ASSERT_TRUE(setUpCacheSnode(true));
+  SStreamRuntimeFuncInfo targetRuntime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamRuntimeFuncInfo sideRuntime = makeCacheFetchRuntime(42, 7, 12, true);
+  for (auto *runtime : {&targetRuntime, &sideRuntime}) {
+    runtime->sessionId = cacheRealtime_.sessionId;
+    runtime->curWindow.skey = 100;
+    runtime->curWindow.ekey = 102;
+  }
+  const auto *targetBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(targetRuntime.pAncestorContext->pReadScopeBindings, 0));
+  const auto *sideBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(sideRuntime.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, targetBinding);
+  ASSERT_NE(nullptr, sideBinding);
+  SSDataBlock *targetMerged = makeCacheBlock({100, 101}, {10, 11});
+  SSDataBlock *targetTail = makeCacheBlock(102, 12);
+  SSDataBlock *sideMerged = makeCacheBlock({100, 101}, {20, 21});
+  ASSERT_NE(nullptr, targetMerged);
+  ASSERT_NE(nullptr, targetTail);
+  ASSERT_NE(nullptr, sideMerged);
+  targetTail->info.id.blockId = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsMergedSourceBlock(cache_, &targetBinding->scope, targetMerged));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCacheScoped(cache_, &targetBinding->scope, 102, 102, targetTail, 0, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsMergedSourceBlock(cache_, &sideBinding->scope, sideMerged));
+
+  SResFetchReq targetRequest = {};
+  targetRequest.queryId = cacheTask_.task.streamId;
+  targetRequest.taskId = cacheTask_.task.taskId;
+  targetRequest.pStRtFuncInfo = &targetRuntime;
+  targetRequest.reset = true;
+  SResFetchReq sideRequest = targetRequest;
+  sideRequest.pStRtFuncInfo = &sideRuntime;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10, 11}), gCacheResponseValues);
+  targetRequest.reset = false;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{12}), gCacheResponseValues);
+
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{20, 21}), gCacheResponseValues);
+
+  targetRequest.reset = true;
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10, 11}), gCacheResponseValues);
+
+  blockDataDestroy(targetMerged);
+  blockDataDestroy(targetTail);
+  blockDataDestroy(sideMerged);
+  destroyCacheFetchRuntime(&targetRuntime);
+  destroyCacheFetchRuntime(&sideRuntime);
+}
+
+TEST_F(StreamRunnerTest, MergedCacheBlockAllocationFailurePreservesSiblingAndTarget) {
+  ASSERT_TRUE(setUpCacheSnode(true));
+  SStreamRuntimeFuncInfo targetRuntime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamRuntimeFuncInfo sideRuntime = makeCacheFetchRuntime(42, 7, 12, true);
+  for (auto *runtime : {&targetRuntime, &sideRuntime}) {
+    runtime->sessionId = cacheRealtime_.sessionId;
+    runtime->curWindow.skey = 100;
+    runtime->curWindow.ekey = 101;
+  }
+  const auto *targetBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(targetRuntime.pAncestorContext->pReadScopeBindings, 0));
+  const auto *sideBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(sideRuntime.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, targetBinding);
+  ASSERT_NE(nullptr, sideBinding);
+  SSDataBlock *targetSource = makeCacheBlock({100, 101}, {10, 11});
+  SSDataBlock *sideSource = makeCacheBlock({100, 101}, {20, 21});
+  ASSERT_NE(nullptr, targetSource);
+  ASSERT_NE(nullptr, sideSource);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsMergedSourceBlock(cache_, &targetBinding->scope, targetSource));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsMergedSourceBlock(cache_, &sideBinding->scope, sideSource));
+
+  SResFetchReq targetRequest = {};
+  targetRequest.queryId = cacheTask_.task.streamId;
+  targetRequest.taskId = cacheTask_.task.taskId;
+  targetRequest.pStRtFuncInfo = &targetRuntime;
+  targetRequest.reset = true;
+  SResFetchReq sideRequest = targetRequest;
+  sideRequest.pStRtFuncInfo = &sideRuntime;
+
+  {
+    Stub responseAllocationFailure;
+    responseAllocationFailure.set(rpcMallocCont, failRpcMallocCont);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, processCacheFetch(&targetRequest));
+    EXPECT_EQ(TDMT_STREAM_FETCH_FROM_CACHE_RSP, gCacheResponse.msgType);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, gCacheResponse.code);
+    EXPECT_EQ(0, gCacheResponse.contLen);
+    EXPECT_TRUE(gCacheResponse.contentIsNull);
+  }
+
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&sideRequest));
+  EXPECT_EQ((std::vector<int32_t>{20, 21}), gCacheResponseValues);
+  gCacheResponseValues.clear();
+  ASSERT_EQ(TSDB_CODE_SUCCESS, processCacheFetch(&targetRequest));
+  EXPECT_EQ((std::vector<int32_t>{10, 11}), gCacheResponseValues);
+
+  blockDataDestroy(targetSource);
+  blockDataDestroy(sideSource);
+  destroyCacheFetchRuntime(&targetRuntime);
+  destroyCacheFetchRuntime(&sideRuntime);
+}
+
+TEST_F(StreamRunnerTest, NestedCacheFetchRejectsSplitAdmissionAndBindingContexts) {
+  ASSERT_TRUE(setUpCacheTask(true));
+  SStreamRuntimeFuncInfo runtime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamContextPolicy  *admittedPolicy = runtime.pContextPolicy;
+  SStreamCacheReadInfo   readInfo = {};
+  readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+  readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+  readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+  readInfo.gid = runtime.groupId;
+  readInfo.start = 100;
+  readInfo.end = 100;
+  readInfo.pContextPolicy = admittedPolicy;
+  readInfo.pAncestorContext = runtime.pAncestorContext;
+  readInfo.pRuntime = &runtime;
+  runtime.pContextPolicy = nullptr;
+
+  bool finished = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerFetchDataFromCache(&readInfo, &finished));
+  EXPECT_EQ(nullptr, readInfo.pBlock);
+  EXPECT_EQ(0, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  runtime.pContextPolicy = admittedPolicy;
+  stClearStreamCacheReadScope(&readInfo);
+  destroyCacheFetchRuntime(&runtime);
+}
+
+TEST_F(StreamRunnerTest, NestedCacheFetchRejectsReadInfoGidMismatch) {
+  ASSERT_TRUE(setUpCacheTask(true));
+  SStreamRuntimeFuncInfo runtime = makeCacheFetchRuntime(42, 7, 11, true);
+  SStreamCacheReadInfo   readInfo = {};
+  readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+  readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+  readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+  readInfo.gid = 43;
+  readInfo.start = 100;
+  readInfo.end = 100;
+  readInfo.pContextPolicy = runtime.pContextPolicy;
+  readInfo.pAncestorContext = runtime.pAncestorContext;
+  readInfo.pRuntime = &runtime;
+
+  bool finished = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRunnerFetchDataFromCache(&readInfo, &finished));
+  EXPECT_EQ(nullptr, readInfo.pBlock);
+  EXPECT_EQ(0, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+
+  stClearStreamCacheReadScope(&readInfo);
+  destroyCacheFetchRuntime(&runtime);
+}
+
+TEST_F(StreamRunnerTest, SingleGroupCacheFetchBindsParamIdentityScope) {
+  SStreamRuntimeFuncInfo runtime = makeCacheFetchRuntime(42, 7, 17, false);
+  SStreamCacheReadInfo   readInfo = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stBindStreamCacheReadScope(&runtime, &readInfo));
+  ASSERT_TRUE(readInfo.hasCacheScope);
+  const auto *copied = static_cast<const SScopeInstanceId *>(taosArrayGet(readInfo.cacheScope.lineage.pScopes, 0));
+  ASSERT_NE(nullptr, copied);
+  EXPECT_EQ(17, copied->nativeDiscriminator);
+  auto *source = static_cast<SScopeInstanceId *>(
+      taosArrayGet(static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0))
+                       ->leafIdentity.lineage.pScopes,
+                   0));
+  source->nativeDiscriminator = 99;
+  EXPECT_EQ(17, copied->nativeDiscriminator);
+  stClearStreamCacheReadScope(&readInfo);
+  destroyCacheFetchRuntime(&runtime);
+}
+
+TEST_F(StreamRunnerTest, MultiGroupCacheFetchBindsReadInfoScope) {
+  SStreamRuntimeFuncInfo runtime = makeCacheFetchRuntime(42, 7, 23, true);
+  SStreamCacheReadInfo   readInfo = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stBindStreamCacheReadScope(&runtime, &readInfo));
+  ASSERT_TRUE(readInfo.hasCacheScope);
+  const auto *copied = static_cast<const SScopeInstanceId *>(taosArrayGet(readInfo.cacheScope.lineage.pScopes, 0));
+  ASSERT_NE(nullptr, copied);
+  EXPECT_EQ(23, copied->nativeDiscriminator);
+  EXPECT_EQ(3, readInfo.readInfoIndex);
+  stClearStreamCacheReadScope(&readInfo);
+  destroyCacheFetchRuntime(&runtime);
+}
+
+TEST_F(StreamRunnerTest, EqualRangeDifferentLineageReadsDifferentRows) {
+  ASSERT_TRUE(setUpCacheTask(true));
+  SStreamRuntimeFuncInfo first = makeCacheFetchRuntime(1, 7, 31, true);
+  SStreamRuntimeFuncInfo second = makeCacheFetchRuntime(1, 7, 32, true);
+  const auto            *firstBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(first.pAncestorContext->pReadScopeBindings, 0));
+  const auto *secondBinding =
+      static_cast<const SStreamReadScopeBinding *>(taosArrayGet(second.pAncestorContext->pReadScopeBindings, 0));
+  ASSERT_NE(nullptr, firstBinding);
+  ASSERT_NE(nullptr, secondBinding);
+
+  SSDataBlock *firstBlock = makeCacheBlock({100, 101}, {10, 11});
+  SSDataBlock *secondBlock = makeCacheBlock({100, 101}, {20, 21});
+  ASSERT_NE(nullptr, firstBlock);
+  ASSERT_NE(nullptr, secondBlock);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &firstBinding->scope, firstBlock));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putCacheRowsAsSeparateSourceBlocks(cache_, &secondBinding->scope, secondBlock));
+
+  auto makeReadInfo = [&](SStreamRuntimeFuncInfo *runtime) {
+    SStreamCacheReadInfo readInfo = {};
+    readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+    readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+    readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+    readInfo.gid = runtime->groupId;
+    readInfo.start = 100;
+    readInfo.end = 101;
+    readInfo.pContextPolicy = runtime->pContextPolicy;
+    readInfo.pAncestorContext = runtime->pAncestorContext;
+    readInfo.pRuntime = runtime;
+    return readInfo;
+  };
+  SStreamCacheReadInfo firstRead = makeReadInfo(&first);
+  SStreamCacheReadInfo secondRead = makeReadInfo(&second);
+  bool                 firstFinished = false;
+  bool                 secondFinished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerFetchDataFromCache(&firstRead, &firstFinished));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerFetchDataFromCache(&secondRead, &secondFinished));
+  ASSERT_NE(nullptr, firstRead.pBlock);
+  ASSERT_NE(nullptr, secondRead.pBlock);
+  EXPECT_EQ(10, cacheBlockValue(firstRead.pBlock));
+  EXPECT_EQ(20, cacheBlockValue(secondRead.pBlock));
+  EXPECT_FALSE(firstFinished);
+  EXPECT_FALSE(secondFinished);
+  EXPECT_EQ(2, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+  EXPECT_LT(taosHashGetMaxOverflowLinkLength(cacheRealtime_.pCalcDataCacheIters), 2);
+
+  blockDataDestroy(firstRead.pBlock);
+  blockDataDestroy(secondRead.pBlock);
+  blockDataDestroy(firstBlock);
+  blockDataDestroy(secondBlock);
+  stClearStreamCacheReadScope(&firstRead);
+  stClearStreamCacheReadScope(&secondRead);
+  destroyCacheFetchRuntime(&first);
+  destroyCacheFetchRuntime(&second);
+}
+
+TEST_F(StreamRunnerTest, LegacyCacheFetchUsesEmptyLineage) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 42;
+  SStreamCacheReadInfo readInfo = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stBindStreamCacheReadScope(&runtime, &readInfo));
+  EXPECT_TRUE(readInfo.hasCacheScope);
+  EXPECT_EQ(42, readInfo.cacheScope.gid);
+  EXPECT_EQ(0, taosArrayGetSize(readInfo.cacheScope.lineage.pScopes));
+  stClearStreamCacheReadScope(&readInfo);
+}
+
+TEST_F(StreamRunnerTest, LegacyCacheFetchDoesNotRequireScopedLease) {
+  ASSERT_TRUE(setUpCacheTask(false));
+  constexpr int64_t gid = 42;
+  SSDataBlock      *source = makeCacheBlock(100, 10);
+  ASSERT_NE(nullptr, source);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCache(cache_, gid, 100, 100, source, 0, 0));
+
+  SStreamCacheReadInfo readInfo = {};
+  readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+  readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+  readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+  readInfo.gid = gid;
+  readInfo.start = 100;
+  readInfo.end = 100;
+  bool finished = false;
+  {
+    Stub leaseFailure;
+    leaseFailure.set(acquireStreamDataCacheLease, rejectScopedCacheLease);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerFetchDataFromCache(&readInfo, &finished));
+  }
+  ASSERT_NE(nullptr, readInfo.pBlock);
+  EXPECT_EQ(10, cacheBlockValue(readInfo.pBlock));
+
+  blockDataDestroy(readInfo.pBlock);
+  blockDataDestroy(source);
+}
+
+TEST_F(StreamRunnerTest, LegacyCacheReadErrorRestoresGroupIdle) {
+  ASSERT_TRUE(setUpCacheTask(false, DATA_CLEAN_EXPIRED));
+  constexpr int64_t gid = 42;
+  SSDataBlock      *source = makeCacheBlock({100, 101}, {10, 20});
+  ASSERT_NE(nullptr, source);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCache(cache_, gid, 100, 101, source, 0, 1));
+
+  auto  *manager = static_cast<SSlidingTaskDSMgr *>(cache_);
+  auto **group = static_cast<SSlidingGrpMgr **>(taosHashGet(manager->pSlidingGrpList, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, group);
+
+  SStreamCacheReadInfo readInfo = {};
+  readInfo.taskInfo.streamId = cacheTask_.task.streamId;
+  readInfo.taskInfo.taskId = cacheTask_.task.taskId;
+  readInfo.taskInfo.sessionId = cacheRealtime_.sessionId;
+  readInfo.gid = gid;
+  readInfo.start = 100;
+  readInfo.end = 101;
+  bool finished = false;
+  {
+    Stub readFailure;
+    readFailure.set(checkAndMoveMemCache, failCacheMaintenance);
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, stRunnerFetchDataFromCache(&readInfo, &finished));
+  }
+  EXPECT_EQ(nullptr, readInfo.pBlock);
+  EXPECT_EQ(0, taosHashGetSize(cacheRealtime_.pCalcDataCacheIters));
+  EXPECT_EQ(GRP_DATA_IDLE, (*group)->status);
+
+  blockDataDestroy(source);
+}
+
+}  // namespace
+
+int main(int argc, char **argv) {
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
+  taos_init();
+  testing::InitGoogleTest(&argc, argv);
+  int32_t code = RUN_ALL_TESTS();
+  taos_cleanup();
+  return code;
+}
+class StreamRunnerEogBatchTest : public StreamRunnerTest {
+ protected:
+  void Start(std::initializer_list<int64_t> gids) {
+    ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, gids, 1, false));
+    request_.runnerEogBatch = true;
+    task_.topTask = false;
+    auto *exec = Exec();
+    ASSERT_NE(exec, nullptr);
+    exec->runtimeInfo.funcInfo.withExternalWindow = true;
+    gCalls.pRuntimeInfo = &exec->runtimeInfo;
+  }
+
+  int32_t Fetch(SSTriggerCalcRequest *next) {
+    next->execId = request_.execId;
+    next->sessionId = request_.sessionId;
+    next->isMultiGroupCalc = true;
+    next->runnerEogBatch = true;
+    return stRunnerTaskExecute(&task_, next, 1000);
+  }
+
+  void ExpectEogs(const SStreamRunnerFetchBatch &batch, std::initializer_list<uint64_t> gids) {
+    ASSERT_EQ(taosArrayGetSize(batch.pEogGids), gids.size());
+    size_t idx = 0;
+    for (uint64_t gid : gids) EXPECT_EQ(*static_cast<uint64_t *>(taosArrayGet(batch.pEogGids, idx++)), gid);
+  }
+};
+
+TEST_F(StreamRunnerEogBatchTest, DataPrecedesEogTailAndNextDataWaitsForContinuation) {
+  Start({303, 101, 202});
+  auto *first = NewMultiGroupDataBlock(2, 101);
+  auto *pending = NewMultiGroupDataBlock(3, 303);
+  auto *firstLineage = NewWindowIndexes({packRunnerLineage(3, 0), packRunnerLineage(4, 1)});
+  auto *pendingLineage = NewWindowIndexes({packRunnerLineage(7, 0)});
+  gCalls.executeGroupIds = {101, 101, 202, 303, 303};
+  gCalls.executeBlocks = {first, NewMultiGroupEog(101), NewMultiGroupEog(202), pending, NewMultiGroupEog(303), nullptr};
+  gCalls.executeWindowIndexes = {firstLineage, nullptr, nullptr, pendingLineage, nullptr};
+  gCalls.executeFinished = {false, false, false, false, false, true};
+
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.outBatch.pBlock, nullptr);
+  EXPECT_EQ(request_.pOutBlock, nullptr);
+  EXPECT_EQ(request_.outBatch.pBlock->info.rows, 2);
+  EXPECT_EQ(request_.outBatch.dataFrame.baseGId, 101);
+  ExpectEogs(request_.outBatch, {101, 202});
+  EXPECT_EQ(gCalls.executeCalls, 4);
+  EXPECT_FALSE(request_.outFinished);
+  *static_cast<int64_t *>(taosArrayGet(firstLineage, 0)) = packRunnerLineage(99, 0);
+  *static_cast<int64_t *>(taosArrayGet(pendingLineage, 0)) = packRunnerLineage(88, 0);
+  EXPECT_EQ(*static_cast<int64_t *>(taosArrayGet(request_.outBatch.dataFrame.pLineage, 0)), packRunnerLineage(3, 0));
+  pending->info.rows = 99;
+
+  OwnedTriggerCalcRequest next;
+  ASSERT_EQ(Fetch(&next.value), TSDB_CODE_SUCCESS);
+  ASSERT_NE(next.value.outBatch.pBlock, nullptr);
+  EXPECT_EQ(next.value.outBatch.pBlock->info.rows, 3);
+  EXPECT_EQ(next.value.outBatch.dataFrame.baseGId, 303);
+  EXPECT_EQ(*static_cast<int64_t *>(taosArrayGet(next.value.outBatch.dataFrame.pLineage, 0)), packRunnerLineage(7, 0));
+  ExpectEogs(next.value.outBatch, {303});
+  EXPECT_EQ(gCalls.executeCalls, 6);
+  EXPECT_FALSE(next.value.outFinished);
+
+  OwnedTriggerCalcRequest terminal;
+  ASSERT_EQ(Fetch(&terminal.value), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 6);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  const auto stats = RotateRunnerStats();
+  EXPECT_EQ(stats.outputBlocks, 2);
+  EXPECT_EQ(stats.outputRows, 5);
+  EXPECT_EQ(stats.noResultWindowCount, 1);
+}
+
+TEST_F(StreamRunnerEogBatchTest, EogPrefixNeverContainsFollowingData) {
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(4, 202), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request_.outBatch.pBlock, nullptr);
+  ExpectEogs(request_.outBatch, {101});
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  OwnedTriggerCalcRequest next;
+  ASSERT_EQ(Fetch(&next.value), TSDB_CODE_SUCCESS);
+  ASSERT_NE(next.value.outBatch.pBlock, nullptr);
+  EXPECT_EQ(next.value.outBatch.pBlock->info.rows, 4);
+  ExpectEogs(next.value.outBatch, {202});
+  OwnedTriggerCalcRequest terminal;
+  ASSERT_EQ(Fetch(&terminal.value), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+}
+
+TEST_F(StreamRunnerEogBatchTest, ConsecutiveDataBlocksRemainWholeAndOrdered) {
+  Start({101});
+  gCalls.executeGroupIds = {101, 101, 101, 101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(2, 101), NewMultiGroupDataBlock(3, 101),
+                          NewMultiGroupDataBlock(4, 101), NewMultiGroupEog(101), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.outBatch.pBlock, nullptr);
+  EXPECT_EQ(request_.outBatch.pBlock->info.rows, 2);
+  ExpectEogs(request_.outBatch, {});
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  for (int64_t rows : {3, 4}) {
+    OwnedTriggerCalcRequest next;
+    ASSERT_EQ(Fetch(&next.value), TSDB_CODE_SUCCESS);
+    ASSERT_NE(next.value.outBatch.pBlock, nullptr);
+    EXPECT_EQ(next.value.outBatch.pBlock->info.rows, rows);
+    if (rows == 3)
+      ExpectEogs(next.value.outBatch, {});
+    else
+      ExpectEogs(next.value.outBatch, {101});
+  }
+  OwnedTriggerCalcRequest terminal;
+  ASSERT_EQ(Fetch(&terminal.value), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 5);
+}
+
+TEST_F(StreamRunnerEogBatchTest, StopsAtEogLimitAndReturnsEofSeparately) {
+  Start({1});
+  for (int64_t gid = 2; gid <= 66; ++gid) addRunnerGroupCalcInfo(&request_, gid);
+  for (int64_t gid = 1; gid <= 66; ++gid) {
+    gCalls.executeGroupIds.push_back(gid);
+    gCalls.executeBlocks.push_back(NewMultiGroupEog(gid));
+    gCalls.executeFinished.push_back(false);
+  }
+  gCalls.executeBlocks.push_back(nullptr);
+  gCalls.executeFinished.push_back(true);
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosArrayGetSize(request_.outBatch.pEogGids), 64);
+  EXPECT_EQ(*static_cast<uint64_t *>(taosArrayGet(request_.outBatch.pEogGids, 63)), 64);
+  EXPECT_EQ(gCalls.executeCalls, 64);
+  OwnedTriggerCalcRequest next;
+  ASSERT_EQ(Fetch(&next.value), TSDB_CODE_SUCCESS);
+  ExpectEogs(next.value.outBatch, {65, 66});
+  EXPECT_FALSE(next.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 67);
+  OwnedTriggerCalcRequest terminal;
+  ASSERT_EQ(Fetch(&terminal.value), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+  EXPECT_EQ(gCalls.executeCalls, 67);
+}
+
+TEST_F(StreamRunnerEogBatchTest, WorkTimeLimitDoesNotAdvancePastSlowCall) {
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 101, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, true};
+  gCalls.executeReadyTimes = {4000};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request_.outBatch.pBlock, nullptr);
+  ExpectEogs(request_.outBatch, {});
+  EXPECT_EQ(gCalls.executeCalls, 1);
+  OwnedTriggerCalcRequest next;
+  ASSERT_EQ(Fetch(&next.value), TSDB_CODE_SUCCESS);
+  ExpectEogs(next.value.outBatch, {101, 202});
+  OwnedTriggerCalcRequest terminal;
+  ASSERT_EQ(Fetch(&terminal.value), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+}
+
+TEST_F(StreamRunnerEogBatchTest, CapabilityCannotChangeWithPendingData) {
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  OwnedTriggerCalcRequest next;
+  next.value.execId = request_.execId;
+  next.value.sessionId = request_.sessionId;
+  next.value.isMultiGroupCalc = true;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &next.value, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  if (listNEles(task_.execMgr.pFreeExecs) == 1) EXPECT_EQ(Exec()->pGroupedContinuation, nullptr);
+}
+
+TEST_F(StreamRunnerEogBatchTest, ExecutionFailureDiscardsCollectedDataAndEogs) {
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 101, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupEog(202)};
+  gCalls.executeFinished = {false, false, false};
+  gCalls.executeCodes = {TSDB_CODE_SUCCESS, TSDB_CODE_SUCCESS, TSDB_CODE_INVALID_PARA};
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(request_.outBatch.pBlock, nullptr);
+  EXPECT_EQ(request_.outBatch.pEogGids, nullptr);
+  EXPECT_EQ(request_.outBatch.dataFrame.pLineage, nullptr);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(RotateRunnerStats().outputRows, 0);
+}
+
+TEST_F(StreamRunnerEogBatchTest, PublicFetchAdvertisesBatchAndDeliversIndependentTerminal) {
+  ASSERT_TRUE(setUpPublicSnode());
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, true};
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = request_.sessionId;
+  runtime.isMultiGroupCalc = true;
+  TSWAP(runtime.pGroupCalcInfos, request_.pGroupCalcInfos);
+  TSWAP(runtime.pGroupReadInfos, request_.pGroupReadInfos);
+  SResFetchReq fetch = {};
+  fetch.queryId = task_.task.streamId;
+  fetch.taskId = task_.task.taskId;
+  fetch.reset = true;
+  fetch.execId = -1;
+  fetch.runnerEogBatch = true;
+  fetch.pStRtFuncInfo = &runtime;
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
+  EXPECT_EQ(gRunnerFetchResponseTypes, (std::vector<int8_t>{STREAM_RUNNER_FETCH_BATCH}));
+  SStreamRunnerFetchBatch decoded = {};
+  EXPECT_EQ(
+      tDeserializeSStreamRunnerFetchBatch(gRunnerFetchBatchPayload.data(), gRunnerFetchBatchPayload.size(), &decoded),
+      TSDB_CODE_SUCCESS);
+  ExpectEogs(decoded, {101, 202});
+  tDestroySStreamRunnerFetchBatch(&decoded);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  fetch.reset = false;
+  fetch.execId = 7;
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 1);
+  EXPECT_EQ(gCalls.executeCalls, 3);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+static int32_t failRunnerBatchEncoding(void *, int32_t, const SStreamRunnerFetchBatch *) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+TEST_F(StreamRunnerEogBatchTest, PublicEncodingFailureReleasesPendingDataAndExecution) {
+  ASSERT_TRUE(setUpPublicSnode());
+  Start({101, 202});
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202)};
+  gCalls.executeFinished = {false, false};
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = request_.sessionId;
+  runtime.isMultiGroupCalc = true;
+  TSWAP(runtime.pGroupCalcInfos, request_.pGroupCalcInfos);
+  TSWAP(runtime.pGroupReadInfos, request_.pGroupReadInfos);
+  SResFetchReq fetch = {};
+  fetch.queryId = task_.task.streamId;
+  fetch.taskId = task_.task.taskId;
+  fetch.reset = true;
+  fetch.execId = -1;
+  fetch.runnerEogBatch = true;
+  fetch.pStRtFuncInfo = &runtime;
+  stub_.set(tSerializeSStreamRunnerFetchBatch, failRunnerBatchEncoding);
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gResponseCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gCalls.executeCalls, 2);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  if (listNEles(task_.execMgr.pFreeExecs) == 1) EXPECT_EQ(Exec()->pGroupedContinuation, nullptr);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST_F(StreamRunnerEogBatchTest, CancelDiscardsCollectedDataBeforeReportingOutput) {
+  Start({101});
+  gCalls.executeGroupIds = {101};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(5, 101)};
+  gCalls.executeFinished = {false};
+  gRunnerQuitTask = &task_;
+  gRunnerQuitAfterExecuteCalls = 1;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(gRunnerQuitLockTaken);
+  if (gRunnerQuitLockTaken) taosWUnLockLatch(&task_.task.entryLock);
+  gRunnerQuitTask = nullptr;
+  EXPECT_EQ(request_.outBatch.pBlock, nullptr);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(RotateRunnerStats().outputRows, 0);
+}
+
+TEST_F(StreamRunnerEogBatchTest, CancelClearsPendingDataBeforeNextExecutionWithSameGid) {
+  Start({101, 202});
+  auto *exec = Exec();
+  gCalls.executeGroupIds = {101, 202};
+  gCalls.executeBlocks = {NewMultiGroupEog(101), NewMultiGroupDataBlock(5, 202)};
+  gCalls.executeFinished = {false, false};
+  gRunnerQuitTask = &task_;
+  gRunnerQuitAfterExecuteCalls = 2;
+  EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(gRunnerQuitLockTaken);
+  OwnedTriggerCalcRequest canceled;
+  EXPECT_EQ(Fetch(&canceled.value), TSDB_CODE_SUCCESS);
+  if (gRunnerQuitLockTaken) taosWUnLockLatch(&task_.task.entryLock);
+  gRunnerQuitTask = nullptr;
+  EXPECT_EQ(canceled.value.outBatch.pBlock, nullptr);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+  EXPECT_EQ(RotateRunnerStats().outputRows, 0);
+
+  OwnedTriggerCalcRequest retry;
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&retry.value, {202}, 1, false));
+  retry.value.brandNew = true;
+  retry.value.execId = -1;
+  retry.value.sessionId = 2;
+  retry.value.runnerEogBatch = true;
+  gCalls.executeCalls = 0;
+  gCalls.pRuntimeInfo = &exec->runtimeInfo;
+  gCalls.executeGroupIds = {202};
+  gCalls.executeBlocks = {NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, true};
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &retry.value, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(retry.value.outBatch.pBlock, nullptr);
+  ExpectEogs(retry.value.outBatch, {202});
+  OwnedTriggerCalcRequest terminal;
+  terminal.value.execId = retry.value.execId;
+  terminal.value.sessionId = 2;
+  terminal.value.isMultiGroupCalc = true;
+  terminal.value.runnerEogBatch = true;
+  ASSERT_EQ(stRunnerTaskExecute(&task_, &terminal.value, 1000), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(terminal.value.outFinished);
+}
+
+TEST_F(StreamRunnerEogBatchTest, PublicDataAndEogResponsePreservesValuesAndLineage) {
+  ASSERT_TRUE(setUpPublicSnode());
+  Start({101, 202});
+  SSDataBlock    *block = NewMultiGroupDataBlock(2, 101);
+  SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block, &colInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block, 2), TSDB_CODE_SUCCESS);
+  auto         *column = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+  const int32_t value = 42;
+  ASSERT_EQ(colDataSetVal(column, 0, reinterpret_cast<const char *>(&value), false), TSDB_CODE_SUCCESS);
+  colDataSetNULL(column, 1);
+  gCalls.executeGroupIds = {101, 101, 202};
+  gCalls.executeBlocks = {block, NewMultiGroupEog(101), NewMultiGroupEog(202), nullptr};
+  gCalls.executeWindowIndexes = {NewWindowIndexes({packRunnerLineage(3, 0), packRunnerLineage(7, 1)})};
+  gCalls.executeFinished = {false, false, false, true};
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = request_.sessionId;
+  runtime.isMultiGroupCalc = true;
+  TSWAP(runtime.pGroupCalcInfos, request_.pGroupCalcInfos);
+  TSWAP(runtime.pGroupReadInfos, request_.pGroupReadInfos);
+  SResFetchReq fetch = {};
+  fetch.queryId = task_.task.streamId;
+  fetch.taskId = task_.task.taskId;
+  fetch.reset = true;
+  fetch.execId = -1;
+  fetch.runnerEogBatch = true;
+  fetch.pStRtFuncInfo = &runtime;
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  SStreamRunnerFetchBatch decoded = {};
+  EXPECT_EQ(
+      tDeserializeSStreamRunnerFetchBatch(gRunnerFetchBatchPayload.data(), gRunnerFetchBatchPayload.size(), &decoded),
+      TSDB_CODE_SUCCESS);
+  if (decoded.pBlock != nullptr) {
+    EXPECT_EQ(decoded.pBlock->info.rows, 2);
+    auto *output = static_cast<SColumnInfoData *>(taosArrayGet(decoded.pBlock->pDataBlock, 0));
+    EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(output, 0)), value);
+    EXPECT_TRUE(colDataIsNull_s(output, 1));
+    EXPECT_EQ(*static_cast<int64_t *>(taosArrayGet(decoded.dataFrame.pLineage, 1)), packRunnerLineage(7, 1));
+  } else {
+    ADD_FAILURE() << "DATA missing from batch response";
+  }
+  ExpectEogs(decoded, {101, 202});
+  tDestroySStreamRunnerFetchBatch(&decoded);
+  fetch.reset = false;
+  fetch.execId = 7;
+  EXPECT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerFetchResponseCompleted, 1);
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+class StreamRunnerEogBatchComparisonTest : public StreamRunnerEogBatchTest,
+                                           public ::testing::WithParamInterface<bool> {};
+
+TEST_P(StreamRunnerEogBatchComparisonTest, SameEmptyWorkloadPreservesOrderWithFewerFetches) {
+  Start({1});
+  request_.runnerEogBatch = GetParam();
+  for (int64_t gid = 2; gid <= 66; ++gid) addRunnerGroupCalcInfo(&request_, gid);
+  for (int64_t gid = 1; gid <= 66; ++gid) {
+    gCalls.executeGroupIds.push_back(gid);
+    gCalls.executeBlocks.push_back(NewMultiGroupEog(gid));
+    gCalls.executeFinished.push_back(false);
+  }
+  gCalls.executeBlocks.push_back(nullptr);
+  gCalls.executeFinished.push_back(true);
+  OwnedTriggerCalcRequest continuation;
+  SSTriggerCalcRequest   *request = &request_;
+  std::vector<uint64_t>   ended;
+  int32_t                 fetches = 0;
+  for (; fetches < 68; ++fetches) {
+    ASSERT_EQ(stRunnerTaskExecute(&task_, request, 1000), TSDB_CODE_SUCCESS);
+    if (request->outFinished) break;
+    if (GetParam()) {
+      for (size_t i = 0; i < taosArrayGetSize(request->outBatch.pEogGids); ++i) {
+        ended.push_back(*static_cast<uint64_t *>(taosArrayGet(request->outBatch.pEogGids, i)));
+      }
+    } else {
+      ASSERT_EQ(request->outFrame.type, STREAM_RUNNER_FETCH_EOG);
+      ended.push_back(request->outFrame.baseGId);
+    }
+    continuation.value.execId = request_.execId;
+    continuation.value.sessionId = request_.sessionId;
+    continuation.value.isMultiGroupCalc = true;
+    continuation.value.runnerEogBatch = GetParam();
+    request = &continuation.value;
+  }
+  EXPECT_EQ(fetches + 1, GetParam() ? 3 : 67);
+  ASSERT_EQ(ended.size(), 66);
+  for (size_t i = 0; i < ended.size(); ++i) EXPECT_EQ(ended[i], i + 1);
+  EXPECT_EQ(gCalls.executeCalls, 67);
+  EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+INSTANTIATE_TEST_SUITE_P(LegacyAndBatch, StreamRunnerEogBatchComparisonTest, ::testing::Bool());

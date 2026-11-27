@@ -1,0 +1,51 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 8,
+  "create_table_thread_count": 8,
+  "num_of_records_per_req": 5000,
+  "prepared_rand": 10000,
+  "confirm_parameter_prompt": "no",
+  "continue_if_fail": "no",
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "perfdb",
+        "drop": "no",
+        "vgroups": 8,
+        "precision": "ms",
+        "replica": 1
+      },
+      "super_tables": [
+        {
+          "name": "meters",
+          "child_table_exists": "no",
+          "childtable_count": 10000,
+          "childtable_prefix": "d",
+          "auto_create_table": "yes",
+          "batch_create_tbl_num": 100,
+          "data_source": "rand",
+          "insert_mode": "stmt2",
+          "insert_rows": 100000,
+          "interlace_rows": 0,
+          "insert_interval": 0,
+          "timestamp_step": 1000,
+          "start_timestamp": "2026-01-01T00:00:00.000Z",
+          "columns": [
+            {"type": "FLOAT", "name": "current", "min": 0, "max": 20},
+            {"type": "INT", "name": "voltage", "min": 100, "max": 300},
+            {"type": "FLOAT", "name": "phase", "min": 0, "max": 1}
+          ],
+          "tags": [
+            {"type": "INT", "name": "groupid", "min": 0, "max": 9999, "gen": "order"},
+            {"type": "BINARY", "name": "location", "len": 24, "values": ["Beijing.Chaoyang"]}
+          ]
+        }
+      ]
+    }
+  ]
+}

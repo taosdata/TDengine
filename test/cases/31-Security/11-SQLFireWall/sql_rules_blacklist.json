@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "rules": [
+    {
+      "ruleId": 1,
+      "ruleName": "UNION_SELECT",
+      "action": "DENY",
+      "priority": "HIGH",
+      "pattern": "union[[:space:]]+select",
+      "enabled": true
+    },
+    {
+      "ruleId": 2,
+      "ruleName": "DROP_TABLE",
+      "action": "DENY",
+      "priority": "HIGH",
+      "pattern": "drop[[:space:]]+table",
+      "enabled": true
+    }
+  ]
+}

@@ -1,10 +1,25 @@
+// Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 use anyhow::Result;
 use serde::Deserialize;
 use taos::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let taos = TaosBuilder::from_dsn("taos://")?.build()?;
+    let taos = TaosBuilder::from_dsn("taos://")?.build().await?;
     taos.exec_many([
         "drop database if exists test_bindable",
         "create database test_bindable keep 36500",
@@ -14,8 +29,11 @@ async fn main() -> Result<()> {
             c10 float, c11 double, c12 varchar(100), c13 nchar(100))",
     ])
     .await?;
-    let mut stmt = Stmt::init(&taos)?;
-    stmt.prepare("insert into tb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")?;
+
+    let mut stmt = Stmt::init(&taos).await?;
+    stmt.prepare("insert into tb1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        .await?;
+
     let params = vec![
         ColumnView::from_millis_timestamp(vec![0]),
         ColumnView::from_bools(vec![true]),
@@ -32,7 +50,14 @@ async fn main() -> Result<()> {
         ColumnView::from_varchar(vec!["ABC"]),
         ColumnView::from_nchar(vec!["涛思数据"]),
     ];
-    let rows = stmt.bind(&params)?.add_batch()?.execute()?;
+
+    let rows = stmt
+        .bind(&params)
+        .await?
+        .add_batch()
+        .await?
+        .execute()
+        .await?;
     assert_eq!(rows, 1);
 
     #[derive(Debug, Deserialize)]
@@ -66,7 +91,7 @@ async fn main() -> Result<()> {
     assert_eq!(row.c8, u32::MAX);
     assert_eq!(row.c9, u64::MAX);
     assert_eq!(row.c10.unwrap(), f32::MAX);
-    // assert_eq!(row.c11, f64::MAX);
+    assert_eq!(row.c11, f64::MAX);
     assert_eq!(row.c12, "ABC");
     assert_eq!(row.c13, "涛思数据");
 

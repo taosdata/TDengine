@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,12 +27,20 @@ extern "C" {
 int32_t mndInitDb(SMnode *pMnode);
 void    mndCleanupDb(SMnode *pMnode);
 SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
+SDbObj *mndAcquireAuditDb(SMnode *pMnode);
 void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
 int32_t mndValidateDbInfo(SMnode *pMnode, SDbCacheInfo *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
 int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUseDbReq *pReq);
+int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg);
+int32_t mndCheckDbName(const char *dbName, SUserObj *pUser);
+int32_t mndSetCreateDbPrepareAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew);
+int32_t mndSetDropDbPrepareLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 bool    mndIsDbReady(SMnode *pMnode, SDbObj *pDb);
 void    mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList);
-bool    mndDbIsExist(SMnode *pMnode, const char *db);
+bool    mndDbIsExist(SMnode *pMnode, const char *db, int64_t uid);
 
 SSdbRaw    *mndDbActionEncode(SDbObj *pDb);
 const char *mndGetDbStr(const char *src);

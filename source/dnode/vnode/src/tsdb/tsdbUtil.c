@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -468,6 +470,11 @@ int32_t tGetBlockCol(SBufferReader *br, SBlockCol *pBlockCol, int32_t ver, uint3
     pBlockCol->alg = defaultCmprAlg;
   }
 
+  if ((code = tsCheckCompressAlg(pBlockCol->alg)) != TSDB_CODE_SUCCESS) {
+    tsdbError("invalid compression alg:0x%x in block col, cid:%d", pBlockCol->alg, pBlockCol->cid);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   return 0;
 }
 
@@ -605,6 +612,7 @@ int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t nowSec) {
 
 // TSDBROW ======================================================
 void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  int32_t   code = 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   SValue    value;
 
@@ -615,14 +623,13 @@ void tsdbRowGetColVal(TSDBROW *pRow, STSchema *pTSchema, int32_t iCol, SColVal *
     }
   } else if (pRow->type == TSDBROW_COL_FMT) {
     if (iCol == 0) {
-      *pColVal =
-          COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID,
-                        ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pRow->pBlockData->aTSKEY[pRow->iRow]}));
+      SValue val = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+      VALUE_SET_TRIVIAL_DATUM(&val, pRow->pBlockData->aTSKEY[pRow->iRow]);
+      *pColVal = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, val);
     } else {
       SColData *pColData = tBlockDataGetColData(pRow->pBlockData, pTColumn->colId);
-
       if (pColData) {
-        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0){
+        if (tColDataGetValue(pColData, pRow->iRow, pColVal) != 0) {
           tsdbError("failed to tColDataGetValue");
         }
       } else {
@@ -647,7 +654,7 @@ void tColRowGetPrimaryKey(SBlockData *pBlock, int32_t irow, SRowKey *key) {
     SColData *pColData = &pBlock->aColData[i];
     if (pColData->cflag & COL_IS_KEY) {
       SColVal cv;
-      if (tColDataGetValue(pColData, irow, &cv) != 0){
+      if (tColDataGetValue(pColData, irow, &cv) != 0) {
         break;
       }
       key->pks[key->numOfPKs] = cv.value;
@@ -715,15 +722,16 @@ SColVal *tsdbRowIterNext(STSDBRowIter *pIter) {
     return tRowIterNext(pIter->pIter);
   } else if (pIter->pRow->type == TSDBROW_COL_FMT) {
     if (pIter->iColData == 0) {
-      pIter->cv = COL_VAL_VALUE(
-          PRIMARYKEY_TIMESTAMP_COL_ID,
-          ((SValue){.type = TSDB_DATA_TYPE_TIMESTAMP, .val = pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]}));
+      SValue val = {.type = TSDB_DATA_TYPE_TIMESTAMP};
+      VALUE_SET_TRIVIAL_DATUM(&val, pIter->pRow->pBlockData->aTSKEY[pIter->pRow->iRow]);
+      pIter->cv = COL_VAL_VALUE(PRIMARYKEY_TIMESTAMP_COL_ID, val);
       ++pIter->iColData;
       return &pIter->cv;
     }
 
     if (pIter->iColData <= pIter->pRow->pBlockData->nColData) {
-      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) != 0){
+      if (tColDataGetValue(&pIter->pRow->pBlockData->aColData[pIter->iColData - 1], pIter->pRow->iRow, &pIter->cv) !=
+          0) {
         return NULL;
       }
       ++pIter->iColData;
@@ -744,6 +752,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
   SColVal  *pColVal = &(SColVal){0};
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
+  pRow->arg = pMerger->arg;
 
   if (NULL == pTSchema) {
     pTSchema = pMerger->pTSchema;
@@ -753,8 +762,9 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
     // ts
     jCol = 0;
     pTColumn = &pTSchema->columns[jCol++];
-
-    *pColVal = COL_VAL_VALUE(pTColumn->colId, ((SValue){.type = pTColumn->type, .val = key.ts}));
+    SValue val = {.type = pTColumn->type};
+    VALUE_SET_TRIVIAL_DATUM(&val, key.ts);
+    *pColVal = COL_VAL_VALUE(pTColumn->colId, val);
     if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
       code = terrno;
       return code;
@@ -775,7 +785,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       }
 
       tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
-      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+      bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+      if ((!COL_VAL_IS_NONE(pColVal)) && (!COL_VAL_IS_NULL(pColVal)) && usepData) {
         uint8_t *pVal = pColVal->value.pData;
 
         pColVal->value.pData = NULL;
@@ -818,7 +829,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
 
       if (key.version > pMerger->version) {
         if (!COL_VAL_IS_NONE(pColVal)) {
-          if (IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          if (IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
             SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
             if (!pTColVal) return terrno;
             if (!COL_VAL_IS_NULL(pColVal)) {
@@ -841,7 +852,8 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
       } else if (key.version < pMerger->version) {
         SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
         if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-          if ((!COL_VAL_IS_NULL(pColVal)) && IS_VAR_DATA_TYPE(pColVal->value.type)) {
+          bool usepData = IS_VAR_DATA_TYPE(pColVal->value.type) || pColVal->value.type == TSDB_DATA_TYPE_DECIMAL;
+          if ((!COL_VAL_IS_NULL(pColVal)) && usepData) {
             code = tRealloc(&tColVal->value.pData, pColVal->value.nData);
             if (code) return code;
 
@@ -855,7 +867,7 @@ int32_t tsdbRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema)
           }
         }
       } else {
-        return TSDB_CODE_INVALID_PARA;
+        return TSDB_CODE_SUCCESS;  // same version, no need to merge
       }
     }
 
@@ -877,7 +889,7 @@ int32_t tsdbRowMergerInit(SRowMerger *pMerger, STSchema *pSchema) {
 void tsdbRowMergerClear(SRowMerger *pMerger) {
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -889,7 +901,7 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
   int32_t numOfCols = taosArrayGetSize(pMerger->pArray);
   for (int32_t iCol = 1; iCol < numOfCols; iCol++) {
     SColVal *pTColVal = taosArrayGet(pMerger->pArray, iCol);
-    if (IS_VAR_DATA_TYPE(pTColVal->value.type)) {
+    if (IS_VAR_DATA_TYPE(pTColVal->value.type) || pTColVal->value.type == TSDB_DATA_TYPE_DECIMAL) {
       tFree(pTColVal->value.pData);
     }
   }
@@ -898,7 +910,8 @@ void tsdbRowMergerCleanup(SRowMerger *pMerger) {
 }
 
 int32_t tsdbRowMergerGetRow(SRowMerger *pMerger, SRow **ppRow) {
-  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow);
+  SRowBuildScanInfo scanInfo = {.hasBlob = 0};
+  return tRowBuild(pMerger->pArray, pMerger->pTSchema, ppRow, &scanInfo);
 }
 
 // delete skyline ======================================================
@@ -1321,7 +1334,7 @@ int32_t tBlockDataUpdateRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
   int64_t lversion = pBlockData->aVersion[pBlockData->nRow - 1];
   int64_t rversion = TSDBROW_VERSION(pRow);
   if (lversion == rversion) {
-    return TSDB_CODE_INVALID_PARA;
+    return TSDB_CODE_SUCCESS;
   }
   if (rversion > lversion) {
     pBlockData->aVersion[pBlockData->nRow - 1] = rversion;
@@ -1464,7 +1477,59 @@ int32_t tBlockDataCompress(SBlockData *bData, void *pCompr, SBuffer *buffers, SB
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
+  if (code) {
+    tsdbError("tBlockDataCompress failed: code=%d, line=%d", code, lino);
+  }
   return code;
+}
+
+// Validate the size[]/numRec fields of a brin/statis/tomb block descriptor against the number of
+// bytes actually loaded for the block. numRec * 8 must fit an int32 (originalSize), every size[i]
+// must be non-negative and the sum must not exceed the loaded payload.
+int32_t tsdbCheckBlkDescSizes(const int32_t *size, int32_t nSize, int32_t numRec, uint32_t avail) {
+  if (numRec < 0 || numRec > INT32_MAX / (int32_t)sizeof(int64_t)) {
+    tsdbError("invalid numRec:%d in block descriptor", numRec);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  int64_t total = 0;
+  for (int32_t i = 0; i < nSize; i++) {
+    if (size[i] < 0) {
+      tsdbError("invalid negative size[%d]:%d in block descriptor", i, size[i]);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+    total += size[i];
+    if (total > (int64_t)avail) {
+      tsdbError("size[%d]:%d exceeds loaded block, total:%" PRId64 " avail:%u", i, size[i], total, avail);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+  }
+  return 0;
+}
+
+// Validate a decoded SValueColumnCompressInfo of a brin/statis block holding numRec values (one per record). The
+// original sizes drive the output allocation before decompression, so they are tied to numRec: a fixed-length
+// column has exactly numRec * bytes, a var-length one numRec int32 offsets and at most TSDB_MAX_BINARY_LEN per value.
+int32_t tsdbCheckValueColInfo(const SValueColumnCompressInfo *info, int32_t numRec) {
+  if (IS_INVALID_TYPE(info->type) || numRec < 0 || info->dataOriginalSize < 0 || info->dataCompressedSize < 0 ||
+      info->offsetOriginalSize < 0 || info->offsetCompressedSize < 0) {
+    tsdbError("invalid value column info, type:%d dataOrig:%d dataCmpr:%d offOrig:%d offCmpr:%d", info->type,
+              info->dataOriginalSize, info->dataCompressedSize, info->offsetOriginalSize, info->offsetCompressedSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  bool sizeOk;
+  if (IS_VAR_DATA_TYPE(info->type)) {
+    sizeOk = (int64_t)info->offsetOriginalSize == (int64_t)numRec * (int64_t)sizeof(int32_t) &&
+             (int64_t)info->dataOriginalSize <= (int64_t)numRec * TSDB_MAX_BINARY_LEN;
+  } else {
+    sizeOk = tDataTypes[(int)info->type].bytes > 0 &&
+             (int64_t)info->dataOriginalSize == (int64_t)numRec * tDataTypes[(int)info->type].bytes;
+  }
+  if (!sizeOk) {
+    tsdbError("value column info size mismatch, type:%d numRec:%d dataOrig:%d offOrig:%d", info->type, numRec,
+              info->dataOriginalSize, info->offsetOriginalSize);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  return 0;
 }
 
 int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *assist) {
@@ -1476,6 +1541,23 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
   // SDiskDataHdr
   code = tGetDiskDataHdr(br, &hdr);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // The header's size fields must fit the remaining payload before any
+  // decompress reads or buffer-offset advances happen.
+  uint64_t totalKey = (uint64_t)hdr.szUid + (uint64_t)hdr.szVer + (uint64_t)hdr.szKey + (uint64_t)hdr.szBlkCol;
+  if (totalKey > (uint64_t)(br->buffer->size - br->offset)) {
+    tsdbError("disk data hdr sizes exceed payload: szUid:%d szVer:%d szKey:%d szBlkCol:%d, avail:%u", hdr.szUid,
+              hdr.szVer, hdr.szKey, hdr.szBlkCol, br->buffer->size - br->offset);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // A non-empty block must carry compressed version and key columns.
+  if (hdr.szKey <= 0 || hdr.szVer <= 0) {
+    tsdbError("disk data hdr missing key/version payload: szKey:%d szVer:%d nRow:%d", hdr.szKey, hdr.szVer, hdr.nRow);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   tBlockDataReset(blockData);
   blockData->suid = hdr.suid;
@@ -1554,8 +1636,35 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
   } else {
     // more data fmt ver
   }
+
+  // only those two layouts carry a cmprAlg on disk.
+  if (pHdr->fmtVer <= 2) {
+    if ((code = tsCheckCompressAlg(pHdr->cmprAlg)) != TSDB_CODE_SUCCESS) {
+      tsdbError("invalid compression alg:0x%x in disk data hdr", pHdr->cmprAlg);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
+  }
+
+  // Reject a non-positive or unreasonably large row count before any allocation
+  // or loop is driven by it.
+  if (pHdr->nRow <= 0 || pHdr->nRow > TSDB_MAX_MAXROWS_FBLOCK) {
+    tsdbError("invalid nRow:%d in disk data hdr", pHdr->nRow);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  // Reject negative or over-limit size fields; they are used as copy lengths and
+  // to advance the buffer reader.
+  if (pHdr->szUid < 0 || pHdr->szVer < 0 || pHdr->szKey < 0 || pHdr->szBlkCol < 0) {
+    tsdbError("invalid negative size in disk data hdr: szUid:%d szVer:%d szKey:%d szBlkCol:%d", pHdr->szUid,
+              pHdr->szVer, pHdr->szKey, pHdr->szBlkCol);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+
   if (pHdr->fmtVer >= 1) {
     if ((code = tBufferGetI8(br, &pHdr->numOfPKs))) return code;
+    if (pHdr->numOfPKs < 0 || pHdr->numOfPKs > TD_MAX_PK_COLS) {
+      tsdbError("invalid numOfPKs:%d in disk data hdr", pHdr->numOfPKs);
+      return TSDB_CODE_FILE_CORRUPTED;
+    }
     for (int i = 0; i < pHdr->numOfPKs; i++) {
       if ((code = tGetBlockCol(br, &pHdr->primaryBlockCols[i], pHdr->fmtVer, pHdr->cmprAlg))) {
         return code;
@@ -1572,11 +1681,23 @@ int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr) {
 int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferPutI16v(buffer, pColAgg->colId))) return code;
-  if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
-  if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferPutU64(buffer, pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferPutU8(buffer, pColAgg->overflow))) return code;
+  } else {
+    if ((code = tBufferPutI32v(buffer, pColAgg->colId))) return code;
+    if ((code = tBufferPutI16v(buffer, pColAgg->numOfNull))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->sum))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->max))) return code;
+    if ((code = tBufferPutI64(buffer, pColAgg->min))) return code;
+  }
 
   return 0;
 }
@@ -1584,11 +1705,22 @@ int32_t tPutColumnDataAgg(SBuffer *buffer, SColumnDataAgg *pColAgg) {
 int32_t tGetColumnDataAgg(SBufferReader *br, SColumnDataAgg *pColAgg) {
   int32_t code;
 
-  if ((code = tBufferGetI16v(br, &pColAgg->colId))) return code;
+  if ((code = tBufferGetI32v(br, &pColAgg->colId))) return code;
   if ((code = tBufferGetI16v(br, &pColAgg->numOfNull))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
-  if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  if (pColAgg->colId & DECIMAL_AGG_FLAG) {
+    pColAgg->colId &= 0xFFFF;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Sum[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Max[1]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[0]))) return code;
+    if ((code = tBufferGetU64(br, &pColAgg->decimal128Min[1]))) return code;
+    if ((code = tBufferGetU8(br, &pColAgg->overflow))) return code;
+  } else {
+    if ((code = tBufferGetI64(br, &pColAgg->sum))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->max))) return code;
+    if ((code = tBufferGetI64(br, &pColAgg->min))) return code;
+  }
 
   return 0;
 }
@@ -1675,15 +1807,27 @@ _exit:
   return code;
 }
 
-int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
-                                    SBlockData *blockData, SBuffer *assist) {
+int32_t tBlockDataDecompressColDataTo(const SDiskDataHdr *hdr,
+                                      const SBlockCol *blockCol,
+                                      SBufferReader *br, SColData *colData,
+                                      SBuffer *assist) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SColData *colData;
+  if (IS_INVALID_TYPE(blockCol->type)) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
 
-  code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // The column's compressed sizes must fit the remaining payload, otherwise
+  // tDecompressData would read past the buffer.
+  int64_t colCompressed = (int64_t)blockCol->szBitmap + blockCol->szOffset + blockCol->szValue;
+  if (blockCol->szBitmap < 0 || blockCol->szOffset < 0 || blockCol->szValue < 0 ||
+      colCompressed > (int64_t)(br->buffer->size - br->offset)) {
+    tsdbError("invalid column sizes cid:%d szBitmap:%d szOffset:%d szValue:%d, avail:%u", blockCol->cid,
+              blockCol->szBitmap, blockCol->szOffset, blockCol->szValue, br->buffer->size - br->offset);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   SColDataCompressInfo info = {
       .cmprAlg = blockCol->alg,
@@ -1719,6 +1863,21 @@ _exit:
   return code;
 }
 
+int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr,
+                                    const SBlockCol *blockCol,
+                                    SBufferReader *br, SBlockData *blockData,
+                                    SBuffer *assist) {
+  if (IS_INVALID_TYPE(blockCol->type)) {
+    tsdbError("invalid column type:%d in disk data block", blockCol->type);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  SColData *colData = NULL;
+  int32_t code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type,
+                                      blockCol->cflag, &colData);
+  if (code) return code;
+  return tBlockDataDecompressColDataTo(hdr, blockCol, br, colData, assist);
+}
+
 int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,
                                     SBuffer *assist) {
   int32_t       code = 0;
@@ -1733,6 +1892,11 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
         .compressedSize = hdr->szUid,
         .originalSize = sizeof(int64_t) * hdr->nRow,
     };
+    if (cinfo.compressedSize > (int32_t)(br->buffer->size - br->offset)) {
+      tsdbError("szUid:%d exceeds remaining buffer:%u", cinfo.compressedSize, br->buffer->size - br->offset);
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
 
     code = tRealloc((uint8_t **)&blockData->aUid, cinfo.originalSize);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1748,6 +1912,11 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
       .compressedSize = hdr->szVer,
       .originalSize = sizeof(int64_t) * hdr->nRow,
   };
+  if (cinfo.compressedSize > (int32_t)(br->buffer->size - br->offset)) {
+    tsdbError("szVer:%d exceeds remaining buffer:%u", cinfo.compressedSize, br->buffer->size - br->offset);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
   code = tRealloc((uint8_t **)&blockData->aVersion, cinfo.originalSize);
   TSDB_CHECK_CODE(code, lino, _exit);
   code = tDecompressData(BR_PTR(br), &cinfo, blockData->aVersion, cinfo.originalSize, assist);
@@ -1761,6 +1930,11 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
       .compressedSize = hdr->szKey,
       .originalSize = sizeof(TSKEY) * hdr->nRow,
   };
+  if (cinfo.compressedSize > (int32_t)(br->buffer->size - br->offset)) {
+    tsdbError("szKey:%d exceeds remaining buffer:%u", cinfo.compressedSize, br->buffer->size - br->offset);
+    code = TSDB_CODE_FILE_CORRUPTED;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
   code = tRealloc((uint8_t **)&blockData->aTSKEY, cinfo.originalSize);
   TSDB_CHECK_CODE(code, lino, _exit);
   code = tDecompressData(BR_PTR(br), &cinfo, blockData->aTSKEY, cinfo.originalSize, assist);
@@ -1777,7 +1951,6 @@ int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, 
     if (!(blockCol->cflag & COL_IS_KEY)) {
       TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
     }
-
     code = tBlockDataDecompressColData(hdr, blockCol, br, blockData, assist);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
@@ -1800,5 +1973,50 @@ int32_t tsdbGetColCmprAlgFromSet(SHashObj *set, int16_t colId, uint32_t *alg) {
 uint32_t tsdbCvtTimestampAlg(uint32_t alg) {
   DEFINE_VAR(alg)
 
+  return 0;
+}
+
+int32_t tsdbAllocateDisk(STsdb *tsdb, const char *label, int32_t expLevel, SDiskID *diskId) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SDiskID did = {0};
+  STfs   *tfs = tsdb->pVnode->pTfs;
+
+  code = tfsAllocDisk(tfs, expLevel, label, &did);
+  if (code) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+    return code;
+  }
+
+  if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  if (diskId) {
+    *diskId = did;
+  }
+  return code;
+}
+
+int32_t tsdbAllocateDiskAtLevel(STsdb *tsdb, int32_t level, const char *label, SDiskID *diskId) {
+  int32_t code = 0;
+  SDiskID did = {0};
+  STfs   *tfs = tsdb->pVnode->pTfs;
+
+  code = tfsAllocDiskAtLevel(tfs, level, label, &did);
+  if (code) {
+    return code;
+  }
+
+  if (tfsMkdirRecurAt(tfs, tsdb->path, did) != 0) {
+    tsdbError("vgId:%d %s failed at %s:%d since %s", TD_VID(tsdb->pVnode), __func__, __FILE__, __LINE__,
+              tstrerror(code));
+  }
+
+  if (diskId) {
+    *diskId = did;
+  }
   return 0;
 }

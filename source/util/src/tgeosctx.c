@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_GEOS
 #include "tgeosctx.h"
 #include "tlog.h"
 #include "tutil.h"
@@ -86,7 +89,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   if (old == 0) {
     if ((taosThreadKeyCreate(&tlGeosCtxKey, destroyThreadLocalGeosCtx)) != 0) {
       atomic_store_8(&tlGeosCtxKeyInited, 0);
-      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+      TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
     }
     atomic_store_8(&tlGeosCtxKeyInited, 1);
   }
@@ -97,7 +100,7 @@ int32_t getThreadLocalGeosCtx(SGeosContext **ppCtx) {
   }
   if ((taosThreadSetSpecific(tlGeosCtxKey, (const void *)tlGeosCtxObj)) != 0) {
     taosMemoryFreeClear(tlGeosCtxObj);
-    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(errno));
+    TAOS_CHECK_EXIT(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   *ppCtx = tlGeosCtx = tlGeosCtxObj;
@@ -113,3 +116,4 @@ _exit:
 const char *getGeosErrMsg(int32_t code) {
   return (tlGeosCtx && tlGeosCtx->errMsg[0] != 0) ? tlGeosCtx->errMsg : (code ? tstrerror(code) : "");
 }
+#endif

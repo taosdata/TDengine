@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -152,29 +154,65 @@ typedef struct SQWJobInfo {
   SHashObj*           pSessions;
 } SQWJobInfo;
 
-typedef struct SQWTaskCtx {
+typedef struct SQWRspItem {
+  void*   rsp;
+  int32_t dataLen;
+} SQWRspItem;
+
+typedef struct SQWWaitItem {
+  uint64_t       srcTaskId;
+  uint64_t       blockIdx;
+  int32_t        reqMsgType;
+  SRpcHandleInfo connInfo;
+} SQWWaitItem;
+
+typedef struct SQWSubQRes {
+  // common
+  int32_t code;
+  int8_t  fetchDone;
+
+  // for scalar subQ
+  SQWRspItem scalarRsp;
+
+  // for non-scalar subQ
   SRWLatch lock;
-  int8_t   phase;
-  int8_t   inFetch;
-  int8_t   taskType;
-  int8_t   explain;
-  int8_t   needFetch;
-  int8_t   localExec;
-  int8_t   dynamicTask;
-  int32_t  queryMsgType;
-  int32_t  fetchMsgType;
-  int32_t  level;
-  int32_t  dynExecId;
-  uint64_t sId;
+  bool     fetchPending;  // One live fetch for the next uncached block.
+  SArray*  rspList;  // SArray<SQWRspItem>
+  SArray*  waitList;  // SArray<SQWWaitItem>
+} SQWSubQRes;
+
+typedef struct SQWTaskCtx {
+  SRWLatch      lock;
+  int8_t        phase;
+  int8_t        inFetch;
+  int8_t        inQuickFetch;
+  int8_t        taskType;
+  int8_t        explain;
+  int8_t        needFetch;
+  int8_t        localExec;
+  int8_t        dynamicTask;
+  volatile int8_t noQuickFree;          // vtable two-pass: phase-1 EOF keeps task/sink/reader alive
+  volatile int8_t phase2RescanPending;  // set on phase-2 fetch msg; triggers qwStartTwoPassRescanExec
+  int8_t        subQuery;
+  ESubQueryType subQType;
+  int32_t       queryMsgType;
+  int32_t       fetchMsgType;
+  int32_t       level;
+  int32_t       dynExecId;
+  uint64_t      sId;
+  SCorrelationExecution correlation;
+  SCorrelationTaskSession* pCorrelationSession;
 
   bool    queryGotData;
   bool    queryRsped;
   bool    queryEnd;
   bool    queryContinue;
   bool    queryExecDone;
+  bool    delayFreeTask;
   bool    queryInQueue;
   bool    explainRsped;
   bool    sinkWithMemPool;
+  bool    localBlockSink;
   int32_t rspCode;
   int64_t affectedRows;  // for insert ...select stmt
 
@@ -187,12 +225,42 @@ typedef struct SQWTaskCtx {
   void      *taskHandle;
   void      *sinkHandle;
   SArray    *tbInfo; // STbVerInfo
+  char       extErrMsg[512];  // survives taskHandle destruction on executor error
+  SRWLatch   extErrLock;      // guards extErrMsg only; NEVER nested inside ctx->lock
 
   int64_t    lastAckTs;
 
   void      *memPoolSession;
   SQWJobInfo *pJobInfo;
+  SQWSubQRes  subQRes;
 } SQWTaskCtx;
+
+// Task must outlive a phase boundary: dynamic tasks re-exec per fetch msg; vtable two-pass
+// origin tasks (noQuickFree) keep task/sink/reader alive past phase-1 EOF for the phase-2
+// rescan. The quick-free / status-SUCC gates on the completion and fetch-finish paths in
+// qworker.c must consult this predicate -- freeing on a task that only looks "done" would
+// yank the reader mid-two-pass.
+//
+// Scope: ctx->delayFreeTask (plan->delayFreeTask, 3.0) is deliberately NOT part of this
+// predicate. It gates only the task-handle free in qwHandleTaskComplete
+// (`!qwKeepTaskAlive(ctx) && !ctx->delayFreeTask`), which matches the 3.0 baseline
+// (`!dynamicTask && !delayFreeTask`); the sink-free and JOB_TASK_STATUS_SUCC gates were
+// never delayFreeTask-gated on 3.0, so folding it in here would change their semantics.
+//
+// The two-pass rescan rollback in qwStartTwoPassRescanExec deliberately bypasses this
+// predicate (stores noQuickFree=false and queryExecDone=true directly): it only runs
+// after the rescan cquery failed to queue, when the fetch is being answered with an
+// error and the query is being torn down -- there is no phase boundary left to protect.
+// dynamicTask and noQuickFree are mutually exclusive by plan construction (dynamicTask
+// is set for DynQueryCtrl-rooted subplans, noQuickFree only for twoPassRescanSource
+// TableScan roots, and the VtableTwoPass rule rejects non-SCAN roots), so clearing
+// noQuickFree there can never leave a dynamicTask still relying on it.
+//
+// Note: takes a mutable ctx on purpose -- atomic_load_8 expects `int8_t volatile*`, and
+// a const pointer would force a qualifier-discarding cast at every load site.
+static FORCE_INLINE bool qwKeepTaskAlive(SQWTaskCtx* ctx) {
+  return ctx->dynamicTask || atomic_load_8(&ctx->noQuickFree);
+}
 
 typedef struct SQWSchStatus {
   int64_t        hbBrokenTs;  // timestamp in msecond
@@ -289,12 +357,17 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_SINK_ENABLE_MEMPOOL(_ctx)                                              \
   do {                                                                            \
-    if ((_ctx)->sinkWithMemPool) {                                                \
+    if ((_ctx)->sinkWithMemPool && !(_ctx)->localBlockSink) {                     \
       taosEnableMemPoolUsage((_ctx)->memPoolSession);        \
     }                                                                             \
   } while (0)
 
-#define QW_SINK_DISABLE_MEMPOOL() taosDisableMemPoolUsage()
+#define QW_SINK_DISABLE_MEMPOOL(_ctx)                                             \
+  do {                                                                            \
+    if ((_ctx)->sinkWithMemPool && !(_ctx)->localBlockSink) {                     \
+      taosDisableMemPoolUsage();                                                  \
+    }                                                                             \
+  } while (0)
 
 #define QW_STAT_INC(_item, _n) (void)atomic_add_fetch_64(&(_item), _n)
 #define QW_STAT_DEC(_item, _n) (void)atomic_sub_fetch_64(&(_item), _n)
@@ -329,8 +402,12 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SET_RSP_CODE(ctx, code)    atomic_store_32(&(ctx)->rspCode, code)
 #define QW_UPDATE_RSP_CODE(ctx, code) (void)atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
 
+#define QW_IS_SUBQ(_ctx) ((_ctx) && (_ctx)->subQuery)
+#define QW_IS_SCALAR_SUBQ(_ctx) (QW_IS_SUBQ(_ctx) && E_SUB_QUERY_SCALAR == (_ctx)->subQType)
+
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)
+#define QW_QUICK_FETCH_RUNNING(ctx) atomic_load_8(&(ctx)->inQuickFetch)
 #define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QCID(id, qId, cId)                                                 \
@@ -414,29 +491,29 @@ extern SQueryMgmt gQueryMgmt;
 #define QW_SCH_DLOG(param, ...) qDebug("QW:%p clientId:%" PRIx64 " " param, mgmt, clientId, __VA_ARGS__)
 
 #define QW_TASK_ELOG(param, ...) \
-  qError("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_WLOG(param, ...) \
-  qWarn("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOG(param, ...) \
-  qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 #define QW_TASK_DLOGL(param, ...) \
-  qDebugL("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
+  qDebugL("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId, __VA_ARGS__)
 
 #define QW_TASK_ELOG_E(param) \
-  qError("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qError("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId)
 #define QW_TASK_WLOG_E(param) \
-  qWarn("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qWarn("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId)
 #define QW_TASK_DLOG_E(param) \
-  qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, qId, sId, cId, tId, eId)
+  qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, qId, sId, cId, tId, eId)
 
 #define QW_SCH_TASK_ELOG(param, ...)                                                                               \
-  qError("QW:%p SID:%" PRId64 ",QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, \
+  qError("QW:%p, SID:%" PRId64 ", QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, mgmt, sId, \
          qId, cId, tId, eId, __VA_ARGS__)
 #define QW_SCH_TASK_WLOG(param, ...)                                                                                   \
-  qWarn("QW:%p SID:%" PRId64 ",QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, qId, \
+  qWarn("QW:%p, SID:%" PRId64 ", QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, mgmt, sId, qId, \
         cId, tId, eId, __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...)                                                                               \
-  qDebug("QW:%p SID:%" PRId64 ",QID:0x%" PRIx64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d " param, mgmt, sId, \
+  qDebug("QW:%p, SID:%" PRId64 ", QID:0x%" PRIx64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d " param, mgmt, sId, \
          qId, cId, tId, eId, __VA_ARGS__)
 
 #define QW_LOCK_DEBUG(...)     \
@@ -534,7 +611,8 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
 void    qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode);
+void    qwCloseTaskCorrelation(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t code);
+int32_t qwKillTaskHandle(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t rspCode);
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status, bool dynamicTask);
 int32_t qwDropTask(QW_FPARAMS_DEF);
 int32_t qwSaveTbVersionInfo(qTaskInfo_t pTaskInfo, SQWTaskCtx *ctx);
@@ -546,6 +624,7 @@ void    qwClearExpiredSch(SQWorker *mgmt, SArray *pExpiredSch);
 int32_t qwAcquireScheduler(SQWorker *mgmt, uint64_t clientId, int32_t rwType, SQWSchStatus **sch);
 void    qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop, bool processOneBlock);
 
 void    qwDbgDumpJobsInfo(void);
 void    qwDbgDumpMgmtInfo(SQWorker *mgmt);
@@ -562,10 +641,13 @@ bool    qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t e
 void    qwStopAllTasks(SQWorker *mgmt);
 void    qwChkDropTimeoutQuery(SQWorker *mgmt, int32_t currTs);
 bool    qwRetireJob(SQWJobInfo* pJob);
-void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session);
+void    qwDestroySession(QW_FPARAMS_DEF, SQWJobInfo *pJobInfo, void* session, bool needRemoveHashKey);
 int32_t qwInitSession(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppSession);
 void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
+int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
+int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem);
+int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan);
 
 #ifdef __cplusplus
 }

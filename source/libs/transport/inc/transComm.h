@@ -1,16 +1,20 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  *
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_TRANSPORT_COMM_H
 #define _TD_TRANSPORT_COMM_H
 
@@ -18,6 +22,14 @@
 extern "C" {
 #endif
 
+#ifdef TD_ASTRA_RPC
+#include "tmsg.h"
+#include "transLog.h"
+#include "transportInt.h"
+#include "trpc.h"
+#include "tversion.h"
+
+#else
 #include <uv.h>
 #include "theap.h"
 #include "tmsg.h"
@@ -25,6 +37,7 @@ extern "C" {
 #include "transportInt.h"
 #include "trpc.h"
 #include "ttrace.h"
+#endif
 
 typedef bool (*FilteFunc)(void* arg);
 
@@ -110,6 +123,11 @@ typedef SRpcCtxVal     STransCtxVal;
 typedef SRpcInfo       STrans;
 typedef SRpcConnInfo   STransHandleInfo;
 
+typedef struct {
+  tsem_t*   sem;
+  STransMsg pMsg;
+} STransReqWithSem;
+
 // ref mgt handle
 typedef struct SExHandle {
   void*    handle;
@@ -137,7 +155,7 @@ typedef struct SCvtAddr {
   bool cvt;
 } SCvtAddr;
 
-#pragma pack(push, 1)
+PACK_PUSH_MIN
 
 typedef struct {
   int8_t inUse;
@@ -145,19 +163,19 @@ typedef struct {
   SEp    eps[];
 } SReqEpSet;
 
-#define TRANS_VER 2
+#define TRANS_VER 3
 typedef struct {
   char version : 4;       // RPC version
   char comp : 2;          // compression algorithm, 0:no compression 1:lz4
   char noResp : 2;        // noResp bits, 0: resp, 1: resp
   char withUserInfo : 2;  // 0: sent user info or not
-  char secured : 2;
+  char isToken : 2;
   char spi : 2;
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   uint64_t timestamp;
   int32_t  compatibilityVer;
-  uint32_t magicNum;
+  uint32_t magicNum;  // crc value
   STraceId traceId;
   int64_t  qid;
   uint32_t code;  // del later
@@ -182,7 +200,7 @@ typedef struct {
   uint8_t secret[TSDB_PASSWORD_LEN];
 } STransUserMsg;
 
-#pragma pack(pop)
+PACK_POP
 
 int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqEpSet);
 int32_t transCreateUserEpsetFromReqEpset(const SReqEpSet* pReqEpSet, SEpSet* pEpSet);
@@ -212,8 +230,11 @@ typedef struct {
   int32_t retryCode;
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
+
+  int64_t overloadRetryStartTs;   // timestamp when overload retry first started
+  int32_t overloadRetryLastInterval;  // last retry interval for exponential backoff
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS, CloseConn } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -231,7 +252,24 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
+#ifdef TD_ASTRA_RPC
+typedef struct SConnBuffer {
+  char* buf;
+  int   len;
+  int   cap;
+  int   left;
+  int   total;
+  int   invalid;
+} SConnBuffer;
 
+int32_t transInitBuffer(SConnBuffer* buf);
+int32_t transClearBuffer(SConnBuffer* buf);
+void    transDestroyBuffer(SConnBuffer* buf);
+// int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+// bool    transReadComplete(SConnBuffer* connBuf);
+int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
+
+#else
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -260,6 +298,8 @@ typedef struct {
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool);
 void    transAsyncPoolDestroy(SAsyncPool* pool);
 int     transAsyncSend(SAsyncPool* pool, queue* mq);
+int     transAsyncSendWithIdx(SAsyncPool* pool, queue* mq, int32_t* pIdx);
+int     transAsyncSendToIdx(SAsyncPool* pool, int32_t idx, queue* mq);
 bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
@@ -284,7 +324,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \
@@ -300,12 +340,29 @@ void    transDestroyBuffer(SConnBuffer* buf);
 int32_t transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 bool    transReadComplete(SConnBuffer* connBuf);
 int32_t transResetBuffer(SConnBuffer* connBuf, int8_t resetBuf);
-int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf);
+int32_t transConnBufferAppend(SConnBuffer* connBuf, char* buf, int32_t len);
+int32_t transDumpFromBuffer(SConnBuffer* connBuf, char** buf, int8_t resetBuf, int32_t* len);
 
 int32_t transSetConnOption(uv_tcp_t* stream, int keepalive);
 
-void transRefSrvHandle(void* handle);
-void transUnrefSrvHandle(void* handle);
+int32_t transDoCrc(char* buf, int32_t len);
+int32_t transDoCrcCheck(char* buf, int32_t len);
+#endif
+
+#ifdef TD_ASTRA_RPC
+int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                 int32_t timeoutMs);
+int32_t transSendRequestWithId(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById(void* pInit, int64_t transpointId);
+
+int32_t transSendResponse(STransMsg* msg);
+int32_t transRegisterMsg(const STransMsg* msg);
+int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+void    transRefSrvHandle(void* handle);
+void    transUnrefSrvHandle(void* handle);
 
 void    transRefCliHandle(void* handle);
 int32_t transUnrefCliHandle(void* handle);
@@ -314,6 +371,40 @@ int32_t transGetRefCount(void* handle);
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
+
+int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
+int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
+int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
+                                  int32_t timeoutMs);
+int32_t transSendRequestWithId2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, int64_t* transpointId);
+int32_t transFreeConnById2(void* pInit, int64_t transpointId);
+int32_t transSendResponse2(STransMsg* msg);
+int32_t transRegisterMsg2(const STransMsg* msg);
+int32_t transSetDefaultAddr2(void* pInit, const char* ip, const char* fqdn);
+int32_t transSetIpWhiteList2(void* pInit, void* arg, FilteFunc* func);
+void    transRefSrvHandle2(void* handle);
+void    transUnrefSrvHandle2(void* handle);
+
+void    transRefCliHandle2(void* handle);
+void    transUnrefCliHandle2(void* handle);
+int32_t transGetRefCount(void* handle);
+
+int32_t transReleaseCliHandle2(void* handle, int32_t status);
+int32_t transReleaseSrvHandle2(void* handle, int32_t status);
+
+#else
 int32_t transSendRequest(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
@@ -325,16 +416,53 @@ int32_t transSendResponse(const STransMsg* msg);
 int32_t transRegisterMsg(const STransMsg* msg);
 int32_t transSetDefaultAddr(void* pInit, const char* ip, const char* fqdn);
 int32_t transSetIpWhiteList(void* pInit, void* arg, FilteFunc* func);
+int32_t transSetTimeIpWhiteList(void* thandle, void* arg, FilteFunc* func);
+void    transRefSrvHandle(void* handle);
+void    transUnrefSrvHandle(void* handle);
 
-void transSockInfo2Str(struct sockaddr* sockname, char* dst);
+void    transRefCliHandle(void* handle);
+int32_t transUnrefCliHandle(void* handle);
+int32_t transGetRefCount(void* handle);
 
+int32_t transReleaseCliHandle(void* handle, int32_t status);
+int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
+
+int32_t transReloadTlsConfig(void* handle, int8_t type);
+
+int32_t transReloadClientTlsConfig(void* handle);
+
+int32_t transReloadServerTlsConfig(void* handle);
+
+
+#endif
+
+#ifndef TD_ASTRA_RPC
+void    transSockInfo2Str(struct sockaddr* sockname, char* dst, int32_t cap);
 int32_t transAllocHandle(int64_t* refId);
-
-void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* pInit);
-
-void transCloseClient(void* arg);
-void transCloseServer(void* arg);
+void*   transInitServer(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void    transCloseClient(void* arg);
+void    transCloseServer(void* arg);
+#else
+int32_t transAllocHandle(int64_t* refId);
+void*   transInitServer(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void*   transInitClient(SIpAddr* pAddr, char* label, int numOfThreads, void* fp, void* pInit);
+void    transCloseClient(void* arg);
+void    transCloseServer(void* arg);
+#endif
 
 void  transCtxInit(STransCtx* ctx);
 void  transCtxCleanup(STransCtx* ctx);
@@ -412,6 +540,7 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
+#ifndef TD_ASTRA_RPC
 /*
  * delay queue based on uv loop and uv timer, and only used in retry
  */
@@ -437,6 +566,7 @@ int32_t     transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
 void        transDQDestroy(SDelayQueue* queue, void (*freeFunc)(void* arg));
 SDelayTask* transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 void        transDQCancel(SDelayQueue* queue, SDelayTask* task);
+#endif
 
 bool transReqEpsetIsEqual(SReqEpSet* a, SReqEpSet* b);
 
@@ -452,7 +582,14 @@ void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
+/* `len` must be the exact length of one framed packet, including the head; the
+ * header's declared msgLen has to match it (TD-SEC-2026-045). Uncompressed
+ * input is returned as is and stays owned by the caller; a compressed input is
+ * freed on success and *msg is replaced by the decompressed packet. */
 int32_t transDecompressMsg(char** msg, int32_t* len);
+/* Same length contract as transDecompressMsg, but the frame must be compressed
+ * (uncompressed input is rejected) and the caller keeps ownership of `msg`;
+ * the decompressed packet is returned through `out`. */
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));
@@ -461,6 +598,8 @@ int64_t transAddExHandle(int32_t refMgt, void* p);
 void    transRemoveExHandle(int32_t refMgt, int64_t refId);
 void*   transAcquireExHandle(int32_t refMgt, int64_t refId);
 void    transReleaseExHandle(int32_t refMgt, int64_t refId);
+// Diagnostic hook: records client ref-set operations for a qid rid (TD_DIAG_QID_STATE=1).
+void    transDiagRefEvent(int32_t refMgt, int64_t refId, int32_t op);
 void    transDestroyExHandle(void* handle);
 
 int32_t transGetRefMgt();
@@ -483,14 +622,39 @@ int32_t subnetInit(SubnetUtils* pUtils, SIpV4Range* pRange);
 int32_t subnetCheckIp(SubnetUtils* pUtils, uint32_t ip);
 int32_t subnetDebugInfoToBuf(SubnetUtils* pUtils, char* buf);
 
-int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf);
-int32_t transUtilSWhiteListToStr(SIpWhiteList* pWhiteList, char** ppBuf);
+int32_t transUtilSIpRangeToStr(SIpV4Range* pRange, char* buf, int32_t cap);
+int32_t transUtilSWhiteListToStr(SIpWhiteListDual* pWhiteList, char** ppBuf);
+
+bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
+
+#ifdef TD_ASTRA_RPC
+
+#define ASYNC_CHECK_HANDLE(idMgt, id, exh1)                                              \
+  do {                                                                                   \
+    if (id > 0) {                                                                        \
+      SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
+      if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        code = TSDB_CODE_INVALID_MSG;                                                    \
+        goto _return1;                                                                   \
+      }                                                                                  \
+    } else {                                                                             \
+      tDebug("invalid handle to release");                                               \
+      goto _return2;                                                                     \
+    }                                                                                    \
+  } while (0)
+int32_t transUpdateCb(RPC_TYPE type, STrans* pTransport);
+
+int32_t transGetCb(RPC_TYPE type, STrans** ppTransport);
+int32_t transSendReq(STrans* pTransport, SRpcMsg* pMsg, void* pEpSet);
+int32_t transSendResp(const SRpcMsg* pMsg);
+#endif
 
 enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 
 #if defined(WINDOWS) || defined(DARWIN)
-#define BUFFER_LIMIT       1
-#define STATE_BUFFER_LIMIT 1
+#define BUFFER_LIMIT       16
+#define STATE_BUFFER_LIMIT 16
 #else
 #define BUFFER_LIMIT       4
 #define STATE_BUFFER_LIMIT 8
@@ -499,6 +663,7 @@ enum { REQ_STATUS_INIT = 0, REQ_STATUS_PROCESSING };
 #define HEAP_MISS_HIT_LIMIT 100000
 #define READ_TIMEOUT        100000
 
+#ifndef TD_ASTRA_RPC
 typedef struct {
   queue      node;  // queue for write
   queue      q;     // queue for reqs
@@ -513,6 +678,17 @@ uv_write_t* allocWReqFromWQ(queue* wq, void* arg);
 void freeWReqToWQ(queue* wq, SWReqsWrapper* w);
 
 int32_t transSetReadOption(uv_handle_t* handle);
+
+int32_t transCachePut(int64_t refId, STrans* pTrans);
+int32_t transCacheGet(int64_t refId, STrans** pTrans);
+void    transCacheRemoveByRefId(int64_t refId);
+void    transCacheDestroy();
+
+STrans* transGetInst(int64_t mgtId, int64_t instId);
+
+STrans* transInstAcquire(int64_t mgtId, int64_t instId);
+void    transInstRelease(int64_t instId);
+#endif
 #ifdef __cplusplus
 }
 #endif

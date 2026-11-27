@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -76,49 +78,19 @@ void stratWindowsService(MainWindows mainWindows) {
 }
 
 #elif defined(_TD_DARWIN_64)
+#include <dlfcn.h>
+#elif defined(TD_ASTRA)
 #else
 #include <dlfcn.h>
 #include <termios.h>
 #include <unistd.h>
 #endif
 
-#if !defined(WINDOWS)
+#if !defined(WINDOWS) && !defined(TD_ASTRA)
 struct termios oldtio;
 #endif
 
 typedef struct FILE TdCmd;
-
-#ifdef BUILD_NO_CALL
-void* taosLoadDll(const char* filename) {
-#if defined(WINDOWS)
-  return NULL;
-#elif defined(_TD_DARWIN_64)
-  return NULL;
-#else
-  void* handle = dlopen(filename, RTLD_LAZY);
-  if (!handle) {
-    // printf("load dll:%s failed, error:%s", filename, dlerror());
-    return NULL;
-  }
-
-  // printf("dll %s loaded", filename);
-
-  return handle;
-#endif
-}
-
-void taosCloseDll(void* handle) {
-#if defined(WINDOWS)
-  return;
-#elif defined(_TD_DARWIN_64)
-  return;
-#else
-  if (handle) {
-    dlclose(handle);
-  }
-#endif
-}
-#endif
 
 int32_t taosSetConsoleEcho(bool on) {
 #if defined(WINDOWS)
@@ -127,8 +99,8 @@ int32_t taosSetConsoleEcho(bool on) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
-  DWORD  mode = 0;
-  if(!GetConsoleMode(hStdin, &mode)){
+  DWORD mode = 0;
+  if (!GetConsoleMode(hStdin, &mode)) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
@@ -137,11 +109,13 @@ int32_t taosSetConsoleEcho(bool on) {
   } else {
     mode &= ~ENABLE_ECHO_INPUT;
   }
-  if(!SetConsoleMode(hStdin, mode)) {
+  if (!SetConsoleMode(hStdin, mode)) {
     terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
     return terrno;
   }
 
+  return 0;
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
 #define ECHOFLAGS (ECHO | ECHOE | ECHOK | ECHONL)
@@ -149,7 +123,7 @@ int32_t taosSetConsoleEcho(bool on) {
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -160,7 +134,7 @@ int32_t taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -169,7 +143,7 @@ int32_t taosSetConsoleEcho(bool on) {
 }
 
 int32_t taosSetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
   return 0;
 #else
   struct termios newtio;
@@ -195,8 +169,8 @@ int32_t taosSetTerminalMode() {
   newtio.c_cc[VTIME] = 0;
 
   if (-1 == tcsetattr(0, TCSANOW, &newtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    (void)fprintf(stderr, "Fail to set terminal properties!\n");
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    (void)fprintf(stderr, "Failed to set terminal properties!\n");
     return terrno;
   }
 
@@ -205,17 +179,18 @@ int32_t taosSetTerminalMode() {
 }
 
 int32_t taosGetOldTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
+  return 0;
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
   // Get the parameter of current terminal
   if (-1 == tcgetattr(0, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
 
@@ -224,29 +199,119 @@ int32_t taosGetOldTerminalMode() {
 }
 
 int32_t taosResetTerminalMode() {
-#if defined(WINDOWS)
+#if defined(WINDOWS) || defined(TD_ASTRA)  // TD_ASTRA_TODO
+  return 0;
 #else
   if (-1 == tcsetattr(0, TCSANOW, &oldtio)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    (void)fprintf(stderr, "Fail to reset the terminal properties!\n");
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    (void)fprintf(stderr, "Failed to reset the terminal properties!\n");
     return terrno;
   }
 #endif
   return 0;
 }
 
-TdCmdPtr taosOpenCmd(const char* cmd) {
+// Platform-specific system commands
+#if defined(WINDOWS)
+#define PLATFORM_SYS_CMDS "wmic"
+#elif defined(_TD_DARWIN_64)
+#define PLATFORM_SYS_CMDS "scutil", "sysctl"
+#else
+#define PLATFORM_SYS_CMDS "dmidecode", "uname"
+#endif
+
+// Command allowlist to prevent command injection
+static bool isCommandAllowed(const char* cmd) {
+  // Regex locale discovery uses this exact, argument-free-of-client-data command.
+#ifndef WINDOWS
+  if (strcmp(cmd, "/usr/bin/locale -a") == 0) return true;
+#ifdef __linux__
+  if (strcmp(cmd, "/usr/bin/env -u LD_PRELOAD /usr/bin/locale -a") == 0) return true;
+#endif
+#endif
+  static const char* allowedCmds[] = {"taos",        "taosd",      "taosdump",        "taosBenchmark",
+                                      "taosAdapter", "taosKeeper", PLATFORM_SYS_CMDS, NULL};
+
+  const char** p = allowedCmds;
+  while (*p != NULL) {
+    size_t cmdLen = strlen(*p);
+    if (strncmp(cmd, *p, cmdLen) == 0) {
+      char nextChar = cmd[cmdLen];
+      if (nextChar == ' ' || nextChar == '\t' || nextChar == '\0') {
+        return true;
+      }
+    }
+    p++;
+  }
+  return false;
+}
+
+#if defined(WINDOWS)
+#define NULL_DEV_REDIRECT ">nul"
+#else
+#define NULL_DEV_REDIRECT ">/dev/null"
+#endif
+
+// Strip one trailing redirection to the null device, e.g. "dmidecode 2>/dev/null",
+// and return the length of the remaining command
+static size_t stripNullRedirect(const char* cmd) {
+  size_t       len = strlen(cmd);
+  const size_t sufLen = sizeof(NULL_DEV_REDIRECT) - 1;
+
+  if (len < sufLen || strcmp(cmd + len - sufLen, NULL_DEV_REDIRECT) != 0) {
+    return len;
+  }
+  len -= sufLen;
+
+  // an optional file descriptor may precede the '>', e.g. "2>/dev/null"
+  if (len > 0 && cmd[len - 1] >= '0' && cmd[len - 1] <= '9') {
+    len--;
+  }
+
+  // the redirection must be a separate token, not glued to an argument
+  while (len > 0 && (cmd[len - 1] == ' ' || cmd[len - 1] == '\t')) {
+    len--;
+  }
+  return len;
+}
+
+// Reject dangerous characters to prevent command injection
+static bool sanitizeCommand(const char* cmd) {
+  size_t len = stripNullRedirect(cmd);
+
+  const char* dangerousChars = ";|&`$()<>{}[]!*?~";
+  const char* p = dangerousChars;
+  while (*p) {
+    if (memchr(cmd, *p, len) != NULL) {
+      return false;
+    }
+    p++;
+  }
+  return true;
+}
+
+// Exposed for unit tests: a command is valid only if it is allowlisted and free of injection characters
+bool taosCmdIsValid(const char* cmd) {
   if (cmd == NULL) {
+    return false;
+  }
+  return isCommandAllowed(cmd) && sanitizeCommand(cmd);
+}
+
+TdCmdPtr taosOpenCmd(const char* cmd) {
+  if (!taosCmdIsValid(cmd)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
-  
+
 #ifdef WINDOWS
   return (TdCmdPtr)_popen(cmd, "r");
+#elif defined(TD_ASTRA)
+  return NULL;
 #else
   TdCmdPtr p = (TdCmdPtr)popen(cmd, "r");
   if (NULL == p) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return p;
 #endif
@@ -265,7 +330,7 @@ int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char* __restrict buf) {
     terrno = TAOS_SYSTEM_ERROR(ferror((FILE*)pCmd));
     return terrno;
   }
-  
+
   return strlen(buf);
 }
 
@@ -277,7 +342,7 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   if (*ptrBuf != NULL) {
     taosMemoryFreeClear(*ptrBuf);
   }
-  
+
 #ifdef WINDOWS
   *ptrBuf = taosMemoryMalloc(1024);
   if (*ptrBuf == NULL) return -1;
@@ -287,11 +352,41 @@ int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
   }
   (*ptrBuf)[1023] = 0;
   return strlen(*ptrBuf);
+#elif defined(TD_ASTRA)
+  size_t bufsize = 128;
+  size_t pos = 0;
+  int    c;
+  if (*ptrBuf == NULL) {
+    *ptrBuf = (char*)taosMemoryMalloc(bufsize);
+    if (*ptrBuf == NULL) {
+      return terrno;
+    }
+  }
+  while ((c = fgetc((FILE*)pCmd)) != EOF) {
+    if (pos + 1 >= bufsize) {
+      size_t new_size = bufsize << 1;
+      char*  new_line = (char*)taosMemoryRealloc(*ptrBuf, new_size);
+      if (new_line == NULL) {
+        return terrno;
+      }
+      *ptrBuf = new_line;
+      bufsize = new_size;
+    }
+    (*ptrBuf)[pos++] = (char)c;
+    if (c == '\n') {
+      break;
+    }
+  }
+  if (pos == 0 && c == EOF) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (*ptrBuf)[pos] = '\0';
+  return (ssize_t)pos;
 #else
   ssize_t len = 0;
   len = getline(ptrBuf, (size_t*)&len, (FILE*)pCmd);
   if (-1 == len) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
   return len;
@@ -311,8 +406,117 @@ void taosCloseCmd(TdCmdPtr* ppCmd) {
   }
 #ifdef WINDOWS
   _pclose((FILE*)(*ppCmd));
+#elif defined(TD_ASTRA)  // TD_ASTRA_TODO
 #else
   (void)pclose((FILE*)(*ppCmd));
 #endif
   *ppCmd = NULL;
+}
+
+void* taosLoadDll(const char* fileName) {
+#if defined(WINDOWS)
+  void* handle = LoadLibraryA(fileName);
+#else
+  void* handle = dlopen(fileName, RTLD_LAZY);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+void taosCloseDll(void* handle) {
+  if (handle == NULL) return;
+
+#if defined(WINDOWS)
+  FreeLibrary((HMODULE)handle);
+#else
+  if (dlclose(handle) != 0 && errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+  }
+#endif
+}
+
+void* taosLoadDllFunc(void* handle, const char* funcName) {
+  if (handle == NULL) return NULL;
+
+#if defined(WINDOWS)
+  void *fptr = GetProcAddress((HMODULE)handle, funcName);
+#else
+  void *fptr = dlsym(handle, funcName);
+#endif
+
+  if (fptr == NULL) {
+    terrno = TSDB_CODE_DLL_FUNC_NOT_LOAD;
+  }
+
+  return fptr;
+}
+
+void *taosLoadDllGlobal(const char *fileName) {
+#if defined(WINDOWS)
+  void *handle = LoadLibraryA(fileName);
+#else
+  void *handle = dlopen(fileName, RTLD_NOW | RTLD_GLOBAL);
+#endif
+
+  if (handle == NULL) {
+    if (errno != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    } else {
+      terrno = TSDB_CODE_DLL_NOT_LOAD;
+    }
+  }
+
+  return handle;
+}
+
+int32_t taosGetEnv(const char *name, char *buf, int32_t bufLen) {
+  if (name == NULL || buf == NULL || bufLen <= 0) return -1;
+#if defined(WINDOWS)
+  DWORD len = GetEnvironmentVariableA(name, buf, (DWORD)bufLen);
+  if (len == 0 || len >= (DWORD)bufLen) return -1;
+  return (int32_t)len;
+#else
+  const char *val = getenv(name);
+  if (val == NULL) return -1;
+  int32_t len = (int32_t)strlen(val);
+  if (len >= bufLen) return -1;
+  memcpy(buf, val, len + 1);
+  return len;
+#endif
+}
+
+int32_t taosSetEnv(const char *name, const char *value) {
+  if (name == NULL) return -1;
+#if defined(WINDOWS)
+  if (!SetEnvironmentVariableA(name, value)) return -1;
+  return 0;
+#else
+  if (value == NULL) {
+    return unsetenv(name);
+  }
+  return setenv(name, value, 1);
+#endif
+}
+
+int32_t taosSetDllSearchPath(const char *path) {
+  if (path == NULL) return -1;
+#if defined(WINDOWS)
+  WCHAR wpath[MAX_PATH] = {0};
+  MultiByteToWideChar(CP_UTF8, 0, path, -1, wpath, MAX_PATH);
+  if (!SetDllDirectoryW(wpath)) return -1;
+  return 0;
+#else
+  // On Linux/macOS, DLL search path is controlled by LD_LIBRARY_PATH
+  // and cannot be changed at runtime for the dynamic linker.
+  // This is a no-op; use taosLoadDllGlobal with full path instead.
+  return 0;
+#endif
 }

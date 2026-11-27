@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,8 +24,13 @@
 typedef struct {
   SAuditCfg       cfg;
   SArray *records;
-  TdThreadMutex lock;
+  TdThreadMutex   recordLock;
   int32_t         dnodeId;
+  TdThreadRwlock  infoLock;
+  char            auditDB[TSDB_DB_FNAME_LEN];
+  char            auditToken[TSDB_TOKEN_LEN];
+  SEpSet          auditEpSet;
+  int32_t         auditVgId;
 } SAudit;
 
 #endif /*_TD_AUDIT_INT_H_*/

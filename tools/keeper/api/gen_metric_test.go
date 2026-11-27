@@ -1,23 +1,47 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
+	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
 var router_inited bool = false
 
 func TestClusterBasic(t *testing.T) {
-	cfg := util.GetCfg()
+	cfg := config.GetCfg()
 
 	CreateDatabase(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl, cfg.Metrics.Database.Name, cfg.Metrics.Database.Options)
 
@@ -45,7 +69,7 @@ func TestClusterBasic(t *testing.T) {
 	conn, err := db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -55,7 +79,7 @@ func TestClusterBasic(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 
-		data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, cluster_id from %s.%s where ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn())
+		data, err := conn.Query(context.Background(), fmt.Sprintf("select ts, cluster_id from %s.%s where ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn(config.Conf.InstanceID))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(data.Data))
 		assert.Equal(t, testcfg.expect, data.Data[0][1])
@@ -109,7 +133,7 @@ func TestClusterBasic(t *testing.T) {
 	conn, err = db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -120,7 +144,7 @@ func TestClusterBasic(t *testing.T) {
 		router.ServeHTTP(w, req)
 		assert.Equal(t, 200, w.Code)
 
-		data, err := conn.Query(context.Background(), fmt.Sprintf("select start_ts, cluster_id from %s.%s where start_ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn())
+		data, err := conn.Query(context.Background(), fmt.Sprintf("select start_ts, cluster_id from %s.%s where start_ts=%d", gm.database, testcfg.tbname, testcfg.ts), util.GetQidOwn(config.Conf.InstanceID))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(data.Data))
 		assert.Equal(t, testcfg.expect, data.Data[0][1])
@@ -128,7 +152,7 @@ func TestClusterBasic(t *testing.T) {
 }
 
 func TestGenMetric(t *testing.T) {
-	cfg := util.GetCfg()
+	cfg := config.GetCfg()
 
 	CreateDatabase(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl, cfg.Metrics.Database.Name, cfg.Metrics.Database.Options)
 
@@ -147,7 +171,7 @@ func TestGenMetric(t *testing.T) {
 		expect string
 	}{
 		name:   "1",
-		tbname: []string{"taosd_cluster_info", "taosd_dnodes_info"},
+		tbname: []string{"taosd_cluster_info", "taosd_dnodes_info", "taosd_stream_failure"},
 		ts:     []int64{1703226836761, 1703226836762},
 		data: `[{
 			"ts": "1703226836761",
@@ -186,6 +210,24 @@ func TestGenMetric(t *testing.T) {
 					}, {
 						"name": "cpu_engine",
 						"value": 0
+					}]
+				}]
+			}, {
+				"name": "taosd_stream_failure",
+				"metric_groups": [{
+					"tags": [{
+						"name": "cluster_id",
+						"value": "1397715317673023180"
+					}, {
+						"name": "stream_id",
+						"value": "9223372036854775001"
+					}, {
+						"name": "stream_name",
+						"value": "1.db.stream_b"
+					}],
+					"metrics": [{
+						"name": "error_code",
+						"value": -2147454964
 					}]
 				}]
 			}]
@@ -228,6 +270,24 @@ func TestGenMetric(t *testing.T) {
 						"value": 0
 					}]
 				}]
+			}, {
+				"name": "taosd_stream_failure",
+				"metric_groups": [{
+					"tags": [{
+						"name": "cluster_id",
+						"value": "1397715317673023180"
+					}, {
+						"name": "stream_id",
+						"value": "9223372036854775000"
+					}, {
+						"name": "stream_name",
+						"value": "1.db.stream_a"
+					}],
+					"metrics": [{
+						"name": "error_code",
+						"value": -2147454963
+					}]
+				}]
 			}]
 		}]`,
 		expect: "1397715317673023180",
@@ -236,7 +296,7 @@ func TestGenMetric(t *testing.T) {
 	conn, err := db.NewConnectorWithDb(gm.username, gm.password, gm.host, gm.port, gm.database, gm.usessl)
 	assert.NoError(t, err)
 	defer func() {
-		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn())
+		_, _ = conn.Query(context.Background(), fmt.Sprintf("drop database if exists %s", gm.database), util.GetQidOwn(config.Conf.InstanceID))
 	}()
 
 	t.Run(testcfg.name, func(t *testing.T) {
@@ -248,12 +308,30 @@ func TestGenMetric(t *testing.T) {
 
 		for _, tbname := range testcfg.tbname {
 			for _, ts := range testcfg.ts {
-				data, err := conn.Query(context.Background(), fmt.Sprintf("select _ts, cluster_id from %s.%s where _ts=%d", gm.database, tbname, ts), util.GetQidOwn())
+				data, err := conn.Query(context.Background(), fmt.Sprintf("select _ts, cluster_id from %s.%s where _ts=%d", gm.database, tbname, ts), util.GetQidOwn(config.Conf.InstanceID))
 				assert.NoError(t, err)
 				assert.Equal(t, 1, len(data.Data))
 				assert.Equal(t, testcfg.expect, data.Data[0][1])
 			}
 		}
+
+		data, err := conn.Query(
+			context.Background(),
+			fmt.Sprintf("select _ts, error_code, cluster_id, stream_id, stream_name from %s.taosd_stream_failure order by _ts", gm.database),
+			util.GetQidOwn(config.Conf.InstanceID),
+		)
+		assert.NoError(t, err)
+		assert.Len(t, data.Data, 2)
+		assert.Equal(t, testcfg.ts[0], data.Data[0][0].(time.Time).UnixMilli())
+		assert.Equal(t, float64(-2147454964), data.Data[0][1])
+		assert.Equal(t, "1397715317673023180", data.Data[0][2])
+		assert.Equal(t, "9223372036854775001", data.Data[0][3])
+		assert.Equal(t, "1.db.stream_b", data.Data[0][4])
+		assert.Equal(t, testcfg.ts[1], data.Data[1][0].(time.Time).UnixMilli())
+		assert.Equal(t, float64(-2147454963), data.Data[1][1])
+		assert.Equal(t, "1397715317673023180", data.Data[1][2])
+		assert.Equal(t, "9223372036854775000", data.Data[1][3])
+		assert.Equal(t, "1.db.stream_a", data.Data[1][4])
 	})
 }
 
@@ -284,6 +362,26 @@ func TestGetSubTableName(t *testing.T) {
 			want:    "task_123_example_789",
 		},
 		{
+			stbName: "taosx_rpc",
+			tagMap:  map[string]string{"taosx_id": "123", "action": "xnode_plan_task", "outcome": "success"},
+			want:    "rpc_123_xnode_plan_task_success",
+		},
+		{
+			stbName: "taosx_rpc",
+			tagMap:  map[string]string{"taosx_id": "123", "action": "xnode_plan_task"},
+			want:    "",
+		},
+		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{"taosx_id": "123"},
+			want:    "resource_123",
+		},
+		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{},
+			want:    "",
+		},
+		{
 			stbName: "taosd_cluster_info",
 			tagMap:  map[string]string{"cluster_id": "123"},
 			want:    "cluster_123",
@@ -302,6 +400,37 @@ func TestGetSubTableName(t *testing.T) {
 			stbName: "taosd_dnodes_status",
 			tagMap:  map[string]string{"cluster_id": "123", "dnode_id": "123"},
 			want:    "dstatus_123_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_id":   "456",
+				"stream_name": "1.db.stream_a",
+			},
+			want: "stream_failure_456_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_id":   "789",
+				"stream_name": "1.db.stream_b",
+			},
+			want: "stream_failure_789_cluster_123",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap: map[string]string{
+				"cluster_id":  "123",
+				"stream_name": "1.db.stream_a",
+			},
+			want: "",
+		},
+		{
+			stbName: "taosd_stream_failure",
+			tagMap:  map[string]string{"stream_id": "456"},
+			want:    "",
 		},
 		{
 			stbName: "taosd_dnodes_log_dirs",
@@ -348,6 +477,16 @@ func TestGetSubTableName(t *testing.T) {
 			tagMap:  map[string]string{"username": "user", "duration": "100ms", "result": "success", "cluster_id": "123"},
 			want:    "slowsql_user_100ms_success_cluster_123",
 		},
+		{
+			stbName: "explorer_sys",
+			tagMap:  map[string]string{"endpoint": "0015.novalocal:6060"},
+			want:    "explorer_sys_0015_novalocal_6060",
+		},
+		{
+			stbName: "explorer_sys2",
+			tagMap:  map[string]string{"endpoint": "0015.novalocal:6060"},
+			want:    "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -360,14 +499,14 @@ func TestGetSubTableName(t *testing.T) {
 }
 
 func Test_createSTables(t *testing.T) {
-	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	conn, _ := db.NewConnector(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, false)
 	defer conn.Close()
 
 	dbName := "db_202412031527"
-	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn())
-	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn())
+	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
+	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
-	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
+	conn, _ = db.NewConnectorWithDb(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
 
 	gm := GeneralMetric{conn: conn}
@@ -385,15 +524,660 @@ func Test_createSTables(t *testing.T) {
 	}
 
 	conn.Exec(context.Background(),
-		"create table d0 using taosd_cluster_basic tags('cluster_id')", util.GetQidOwn())
+		"create table d0 using taosd_cluster_basic tags('cluster_id')", util.GetQidOwn(config.Conf.InstanceID))
 
 	for _, tc := range testCases {
 		sql := fmt.Sprintf("insert into d0 (ts, first_ep) values(%d, '%s')", time.Now().UnixMilli(), tc.ep)
-		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn())
+		_, err := conn.Exec(context.Background(), sql, util.GetQidOwn(config.Conf.InstanceID))
 		if tc.wantErr {
 			assert.Error(t, err) // [0x2653] Value too long for column/tag: endpoint
 		} else {
 			assert.NoError(t, err)
 		}
+	}
+}
+
+func TestGeneralMetric_createSTables(t *testing.T) {
+	g := &GeneralMetric{}
+	err := g.createSTables()
+	assert.Error(t, err)
+}
+
+func Test_contains(t *testing.T) {
+	res := contains([]string{"a", "b", "c"}, "b")
+	assert.True(t, res)
+
+	res = contains([]string{"a", "b", "c"}, "d")
+	assert.False(t, res)
+}
+
+func Test_get_sub_table_name(t *testing.T) {
+	res := get_sub_table_name("taosx_abc", nil)
+	assert.Equal(t, "", res)
+
+	res = get_sub_table_name("taosd_write_metrics", map[string]string{"database_name": "test", "vgroup_id": "1", "cluster_id": "1"})
+	assert.Equal(t, "taosd_write_metric_test_vgroup_1_cluster_1", res)
+
+	res = get_sub_table_name("taosd_dnodes_metrics", map[string]string{"dnode_ep": "ep", "cluster_id": "1"})
+	assert.Equal(t, "dnode_metric_ep_cluster_1", res)
+
+	res = get_sub_table_name("adapter_c_interface", map[string]string{"endpoint": "ep"})
+	assert.Equal(t, "adapter_c_if_ep", res)
+
+	ep := strings.Repeat("a", 300)
+	res = get_sub_table_name("adapter_c_interface", map[string]string{"endpoint": ep})
+	assert.Equal(t, fmt.Sprintf("adapter_c_if_%s", strings.Repeat("a", 177)), res)
+
+	res = get_sub_table_name("abc", nil)
+	assert.Equal(t, "", res)
+}
+
+func Test_checkKeysExist(t *testing.T) {
+	res := checkKeysExist(map[string]string{"a": "1", "b": "2"}, "a", "c")
+	assert.False(t, res)
+}
+
+func Test_writeTags(t *testing.T) {
+	stb := "stb_ut1"
+	Store(stb, ColumnSeq{tagNames: []string{"a", "b"}})
+
+	tags := []Tag{
+		{Name: "a", Value: ""},
+		{Name: STABLE_NAME_KEY, Value: "subtbl"},
+	}
+
+	var buf bytes.Buffer
+	writeTags(tags, stb, &buf)
+
+	got := buf.String()
+	want := ",a=unknown,b=unknown"
+	if got != want {
+		t.Fatalf("unexpected tags output, got %q, want %q", got, want)
+	}
+}
+
+func Test_writeTags_ReturnsEarlyWhenStableNameKeyPresent(t *testing.T) {
+	stb := "stb_ut_return"
+	Store(stb, ColumnSeq{tagNames: []string{"x"}})
+
+	tags := []Tag{
+		{Name: "x", Value: "v"},
+		{Name: STABLE_NAME_KEY, Value: "custom_sub"},
+	}
+
+	var buf bytes.Buffer
+	writeTags(tags, stb, &buf)
+
+	got := buf.String()
+	assert.Equal(t, ",x=v,priv_stn=custom_sub", got)
+}
+
+func Test_writeTags_LogErrorWhenNoSubTableName(t *testing.T) {
+	var buf bytes.Buffer
+	stb := "random_does_not_exist_12345"
+	tags := []Tag{{Name: "foo", Value: "bar"}}
+
+	writeTags(tags, stb, &buf)
+
+	out := buf.String()
+	if strings.Contains(out, STABLE_NAME_KEY) {
+		t.Fatalf("should not append %q when sub table name is missing, got %q", STABLE_NAME_KEY, out)
+	}
+}
+
+func TestGeneralMetric_handleSlowSqlDetailBatch_NoConnection_Returns500(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: nil}
+	r.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
+
+	req := httptest.NewRequest(http.MethodPost, "/slow-sql-detail-batch", strings.NewReader(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "no connection" {
+		t.Fatalf(`error=%q, want "no connection"`, body["error"])
+	}
+}
+
+func TestGeneralMetric_handleSlowSqlDetailBatch_GetRawDataError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
+
+	boom := errors.New("boom")
+	req := httptest.NewRequest(http.MethodPost, "/slow-sql-detail-batch", errReader{err: boom})
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	want := "get taos slow sql detail data error. " + boom.Error()
+	if body["error"] != want {
+		t.Fatalf("error message mismatch: got %q, want %q", body["error"], want)
+	}
+}
+
+func TestGeneralMetric_handleSlowSqlDetailBatch_TraceLogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
+
+	req := httptest.NewRequest(http.MethodPost, "/slow-sql-detail-batch", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestGeneralMetric_handleSlowSqlDetailBatch_ParseError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
+
+	req := httptest.NewRequest(http.MethodPost, "/slow-sql-detail-batch", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	errMsg := body["error"]
+	if !strings.HasPrefix(errMsg, "parse taos slow sql detail error: ") {
+		t.Fatalf("error prefix mismatch, got %q", errMsg)
+	}
+}
+
+func TestGeneralMetric_handleSlowSqlDetailBatch_EmptyStartTs_IsSkippedAndOK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/slow-sql-detail-batch", gm.handleSlowSqlDetailBatch())
+
+	body := `[{"start_ts": ""}]`
+	req := httptest.NewRequest(http.MethodPost, "/slow-sql-detail-batch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusOK)
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	if len(resp) != 0 {
+		t.Fatalf("expected empty object {}, got %v", resp)
+	}
+}
+
+func TestGeneralMetric_handleTaosdClusterBasic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: nil}
+	r.POST("/taosd-cluster-basic", gm.handleTaosdClusterBasic())
+
+	req := httptest.NewRequest(http.MethodPost, "/taosd-cluster-basic", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v, raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "no connection" {
+		t.Fatalf(`error field = %q, want "no connection"`, body["error"])
+	}
+}
+
+func TestGeneralMetric_handleTaosdClusterBasic_GetRawDataError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/taosd-cluster-basic", gm.handleTaosdClusterBasic())
+
+	boom := errors.New("boom")
+	req := httptest.NewRequest(http.MethodPost, "/taosd-cluster-basic", errReader{err: boom})
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	want := "get general metric data error. " + boom.Error()
+	if body["error"] != want {
+		t.Fatalf("error message mismatch: got %q, want %q", body["error"], want)
+	}
+}
+
+func TestGeneralMetric_handleTaosdClusterBasic_TraceLogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/taosd-cluster-basic", gm.handleTaosdClusterBasic())
+
+	req := httptest.NewRequest(http.MethodPost, "/taosd-cluster-basic", strings.NewReader(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+}
+
+func TestGeneralMetric_handleTaosdClusterBasic_ParseError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{conn: &db.Connector{}}
+	r.POST("/taosd-cluster-basic", gm.handleTaosdClusterBasic())
+
+	req := httptest.NewRequest(http.MethodPost, "/taosd-cluster-basic", strings.NewReader(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+	errMsg := body["error"]
+	if !strings.HasPrefix(errMsg, "parse general metric data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "cannot unmarshal") {
+		t.Fatalf("unexpected error detail: %q", errMsg)
+	}
+}
+
+func TestGeneralMetric_handleBatchMetrics(t *testing.T) {
+	gm := &GeneralMetric{}
+
+	gm.handleBatchMetrics(nil, 0)
+
+	request := []StableArrayInfo{{
+		Ts: "",
+	}}
+	gm.handleBatchMetrics(request, 0)
+
+	request = []StableArrayInfo{{
+		Ts: "123",
+		Tables: []StableInfo{{
+			Name: "",
+		}},
+	}}
+	gm.handleBatchMetrics(request, 0)
+}
+
+func TestGeneralMetric_handleFunc(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{client: nil}
+	r.POST("/general-metric", gm.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", strings.NewReader(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusInternalServerError)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	if body["error"] != "no connection" {
+		t.Fatalf(`error=%q, want "no connection"`, body["error"])
+	}
+}
+
+type errReader struct{ err error }
+
+func (e errReader) Read(p []byte) (int, error) { return 0, e.err }
+
+func TestGeneralMetric_handleFunc_ReadBodyError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{client: &http.Client{}}
+	r.POST("/general-metric", gm.handleFunc())
+
+	boom := errors.New("boom")
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", errReader{err: boom})
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "123")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	got := body["error"]
+	want := "get general metric data error. " + boom.Error()
+	if got != want {
+		t.Fatalf("error message mismatch: got %q, want %q", got, want)
+	}
+}
+
+func TestGeneralMetric_handleFunc_TraceLogsWhenEnabled(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	gm := &GeneralMetric{client: &http.Client{}}
+	r.POST("/general-metric", gm.handleFunc())
+
+	body := `[{"ts":"1","tables":[]}]`
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusOK)
+	}
+}
+
+func TestGeneralMetric_handleFunc_ParseError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{client: &http.Client{}}
+	r.POST("/general-metric", gm.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var body map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal response error: %v, raw=%q", err, w.Body.String())
+	}
+
+	errMsg := body["error"]
+	if !strings.HasPrefix(errMsg, "parse general metric data error: ") {
+		t.Fatalf("error prefix mismatch, got %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "cannot unmarshal object into Go value of type []api.StableArrayInfo") {
+		t.Fatalf("unexpected parse error detail: %q", errMsg)
+	}
+}
+
+func TestGeneralMetric_handleFunc_EmptyRequest_ReturnsOK(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	gm := &GeneralMetric{client: &http.Client{}}
+	r.POST("/general-metric", gm.handleFunc())
+
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", strings.NewReader(`[]`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusOK)
+	}
+
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	if len(body) != 0 {
+		t.Fatalf("expect empty object {}, got: %v", body)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestGeneralMetric_handleFunc_ProcessRecordsError_Returns400(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	r := gin.New()
+
+	rt := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       io.NopCloser(bytes.NewBufferString("boom")),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})
+	client := &http.Client{Transport: rt}
+
+	gm := &GeneralMetric{
+		client:   client,
+		username: "u",
+		password: "p",
+		url: &url.URL{
+			Scheme:   "http",
+			Host:     "example.com",
+			Path:     "/influxdb/v1/write",
+			RawQuery: "db=test&precision=ms&table_name_key=" + STABLE_NAME_KEY,
+		},
+	}
+
+	r.POST("/general-metric", gm.handleFunc())
+
+	body := `[{"ts":"1700000000000","tables":[{"name":"t","metric_groups":[{}]}]}]`
+	req := httptest.NewRequest(http.MethodPost, "/general-metric", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-QID", "1")
+	w := httptest.NewRecorder()
+
+	r.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("status=%d, want=%d", w.Code, http.StatusBadRequest)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal error: %v; raw=%q", err, w.Body.String())
+	}
+	errMsg := resp["error"]
+	if !strings.HasPrefix(errMsg, "process records error. ") {
+		t.Fatalf("error prefix mismatch: %q", errMsg)
+	}
+	if !strings.Contains(errMsg, "unexpected status code 500:body:boom") {
+		t.Fatalf("unexpected error detail: %q", errMsg)
+	}
+}
+
+func TestGeneralMetric_lineWriteBody_ClientDoErrorNilResponse_ReturnsError(t *testing.T) {
+	sentinel := errors.New("net boom")
+	client := &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return nil, sentinel
+	})}
+
+	gm := &GeneralMetric{
+		client:   client,
+		username: "u",
+		password: "p",
+		url: &url.URL{
+			Scheme:   "http",
+			Host:     "example.com",
+			Path:     "/influxdb/v1/write",
+			RawQuery: "db=test&precision=ms&table_name_key=" + STABLE_NAME_KEY,
+		},
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("m  1\n")
+
+	var logs bytes.Buffer
+	oldOut := logger.Logger.Out
+	logger.Logger.SetOutput(&logs)
+	defer logger.Logger.SetOutput(oldOut)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("lineWriteBody should return the client error without panic, got panic: %v", r)
+		}
+	}()
+
+	err := gm.lineWriteBody(&buf, 42)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, sentinel)
+	if !strings.Contains(logs.String(), "resp:-1") {
+		t.Fatalf("expected nil response to be logged as resp:-1, got log: %q", logs.String())
+	}
+}
+
+func TestNewGeneralMetric(t *testing.T) {
+	var conf config.Config
+	jsonCfg := `{
+        "tdengine": {
+            "usessl": true,
+            "host": "127.0.0.1",
+            "port": 6041,
+            "username": "u",
+            "password": "p"
+        },
+        "metrics": {
+            "database": { "name": "db" }
+        }
+    }`
+	if err := json.Unmarshal([]byte(jsonCfg), &conf); err != nil {
+		t.Fatalf("unmarshal config error: %v", err)
+	}
+
+	gm := NewGeneralMetric(&conf)
+	if gm == nil || gm.url == nil {
+		t.Fatalf("NewGeneralMetric returned nil or url is nil")
+	}
+	if gm.url.Scheme != "https" {
+		t.Fatalf("scheme = %q, want %q", gm.url.Scheme, "https")
+	}
+}
+
+func TestGeneralMetric_lineWriteBody(t *testing.T) {
+	old := logger.Logger.GetLevel()
+	logger.Logger.SetLevel(logrus.TraceLevel)
+	defer logger.Logger.SetLevel(old)
+
+	rt := roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusNoContent,
+			Body:       io.NopCloser(bytes.NewBuffer(nil)),
+			Header:     make(http.Header),
+			Request:    req,
+		}, nil
+	})
+	client := &http.Client{Transport: rt}
+
+	gm := &GeneralMetric{
+		client:   client,
+		username: "u",
+		password: "p",
+		url: &url.URL{
+			Scheme:   "http",
+			Host:     "example.com",
+			Path:     "/influxdb/v1/write",
+			RawQuery: "db=test&precision=ms&table_name_key=" + STABLE_NAME_KEY,
+		},
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString("m  1\n")
+
+	if err := gm.lineWriteBody(&buf, 42); err != nil {
+		t.Fatalf("lineWriteBody returned error: %v", err)
 	}
 }

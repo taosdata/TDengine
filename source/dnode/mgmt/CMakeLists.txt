@@ -1,37 +1,63 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 add_subdirectory(node_mgmt)
 add_subdirectory(node_util)
 add_subdirectory(mgmt_mnode)
 add_subdirectory(mgmt_qnode)
 add_subdirectory(mgmt_snode)
+add_subdirectory(mgmt_xnode)
+add_subdirectory(mgmt_bnode)
 add_subdirectory(mgmt_vnode)
 add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
 aux_source_directory(exe EXEC_SRC)
-add_executable(taosd ${EXEC_SRC})
+if(BUILD_TAOSD_INTEGRATED)
+  add_library(taosd ${EXEC_SRC})
+else()
+  add_executable(taosd ${EXEC_SRC})
+endif()
 target_include_directories(
   taosd
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
 
-IF(TD_ENTERPRISE)
-  IF(${BUILD_WITH_S3})
+target_link_libraries(taosd PUBLIC dnode crypt)
+
+if(BUILD_TEST AND NOT BUILD_TAOSD_INTEGRATED)
+  add_executable(streamDeployTestDaemon ${EXEC_SRC} test/streamDeployTestDaemon.c)
+  target_compile_definitions(streamDeployTestDaemon PRIVATE TAOSD_INTEGRATED)
+  target_include_directories(streamDeployTestDaemon PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc")
+  target_link_libraries(streamDeployTestDaemon PRIVATE dnode crypt)
+  set_target_properties(streamDeployTestDaemon PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  include(CheckLinkerFlag)
+  check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" HAVE_NO_WARN_DUP_LIBS)
+  if(HAVE_NO_WARN_DUP_LIBS)
+    target_link_options(taosd PRIVATE -Wl,-no_warn_duplicate_libraries)
+  endif()
+endif()
+
+if(TD_ENTERPRISE)
+  if(BUILD_WITH_S3)
     add_definitions(-DUSE_S3)
-  ELSEIF(${BUILD_WITH_COS})
+  elseif(BUILD_WITH_COS)
     add_definitions(-DUSE_COS)
-  ENDIF()
-ENDIF()
+  endif()
+endif()
 
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-  ADD_DEFINITIONS(-DTD_JEMALLOC_ENABLED -I${CMAKE_BINARY_DIR}/build/include -L${CMAKE_BINARY_DIR}/build/lib -Wl,-rpath,${CMAKE_BINARY_DIR}/build/lib -ljemalloc)
-  SET(LINK_JEMALLOC "-L${CMAKE_BINARY_DIR}/build/lib -ljemalloc")
-ELSE()
-  SET(LINK_JEMALLOC "")
-ENDIF()
-
-IF(TD_LINUX_64 AND JEMALLOC_ENABLED)
-  ADD_DEPENDENCIES(taosd jemalloc)
-  target_link_libraries(taosd dnode crypt ${LINK_JEMALLOC})
-ELSE()
-  target_link_libraries(taosd dnode crypt)
-ENDIF()

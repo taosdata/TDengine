@@ -2,6 +2,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,6 +33,9 @@ int32_t taosOpenRef(int32_t max, RefFp fp);
 // close the reference set, refId is the return value by taosOpenRef
 void taosCloseRef(int32_t rsetId);
 
+// get the aggregate reference count of a reference set
+int32_t taosGetRefSetCount(int32_t rsetId, int32_t *pCount);
+
 // add ref, p is the pointer to resource or pointer ID
 // return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately
 int64_t taosAddRef(int32_t rsetId, void *p);
@@ -47,6 +52,11 @@ void *taosAcquireRef(int32_t rsetId, int64_t rid);
 // return 0 if success. On error, -1 is returned, and terrno is set appropriately
 int32_t taosReleaseRef(int32_t rsetId, int64_t rid);
 int32_t taosReleaseRefEx(int32_t rsetId, int64_t rid, int32_t* isReleased);
+
+// Query the state of a ref without changing its reference count.
+// Returns 0 if the rid is not present, 1 if present, 2 if present but marked removed.
+// When provided, pCount receives the current ref count and pRemoved the removed flag.
+int32_t taosQueryRefState(int32_t rsetId, int64_t rid, int32_t* pCount, int32_t* pRemoved);
 
 // return the first reference if rid is 0, otherwise return the next after current reference.
 // if return value is NULL, it means list is over(if terrno is set, it means error happens)

@@ -1,0 +1,15 @@
+
+taos> select val,senid,senid_name from test1.str_cjdl_point_data_szls_yc_test order by _c0;
+            val            |             senid              |           senid_name           |
+==============================================================================================
+                       114 | sendid_a1                      | name_a1                        |
+                       759 | sendid_a1                      | name_a1                        |
+                       250 | sendid_a1                      | name_a1                        |
+                       142 | sendid_a1                      | name_a1                        |
+                       104 | sendid_a1                      | name_a1                        |
+                       758 | sendid_a1                      | name_a1                        |
+                       558 | sendid_a1                      | name_a1                        |
+                       604 | sendid_a1                      | name_a1                        |
+                        32 | sendid_a1                      | name_a1                        |
+                        95 | sendid_a1                      | name_a1                        |
+

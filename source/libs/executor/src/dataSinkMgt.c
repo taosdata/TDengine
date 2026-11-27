@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,7 +32,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSink
   pSinkManager->pAPI = pAPI;
 
   *ppSinkManager = pSinkManager;
-  return TSDB_CODE_SUCCESS;  // to avoid compiler eror
+  return TSDB_CODE_SUCCESS;  // to avoid compiler error
 }
 
 int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
@@ -39,11 +41,11 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
+int32_t dsCreateDataSinker(void* pSinkManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, void* pParam, const char* id, bool processOneBlock) {
   SDataSinkManager* pManager = pSinkManager;
   switch ((int)nodeType(*ppDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return createDataDispatcher(pManager, ppDataSink, pHandle);
+      return createDataDispatcher(pManager, ppDataSink, pHandle, processOneBlock);
     case QUERY_NODE_PHYSICAL_PLAN_DELETE: {
       return createDataDeleter(pManager, ppDataSink, pHandle, pParam);
     }
@@ -97,6 +99,9 @@ void dsScheduleProcess(void* ahandle, void* pItem) {
 }
 
 void dsDestroyDataSinker(DataSinkHandle handle) {
+  if (NULL == handle) {
+    return;
+  }
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   (void)pHandleImpl->fDestroy(pHandleImpl);
   taosMemoryFree(pHandleImpl);

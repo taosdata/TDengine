@@ -1,0 +1,201 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import multiprocessing
+import os as _os
+import platform
+
+on_windows = platform.system().lower() == "windows"
+on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
+
+# Auto-detect install directory from this config file's location:
+# cfg/taosanode.config.py → parent dir is <install_dir>
+_cfg_dir = _os.path.dirname(_os.path.abspath(__file__))
+
+base_dir = _os.path.dirname(_cfg_dir) if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/'
+log_dir = _os.path.join(base_dir, 'log') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/'
+data_dir = _os.path.join(base_dir, 'data') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/'
+
+# list address and port
+bind = '0.0.0.0:6035'
+
+# Number of worker processes (typically recommended 2 * CPU cores + 1)
+workers = 2
+
+# Specify worker type, using default sync worker here
+# For IO-intensive applications, consider eventlet or gevent
+worker_class = 'sync'
+
+# Number of threads per process (recommended for model deployment)
+threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
+
+# Maximum number of requests, worker will restart after reaching limit, helps release memory
+max_requests = 1000
+
+# Random jitter added to max_requests to avoid all workers restarting simultaneously
+max_requests_jitter = 50
+
+# Timeout settings
+timeout = 1200
+
+# Lifecycle readiness deadlines in seconds
+timeouts = {
+    'service_startup': 180,
+    'model_startup': 300,
+    'shutdown': 30,
+}
+
+# keep-alive time
+keepalive = 1200
+
+# Log Setting, only valid on Linux
+accesslog = _os.path.join(log_dir, 'access.log')
+errorlog = _os.path.join(log_dir, 'error.log')
+
+# only valid on the Windows system.
+waitresslog = _os.path.join(log_dir, 'taosanode-service.log')
+
+# Set process name
+proc_name = 'tdgpt_taosanode_app'
+
+# set the pid file
+pidfile = _os.path.join(base_dir, 'taosanode.pid')
+
+# virtual environment directory
+virtualenv = _os.path.join(base_dir, 'venvs', 'venv') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/venv'
+
+# set the taosanoded basic python library directory
+pythonpath = base_dir
+
+# wsgi app name
+wsgi_app = 'lib.app:app'
+
+# Preload application before forking worker processes. This can improve startup time and save memory
+preload_app = True
+
+# [taosanode]
+# The following configuration parameters are valid on both Windows and Linux system.
+# default app log file
+app_log = _os.path.join(log_dir, 'taosanode.app.log')
+
+# model storage directory
+model_dir = _os.path.join(base_dir, 'model') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'model')
+
+# User Python algorithms default to <data_dir>/custom; no separate setting is required.
+# Uncomment only to override that location. Restart after code changes.
+# custom_algo_dir = _os.path.join(data_dir, 'custom')
+
+# dynamic load model directory, models in this directory will be loaded dynamically when the server is running,
+# and can be added or removed at any time without restarting the server
+dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
+
+img_dir = _os.path.join(base_dir, 'img', '') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'img', '')
+
+resource_dir = _os.path.join(data_dir, 'resource', '')
+
+# Dynamically installed TSFM models and their shared Python runtime.
+tsfm_model_dir = _os.path.join(model_dir, 'tsfm')
+model_venvs_dir = _os.path.join(base_dir, 'model_venvs') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'model_venvs')
+tsfm_venv = _os.path.join(model_venvs_dir, 'tsfm')
+
+# default log level
+log_level = 'DEBUG'
+
+# draw the query results
+draw_result = False
+
+# tsfm execution time out
+tsfm_resource_exec_timeout = 120
+
+# timeout for outbound requests.post calls to tsfm inference services
+tsfm_query_exec_timeout = 120
+
+# Deadline (in seconds) for starting a tsfm model and waiting until it reports
+# readiness. It is forwarded to `taosanodectl model start --timeout` and must be
+# greater than the model readiness deadline (`timeouts['model_startup']`, default
+# 180s), otherwise a slow-starting model could be treated as started too early.
+tsfm_model_start_timeout = 300
+
+# Model configuration - defines all available models
+# Required models: tdtsfm, timemoe (must exist, error if missing)
+# Optional models: moirai, chronos, timesfm, moment (skip if not found)
+# Port and endpoint are the single source of truth for service URLs;
+# conf.py auto-derives http://127.0.0.1:<port><endpoint> for each model.
+models = {
+    "tdtsfm": {
+        "script": "tdtsfm_server.py",
+        "default_model": None,
+        "ip": "127.0.0.1",
+        "port": 6061,
+        "endpoint": "/tdtsfm",
+        "algo_name": "tdtsfm_1",
+        "required": True,  # Must exist
+    },
+    "timemoe": {
+        "script": "timemoe_server.py",
+        "default_model": "Maple728/TimeMoE-200M",
+        "ip": "127.0.0.1",
+        "port": 6062,
+        "endpoint": "/ds_predict",
+        "algo_name": "timemoe-fc",
+        "required": True,  # Must exist
+    },
+    "moirai": {
+        "script": "moirai_server.py",
+        "default_model": "Salesforce/moirai-moe-1.0-R-small",
+        "ip": "127.0.0.1",
+        "port": 6064,
+        "endpoint": "/ds_predict",
+        "required": False,  # Optional
+    },
+    "chronos": {
+        "script": "chronos_server.py",
+        "default_model": "amazon/chronos-bolt-base",
+        "ip": "127.0.0.1",
+        "port": 6063,
+        "endpoint": "/ds_predict",
+        "required": False,  # Optional
+    },
+    "timesfm": {
+        "script": "timesfm_server.py",
+        "default_model": "google/timesfm-2.5-200m-pytorch",
+        "ip": "127.0.0.1",
+        "port": 6065,
+        "endpoint": "/ds_predict",
+        "required": False,  # Optional
+    },
+    "moment": {
+        "script": "moment_server.py",
+        "default_model": "AutonLab/MOMENT-1-base",
+        "ip": "127.0.0.1",
+        "port": 6066,
+        "endpoint": "/imputation",
+        "required": False,  # Optional
+    },
+}
+
+timesfm_venv = virtualenv
+moirai_venv = virtualenv
+chronos_venv = virtualenv
+momentfm_venv = virtualenv
+
+# Windows下waitress服务器配置（仅在Windows系统上使用）
+waitress_config = {
+    'threads': 4,                    # 工作线程数
+    'channel_timeout': 1200,         # 通道超时（秒）
+    'connection_limit': 1000,        # 最大连接数
+    'cleanup_interval': 30,          # 清理间隔（秒）
+    'log_socket_errors': True        # 记录socket错误
+}

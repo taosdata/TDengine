@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,26 +32,105 @@ extern "C" {
 
 #define QUERY_NUMBER_MAX_DISPLAY_LEN 65
 
+typedef enum {
+  E_SQ_REWRITE_TO_IN = 1,
+  E_SQ_REWRITE_TO_NEG_IN,
+  E_SQ_REWRITE_TO_NOT_IN,
+  E_SQ_REWRITE_TO_NEG_NOT_IN,
+  E_SQ_REWRITE_TO_MIN,
+  E_SQ_REWRITE_TO_MAX,
+  E_SQ_REWRITE_TO_ZERO_ROWS,
+  E_SQ_REWRITE_TO_NZERO_ROWS,
+  E_SQ_REWRITE_KEEP_REMAIN,
+} ESubQRewriteType;
+
 int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq, const SMetaData* pMetaData);
 int32_t continueCreateTbFromFile(SParseContext* pCxt, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
+// collectMetaKey is declared in parser.h (included above)
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);
-int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
+int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema, SExtSchema** pExtSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t translatePostCreateStream(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
-int32_t translatePostCreateSmaIndex(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
-int32_t translatePostCreateTSMA(SParseContext* pParseCxt, SQuery* pQuery, SSDataBlock* pBlock);
 int32_t buildQueryAfterParse(SQuery** pQuery, SNode* pRootNode, int16_t placeholderNo, SArray** pPlaceholderValues);
-int32_t translateTable(STranslateContext* pCxt, SNode** pTable, SNode* pJoinParent);
+int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin);
 int32_t getMetaDataFromHash(const char* pKey, int32_t len, SHashObj* pHash, void** pOutput);
 void    tfreeSParseQueryRes(void* p);
+int32_t updateExprSubQueryType(SNode* pNode, ESubQueryType* type);
+void    getExprSubQueryResType(SNode* pNode, SDataType* pType);
+int32_t validateExprSubQuery(SNode* pNode);
+void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
+
+EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt);
+
+// True when a CREATE VTABLE column entry declares no binding at all: the ref type is local,
+// every reference field is empty and neither condition node is set, so there is no source
+// table to validate, authorize or reserve meta for (a bare `name TYPE` own column, the state
+// ALTER ... SET NULL produces). One predicate shared by the meta-key collector, the
+// authenticator and the translator: a partial-ref shape (a source name without a table name,
+// or a filter/tag condition without a reference) must never match any of the skips, it has
+// to run the full validation path instead.
+// Scope: column declarations (SColumnRefNode in the CREATE VTABLE column list) only; the
+// USING tag list (pSpecificTags) resolves through its own tag paths and never passes here.
+static inline bool vtableColRefWithoutBinding(const SColumnRefNode* pColRef) {
+  if (NULL == pColRef) {
+    return false;
+  }
+  return pColRef->refType == 0 /* internal */ && pColRef->refSourceName[0] == '\0' &&
+         pColRef->refSchemaName[0] == '\0' && pColRef->refDbName[0] == '\0' &&
+         pColRef->refTableName[0] == '\0' && pColRef->refColName[0] == '\0' &&
+         NULL == pColRef->pTagCond && NULL == pColRef->pFilterCond;
+}
+
+// True when a CREATE VTABLE column entry carries binding artifacts (any reference name or a
+// filter/tag condition) without a complete reference: refTableName or refColName is empty
+// while something is set. Never true for a bare declaration (vtableColRefWithoutBinding)
+// or a well-formed ref. Shared by the meta-key collector, the authenticator and the
+// translator so the three layers reject the same partial shapes instead of drifting apart
+// (e.g. a source name without a table name must not slip past one layer into another's
+// skip). Same scope as vtableColRefWithoutBinding: column declarations only.
+static inline bool vtableColRefIncomplete(const SColumnRefNode* pColRef) {
+  if (NULL == pColRef) {
+    return false;
+  }
+  bool anyName = pColRef->refSourceName[0] != '\0' || pColRef->refSchemaName[0] != '\0' ||
+                 pColRef->refDbName[0] != '\0' || pColRef->refTableName[0] != '\0' ||
+                 pColRef->refColName[0] != '\0';
+  bool anyCond = (NULL != pColRef->pTagCond) || (NULL != pColRef->pFilterCond);
+  if (!anyName && !anyCond) {
+    return false;  // nothing set: a bare declaration, not an incomplete reference
+  }
+  return pColRef->refTableName[0] == '\0' || pColRef->refColName[0] == '\0';
+}
 
 #ifdef TD_ENTERPRISE
-int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName);
+int32_t getExternalSourceInfoImpl(SParseContext* pParseCxt, SParseMetaCache* pMetaCache,
+                                 const char* sourceName, SExtSourceInfo** pExtInfo);
+int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts);
+int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pColRef);
+int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
+// srcNameFromUseContext: true when the external source name was NOT written in
+// the user's table path but injected from the active USE <source> context (bare
+// table or db.tbl).  false when the path itself carried the source name
+// (src.tbl / src.schema.tbl).  Stored on SExtTableNode.srcNameFromPath (negated)
+// so subquery rendering can choose DIRECT_SQL (no source qualifier in raw SQL)
+// vs transform mode (must strip the source qualifier).
+int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable,
+                                   bool srcNameFromUseContext);
+int32_t refreshExternalTableMetaDirect(STranslateContext* pCxt, SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticColumn(SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticStarColumns(SRealTableNode* pRealTable, bool includeTags);
+int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
 #endif
+
+/* Declared for both editions: the enterprise plugin provides the implementation;
+ * the community parser carries a stub that reports TSDB_CODE_OSS_NOT_SUPPORT so
+ * enterprise-only external-reference call sites keep compiling in OSS builds. */
+int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
+                             const char* sourceName, const char* cacheMid0, const char* cacheMid1,
+                             const char* dbName, const char* schemaName, const char* tableName,
+                             bool forceRefresh, SExtTableMeta** ppExtMeta);
 #ifdef __cplusplus
 }
 #endif

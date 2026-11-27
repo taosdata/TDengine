@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,8 +27,10 @@ extern "C" {
 SMgmtFunc dmGetMgmtFunc();
 SMgmtFunc qmGetMgmtFunc();
 SMgmtFunc smGetMgmtFunc();
+SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();
 SMgmtFunc mmGetMgmtFunc();
+SMgmtFunc xmGetMgmtFunc();
 
 void mmGetMonitorInfo(void *pMgmt, SMonMmInfo *pInfo);
 void vmGetMonitorInfo(void *pMgmt, SMonVmInfo *pInfo);
@@ -36,10 +40,16 @@ void bmGetMonitorInfo(void *pMgmt, SMonBmInfo *pInfo);
 
 void vmGetVnodeLoads(void *pMgmt, SMonVloadInfo *pInfo, bool isReset);
 void vmGetVnodeLoadsLite(void *pMgmt, SMonVloadInfo *pInfo);
+void vmCollectTxnIdleQueries(void *pMgmt, SArray **ppQueries);
 void mmGetMnodeLoads(void *pMgmt, SMonMloadInfo *pInfo);
 void qmGetQnodeLoads(void *pMgmt, SQnodeLoad *pInfo);
+void mmSetMnodeSyncTimeout(void *pMgmt);
+void vmSetVnodeSyncTimeout(void *pMgmt);
+
+void vmUpdateMetricsInfo(void *pMgmt, int64_t clusterId);
 
 void vmCleanExpriedSamples(void *pMgmt);
+void vmCleanExpiredMetrics(void *pMgmt);
 
 #ifdef __cplusplus
 }

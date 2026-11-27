@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,7 +17,7 @@
 
 #ifndef _TD_VNODE_SMA_H_
 #define _TD_VNODE_SMA_H_
-
+#if 0
 #include "vnodeInt.h"
 
 #ifdef __cplusplus
@@ -24,12 +26,12 @@ extern "C" {
 
 // smaDebug ================
 // clang-format off
-#define smaFatal(...) do { if (smaDebugFlag & DEBUG_FATAL) { taosPrintLog("SMA FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define smaError(...) do { if (smaDebugFlag & DEBUG_ERROR) { taosPrintLog("SMA ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define smaWarn(...)  do { if (smaDebugFlag & DEBUG_WARN)  { taosPrintLog("SMA WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define smaInfo(...)  do { if (smaDebugFlag & DEBUG_INFO)  { taosPrintLog("SMA ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define smaDebug(...) do { if (smaDebugFlag & DEBUG_DEBUG) { taosPrintLog("SMA ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
-#define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define smaFatal(...) do { if (smaDebugFlag & DEBUG_FATAL) { taosPrintLog("SMA FATAL ", DEBUG_FATAL, 255,           __VA_ARGS__); }} while(0)
+#define smaError(...) do { if (smaDebugFlag & DEBUG_ERROR) { taosPrintLog("SMA ERROR ", DEBUG_ERROR, 255,           __VA_ARGS__); }} while(0)
+#define smaWarn(...)  do { if (smaDebugFlag & DEBUG_WARN)  { taosPrintLog("SMA WARN  ", DEBUG_WARN,  255,           __VA_ARGS__); }} while(0)
+#define smaInfo(...)  do { if (smaDebugFlag & DEBUG_INFO)  { taosPrintLog("SMA INFO  ", DEBUG_INFO,  255,           __VA_ARGS__); }} while(0)
+#define smaDebug(...) do { if (smaDebugFlag & DEBUG_DEBUG) { taosPrintLog("SMA DEBUG ", DEBUG_DEBUG, tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define smaTrace(...) do { if (smaDebugFlag & DEBUG_TRACE) { taosPrintLog("SMA TRACE ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define RSMA_TASK_INFO_HASH_SLOT (8)
@@ -142,7 +144,7 @@ struct SRSmaInfoItem {
   int8_t  fetchLevel;
   int8_t  triggerStat;
   int32_t nScanned;
-  int32_t streamFlushed : 1;
+  uint32_t streamFlushed : 1;
   int32_t maxDelay : 31;  // ms
   int64_t submitReqVer;
   int64_t fetchResultVer;
@@ -241,5 +243,5 @@ void tdRSmaGetDirName(SVnode *pVnode, STfs *pTfs, bool endWithSep, char *outputN
 #ifdef __cplusplus
 }
 #endif
-
+#endif
 #endif /*_TD_VNODE_SMA_H_*/

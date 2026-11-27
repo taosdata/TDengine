@@ -1,0 +1,101 @@
+# Manual performance benchmarks
+
+This directory contains benchmarks for explicit runs in a dedicated performance
+environment. They reuse the pytest fixtures in `test/conftest.py`, but are outside
+the `cases/` directory selected by `test/pytest.ini`. Benchmark filenames omit the
+`test_` prefix and `_test.py` suffix so directory-wide collection does not pick them
+up. Pass the full benchmark file path to pytest to run one.
+
+Do not register timing thresholds in `test/ci/cases.task`. New system regression
+tests belong in `test/cases/` and must be registered there. For this feature,
+`cases/09-DataQuerying/04-OrderBy/test_partition_first_state_window.py` provides the
+registered result-correctness coverage; planner unit tests cover plan structure.
+The benchmark also checks results before measuring, but is not continuous CI
+coverage.
+
+## Partition-first state-window benchmark
+
+Install the dependencies described in [the test framework README](../README.md)
+and prepare the engine binaries. From the repository root, run:
+
+```bash
+cd source/taos-community/test
+export TAOS_BIN_PATH="$(git rev-parse --show-toplevel)/debug-dev/build/bin"
+export WORK_DIR="$(git rev-parse --show-toplevel)/sim/pf-state-benchmark"
+pytest -s benchmarks/partition_first_state_window_performance.py
+```
+
+Set `TAOS_BIN_PATH` to the actual build output if it differs. The normal framework
+deployment starts and stops the test cluster. To reuse a dedicated, already
+deployed cluster, point `WORK_DIR` at its test environment and add
+`--skip_deploy --skip_stop`. The benchmark recreates the database named by
+`PF_STATE_PERF_DB` (default: `perf_pf_state_window`).
+
+The default tag workload uses 1,000 groups, 20 rows per group, one vgroup, two
+warmup rounds and 11 measured rounds. It alternates default and hinted queries
+and requires at least 10% lower median latency. Run the regular-column workload
+with three vgroups explicitly:
+
+```bash
+PF_STATE_PERF_PARTITION_MODE=column \
+PF_STATE_PERF_VGROUPS=3 \
+PF_STATE_PERF_MIN_GAIN_PCT=-15 \
+pytest -s benchmarks/partition_first_state_window_performance.py
+```
+
+`PF_STATE_PERF_GROUPS`, `PF_STATE_PERF_ROWS_PER_GROUP`, `PF_STATE_PERF_RUNS`,
+`PF_STATE_PERF_PAYLOAD_BYTES`, and `PF_STATE_PERF_MIN_GAIN_PCT` control workload and
+acceptance criteria. The column mode defaults to a 15% regression tolerance.
+Record the hardware, build configuration, workload parameters and measured
+latencies when reporting results; these thresholds are for controlled manual
+acceptance, not shared functional CI.
+
+## Repeated cols selector benchmark
+
+`cols_select_dedup_performance.py` is a standalone benchmark shared by the
+pre-optimization and optimized builds. It creates `cols_dedup_perf.samples`
+with one million deterministic rows by default; `prepare` drops that database.
+Run `prepare` once, then run `measure` against each build with the same data
+directory, server configuration, Python connector and SQL. Both the server and
+client must load the selected build's `libtaos.so` and `libtaosnative.so`.
+
+```bash
+export PYTHONPATH="$PWD/source/taos-connector-python"
+export LD_LIBRARY_PATH=/path/to/selected/install/lib
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  prepare --config /path/to/taos-config --port 6130
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  measure --config /path/to/taos-config --port 6130 \
+  --output /path/to/results.json
+```
+
+Run `prepare` only for the first build. Stop the server before switching
+binaries, then point the next server at the same data directory. Each measure
+run checks the row count and results, records `EXPLAIN VERBOSE`, warms all five
+SQLs three times, and records 15 rounds in alternating case order. The five
+cases repeat the identical `cols(max(c0), c1 as v)` expression 1 through 5
+times. Override `--rows`, `--rounds`, `--warmups` or `--batch-size` if needed;
+use the same `--rows` value for preparation and measurement.
+## Constant system and tag scan benchmark
+
+`count_only_scan.py` is a standalone, opt-in script. Run it against an isolated
+server with the TDengine Python connector installed. First create child tables,
+then measure the same data set with each build under comparison:
+
+```bash
+python3 benchmarks/count_only_scan.py --prepare --tables 10000 \
+  --config "$TAOS_CONFIG_DIR" --port "$TAOS_SERVER_PORT"
+python3 benchmarks/count_only_scan.py --measure --samples 8 \
+  --tables 10000 --config "$TAOS_CONFIG_DIR" --port "$TAOS_SERVER_PORT"
+```
+
+Set `TAOS_CONFIG_DIR` and `TAOS_SERVER_PORT` to that server's configuration
+directory and SQL port. The default database is `count_scan_bench`; use
+`--database` to choose another. `--prepare` replaces that database; run it only
+once for a comparison. Pass the same `--tables` value to `--measure`, which
+checks the row count of every query. The script creates child tables without time
+series rows because `SELECT TAGS` scans child-table metadata. Each query must
+return at least one row, and the output reports row counts and individual
+client-side latency samples in milliseconds. Use the same database and server
+settings for the baseline and changed builds; this benchmark is not collected
+by pytest or run in CI.

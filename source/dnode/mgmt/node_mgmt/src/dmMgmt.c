@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,17 +17,25 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "tdTestSeam.h"
+#include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
 #include "qworker.h"
 #include "tcompression.h"
+#include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tgrant.h"
-#include "tstream.h"
 #include "tconv.h"
+#include "stream.h"
+#if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
+#include "taoskInt.h"
+#endif
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
+  input.dnodeId = pDnode->data.dnodeId;
 
   bool    required = false;
   int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
@@ -55,6 +65,8 @@ int32_t dmInitDnode(SDnode *pDnode) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
+  pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
+  pDnode->wrappers[XNODE].func = xmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
@@ -82,8 +94,11 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  if ((code = dmInitCorrelation(pDnode)) != 0) {
+    goto _OVER;
+  }
+
   indexInit(tsNumOfCommitThreads);
-  streamMetaInit();
 
   if ((code = dmInitStatusClient(pDnode)) != 0) {
     goto _OVER;
@@ -92,12 +107,17 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  // streamInit starts timers before dmOpenNode; early requests must reach the startup status check.
+  SMsgCb msgCb = dmGetMsgcb(pDnode);
+  tmsgSetDefault(&msgCb);
+
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;
 
 _OVER:
   if (code != 0 && pDnode != NULL) {
+    dmCleanupCorrelation(pDnode);
     dmClearVars(pDnode);
     pDnode = NULL;
     dError("failed to create dnode since %s", tstrerror(code));
@@ -111,14 +131,16 @@ void dmCleanupDnode(SDnode *pDnode) {
     return;
   }
 
+  dmCleanupCorrelation(pDnode);
   dmCleanupClient(pDnode);
   dmCleanupStatusClient(pDnode);
   dmCleanupSyncClient(pDnode);
   dmCleanupServer(pDnode);
 
+  blockDataRecycleCleanup();
   dmClearVars(pDnode);
   rpcCleanup();
-  streamMetaCleanup();
+  streamCleanup();
   indexCleanup();
   taosConvDestroy();
 
@@ -169,9 +191,47 @@ int32_t dmInitVars(SDnode *pDnode) {
     return code;
   }
 
-#if defined(TD_ENTERPRISE)
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA_TODO)
   tsiEncryptAlgorithm = pData->encryptAlgorigthm;
   tsiEncryptScope = pData->encryptScope;
+
+#if defined(TD_HAS_TAOSK) || defined(TD_ASTRA_TODO)
+  // Load local encryption keys and initialize key version
+  {
+    char masterKeyFile[PATH_MAX] = {0};
+    char derivedKeyFile[PATH_MAX] = {0};
+    snprintf(masterKeyFile, sizeof(masterKeyFile), "%s%sdnode%sconfig%smaster.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+    snprintf(derivedKeyFile, sizeof(derivedKeyFile), "%s%sdnode%sconfig%sderived.bin", tsDataDir, TD_DIRSEP, TD_DIRSEP,
+             TD_DIRSEP);
+
+    char    svrKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    dbKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    cfgKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    metaKey[ENCRYPT_KEY_LEN + 1] = {0};
+    char    dataKey[ENCRYPT_KEY_LEN + 1] = {0};
+    int32_t algorithm = 0;
+    int32_t cfgAlgorithm = 0;
+    int32_t metaAlgorithm = 0;
+    int32_t fileVersion = 0;
+    int32_t keyVersion = 0;
+    int64_t createTime = 0;
+    int64_t svrKeyUpdateTime = 0;
+    int64_t dbKeyUpdateTime = 0;
+
+    code = taoskLoadEncryptKeys(masterKeyFile, derivedKeyFile, svrKey, dbKey, cfgKey, metaKey, dataKey, &algorithm,
+                                &cfgAlgorithm, &metaAlgorithm, &fileVersion, &keyVersion, &createTime, 
+                                &svrKeyUpdateTime, &dbKeyUpdateTime);
+    if (code == 0) {
+      tsLocalKeyVersion = keyVersion;
+      dInfo("loaded local encryption keys, version:%d", tsLocalKeyVersion);
+    } else {
+      tsLocalKeyVersion = 0;
+      dInfo("no local encryption keys found or failed to load, will sync from mnode");
+    }
+  }
+#endif
+#endif
   /*
   if(tsiEncryptAlgorithm != 0) {
     if(pData->machineId != NULL && strlen(pData->machineId) > 0){
@@ -207,7 +267,6 @@ int32_t dmInitVars(SDnode *pDnode) {
     }
   }
   */
-#endif
 
   if (pData->dropped) {
     dError("dnode will not start since its already dropped");
@@ -239,13 +298,6 @@ void dmClearVars(SDnode *pDnode) {
 
   SDnodeData *pData = &pDnode->data;
   (void)taosThreadRwlockWrlock(&pData->lock);
-  if (pData->oldDnodeEps != NULL) {
-    if (dmWriteEps(pData) == 0) {
-      dmRemoveDnodePairs(pData);
-    }
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-  }
   if (pData->dnodeEps != NULL) {
     taosArrayDestroy(pData->dnodeEps);
     pData->dnodeEps = NULL;
@@ -264,7 +316,8 @@ void dmClearVars(SDnode *pDnode) {
     return;
   }
   if (tsVinfo.pVloads != NULL) {
-    taosArrayDestroy(tsVinfo.pVloads);
+    // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+    tFreeSVnodeLoadArray(tsVinfo.pVloads);
     tsVinfo.pVloads = NULL;
   }
   if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {
@@ -304,6 +357,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
 }
 
 int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_RET(dmMarkWrapper, int32_t (*)(SMgmtWrapper *), (pWrapper));
   int32_t code = 0;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);
@@ -321,6 +375,12 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
       case SNODE:
         code = TSDB_CODE_SNODE_NOT_FOUND;
         break;
+      case BNODE:
+        code = TSDB_CODE_BNODE_NOT_FOUND;
+        break;
+      case XNODE:
+        code = TSDB_CODE_XNODE_NOT_FOUND;
+        break;
       case VNODE:
         code = TSDB_CODE_VND_STOPPED;
         break;
@@ -335,6 +395,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
 }
 
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_VOID(dmReleaseWrapper, void (*)(SMgmtWrapper *), (pWrapper));
   if (pWrapper == NULL) return;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);

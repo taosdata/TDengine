@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,8 +16,8 @@
  */
 
 #define __USE_XOPEN
-#include "shellInt.h"
 #include "shellAuto.h"
+#include "shellInt.h"
 
 extern SShellObj shell;
 
@@ -24,16 +26,15 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGBREAK);
-
-#if !defined(WINDOWS)
-  taosIgnSignal(SIGBUS);
-#endif
   taosIgnSignal(SIGABRT);
   taosIgnSignal(SIGFPE);
   taosIgnSignal(SIGSEGV);
-
-  tscWriteCrashInfo(signum, sigInfo, context);
-
+#if !defined(WINDOWS)
+  taosIgnSignal(SIGBUS);
+#endif
+#ifdef USE_REPORT
+  taos_write_crashinfo(signum, sigInfo, context);
+#endif
 #ifdef _TD_DARWIN_64
   exit(signum);
 #elif defined(WINDOWS)
@@ -41,13 +42,37 @@ void shellCrashHandler(int signum, void *sigInfo, void *context) {
 #endif
 }
 
+// init arguments
+void initArgument(SShellArgs *pArgs) {
+  pArgs->host     = NULL;
+  pArgs->port     = 0;
+  pArgs->user     = NULL;
+  pArgs->database = NULL;
+
+  // conn mode
+  pArgs->dsn      = NULL;
+  pArgs->connMode = CONN_MODE_INVALID;
+
+  pArgs->port_inputted = false;
+}
+
+static void shellFlushOnExit(void) {
+  fflush(stdout);
+  fflush(stderr);
+}
+
 int main(int argc, char *argv[]) {
-  shell.exit = false;
-#ifdef WEBSOCKET
-  shell.args.timeout = SHELL_WS_TIMEOUT;
-  shell.args.cloud = true;
-  shell.args.local = false;
-#endif
+  int code  = 0;
+
+  // Flush the stdio buffers on every normal exit path. exit() flushes them by
+  // itself, but a preloaded sanitizer runtime (libasan/LSan, as the test
+  // framework and CI use) installs an atexit hook that reports leaks and then
+  // terminates the process with _exit(), which skips that flush. Whenever
+  // stdout is redirected (taos -c cfg -f file > out, the way the test cases
+  // capture results) the last buffered block would then be dropped. Handlers
+  // run in reverse registration order and the sanitizer registers during
+  // start-up, so this one still runs first.
+  (void)atexit(shellFlushOnExit);
 
 #if !defined(WINDOWS)
   taosSetSignal(SIGBUS, shellCrashHandler);
@@ -55,6 +80,8 @@ int main(int argc, char *argv[]) {
   taosSetSignal(SIGABRT, shellCrashHandler);
   taosSetSignal(SIGFPE, shellCrashHandler);
   taosSetSignal(SIGSEGV, shellCrashHandler);
+
+  initArgument(&shell.args);
 
   if (shellCheckIntSize() != 0) {
     return -1;
@@ -78,22 +105,49 @@ int main(int argc, char *argv[]) {
     shellPrintHelp();
     return 0;
   }
-#ifdef WEBSOCKET
-  shellCheckConnectMode();
+
+  if (shell.args.netrole != NULL) {
+    shellTestNetWork();
+    return 0;
+  }
+
+  if (getDsnEnv() != 0) {
+    return -1;
+  }
+
+  // first taos_option(TSDB_OPTION_DRIVER ...) no load driver
+  if (setConnMode(shell.args.connMode, shell.args.dsn, false)) {
+    return -1;
+  }
+
+  // second taos_option(TSDB_OPTION_CONFIGDIR ...) set configDir global
+  if (configDirShell[0] != 0) {
+    code = taos_options(TSDB_OPTION_CONFIGDIR, configDirShell);
+    if (code) {
+      fprintf(stderr, "failed to set config dir:%s  code:[0x%08X]\r\n", configDirShell, code);
+      return -1;
+    }
+    //printf("Load with input config dir:%s\n", configDirShell);
+  }  
+
+#ifndef TD_ASTRA
+  // dump config
+  if (shell.args.is_dump_config) {
+    shellDumpConfig();
+    return 0;
+  }
 #endif
+
+  // taos_init
   if (taos_init() != 0) {
+    fprintf(stderr, "failed to init shell since %s [0x%08X]\r\n", taos_errstr(NULL), taos_errno(NULL));
     return -1;
   }
 
   // kill heart-beat thread when quit
   taos_set_hb_quit(1);
 
-  if (shell.args.is_dump_config) {
-    shellDumpConfig();
-    taos_cleanup();
-    return 0;
-  }
-
+#ifndef TD_ASTRA
   if (shell.args.is_startup || shell.args.is_check) {
     shellCheckServerStatus();
     taos_cleanup();
@@ -105,10 +159,11 @@ int main(int argc, char *argv[]) {
     taos_cleanup();
     return 0;
   }
-
+#endif
   // support port feature
   shellAutoInit();
-  int32_t ret = shellExecute();
+  int32_t ret = shellExecute(argc, argv);
   shellAutoExit();
+
   return ret;
 }

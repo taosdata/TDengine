@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -168,6 +170,14 @@ void taosArrayPopTailBatch(SArray* pArray, size_t cnt);
  * @param index
  */
 void taosArrayRemove(SArray* pArray, size_t index);
+
+/**
+ * remove data entry of the given index
+ * @param pArray
+ * @param index
+ * @param fp
+ */
+void taosArrayRemoveP(SArray* pArray, size_t index, void (*fp)(void*));
 
 /**
  * remove batch entry from the given index

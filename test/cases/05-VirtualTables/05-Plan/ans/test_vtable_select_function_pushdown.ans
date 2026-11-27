@@ -1,0 +1,1894 @@
+
+taos> use test_vtable_select;
+Database changed.
+
+taos> insert into vtb_org_tb_0 (ts, u_tinyint_col) values ('2025-06-16 04:00:00.000', null);
+Insert OK, 1 row(s) affected 
+
+taos> insert into vtb_org_tb_1 (ts, u_smallint_col) values ('2025-06-16 04:00:00.000', null);
+Insert OK, 1 row(s) affected 
+
+taos> insert into vtb_org_tb_2 (ts, u_int_col) values ('2025-06-16 04:00:00.000', null);
+Insert OK, 1 row(s) affected 
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  0 |                  22 |         475666 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full;
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                254 |               65477 |     2141847500 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full;
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                   29 |                 13238 |        432633471 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full;
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 230 |                60075 |       997032793 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full;
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                  27 |                15684 |       353735649 |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full;
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                         1 |               65477 |         475666 |                   29 |                60075 |                  27 |                127550 |                  1000 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  0 |                  22 |         475666 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0;
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                254 |               65477 |     2141847500 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0;
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                   29 |                 13238 |        432633471 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0;
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 230 |                60075 |       997032793 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0;
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                  27 |                15684 |       353735649 |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0;
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                         1 |               65477 |         475666 |                   29 |                60075 |                  27 |                127550 |                  1000 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 | NULL                  | NULL             |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                       159 | NULL                | NULL           |                  158 | NULL                 |                 158 |                   158 |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 | NULL                  | NULL             |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                       159 | NULL                | NULL           |                  158 | NULL                 |                 158 |                   158 |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+ NULL                | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+ NULL                | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  1 |               30154 |     1273134528 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 |               30154 |     1273134528 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 |                 30154 |       1273134528 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                   1 |                30154 |      1273134528 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 |                30154 |      1273134528 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  1 |               30154 |     1273134528 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 |               30154 |     1273134528 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 |                 30154 |       1273134528 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                   1 |                30154 |      1273134528 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 |                30154 |      1273134528 |
+
+taos> select min(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | u_smallint_col |
+======================================
+                  0 | NULL           |
+
+taos> select max(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ max(u_tinyint_col) | u_smallint_col |
+======================================
+                254 |          26794 |
+
+taos> select first(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ first(u_tinyint_col) | u_smallint_col |
+========================================
+                   29 |          13238 |
+
+taos> select last(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ last(u_tinyint_col) | u_smallint_col |
+=======================================
+                 230 |          17302 |
+
+taos> select mode(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ mode(u_tinyint_col) | u_smallint_col |
+=======================================
+                  27 | NULL           |
+
+taos> select min(u_tinyint_col), min(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ min(u_tinyint_col) | min(u_smallint_col) |
+===========================================
+                 31 |                 411 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ first(u_tinyint_col) | first(u_smallint_col) |
+===============================================
+                   49 |                 51523 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ mode(u_tinyint_col) | mode(u_smallint_col) |
+=============================================
+                 190 |                56184 |
+
+taos> select last_row(u_tinyint_col), last_row(u_smallint_col) from vtb_virtual_ntb_full;
+ last_row(u_tinyint_col) | last_row(u_smallint_col) |
+=====================================================
+ NULL                    | NULL                     |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), sum(u_tinyint_col+u_smallint_col) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | max(u_smallint_col) | sum(u_tinyint_col+u_smallint_col) |
+===============================================================================
+                  0 |               65477 |                          10727416 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(*) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | max(u_smallint_col) |       count(*)        |
+===================================================================
+                  0 |               65477 |                  1667 |
+
+taos> select first(ts), first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ntb_full;
+        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) |
+=========================================================================
+ 2020-10-01 00:00:00.000 |                   29 |                 13238 |
+
+taos> select last(ts), last(u_tinyint_col), last(u_smallint_col) from vtb_virtual_ntb_full;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) |
+=======================================================================
+ 2025-06-16 04:00:00.000 |                 230 |                60075 |
+
+taos> select top(u_tinyint_col, 2), top(u_smallint_col, 2) from vtb_virtual_ntb_full;
+ top(u_tinyint_col, 2) | top(u_smallint_col, 2) |
+=================================================
+                   254 |                  65291 |
+                   254 |                  65477 |
+
+taos> select bottom(u_tinyint_col, 2), bottom(u_smallint_col, 2) from vtb_virtual_ntb_full;
+ bottom(u_tinyint_col, 2) | bottom(u_smallint_col, 2) |
+=======================================================
+                        0 |                        39 |
+                        0 |                        22 |
+
+taos> select u_tinyint_col, min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ntb_full group by u_tinyint_col order by u_tinyint_col;
+ u_tinyint_col | min(u_tinyint_col) | max(u_smallint_col) |
+===========================================================
+ NULL          | NULL               |               65477 |
+             0 |                  0 |               47577 |
+             1 |                  1 |               29946 |
+             2 |                  2 |               57218 |
+             3 |                  3 |               55956 |
+             4 |                  4 | NULL                |
+             5 |                  5 |               37180 |
+             6 |                  6 | NULL                |
+             7 |                  7 |                1738 |
+             8 |                  8 | NULL                |
+             9 |                  9 |               63747 |
+            10 |                 10 |               42257 |
+            11 |                 11 | NULL                |
+            12 |                 12 | NULL                |
+            13 |                 13 | NULL                |
+            14 |                 14 |               51352 |
+            15 |                 15 |               20667 |
+            16 |                 16 | NULL                |
+            17 |                 17 |               19385 |
+            18 |                 18 |               56549 |
+            19 |                 19 |                5127 |
+            20 |                 20 |               53138 |
+            21 |                 21 |                  22 |
+            22 |                 22 | NULL                |
+            23 |                 23 | NULL                |
+            24 |                 24 |               19345 |
+            25 |                 25 |               59444 |
+            26 |                 26 |               56179 |
+            27 |                 27 |               48370 |
+            28 |                 28 |               40277 |
+            29 |                 29 |               14496 |
+            30 |                 30 |               18116 |
+            31 |                 31 |               42615 |
+            32 |                 32 |               30671 |
+            33 |                 33 | NULL                |
+            34 |                 34 | NULL                |
+            35 |                 35 |               19415 |
+            36 |                 36 |               40209 |
+            37 |                 37 |               46423 |
+            38 |                 38 |               52138 |
+            39 |                 39 |               36858 |
+            40 |                 40 |               45687 |
+            41 |                 41 |               47010 |
+            42 |                 42 |               14392 |
+            43 |                 43 | NULL                |
+            44 |                 44 | NULL                |
+            45 |                 45 |               52621 |
+            46 |                 46 |               50802 |
+            47 |                 47 |               63620 |
+            48 |                 48 |               61801 |
+            49 |                 49 |               51523 |
+            50 |                 50 |               23853 |
+            51 |                 51 | NULL                |
+            52 |                 52 |               53211 |
+            53 |                 53 |               19003 |
+            54 |                 54 |               15337 |
+            55 |                 55 | NULL                |
+            56 |                 56 |               17844 |
+            57 |                 57 | NULL                |
+            58 |                 58 |               27202 |
+            59 |                 59 |               60549 |
+            60 |                 60 |               46285 |
+            61 |                 61 |               63693 |
+            62 |                 62 |               22481 |
+            63 |                 63 |               37570 |
+            64 |                 64 | NULL                |
+            65 |                 65 | NULL                |
+            66 |                 66 | NULL                |
+            67 |                 67 |               39187 |
+            68 |                 68 |               35075 |
+            69 |                 69 |               30340 |
+            70 |                 70 | NULL                |
+            71 |                 71 | NULL                |
+            72 |                 72 | NULL                |
+            73 |                 73 |               64593 |
+            74 |                 74 |               29449 |
+            75 |                 75 |               16486 |
+            76 |                 76 |               31836 |
+            77 |                 77 |               64773 |
+            78 |                 78 |               54630 |
+            79 |                 79 | NULL                |
+            80 |                 80 |               39705 |
+            81 |                 81 | NULL                |
+            82 |                 82 |               30597 |
+            83 |                 83 |               25508 |
+            84 |                 84 | NULL                |
+            85 |                 85 |               28828 |
+            86 |                 86 |               28985 |
+            87 |                 87 |               27736 |
+            88 |                 88 | NULL                |
+            89 |                 89 |               50088 |
+            91 |                 91 |               60274 |
+            92 |                 92 |               38615 |
+            93 |                 93 | NULL                |
+            94 |                 94 |               19061 |
+            95 |                 95 |               14570 |
+            96 |                 96 |               61759 |
+            97 |                 97 | NULL                |
+            98 |                 98 |               27918 |
+            99 |                 99 |               13928 |
+           100 |                100 |               25743 |
+           101 |                101 |               10857 |
+           102 |                102 |               49709 |
+           103 |                103 |                2307 |
+           104 |                104 |               52123 |
+           105 |                105 |               61382 |
+           106 |                106 |                2890 |
+           107 |                107 |               11524 |
+           108 |                108 | NULL                |
+           109 |                109 |               56184 |
+           110 |                110 |               22179 |
+           111 |                111 |               18557 |
+           112 |                112 |                2165 |
+           113 |                113 |               60213 |
+           114 |                114 |                8739 |
+           115 |                115 | NULL                |
+           116 |                116 |               56878 |
+           117 |                117 |               57858 |
+           118 |                118 | NULL                |
+           119 |                119 |               19719 |
+           120 |                120 |               48423 |
+           121 |                121 | NULL                |
+           122 |                122 | NULL                |
+           123 |                123 |               11401 |
+           124 |                124 |               64874 |
+           125 |                125 |               60102 |
+           126 |                126 |               64899 |
+           128 |                128 |               24019 |
+           129 |                129 |               41619 |
+           130 |                130 |                8597 |
+           131 |                131 | NULL                |
+           133 |                133 |               53047 |
+           134 |                134 | NULL                |
+           135 |                135 | NULL                |
+           136 |                136 |               52338 |
+           137 |                137 |               13248 |
+           138 |                138 |               63023 |
+           139 |                139 | NULL                |
+           140 |                140 | NULL                |
+           141 |                141 |               51822 |
+           142 |                142 |               27765 |
+           143 |                143 |               51112 |
+           144 |                144 |               21227 |
+           145 |                145 | NULL                |
+           146 |                146 | NULL                |
+           147 |                147 |               27457 |
+           148 |                148 | NULL                |
+           149 |                149 | NULL                |
+           150 |                150 |                 727 |
+           151 |                151 |               18864 |
+           152 |                152 |               36520 |
+           153 |                153 |               36728 |
+           154 |                154 |               51353 |
+           155 |                155 |               64546 |
+           156 |                156 | NULL                |
+           157 |                157 | NULL                |
+           158 |                158 |               48103 |
+           159 |                159 |               18719 |
+           160 |                160 |               45890 |
+           161 |                161 | NULL                |
+           162 |                162 |               40009 |
+           163 |                163 | NULL                |
+           164 |                164 | NULL                |
+           165 |                165 |               61244 |
+           166 |                166 |               31088 |
+           167 |                167 |               59298 |
+           168 |                168 |               58444 |
+           169 |                169 | NULL                |
+           170 |                170 |               62711 |
+           171 |                171 | NULL                |
+           172 |                172 |                3096 |
+           173 |                173 |               61777 |
+           174 |                174 | NULL                |
+           175 |                175 |               44965 |
+           176 |                176 |               33486 |
+           177 |                177 |               47652 |
+           178 |                178 | NULL                |
+           179 |                179 |               54718 |
+           180 |                180 |               36541 |
+           181 |                181 | NULL                |
+           182 |                182 |               62458 |
+           183 |                183 |               61455 |
+           184 |                184 |                1449 |
+           185 |                185 |               57867 |
+           186 |                186 |               59008 |
+           187 |                187 |               36787 |
+           188 |                188 |               34363 |
+           190 |                190 |               60872 |
+           191 |                191 | NULL                |
+           193 |                193 | NULL                |
+           194 |                194 |               62360 |
+           195 |                195 |               53334 |
+           196 |                196 | NULL                |
+           197 |                197 |               44549 |
+           198 |                198 |               56854 |
+           199 |                199 |               47075 |
+           200 |                200 | NULL                |
+           201 |                201 |               32227 |
+           202 |                202 | NULL                |
+           203 |                203 |               40823 |
+           204 |                204 |               58824 |
+           205 |                205 |               51902 |
+           206 |                206 |                7067 |
+           207 |                207 |               14811 |
+           208 |                208 | NULL                |
+           209 |                209 | NULL                |
+           210 |                210 |               23909 |
+           211 |                211 |               59908 |
+           212 |                212 | NULL                |
+           213 |                213 |               16874 |
+           214 |                214 |               55178 |
+           215 |                215 | NULL                |
+           216 |                216 |               31387 |
+           217 |                217 |               17579 |
+           218 |                218 |                7188 |
+           219 |                219 | NULL                |
+           220 |                220 |               38280 |
+           221 |                221 | NULL                |
+           222 |                222 |                6835 |
+           223 |                223 |               55296 |
+           224 |                224 |               41009 |
+           225 |                225 |               30758 |
+           226 |                226 |               45864 |
+           227 |                227 |               42742 |
+           228 |                228 |               49909 |
+           229 |                229 |               15540 |
+           230 |                230 |               63924 |
+           231 |                231 | NULL                |
+           232 |                232 |               13496 |
+           233 |                233 |               62375 |
+           234 |                234 |               35689 |
+           235 |                235 | NULL                |
+           236 |                236 |               59952 |
+           237 |                237 |               35896 |
+           238 |                238 |               61439 |
+           239 |                239 |               48595 |
+           240 |                240 | NULL                |
+           241 |                241 |               54224 |
+           242 |                242 | NULL                |
+           243 |                243 |               27225 |
+           244 |                244 |               33929 |
+           245 |                245 |               13221 |
+           246 |                246 |               60093 |
+           247 |                247 |               64692 |
+           248 |                248 |               56184 |
+           249 |                249 | NULL                |
+           250 |                250 | NULL                |
+           252 |                252 | NULL                |
+           253 |                253 |               56830 |
+           254 |                254 |               26794 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ntb_full having max(u_smallint_col) > 0;
+ min(u_tinyint_col) | max(u_smallint_col) |
+===========================================
+                  0 |               65477 |
+
+taos> select min(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | u_smallint_col |
+======================================
+                  0 | NULL           |
+
+taos> select max(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ max(u_tinyint_col) | u_smallint_col |
+======================================
+                254 |          26794 |
+
+taos> select first(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ first(u_tinyint_col) | u_smallint_col |
+========================================
+                   29 |          13238 |
+
+taos> select last(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ last(u_tinyint_col) | u_smallint_col |
+=======================================
+                 230 |          17302 |
+
+taos> select mode(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ mode(u_tinyint_col) | u_smallint_col |
+=======================================
+                  27 | NULL           |
+
+taos> select min(u_tinyint_col), min(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ min(u_tinyint_col) | min(u_smallint_col) |
+===========================================
+                 31 |                 411 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ first(u_tinyint_col) | first(u_smallint_col) |
+===============================================
+                   49 |                 51523 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ mode(u_tinyint_col) | mode(u_smallint_col) |
+=============================================
+                 190 |                56184 |
+
+taos> select last_row(u_tinyint_col), last_row(u_smallint_col) from vtb_virtual_ctb_full_0;
+ last_row(u_tinyint_col) | last_row(u_smallint_col) |
+=====================================================
+ NULL                    | NULL                     |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), sum(u_tinyint_col+u_smallint_col) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | max(u_smallint_col) | sum(u_tinyint_col+u_smallint_col) |
+===============================================================================
+                  0 |               65477 |                          10727416 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(*) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | max(u_smallint_col) |       count(*)        |
+===================================================================
+                  0 |               65477 |                  1667 |
+
+taos> select first(ts), first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ctb_full_0;
+        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) |
+=========================================================================
+ 2020-10-01 00:00:00.000 |                   29 |                 13238 |
+
+taos> select last(ts), last(u_tinyint_col), last(u_smallint_col) from vtb_virtual_ctb_full_0;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) |
+=======================================================================
+ 2025-06-16 04:00:00.000 |                 230 |                60075 |
+
+taos> select top(u_tinyint_col, 2), top(u_smallint_col, 2) from vtb_virtual_ctb_full_0;
+ top(u_tinyint_col, 2) | top(u_smallint_col, 2) |
+=================================================
+                   254 |                  65291 |
+                   254 |                  65477 |
+
+taos> select bottom(u_tinyint_col, 2), bottom(u_smallint_col, 2) from vtb_virtual_ctb_full_0;
+ bottom(u_tinyint_col, 2) | bottom(u_smallint_col, 2) |
+=======================================================
+                        0 |                        39 |
+                        0 |                        22 |
+
+taos> select u_tinyint_col, min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ctb_full_0 group by u_tinyint_col order by u_tinyint_col;
+ u_tinyint_col | min(u_tinyint_col) | max(u_smallint_col) |
+===========================================================
+ NULL          | NULL               |               65477 |
+             0 |                  0 |               47577 |
+             1 |                  1 |               29946 |
+             2 |                  2 |               57218 |
+             3 |                  3 |               55956 |
+             4 |                  4 | NULL                |
+             5 |                  5 |               37180 |
+             6 |                  6 | NULL                |
+             7 |                  7 |                1738 |
+             8 |                  8 | NULL                |
+             9 |                  9 |               63747 |
+            10 |                 10 |               42257 |
+            11 |                 11 | NULL                |
+            12 |                 12 | NULL                |
+            13 |                 13 | NULL                |
+            14 |                 14 |               51352 |
+            15 |                 15 |               20667 |
+            16 |                 16 | NULL                |
+            17 |                 17 |               19385 |
+            18 |                 18 |               56549 |
+            19 |                 19 |                5127 |
+            20 |                 20 |               53138 |
+            21 |                 21 |                  22 |
+            22 |                 22 | NULL                |
+            23 |                 23 | NULL                |
+            24 |                 24 |               19345 |
+            25 |                 25 |               59444 |
+            26 |                 26 |               56179 |
+            27 |                 27 |               48370 |
+            28 |                 28 |               40277 |
+            29 |                 29 |               14496 |
+            30 |                 30 |               18116 |
+            31 |                 31 |               42615 |
+            32 |                 32 |               30671 |
+            33 |                 33 | NULL                |
+            34 |                 34 | NULL                |
+            35 |                 35 |               19415 |
+            36 |                 36 |               40209 |
+            37 |                 37 |               46423 |
+            38 |                 38 |               52138 |
+            39 |                 39 |               36858 |
+            40 |                 40 |               45687 |
+            41 |                 41 |               47010 |
+            42 |                 42 |               14392 |
+            43 |                 43 | NULL                |
+            44 |                 44 | NULL                |
+            45 |                 45 |               52621 |
+            46 |                 46 |               50802 |
+            47 |                 47 |               63620 |
+            48 |                 48 |               61801 |
+            49 |                 49 |               51523 |
+            50 |                 50 |               23853 |
+            51 |                 51 | NULL                |
+            52 |                 52 |               53211 |
+            53 |                 53 |               19003 |
+            54 |                 54 |               15337 |
+            55 |                 55 | NULL                |
+            56 |                 56 |               17844 |
+            57 |                 57 | NULL                |
+            58 |                 58 |               27202 |
+            59 |                 59 |               60549 |
+            60 |                 60 |               46285 |
+            61 |                 61 |               63693 |
+            62 |                 62 |               22481 |
+            63 |                 63 |               37570 |
+            64 |                 64 | NULL                |
+            65 |                 65 | NULL                |
+            66 |                 66 | NULL                |
+            67 |                 67 |               39187 |
+            68 |                 68 |               35075 |
+            69 |                 69 |               30340 |
+            70 |                 70 | NULL                |
+            71 |                 71 | NULL                |
+            72 |                 72 | NULL                |
+            73 |                 73 |               64593 |
+            74 |                 74 |               29449 |
+            75 |                 75 |               16486 |
+            76 |                 76 |               31836 |
+            77 |                 77 |               64773 |
+            78 |                 78 |               54630 |
+            79 |                 79 | NULL                |
+            80 |                 80 |               39705 |
+            81 |                 81 | NULL                |
+            82 |                 82 |               30597 |
+            83 |                 83 |               25508 |
+            84 |                 84 | NULL                |
+            85 |                 85 |               28828 |
+            86 |                 86 |               28985 |
+            87 |                 87 |               27736 |
+            88 |                 88 | NULL                |
+            89 |                 89 |               50088 |
+            91 |                 91 |               60274 |
+            92 |                 92 |               38615 |
+            93 |                 93 | NULL                |
+            94 |                 94 |               19061 |
+            95 |                 95 |               14570 |
+            96 |                 96 |               61759 |
+            97 |                 97 | NULL                |
+            98 |                 98 |               27918 |
+            99 |                 99 |               13928 |
+           100 |                100 |               25743 |
+           101 |                101 |               10857 |
+           102 |                102 |               49709 |
+           103 |                103 |                2307 |
+           104 |                104 |               52123 |
+           105 |                105 |               61382 |
+           106 |                106 |                2890 |
+           107 |                107 |               11524 |
+           108 |                108 | NULL                |
+           109 |                109 |               56184 |
+           110 |                110 |               22179 |
+           111 |                111 |               18557 |
+           112 |                112 |                2165 |
+           113 |                113 |               60213 |
+           114 |                114 |                8739 |
+           115 |                115 | NULL                |
+           116 |                116 |               56878 |
+           117 |                117 |               57858 |
+           118 |                118 | NULL                |
+           119 |                119 |               19719 |
+           120 |                120 |               48423 |
+           121 |                121 | NULL                |
+           122 |                122 | NULL                |
+           123 |                123 |               11401 |
+           124 |                124 |               64874 |
+           125 |                125 |               60102 |
+           126 |                126 |               64899 |
+           128 |                128 |               24019 |
+           129 |                129 |               41619 |
+           130 |                130 |                8597 |
+           131 |                131 | NULL                |
+           133 |                133 |               53047 |
+           134 |                134 | NULL                |
+           135 |                135 | NULL                |
+           136 |                136 |               52338 |
+           137 |                137 |               13248 |
+           138 |                138 |               63023 |
+           139 |                139 | NULL                |
+           140 |                140 | NULL                |
+           141 |                141 |               51822 |
+           142 |                142 |               27765 |
+           143 |                143 |               51112 |
+           144 |                144 |               21227 |
+           145 |                145 | NULL                |
+           146 |                146 | NULL                |
+           147 |                147 |               27457 |
+           148 |                148 | NULL                |
+           149 |                149 | NULL                |
+           150 |                150 |                 727 |
+           151 |                151 |               18864 |
+           152 |                152 |               36520 |
+           153 |                153 |               36728 |
+           154 |                154 |               51353 |
+           155 |                155 |               64546 |
+           156 |                156 | NULL                |
+           157 |                157 | NULL                |
+           158 |                158 |               48103 |
+           159 |                159 |               18719 |
+           160 |                160 |               45890 |
+           161 |                161 | NULL                |
+           162 |                162 |               40009 |
+           163 |                163 | NULL                |
+           164 |                164 | NULL                |
+           165 |                165 |               61244 |
+           166 |                166 |               31088 |
+           167 |                167 |               59298 |
+           168 |                168 |               58444 |
+           169 |                169 | NULL                |
+           170 |                170 |               62711 |
+           171 |                171 | NULL                |
+           172 |                172 |                3096 |
+           173 |                173 |               61777 |
+           174 |                174 | NULL                |
+           175 |                175 |               44965 |
+           176 |                176 |               33486 |
+           177 |                177 |               47652 |
+           178 |                178 | NULL                |
+           179 |                179 |               54718 |
+           180 |                180 |               36541 |
+           181 |                181 | NULL                |
+           182 |                182 |               62458 |
+           183 |                183 |               61455 |
+           184 |                184 |                1449 |
+           185 |                185 |               57867 |
+           186 |                186 |               59008 |
+           187 |                187 |               36787 |
+           188 |                188 |               34363 |
+           190 |                190 |               60872 |
+           191 |                191 | NULL                |
+           193 |                193 | NULL                |
+           194 |                194 |               62360 |
+           195 |                195 |               53334 |
+           196 |                196 | NULL                |
+           197 |                197 |               44549 |
+           198 |                198 |               56854 |
+           199 |                199 |               47075 |
+           200 |                200 | NULL                |
+           201 |                201 |               32227 |
+           202 |                202 | NULL                |
+           203 |                203 |               40823 |
+           204 |                204 |               58824 |
+           205 |                205 |               51902 |
+           206 |                206 |                7067 |
+           207 |                207 |               14811 |
+           208 |                208 | NULL                |
+           209 |                209 | NULL                |
+           210 |                210 |               23909 |
+           211 |                211 |               59908 |
+           212 |                212 | NULL                |
+           213 |                213 |               16874 |
+           214 |                214 |               55178 |
+           215 |                215 | NULL                |
+           216 |                216 |               31387 |
+           217 |                217 |               17579 |
+           218 |                218 |                7188 |
+           219 |                219 | NULL                |
+           220 |                220 |               38280 |
+           221 |                221 | NULL                |
+           222 |                222 |                6835 |
+           223 |                223 |               55296 |
+           224 |                224 |               41009 |
+           225 |                225 |               30758 |
+           226 |                226 |               45864 |
+           227 |                227 |               42742 |
+           228 |                228 |               49909 |
+           229 |                229 |               15540 |
+           230 |                230 |               63924 |
+           231 |                231 | NULL                |
+           232 |                232 |               13496 |
+           233 |                233 |               62375 |
+           234 |                234 |               35689 |
+           235 |                235 | NULL                |
+           236 |                236 |               59952 |
+           237 |                237 |               35896 |
+           238 |                238 |               61439 |
+           239 |                239 |               48595 |
+           240 |                240 | NULL                |
+           241 |                241 |               54224 |
+           242 |                242 | NULL                |
+           243 |                243 |               27225 |
+           244 |                244 |               33929 |
+           245 |                245 |               13221 |
+           246 |                246 |               60093 |
+           247 |                247 |               64692 |
+           248 |                248 |               56184 |
+           249 |                249 | NULL                |
+           250 |                250 | NULL                |
+           252 |                252 | NULL                |
+           253 |                253 |               56830 |
+           254 |                254 |               26794 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ctb_full_0 having max(u_smallint_col) > 0;
+ min(u_tinyint_col) | max(u_smallint_col) |
+===========================================
+                  0 |               65477 |
+
+taos> select first(binary_32_col), last(nchar_16_col), first(nchar_32_col), mode(binary_32_col), mode(nchar_16_col), mode(nchar_32_col) from vtb_virtual_ntb_full;
+      first(binary_32_col)      |       last(nchar_16_col)       |      first(nchar_32_col)       |      mode(binary_32_col)       |       mode(nchar_16_col)       |       mode(nchar_32_col)       |
+======================================================================================================================================================================================================
+ Shanghai - Los Angles          | 四。San Jose                   | 圣克拉拉 - Santa Clara         | Chengdu - San Jose             | 一。San Franc                  | 旧金山 - San Francisco         |
+
+taos> select first(binary_32_col), last(nchar_16_col), first(nchar_32_col), mode(binary_32_col), mode(nchar_16_col), mode(nchar_32_col) from vtb_virtual_ctb_full_0;
+      first(binary_32_col)      |       last(nchar_16_col)       |      first(nchar_32_col)       |      mode(binary_32_col)       |       mode(nchar_16_col)       |       mode(nchar_32_col)       |
+======================================================================================================================================================================================================
+ Shanghai - Los Angles          | 四。San Jose                   | 圣克拉拉 - Santa Clara         | Chengdu - San Jose             | 一。San Franc                  | 旧金山 - San Francisco         |
+
+taos> flush database test_vtable_select;
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  0 |                  22 |         475666 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full;
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                254 |               65477 |     2141847500 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full;
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                   29 |                 13238 |        432633471 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full;
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 230 |                60075 |       997032793 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full;
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                  27 |                15684 |       353735649 |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full;
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                         1 |               65477 |         475666 |                   29 |                60075 |                  27 |                127550 |                  1000 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  0 |                  22 |         475666 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0;
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                254 |               65477 |     2141847500 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0;
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                   29 |                 13238 |        432633471 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0;
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 230 |                60075 |       997032793 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0;
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                  27 |                15684 |       353735649 |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0;
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                         1 |               65477 |         475666 |                   29 |                60075 |                  27 |                127550 |                  1000 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 | NULL                  | NULL             |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts = '2020-10-01 00:00:00.002';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                       159 | NULL                | NULL           |                  158 | NULL                 |                 158 |                   158 |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 | NULL                  | NULL             |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts = '2020-10-01 00:00:00.002';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+                       159 | NULL                | NULL           |                  158 | NULL                 |                 158 |                   158 |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+ NULL                | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts = '2025-06-16 04:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+ NULL               | NULL                | NULL           |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+ NULL                | NULL                 | NULL            |
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts = '2025-06-16 04:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ntb_full where ts < '2020-10-01 00:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+
+taos> select min(u_tinyint_col) + 1, max(u_smallint_col), min(u_int_col), first(u_tinyint_col), last(u_smallint_col), mode(u_tinyint_col), sum(u_tinyint_col), count(u_smallint_col) from vtb_virtual_ctb_full_0 where ts < '2020-10-01 00:00:00.000';
+  min(u_tinyint_col) + 1   | max(u_smallint_col) | min(u_int_col) | first(u_tinyint_col) | last(u_smallint_col) | mode(u_tinyint_col) |  sum(u_tinyint_col)   | count(u_smallint_col) |
+=======================================================================================================================================================================================
+ NULL                      | NULL                | NULL           | NULL                 | NULL                 | NULL                | NULL                  |                     0 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  1 |               30154 |     1273134528 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 |               30154 |     1273134528 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 |                 30154 |       1273134528 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                   1 |                30154 |      1273134528 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ntb_full where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 |                30154 |      1273134528 |
+
+taos> select min(u_tinyint_col), min(u_smallint_col), min(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ min(u_tinyint_col) | min(u_smallint_col) | min(u_int_col) |
+============================================================
+                  1 |               30154 |     1273134528 |
+
+taos> select max(u_tinyint_col), max(u_smallint_col), max(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ max(u_tinyint_col) | max(u_smallint_col) | max(u_int_col) |
+============================================================
+                158 |               30154 |     1273134528 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col), first(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |
+==================================================================
+                  158 |                 30154 |       1273134528 |
+
+taos> select last(u_tinyint_col), last(u_smallint_col), last(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |
+===============================================================
+                   1 |                30154 |      1273134528 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col), mode(u_int_col) from vtb_virtual_ctb_full_0 where ts >= '2020-10-01 00:00:00.002' and ts < '2020-10-01 00:00:00.006';
+ mode(u_tinyint_col) | mode(u_smallint_col) | mode(u_int_col) |
+===============================================================
+                 158 |                30154 |      1273134528 |
+
+taos> select min(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | u_smallint_col |
+======================================
+                  0 | NULL           |
+
+taos> select max(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ max(u_tinyint_col) | u_smallint_col |
+======================================
+                254 |          26794 |
+
+taos> select first(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ first(u_tinyint_col) | u_smallint_col |
+========================================
+                   29 |          13238 |
+
+taos> select last(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ last(u_tinyint_col) | u_smallint_col |
+=======================================
+                 230 |          17302 |
+
+taos> select mode(u_tinyint_col), u_smallint_col from vtb_virtual_ntb_full;
+ mode(u_tinyint_col) | u_smallint_col |
+=======================================
+                  27 | NULL           |
+
+taos> select min(u_tinyint_col), min(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ min(u_tinyint_col) | min(u_smallint_col) |
+===========================================
+                 31 |                 411 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ first(u_tinyint_col) | first(u_smallint_col) |
+===============================================
+                   49 |                 51523 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col) from vtb_virtual_ntb_full where u_tinyint_col > 30 and u_smallint_col > 0;
+ mode(u_tinyint_col) | mode(u_smallint_col) |
+=============================================
+                 190 |                56184 |
+
+taos> select last_row(u_tinyint_col), last_row(u_smallint_col) from vtb_virtual_ntb_full;
+ last_row(u_tinyint_col) | last_row(u_smallint_col) |
+=====================================================
+ NULL                    | NULL                     |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), sum(u_tinyint_col+u_smallint_col) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | max(u_smallint_col) | sum(u_tinyint_col+u_smallint_col) |
+===============================================================================
+                  0 |               65477 |                          10727416 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(*) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | max(u_smallint_col) |       count(*)        |
+===================================================================
+                  0 |               65477 |                  1667 |
+
+taos> select first(ts), first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ntb_full;
+        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) |
+=========================================================================
+ 2020-10-01 00:00:00.000 |                   29 |                 13238 |
+
+taos> select last(ts), last(u_tinyint_col), last(u_smallint_col) from vtb_virtual_ntb_full;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) |
+=======================================================================
+ 2025-06-16 04:00:00.000 |                 230 |                60075 |
+
+taos> select top(u_tinyint_col, 2), top(u_smallint_col, 2) from vtb_virtual_ntb_full;
+ top(u_tinyint_col, 2) | top(u_smallint_col, 2) |
+=================================================
+                   254 |                  65291 |
+                   254 |                  65477 |
+
+taos> select bottom(u_tinyint_col, 2), bottom(u_smallint_col, 2) from vtb_virtual_ntb_full;
+ bottom(u_tinyint_col, 2) | bottom(u_smallint_col, 2) |
+=======================================================
+                        0 |                        39 |
+                        0 |                        22 |
+
+taos> select u_tinyint_col, min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ntb_full group by u_tinyint_col order by u_tinyint_col;
+ u_tinyint_col | min(u_tinyint_col) | max(u_smallint_col) |
+===========================================================
+ NULL          | NULL               |               65477 |
+             0 |                  0 |               47577 |
+             1 |                  1 |               29946 |
+             2 |                  2 |               57218 |
+             3 |                  3 |               55956 |
+             4 |                  4 | NULL                |
+             5 |                  5 |               37180 |
+             6 |                  6 | NULL                |
+             7 |                  7 |                1738 |
+             8 |                  8 | NULL                |
+             9 |                  9 |               63747 |
+            10 |                 10 |               42257 |
+            11 |                 11 | NULL                |
+            12 |                 12 | NULL                |
+            13 |                 13 | NULL                |
+            14 |                 14 |               51352 |
+            15 |                 15 |               20667 |
+            16 |                 16 | NULL                |
+            17 |                 17 |               19385 |
+            18 |                 18 |               56549 |
+            19 |                 19 |                5127 |
+            20 |                 20 |               53138 |
+            21 |                 21 |                  22 |
+            22 |                 22 | NULL                |
+            23 |                 23 | NULL                |
+            24 |                 24 |               19345 |
+            25 |                 25 |               59444 |
+            26 |                 26 |               56179 |
+            27 |                 27 |               48370 |
+            28 |                 28 |               40277 |
+            29 |                 29 |               14496 |
+            30 |                 30 |               18116 |
+            31 |                 31 |               42615 |
+            32 |                 32 |               30671 |
+            33 |                 33 | NULL                |
+            34 |                 34 | NULL                |
+            35 |                 35 |               19415 |
+            36 |                 36 |               40209 |
+            37 |                 37 |               46423 |
+            38 |                 38 |               52138 |
+            39 |                 39 |               36858 |
+            40 |                 40 |               45687 |
+            41 |                 41 |               47010 |
+            42 |                 42 |               14392 |
+            43 |                 43 | NULL                |
+            44 |                 44 | NULL                |
+            45 |                 45 |               52621 |
+            46 |                 46 |               50802 |
+            47 |                 47 |               63620 |
+            48 |                 48 |               61801 |
+            49 |                 49 |               51523 |
+            50 |                 50 |               23853 |
+            51 |                 51 | NULL                |
+            52 |                 52 |               53211 |
+            53 |                 53 |               19003 |
+            54 |                 54 |               15337 |
+            55 |                 55 | NULL                |
+            56 |                 56 |               17844 |
+            57 |                 57 | NULL                |
+            58 |                 58 |               27202 |
+            59 |                 59 |               60549 |
+            60 |                 60 |               46285 |
+            61 |                 61 |               63693 |
+            62 |                 62 |               22481 |
+            63 |                 63 |               37570 |
+            64 |                 64 | NULL                |
+            65 |                 65 | NULL                |
+            66 |                 66 | NULL                |
+            67 |                 67 |               39187 |
+            68 |                 68 |               35075 |
+            69 |                 69 |               30340 |
+            70 |                 70 | NULL                |
+            71 |                 71 | NULL                |
+            72 |                 72 | NULL                |
+            73 |                 73 |               64593 |
+            74 |                 74 |               29449 |
+            75 |                 75 |               16486 |
+            76 |                 76 |               31836 |
+            77 |                 77 |               64773 |
+            78 |                 78 |               54630 |
+            79 |                 79 | NULL                |
+            80 |                 80 |               39705 |
+            81 |                 81 | NULL                |
+            82 |                 82 |               30597 |
+            83 |                 83 |               25508 |
+            84 |                 84 | NULL                |
+            85 |                 85 |               28828 |
+            86 |                 86 |               28985 |
+            87 |                 87 |               27736 |
+            88 |                 88 | NULL                |
+            89 |                 89 |               50088 |
+            91 |                 91 |               60274 |
+            92 |                 92 |               38615 |
+            93 |                 93 | NULL                |
+            94 |                 94 |               19061 |
+            95 |                 95 |               14570 |
+            96 |                 96 |               61759 |
+            97 |                 97 | NULL                |
+            98 |                 98 |               27918 |
+            99 |                 99 |               13928 |
+           100 |                100 |               25743 |
+           101 |                101 |               10857 |
+           102 |                102 |               49709 |
+           103 |                103 |                2307 |
+           104 |                104 |               52123 |
+           105 |                105 |               61382 |
+           106 |                106 |                2890 |
+           107 |                107 |               11524 |
+           108 |                108 | NULL                |
+           109 |                109 |               56184 |
+           110 |                110 |               22179 |
+           111 |                111 |               18557 |
+           112 |                112 |                2165 |
+           113 |                113 |               60213 |
+           114 |                114 |                8739 |
+           115 |                115 | NULL                |
+           116 |                116 |               56878 |
+           117 |                117 |               57858 |
+           118 |                118 | NULL                |
+           119 |                119 |               19719 |
+           120 |                120 |               48423 |
+           121 |                121 | NULL                |
+           122 |                122 | NULL                |
+           123 |                123 |               11401 |
+           124 |                124 |               64874 |
+           125 |                125 |               60102 |
+           126 |                126 |               64899 |
+           128 |                128 |               24019 |
+           129 |                129 |               41619 |
+           130 |                130 |                8597 |
+           131 |                131 | NULL                |
+           133 |                133 |               53047 |
+           134 |                134 | NULL                |
+           135 |                135 | NULL                |
+           136 |                136 |               52338 |
+           137 |                137 |               13248 |
+           138 |                138 |               63023 |
+           139 |                139 | NULL                |
+           140 |                140 | NULL                |
+           141 |                141 |               51822 |
+           142 |                142 |               27765 |
+           143 |                143 |               51112 |
+           144 |                144 |               21227 |
+           145 |                145 | NULL                |
+           146 |                146 | NULL                |
+           147 |                147 |               27457 |
+           148 |                148 | NULL                |
+           149 |                149 | NULL                |
+           150 |                150 |                 727 |
+           151 |                151 |               18864 |
+           152 |                152 |               36520 |
+           153 |                153 |               36728 |
+           154 |                154 |               51353 |
+           155 |                155 |               64546 |
+           156 |                156 | NULL                |
+           157 |                157 | NULL                |
+           158 |                158 |               48103 |
+           159 |                159 |               18719 |
+           160 |                160 |               45890 |
+           161 |                161 | NULL                |
+           162 |                162 |               40009 |
+           163 |                163 | NULL                |
+           164 |                164 | NULL                |
+           165 |                165 |               61244 |
+           166 |                166 |               31088 |
+           167 |                167 |               59298 |
+           168 |                168 |               58444 |
+           169 |                169 | NULL                |
+           170 |                170 |               62711 |
+           171 |                171 | NULL                |
+           172 |                172 |                3096 |
+           173 |                173 |               61777 |
+           174 |                174 | NULL                |
+           175 |                175 |               44965 |
+           176 |                176 |               33486 |
+           177 |                177 |               47652 |
+           178 |                178 | NULL                |
+           179 |                179 |               54718 |
+           180 |                180 |               36541 |
+           181 |                181 | NULL                |
+           182 |                182 |               62458 |
+           183 |                183 |               61455 |
+           184 |                184 |                1449 |
+           185 |                185 |               57867 |
+           186 |                186 |               59008 |
+           187 |                187 |               36787 |
+           188 |                188 |               34363 |
+           190 |                190 |               60872 |
+           191 |                191 | NULL                |
+           193 |                193 | NULL                |
+           194 |                194 |               62360 |
+           195 |                195 |               53334 |
+           196 |                196 | NULL                |
+           197 |                197 |               44549 |
+           198 |                198 |               56854 |
+           199 |                199 |               47075 |
+           200 |                200 | NULL                |
+           201 |                201 |               32227 |
+           202 |                202 | NULL                |
+           203 |                203 |               40823 |
+           204 |                204 |               58824 |
+           205 |                205 |               51902 |
+           206 |                206 |                7067 |
+           207 |                207 |               14811 |
+           208 |                208 | NULL                |
+           209 |                209 | NULL                |
+           210 |                210 |               23909 |
+           211 |                211 |               59908 |
+           212 |                212 | NULL                |
+           213 |                213 |               16874 |
+           214 |                214 |               55178 |
+           215 |                215 | NULL                |
+           216 |                216 |               31387 |
+           217 |                217 |               17579 |
+           218 |                218 |                7188 |
+           219 |                219 | NULL                |
+           220 |                220 |               38280 |
+           221 |                221 | NULL                |
+           222 |                222 |                6835 |
+           223 |                223 |               55296 |
+           224 |                224 |               41009 |
+           225 |                225 |               30758 |
+           226 |                226 |               45864 |
+           227 |                227 |               42742 |
+           228 |                228 |               49909 |
+           229 |                229 |               15540 |
+           230 |                230 |               63924 |
+           231 |                231 | NULL                |
+           232 |                232 |               13496 |
+           233 |                233 |               62375 |
+           234 |                234 |               35689 |
+           235 |                235 | NULL                |
+           236 |                236 |               59952 |
+           237 |                237 |               35896 |
+           238 |                238 |               61439 |
+           239 |                239 |               48595 |
+           240 |                240 | NULL                |
+           241 |                241 |               54224 |
+           242 |                242 | NULL                |
+           243 |                243 |               27225 |
+           244 |                244 |               33929 |
+           245 |                245 |               13221 |
+           246 |                246 |               60093 |
+           247 |                247 |               64692 |
+           248 |                248 |               56184 |
+           249 |                249 | NULL                |
+           250 |                250 | NULL                |
+           252 |                252 | NULL                |
+           253 |                253 |               56830 |
+           254 |                254 |               26794 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ntb_full having max(u_smallint_col) > 0;
+ min(u_tinyint_col) | max(u_smallint_col) |
+===========================================
+                  0 |               65477 |
+
+taos> select min(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | u_smallint_col |
+======================================
+                  0 | NULL           |
+
+taos> select max(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ max(u_tinyint_col) | u_smallint_col |
+======================================
+                254 |          26794 |
+
+taos> select first(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ first(u_tinyint_col) | u_smallint_col |
+========================================
+                   29 |          13238 |
+
+taos> select last(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ last(u_tinyint_col) | u_smallint_col |
+=======================================
+                 230 |          17302 |
+
+taos> select mode(u_tinyint_col), u_smallint_col from vtb_virtual_ctb_full_0;
+ mode(u_tinyint_col) | u_smallint_col |
+=======================================
+                  27 | NULL           |
+
+taos> select min(u_tinyint_col), min(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ min(u_tinyint_col) | min(u_smallint_col) |
+===========================================
+                 31 |                 411 |
+
+taos> select first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ first(u_tinyint_col) | first(u_smallint_col) |
+===============================================
+                   49 |                 51523 |
+
+taos> select mode(u_tinyint_col), mode(u_smallint_col) from vtb_virtual_ctb_full_0 where u_tinyint_col > 30 and u_smallint_col > 0;
+ mode(u_tinyint_col) | mode(u_smallint_col) |
+=============================================
+                 190 |                56184 |
+
+taos> select last_row(u_tinyint_col), last_row(u_smallint_col) from vtb_virtual_ctb_full_0;
+ last_row(u_tinyint_col) | last_row(u_smallint_col) |
+=====================================================
+ NULL                    | NULL                     |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), sum(u_tinyint_col+u_smallint_col) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | max(u_smallint_col) | sum(u_tinyint_col+u_smallint_col) |
+===============================================================================
+                  0 |               65477 |                          10727416 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(*) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | max(u_smallint_col) |       count(*)        |
+===================================================================
+                  0 |               65477 |                  1667 |
+
+taos> select first(ts), first(u_tinyint_col), first(u_smallint_col) from vtb_virtual_ctb_full_0;
+        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) |
+=========================================================================
+ 2020-10-01 00:00:00.000 |                   29 |                 13238 |
+
+taos> select last(ts), last(u_tinyint_col), last(u_smallint_col) from vtb_virtual_ctb_full_0;
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) |
+=======================================================================
+ 2025-06-16 04:00:00.000 |                 230 |                60075 |
+
+taos> select top(u_tinyint_col, 2), top(u_smallint_col, 2) from vtb_virtual_ctb_full_0;
+ top(u_tinyint_col, 2) | top(u_smallint_col, 2) |
+=================================================
+                   254 |                  65291 |
+                   254 |                  65477 |
+
+taos> select bottom(u_tinyint_col, 2), bottom(u_smallint_col, 2) from vtb_virtual_ctb_full_0;
+ bottom(u_tinyint_col, 2) | bottom(u_smallint_col, 2) |
+=======================================================
+                        0 |                        39 |
+                        0 |                        22 |
+
+taos> select u_tinyint_col, min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ctb_full_0 group by u_tinyint_col order by u_tinyint_col;
+ u_tinyint_col | min(u_tinyint_col) | max(u_smallint_col) |
+===========================================================
+ NULL          | NULL               |               65477 |
+             0 |                  0 |               47577 |
+             1 |                  1 |               29946 |
+             2 |                  2 |               57218 |
+             3 |                  3 |               55956 |
+             4 |                  4 | NULL                |
+             5 |                  5 |               37180 |
+             6 |                  6 | NULL                |
+             7 |                  7 |                1738 |
+             8 |                  8 | NULL                |
+             9 |                  9 |               63747 |
+            10 |                 10 |               42257 |
+            11 |                 11 | NULL                |
+            12 |                 12 | NULL                |
+            13 |                 13 | NULL                |
+            14 |                 14 |               51352 |
+            15 |                 15 |               20667 |
+            16 |                 16 | NULL                |
+            17 |                 17 |               19385 |
+            18 |                 18 |               56549 |
+            19 |                 19 |                5127 |
+            20 |                 20 |               53138 |
+            21 |                 21 |                  22 |
+            22 |                 22 | NULL                |
+            23 |                 23 | NULL                |
+            24 |                 24 |               19345 |
+            25 |                 25 |               59444 |
+            26 |                 26 |               56179 |
+            27 |                 27 |               48370 |
+            28 |                 28 |               40277 |
+            29 |                 29 |               14496 |
+            30 |                 30 |               18116 |
+            31 |                 31 |               42615 |
+            32 |                 32 |               30671 |
+            33 |                 33 | NULL                |
+            34 |                 34 | NULL                |
+            35 |                 35 |               19415 |
+            36 |                 36 |               40209 |
+            37 |                 37 |               46423 |
+            38 |                 38 |               52138 |
+            39 |                 39 |               36858 |
+            40 |                 40 |               45687 |
+            41 |                 41 |               47010 |
+            42 |                 42 |               14392 |
+            43 |                 43 | NULL                |
+            44 |                 44 | NULL                |
+            45 |                 45 |               52621 |
+            46 |                 46 |               50802 |
+            47 |                 47 |               63620 |
+            48 |                 48 |               61801 |
+            49 |                 49 |               51523 |
+            50 |                 50 |               23853 |
+            51 |                 51 | NULL                |
+            52 |                 52 |               53211 |
+            53 |                 53 |               19003 |
+            54 |                 54 |               15337 |
+            55 |                 55 | NULL                |
+            56 |                 56 |               17844 |
+            57 |                 57 | NULL                |
+            58 |                 58 |               27202 |
+            59 |                 59 |               60549 |
+            60 |                 60 |               46285 |
+            61 |                 61 |               63693 |
+            62 |                 62 |               22481 |
+            63 |                 63 |               37570 |
+            64 |                 64 | NULL                |
+            65 |                 65 | NULL                |
+            66 |                 66 | NULL                |
+            67 |                 67 |               39187 |
+            68 |                 68 |               35075 |
+            69 |                 69 |               30340 |
+            70 |                 70 | NULL                |
+            71 |                 71 | NULL                |
+            72 |                 72 | NULL                |
+            73 |                 73 |               64593 |
+            74 |                 74 |               29449 |
+            75 |                 75 |               16486 |
+            76 |                 76 |               31836 |
+            77 |                 77 |               64773 |
+            78 |                 78 |               54630 |
+            79 |                 79 | NULL                |
+            80 |                 80 |               39705 |
+            81 |                 81 | NULL                |
+            82 |                 82 |               30597 |
+            83 |                 83 |               25508 |
+            84 |                 84 | NULL                |
+            85 |                 85 |               28828 |
+            86 |                 86 |               28985 |
+            87 |                 87 |               27736 |
+            88 |                 88 | NULL                |
+            89 |                 89 |               50088 |
+            91 |                 91 |               60274 |
+            92 |                 92 |               38615 |
+            93 |                 93 | NULL                |
+            94 |                 94 |               19061 |
+            95 |                 95 |               14570 |
+            96 |                 96 |               61759 |
+            97 |                 97 | NULL                |
+            98 |                 98 |               27918 |
+            99 |                 99 |               13928 |
+           100 |                100 |               25743 |
+           101 |                101 |               10857 |
+           102 |                102 |               49709 |
+           103 |                103 |                2307 |
+           104 |                104 |               52123 |
+           105 |                105 |               61382 |
+           106 |                106 |                2890 |
+           107 |                107 |               11524 |
+           108 |                108 | NULL                |
+           109 |                109 |               56184 |
+           110 |                110 |               22179 |
+           111 |                111 |               18557 |
+           112 |                112 |                2165 |
+           113 |                113 |               60213 |
+           114 |                114 |                8739 |
+           115 |                115 | NULL                |
+           116 |                116 |               56878 |
+           117 |                117 |               57858 |
+           118 |                118 | NULL                |
+           119 |                119 |               19719 |
+           120 |                120 |               48423 |
+           121 |                121 | NULL                |
+           122 |                122 | NULL                |
+           123 |                123 |               11401 |
+           124 |                124 |               64874 |
+           125 |                125 |               60102 |
+           126 |                126 |               64899 |
+           128 |                128 |               24019 |
+           129 |                129 |               41619 |
+           130 |                130 |                8597 |
+           131 |                131 | NULL                |
+           133 |                133 |               53047 |
+           134 |                134 | NULL                |
+           135 |                135 | NULL                |
+           136 |                136 |               52338 |
+           137 |                137 |               13248 |
+           138 |                138 |               63023 |
+           139 |                139 | NULL                |
+           140 |                140 | NULL                |
+           141 |                141 |               51822 |
+           142 |                142 |               27765 |
+           143 |                143 |               51112 |
+           144 |                144 |               21227 |
+           145 |                145 | NULL                |
+           146 |                146 | NULL                |
+           147 |                147 |               27457 |
+           148 |                148 | NULL                |
+           149 |                149 | NULL                |
+           150 |                150 |                 727 |
+           151 |                151 |               18864 |
+           152 |                152 |               36520 |
+           153 |                153 |               36728 |
+           154 |                154 |               51353 |
+           155 |                155 |               64546 |
+           156 |                156 | NULL                |
+           157 |                157 | NULL                |
+           158 |                158 |               48103 |
+           159 |                159 |               18719 |
+           160 |                160 |               45890 |
+           161 |                161 | NULL                |
+           162 |                162 |               40009 |
+           163 |                163 | NULL                |
+           164 |                164 | NULL                |
+           165 |                165 |               61244 |
+           166 |                166 |               31088 |
+           167 |                167 |               59298 |
+           168 |                168 |               58444 |
+           169 |                169 | NULL                |
+           170 |                170 |               62711 |
+           171 |                171 | NULL                |
+           172 |                172 |                3096 |
+           173 |                173 |               61777 |
+           174 |                174 | NULL                |
+           175 |                175 |               44965 |
+           176 |                176 |               33486 |
+           177 |                177 |               47652 |
+           178 |                178 | NULL                |
+           179 |                179 |               54718 |
+           180 |                180 |               36541 |
+           181 |                181 | NULL                |
+           182 |                182 |               62458 |
+           183 |                183 |               61455 |
+           184 |                184 |                1449 |
+           185 |                185 |               57867 |
+           186 |                186 |               59008 |
+           187 |                187 |               36787 |
+           188 |                188 |               34363 |
+           190 |                190 |               60872 |
+           191 |                191 | NULL                |
+           193 |                193 | NULL                |
+           194 |                194 |               62360 |
+           195 |                195 |               53334 |
+           196 |                196 | NULL                |
+           197 |                197 |               44549 |
+           198 |                198 |               56854 |
+           199 |                199 |               47075 |
+           200 |                200 | NULL                |
+           201 |                201 |               32227 |
+           202 |                202 | NULL                |
+           203 |                203 |               40823 |
+           204 |                204 |               58824 |
+           205 |                205 |               51902 |
+           206 |                206 |                7067 |
+           207 |                207 |               14811 |
+           208 |                208 | NULL                |
+           209 |                209 | NULL                |
+           210 |                210 |               23909 |
+           211 |                211 |               59908 |
+           212 |                212 | NULL                |
+           213 |                213 |               16874 |
+           214 |                214 |               55178 |
+           215 |                215 | NULL                |
+           216 |                216 |               31387 |
+           217 |                217 |               17579 |
+           218 |                218 |                7188 |
+           219 |                219 | NULL                |
+           220 |                220 |               38280 |
+           221 |                221 | NULL                |
+           222 |                222 |                6835 |
+           223 |                223 |               55296 |
+           224 |                224 |               41009 |
+           225 |                225 |               30758 |
+           226 |                226 |               45864 |
+           227 |                227 |               42742 |
+           228 |                228 |               49909 |
+           229 |                229 |               15540 |
+           230 |                230 |               63924 |
+           231 |                231 | NULL                |
+           232 |                232 |               13496 |
+           233 |                233 |               62375 |
+           234 |                234 |               35689 |
+           235 |                235 | NULL                |
+           236 |                236 |               59952 |
+           237 |                237 |               35896 |
+           238 |                238 |               61439 |
+           239 |                239 |               48595 |
+           240 |                240 | NULL                |
+           241 |                241 |               54224 |
+           242 |                242 | NULL                |
+           243 |                243 |               27225 |
+           244 |                244 |               33929 |
+           245 |                245 |               13221 |
+           246 |                246 |               60093 |
+           247 |                247 |               64692 |
+           248 |                248 |               56184 |
+           249 |                249 | NULL                |
+           250 |                250 | NULL                |
+           252 |                252 | NULL                |
+           253 |                253 |               56830 |
+           254 |                254 |               26794 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col) from vtb_virtual_ctb_full_0 having max(u_smallint_col) > 0;
+ min(u_tinyint_col) | max(u_smallint_col) |
+===========================================
+                  0 |               65477 |
+
+taos> select first(binary_32_col), last(nchar_16_col), first(nchar_32_col), mode(binary_32_col), mode(nchar_16_col), mode(nchar_32_col) from vtb_virtual_ntb_full;
+      first(binary_32_col)      |       last(nchar_16_col)       |      first(nchar_32_col)       |      mode(binary_32_col)       |       mode(nchar_16_col)       |       mode(nchar_32_col)       |
+======================================================================================================================================================================================================
+ Shanghai - Los Angles          | 四。San Jose                   | 圣克拉拉 - Santa Clara         | Chengdu - San Jose             | 一。San Franc                  | 旧金山 - San Francisco         |
+
+taos> select first(binary_32_col), last(nchar_16_col), first(nchar_32_col), mode(binary_32_col), mode(nchar_16_col), mode(nchar_32_col) from vtb_virtual_ctb_full_0;
+      first(binary_32_col)      |       last(nchar_16_col)       |      first(nchar_32_col)       |      mode(binary_32_col)       |       mode(nchar_16_col)       |       mode(nchar_32_col)       |
+======================================================================================================================================================================================================
+ Shanghai - Los Angles          | 四。San Jose                   | 圣克拉拉 - Santa Clara         | Chengdu - San Jose             | 一。San Franc                  | 旧金山 - San Francisco         |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(distinct u_tinyint_col) from vtb_virtual_ntb_full;
+ min(u_tinyint_col) | max(u_smallint_col) | count(distinct u_tinyint_col) |
+===========================================================================
+                  0 |               65477 |                           249 |
+
+taos> select min(u_tinyint_col), max(u_smallint_col), count(distinct u_tinyint_col) from vtb_virtual_ctb_full_0;
+ min(u_tinyint_col) | max(u_smallint_col) | count(distinct u_tinyint_col) |
+===========================================================================
+                  0 |               65477 |                           249 |
+
+taos> delete from vtb_org_tb_0 where ts = '2025-06-16 04:00:00.000';
+Delete OK, 1 row(s) affected 
+
+taos> delete from vtb_org_tb_1 where ts = '2025-06-16 04:00:00.000';
+Delete OK, 1 row(s) affected 
+
+taos> delete from vtb_org_tb_2 where ts = '2025-06-16 04:00:00.000';
+Delete OK, 1 row(s) affected 
+

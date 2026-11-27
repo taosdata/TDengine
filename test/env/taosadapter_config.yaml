@@ -1,0 +1,70 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+logLevel: debug
+port: 6041
+taosConfigDir: /etc/taos
+debug: True
+logLevel: debug
+cors:
+  allowAllOrigins: True
+
+pool:
+  maxConnect: 4000
+  maxIdle: 4000
+  idleTimeout: 1h
+
+ssl:
+  enable: False
+log :
+  path: /var/log/adapter_log
+  rotationCount: 30
+  rotationTime: 24h
+  rotationSize: 1GB
+  enableRecordHttpSql: True
+  sqlRotationCount: 2
+  sqlRotationTime: 24h
+  sqlRotationSize: 1GB
+monitor:
+  collectDuration : 3s
+  incgroup: False
+  pauseQueryMemoryThreshold : 70
+  pauseAllMemoryThreshold   : 80
+  identity: 
+  writeToTD: True
+  user: root
+  password: taosdata
+  writeInterval: 30s
+
+opentsdb:
+  enable: True
+
+influxdb:
+  enable: True
+
+statsd:
+  enable: True
+
+collectd:
+  enable: True
+
+opentsdb_telnet:
+  enable: True
+
+node_exporter:
+  enable: True
+
+prometheus:
+  enable: True

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,6 +45,7 @@ typedef enum {
   NOTIFY_CMD_START_CONSUM,
   NOTIFY_CMD_START_COMMIT,
   NOTIFY_CMD_ID_BUTT,
+  NOTIFY_CMD_PRODUCER_DONE,
 } NOTIFY_CMD_ID;
 
 typedef enum enumQUERY_TYPE { NO_INSERT_TYPE, INSERT_TYPE, QUERY_TYPE_BUT } QUERY_TYPE;
@@ -100,6 +103,7 @@ typedef struct {
   int32_t     showRowFlag;
   int32_t     saveRowFlag;
   int32_t     consumeDelay;  // unit s
+  int32_t     producerTimeout;
   int32_t     numOfThread;
   int32_t     useSnapshot;
   int64_t     nowTime;
@@ -140,6 +144,8 @@ static void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "saveRowFlag, default is ", g_stConfInfo.saveRowFlag);
   printf("%s%s\n", indent, "-y");
   printf("%s%s%s%ds\n", indent, indent, "consume delay, default is ", g_stConfInfo.consumeDelay);
+  printf("%s--producer-timeout <seconds>\n", indent);
+  printf("%s%sWait for producer-done notification before idle exit; 1..3600 seconds, disabled by default\n", indent, indent);
   printf("%s%s\n", indent, "-e");
   printf("%s%s%s%d\n", indent, indent, "snapshot, default is ", g_stConfInfo.useSnapshot);
 
@@ -179,13 +185,16 @@ static void tmqStop(int signum, void* info, void* ctx) {
   taosFprintfFile(g_fp, "%s tmqStop() receive stop signal[%d]\n", getCurrentTimeString(tmpString), signum);
 }
 
-static void tmqSetSignalHandle() { taosSetSignal(SIGINT, tmqStop); }
+static void tmqSetSignalHandle() { 
+  taosSetSignal(SIGINT, tmqStop); 
+  taosSetSignal(SIGTERM, tmqStop); 
+}
 
 void initLogFile() {
   char filename[256];
   char tmpString[128];
 
-  pid_t process_id = getpid();
+  pid_t process_id = taosGetPId();
 
   if (0 != strlen(g_stConfInfo.topic)) {
     sprintf(filename, "/tmp/tmqlog-%d-%s.txt", process_id, getCurrentTimeString(tmpString));
@@ -270,6 +279,14 @@ void parseArgument(int32_t argc, char* argv[]) {
       g_stConfInfo.saveRowFlag = atol(argv[++i]);
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
+    } else if (strcmp(argv[i], "--producer-timeout") == 0) {
+      char* end = NULL;
+      int64_t timeout = i + 1 < argc ? taosStr2Int64(argv[++i], &end, 10) : 0;
+      if (end == NULL || *end != '\0' || timeout < 1 || timeout > 3600) {
+        fprintf(stderr, "--producer-timeout requires an integer between 1 and 3600\n");
+        exit(EXIT_FAILURE);
+      }
+      g_stConfInfo.producerTimeout = (int32_t)timeout;
     } else if (strcmp(argv[i], "-e") == 0) {
       g_stConfInfo.useSnapshot = atol(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
@@ -360,6 +377,7 @@ int queryDB(TAOS* taos, char* command) {
     code = taos_errno(pRes);
     if (code != 0) {
       taosSsleep(1);
+      taosFprintfFile(g_fp, "queryDB continue, command:%s, code:%d\n", command, code);
       taos_free_result(pRes);
       pRes = NULL;
       continue;
@@ -585,7 +603,8 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
+  char timestring[128] = {0};
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(timestring), pInfo->consumerId, msgIndex);
   int32_t index = 0;
   for (index = 0; index < pInfo->numOfVgroups; index++) {
     if (vgroupId == pInfo->rowsOfPerVgroups[index][0]) {
@@ -643,8 +662,8 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
-  taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
+  taosFprintfFile(g_fp, "%s consumerId: %d, msg index:%d\n", getCurrentTimeString(buf), pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "%s dbName: %s, topic: %s, vgroupId: %d\n", getCurrentTimeString(buf),dbName != NULL ? dbName : "invalid table",
                   tmq_get_topic_name(msg), vgroupId);
 
   {
@@ -773,6 +792,20 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   return 0;
 }
 
+int32_t producerFinished(SThreadInfo* pInfo) {
+  char sql[256];
+  snprintf(sql, sizeof(sql), "select * from %s.notifyinfo where cmdid = %d and consumerid = %d limit 1",
+           g_stConfInfo.cdbName, NOTIFY_CMD_PRODUCER_DONE, pInfo->consumerId);
+  TAOS_RES* result = taos_query(pInfo->taos, sql);
+  if (result == NULL) {
+    return -1;
+  }
+
+  int32_t status = taos_errno(result) == 0 ? (taos_fetch_row(result) != NULL) : -1;
+  taos_free_result(result);
+  return status;
+}
+
 void loop_consume(SThreadInfo* pInfo) {
   int32_t code;
 
@@ -807,11 +840,22 @@ void loop_consume(SThreadInfo* pInfo) {
 
   int64_t  lastTotalMsgs = 0;
   uint64_t lastPrintTime = taosGetTimestampMs();
-  uint64_t startTs = taosGetTimestampMs();
+  int64_t producerStart = taosGetMonoTimestampMs();
 
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
+  bool producerDone = g_stConfInfo.producerTimeout == 0;
   while (running) {
-    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
+    if (!producerDone) {
+      int32_t status = producerFinished(pInfo);
+      if (status < 0 || taosGetMonoTimestampMs() - producerStart >= (int64_t)g_stConfInfo.producerTimeout * 1000) {
+        pInfo->checkresult = -1;
+        taosFprintfFile(g_fp, "producer barrier failed: status=%d, timeout=%d seconds\n", status,
+                        g_stConfInfo.producerTimeout);
+        break;
+      }
+      producerDone = status == 1;
+    }
+    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, producerDone ? consumeDelay : 1000);
     if (tmqMsg) {
       if (0 != g_stConfInfo.showMsgFlag) {
         tmq_res_t msgType = tmq_get_res_type(tmqMsg);
@@ -842,20 +886,40 @@ void loop_consume(SThreadInfo* pInfo) {
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
       }
 
-      if ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt)) {
+      if (producerDone && ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt))) {
         memset(tmpString, 0, tListLen(tmpString));
         taosFprintfFile(g_fp, "%s over than expect rows, so break consume\n", getCurrentTimeString(tmpString));
         break;
       }
     } else {
       memset(tmpString, 0, tListLen(tmpString));
-      taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume\n", getCurrentTimeString(tmpString));
-      break;
+      code = taos_errno(NULL);
+      if (code == 0) {
+        if (!producerDone) {
+          continue;
+        }
+        taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume, errMsg:%s\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+        break;
+      } else if (code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
+                 code == TSDB_CODE_SYN_NOT_LEADER ||
+                 code == TSDB_CODE_APP_IS_STARTING ||
+                 code == TSDB_CODE_APP_IS_STOPPING ||
+                 code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
+                 code == TSDB_CODE_SYN_RESTORING ||
+                 code == TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST) {
+        taosFprintfFile(g_fp, "%s poll err:%s, continue\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+      } else {
+        taosFprintfFile(g_fp, "%s poll err:%s, break\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
+        break;
+      }
     }
   }
 
   if (0 == running) {
     taosFprintfFile(g_fp, "receive stop signal and not continue consume\n");
+  }
+  if (!producerDone) {
+    pInfo->checkresult = -1;
   }
 
   pInfo->consumeMsgCnt = totalMsgs;

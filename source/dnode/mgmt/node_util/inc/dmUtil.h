@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,6 +33,7 @@
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
+#include "tjson.h"
 
 #include "dnode.h"
 #include "mnode.h"
@@ -48,10 +51,10 @@ extern "C" {
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
 #define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ",       DEBUG_INFO,  255,        __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN  ", DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND INFO  ", DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND DEBUG ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND TRACE ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
 
 #define encryptDebug(...) { \
   if (toLogFile) { \
@@ -83,12 +86,12 @@ extern "C" {
   }\
 }
 
-#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ",QID:%s", __VA_ARGS__, buf);}}
-#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ",QID:%s", __VA_ARGS__, buf);}}
+#define dGFatal(param, ...) {if (dDebugFlag & DEBUG_FATAL) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGError(param, ...) {if (dDebugFlag & DEBUG_ERROR) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGWarn(param, ...)  {if (dDebugFlag & DEBUG_WARN)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn(param  ", QID:%s", __VA_ARGS__, buf);}}
+#define dGInfo(param, ...)  {if (dDebugFlag & DEBUG_INFO)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo(param  ", QID:%s", __VA_ARGS__, buf);}}
+#define dGDebug(param, ...) {if (dDebugFlag & DEBUG_DEBUG) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", QID:%s", __VA_ARGS__, buf);}}
+#define dGTrace(param, ...) {if (dDebugFlag & DEBUG_TRACE) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", QID:%s", __VA_ARGS__, buf);}}
 
 // clang-format on
 
@@ -98,7 +101,9 @@ typedef enum {
   VNODE = 2,
   QNODE = 3,
   SNODE = 4,
-  NODE_END = 5,
+  BNODE = 5,
+  XNODE = 6,
+  NODE_END = 7,
 } EDndNodeType;
 
 typedef enum {
@@ -114,15 +119,21 @@ typedef enum {
 } EDndEnvStatus;
 
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef int32_t (*ProcessAlterNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
+typedef void (*SendMetricsReportFp)();
 typedef void (*MonitorCleanExpiredSamplesFp)();
+typedef void (*MetricsCleanExpiredSamplesFp)();
 typedef void (*SendAuditRecordsFp)();
 typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
 typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
+typedef void (*SetMnodeSyncTimeoutFp)();
+typedef void (*SetVnodeSyncTimeoutFp)();
 typedef void (*GetQnodeLoadsFp)(SQnodeLoad *pInfo);
 typedef int32_t (*ProcessAlterNodeTypeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*StopDnodeFp)();
+typedef void (*CollectVnodeTxnIdleFp)(SArray **ppQueries);
 
 typedef struct {
   int32_t        dnodeId;
@@ -135,12 +146,17 @@ typedef struct {
   bool           stopped;
   SEpSet         mnodeEps;
   SArray        *dnodeEps;
-  SArray        *oldDnodeEps;
+  // Reserved: the layout of this struct is shared with the prebuilt
+  // deps/*/dm_static/libdmodule.a, which indexes fields at compile-time
+  // offsets (see dmCheckOffset in dmodule.c). Keep this slot to avoid
+  // shifting the fields that follow it.
+  void          *reserved0;
   SHashObj      *dnodeHash;
   TdThreadRwlock lock;
   SMsgCb         msgCb;
   bool           validMnodeEps;
   int64_t        ipWhiteVer;
+  int64_t        timeWhiteVer;
   char           machineId[TSDB_MACHINE_ID_LEN + 1];
   EEncryptAlgor  encryptAlgorigthm;
   EEncryptScope  encryptScope;
@@ -148,21 +164,28 @@ typedef struct {
 } SDnodeData;
 
 typedef struct {
+  int32_t                      dnodeId;
   const char                  *path;
   const char                  *name;
   STfs                        *pTfs;
   SDnodeData                  *pData;
   SMsgCb                       msgCb;
   ProcessCreateNodeFp          processCreateNodeFp;
+  ProcessAlterNodeFp           processAlterNodeFp;
   ProcessAlterNodeTypeFp       processAlterNodeTypeFp;
   ProcessDropNodeFp            processDropNodeFp;
   SendMonitorReportFp          sendMonitorReportFp;
-  MonitorCleanExpiredSamplesFp monitorCleanExpiredSamplesFp;
+  SendMetricsReportFp          sendMetricsReportFp;
+  MonitorCleanExpiredSamplesFp  monitorCleanExpiredSamplesFp;
+  MetricsCleanExpiredSamplesFp metricsCleanExpiredSamplesFp;
   SendAuditRecordsFp           sendAuditRecordFp;
   GetVnodeLoadsFp              getVnodeLoadsFp;
   GetVnodeLoadsFp              getVnodeLoadsLiteFp;
+  SetVnodeSyncTimeoutFp        setVnodeSyncTimeoutFp;
   GetMnodeLoadsFp              getMnodeLoadsFp;
+  SetMnodeSyncTimeoutFp        setMnodeSyncTimeoutFp;
   GetQnodeLoadsFp              getQnodeLoadsFp;
+  CollectVnodeTxnIdleFp        collectVnodeTxnIdleFp;
   StopDnodeFp                  stopDnodeFp;
 } SMgmtInputOpt;
 
@@ -209,7 +232,11 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
 int32_t dmReadFile(const char *path, const char *name, bool *pDeployed);
+int32_t dmReadFileJson(const char *path, const char *name, SJson **ppJson, bool* deployed);
 int32_t dmWriteFile(const char *path, const char *name, bool deployed);
+int32_t dmWriteFileWithEncrypted(const char *path, const char *name, bool deployed, bool encrypted);
+int32_t dmWriteFileJson(const char *path, const char *name, SJson *pJson);
+int32_t dmWriteFileJsonWithEncrypted(const char *path, const char *name, SJson *pJson, bool encrypted);
 int32_t dmCheckRunning(const char *dataDir, TdFilePtr *pFile);
 // int32_t dmCheckRunningWrapper(const char *dataDir, TdFilePtr *pFile);
 
@@ -222,16 +249,18 @@ int32_t dmGetDnodeId(SDnodeData *pData);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
-void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmGetMnodeEpSet(void *pData, SEpSet *pEpSet);
 void    dmEpSetToStr(char *buf, int32_t len, SEpSet *epSet);
 void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
-void    dmRemoveDnodePairs(SDnodeData *pData);
+int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);
 int32_t dmGetEncryptKey();
+
+SEpSet* dmGetSynEpset(int32_t leaderId);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,9 +20,9 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#include "executorInt.h"
+  #endif
+  
+  #include "executorInt.h"
 
 #define GET_TASKID(_t) (((SExecTaskInfo*)(_t))->id.str)
 
@@ -59,19 +61,21 @@ typedef struct STaskStopInfo {
 } STaskStopInfo;
 
 typedef struct {
-  STqOffsetVal         currentOffset;  // for tmq
-  SMqBatchMetaRsp      btMetaRsp;      // for tmq fetching meta
-  int8_t               sourceExcluded;
-  int64_t              snapshotVer;
-  SSchemaWrapper*      schema;
-  char                 tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
-  int8_t               recoverStep;
-  int8_t               recoverScanFinished;
-  SQueryTableDataCond  tableCond;
-  SVersionRange        fillHistoryVer;
-  STimeWindow          fillHistoryWindow;
-  SStreamState*        pState;
-} SStreamTaskInfo;
+  STqOffsetVal          currentOffset;  // for tmq
+  bool                  needReseek;     // a previous poll failed, re-position from the consumer offset
+  SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
+  int8_t                sourceExcluded;
+  int32_t               minPollRows;
+  int64_t               timeout;
+  int8_t                enableReplay;
+  int64_t               startTs;          // msg.consume.start.ts in vnode tsdb precision, 0 = disabled
+  int64_t               preparedStartTs;  // startTs used when the snapshot reader was last prepared
+
+  int64_t               snapshotVer;
+  SSchemaWrapper*       schema;
+  char                  tbName[TSDB_TABLE_NAME_LEN];  // this is the current scan table: todo refactor
+  SQueryTableDataCond   tableCond;
+} STmqTaskInfo;
 
 struct SExecTaskInfo {
   STaskIdInfo           id;
@@ -82,7 +86,7 @@ struct SExecTaskInfo {
   int32_t               code;
   int32_t               qbufQuota;  // total available buffer (in KB) during execution query
   int64_t               version;    // used for stream to record wal version, why not move to sschemainfo
-  SStreamTaskInfo       streamInfo;
+  STmqTaskInfo          tmqInfo;
   SArray*               schemaInfos;
   const char*           sql;        // query sql string
   jmp_buf               env;        // jump to this position when error happens.
@@ -90,27 +94,50 @@ struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  bool                     readerGroupOutput;  // opt-in Reader DATA/EOG execution
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
   int8_t                dynamicTask;
+  // vtable two-pass: phase-1 EOF keeps task/sink/reader alive for phase-2 rescan.
+  // Mutability contract (same as dynamicTask): written ONLY during plan/operator
+  // init, before the task is published to the qworker thread; read-only afterwards
+  // (qworker reads it cross-thread via qIsNoQuickFreeTask without synchronization).
+  // Never flip mid-execution -- a dynamic write here would need atomic access.
+  bool                  noQuickFree;
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
+  SMsgCb*                  pMsgCb;            // RPC callback (from client or qnode), safe for pure computation operators
+  SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  SArray*                       pReaderTableRanges;  // Owned STableScanRange array in final table order.
+  bool                     reuseReaderOnReset;
+  bool                          dimensionScanReset;  // scoped to the owned dimension reset callback
+  bool                     ownStreamRtInfo;
+  STaskSubJobCtx*          pSubJobCtx;
+  bool                     enableExplain;     // enable explain flag
+  int64_t                  txnId;             // batch meta txn: carries txn context for in-txn meta visibility
+  const SCorrelationRuntimeOps* pCorrelationOps;
+  SCorrelationTaskSession*      pCorrelationSession;
+  SArray*                       pCorrelationStats;  // SExplainCorrelationStat entries for this task.
+  char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
+  bool                     hasExtPushdownDiag;
+  SExtPushdownDiagnostic   extPushdownDiag;
+  void *charsetCxt;  // Cached connection converter; not owned by the task.
 };
 
-void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst);
+void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);
 int32_t doCreateTask(uint64_t queryId, uint64_t taskId, int32_t vgId, EOPTR_EXEC_MODEL model, SStorageAPI* pAPI,
                      SExecTaskInfo** pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
-bool    isTaskKilled(void* pTaskInfo);
 void    setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
-                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model);
+                           int32_t vgId, char* sql, EOPTR_EXEC_MODEL model, SArray** subEndPoints, bool enableExplain);
 int32_t qAppendTaskStopInfo(SExecTaskInfo* pTaskInfo, SExchangeOpStopInfo* pInfo);
 int32_t getTableListInfo(const SExecTaskInfo* pTaskInfo, SArray** pList);
+void destroySubJobCtx(STaskSubJobCtx* pCtx);
 
 #ifdef __cplusplus
 }

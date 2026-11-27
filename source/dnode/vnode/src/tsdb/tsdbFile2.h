@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -59,13 +61,22 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2);
 
 struct STFile {
   tsdb_ftype_t type;
-  SDiskID      did;  // disk id
-  int32_t      lcn;  // last chunk number
-  int32_t      fid;  // file id
-  int64_t      cid;  // commit id
-  int64_t      size;
-  int64_t      minVer;
-  int64_t      maxVer;
+  SDiskID      did;     // disk id
+  int32_t      fid;     // file id
+
+  // last chunk number, also number of chunks, only for data file. compaction resets this
+  // field.
+  int32_t      lcn;     // -1 not compact(initial state), 0 compacted, > 0 real chunk number
+
+  // migration id. note this id is only be updated after file is downloaded from shared
+  // storage, but not after file is uploaded to shared storage. compaction resets this id
+  // to 0.
+  int32_t      mid;
+
+  int64_t cid;          // commit id
+  int64_t size;         // the logical file size, not the physical size
+  int64_t minVer;
+  int64_t maxVer;
   union {
     struct {
       int32_t level;
@@ -79,8 +90,11 @@ struct STFileObj {
   int32_t       state;
   int32_t       ref;
   int32_t       nlevel;
-  char          fname[TSDB_FILENAME_LEN];
+  char          fname[TSDB_PATH_LEN];
 };
+
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype);
+bool        tsdbFTypeIsValid(int32_t ftype);
 
 #ifdef __cplusplus
 }

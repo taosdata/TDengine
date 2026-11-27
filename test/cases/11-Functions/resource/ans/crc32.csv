@@ -1,0 +1,100 @@
+
+taos> select CRC32('hello')
+ crc32('hello') |
+=================
+      907060870 |
+
+taos> select CRC32('hello world')
+ crc32('hello world') |
+=======================
+            222957957 |
+
+taos> select CRC32('hello world!')
+ crc32('hello world!') |
+========================
+              62177901 |
+
+taos> select CRC32('hello,world.你好，世界。')
+ crc32('hello,world.你好，世界。') |
+==========================================
+                              1785960545 |
+
+taos> select CRC32('北京涛思数据科技有限公司')
+ crc32('北京涛思数据科技有限公司') |
+================================================
+                                    1935136661 |
+
+taos> select CRC32('hello') from ts_4893.meters limit 5
+ crc32('hello') |
+=================
+      907060870 |
+      907060870 |
+      907060870 |
+      907060870 |
+      907060870 |
+
+taos> select CRC32('hello') + 1 from ts_4893.meters limit 1
+    crc32('hello') + 1     |
+============================
+                 907060871 |
+
+taos> select CRC32('hello') + CRC32('hello') from ts_4893.meters limit 1
+ crc32('hello') + crc32('hello') |
+==================================
+                      1814121740 |
+
+taos> select cast(CRC32('hello') as VARCHAR)
+ cast(crc32('hello') as varchar) |
+==================================
+ 907060870                       |
+
+taos> select CRC32(cast('hello' as VARCHAR))
+ crc32(cast('hello' as varchar)) |
+==================================
+                       907060870 |
+
+taos> select crc32('')
+  crc32('')  |
+==============
+           0 |
+
+taos> select crc32(NULL)
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32(1234)
+ crc32(1234) |
+==============
+  2615402659 |
+
+taos> select crc32(1234) = crc32("1234")
+ crc32(1234) = crc32("1234") |
+==============================
+ true                        |
+
+taos> select crc32(1234.567)
+ crc32(1234.567) |
+==================
+      2518325432 |
+
+taos> select crc32(1234.567) = crc32('1234.567')
+ crc32(1234.567) = crc32('1234.567') |
+======================================
+ true                                |
+
+taos> select crc32(1234.567 + 0.1) = crc32('1234.667')
+ crc32(1234.567 + 0.1) = crc32('1234.667') |
+============================================
+ true                                      |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = crc32(TO_CHAR(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss"), "yyyy-mm-dd hh24:mi:ss"))
+ crc32(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi |
+===================================================================
+ true                                                             |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi:ss")) = crc32("2000-01-01 00:00:00")
+ crc32(to_timestamp("2000-01-01 00:00:00+00", "yyyy-mm-dd hh24:mi |
+===================================================================
+ true                                                             |
+

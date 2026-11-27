@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "syncTest.h"
 
 void logTest() {
@@ -37,7 +54,7 @@ SSyncNode* syncNodeInit() {
   }
 
   pSyncNode = syncNodeOpen(&syncInfo);
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   // gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   // gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
@@ -73,13 +90,13 @@ int main(int argc, char** argv) {
   }
 
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   ret = syncInit();
-  assert(ret == 0);
+  TD_ALWAYS_ASSERT(ret == 0);
 
   SSyncNode* pSyncNode = syncInitTest();
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   char* serialized = syncNode2Str(pSyncNode);
   printf("%s\n", serialized);
@@ -88,12 +105,12 @@ int main(int argc, char** argv) {
   initRaftId(pSyncNode);
 
   SVotesGranted* pVotesGranted = voteGrantedCreate(pSyncNode);
-  assert(pVotesGranted != NULL);
+  TD_ALWAYS_ASSERT(pVotesGranted != NULL);
 
   printf("---------------------------------------\n");
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -103,7 +120,7 @@ int main(int argc, char** argv) {
   voteGrantedReset(pVotesGranted, term);
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -118,7 +135,7 @@ int main(int argc, char** argv) {
     voteGrantedVote(pVotesGranted, reply);
     {
       char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
+      TD_ALWAYS_ASSERT(serialized != NULL);
       printf("%s\n", serialized);
       taosMemoryFree(serialized);
     }
@@ -126,7 +143,7 @@ int main(int argc, char** argv) {
     voteGrantedVote(pVotesGranted, reply);
     {
       char* serialized = voteGranted2Str(pVotesGranted);
-      assert(serialized != NULL);
+      TD_ALWAYS_ASSERT(serialized != NULL);
       printf("%s\n", serialized);
       taosMemoryFree(serialized);
     }
@@ -136,7 +153,7 @@ int main(int argc, char** argv) {
   voteGrantedReset(pVotesGranted, 123456789);
   {
     char* serialized = voteGranted2Str(pVotesGranted);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }

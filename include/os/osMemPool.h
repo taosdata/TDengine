@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_OS_MEMPOOL_H_
 #define _TD_OS_MEMPOOL_H_
 
@@ -36,6 +39,7 @@ typedef struct SMemPoolJob {
   uint64_t           clientId;
 
   int32_t            remainSession;
+  int32_t            refs;  // Starts at 1; access only through taosMemPoolRetainJob/ReleaseJob.
   
   int64_t            allocMemSize;
   int64_t            maxAllocMemSize;
@@ -129,6 +133,15 @@ void    taosAutoMemoryFree(void *ptr);
 int32_t taosMemPoolInitSession(void* poolHandle, void** ppSession, void* pJob, char *sessionId);
 void    taosMemPoolDestroySession(void* poolHandle, void* session);
 int32_t taosMemPoolCallocJob(uint64_t jobId, uint64_t cId, void** ppJob);
+// Retain and release references to a job returned by taosMemPoolCallocJob.
+// The initial reference count is 1. Each retain requires one release; never free pJob directly.
+// The last release frees the job and pJob must not be used afterwards.
+void    taosMemPoolRetainJob(void* pJob);
+void    taosMemPoolReleaseJob(void* pJob);
+// Reserve and release job quota as a pair. pJob must be a job returned by
+// taosMemPoolCallocJob; a successful reservation owns exactly size bytes.
+int32_t taosMemPoolReserveJobMemory(void* poolHandle, void* pJob, int64_t size);
+void    taosMemPoolReleaseJobMemory(void* poolHandle, void* pJob, int64_t size);
 void    taosMemPoolCfgUpdate(void* poolHandle, SMemPoolCfg* pCfg);
 void    taosMemPoolPrintStat(void* poolHandle, void* session, char* procName);
 int32_t taosMemPoolTryLockPool(void* poolHandle, bool readLock);
@@ -138,6 +151,7 @@ void    taosMemPoolGetUsedSizeEnd(void* poolHandle);
 int32_t taosMemPoolGetSessionStat(void* session, SMPStatDetail** ppStat, int64_t* allocSize, int64_t* maxAllocSize);
 void    taosMemPoolSchedTrim(void);
 int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
+int32_t taosMemoryPoolCfgUpdateReservedSize(int32_t newReservedSizeMB);
 
 
 #define taosMemPoolFreeClear(ptr)   \
@@ -149,8 +163,9 @@ int32_t taosMemoryPoolInit(mpReserveFailFp, mpReserveReachFp);
   } while (0)
 
 
-#ifndef BUILD_TEST
 extern void* gMemPoolHandle;
+
+#if !defined(BUILD_TEST) && !defined(TD_ASTRA)
 extern threadlocal void* threadPoolSession;
 extern threadlocal bool  threadPoolEnabled;
 extern int8_t tsMemPoolFullFunc;
@@ -173,10 +188,10 @@ extern int8_t tsMemPoolFullFunc;
 #define taosMemoryTrim(_size, _trimed) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolTrim(gMemPoolHandle, threadPoolSession, _size, (char*)__FILE__, __LINE__, _trimed)) : (taosMemTrim(_size, _trimed)))
 #define taosMemoryMallocAlign(_alignment, _size) ((threadPoolEnabled && threadPoolSession) ? (taosMemPoolMallocAlign(gMemPoolHandle, threadPoolSession, _alignment, _size, (char*)__FILE__, __LINE__)) : (taosMemMallocAlign(_alignment, _size)))
 #else
-#define taosEnableMemoryPoolUsage(_pool, _session) 
-#define taosDisableMemoryPoolUsage() 
-#define taosSaveDisableMemoryPoolUsage() 
-#define taosRestoreEnableMemoryPoolUsage() 
+#define taosEnableMemPoolUsage(_session) 
+#define taosDisableMemPoolUsage() 
+#define taosSaveDisableMemPoolUsage(_enable, _randErr) 
+#define taosRestoreEnableMemPoolUsage(_enable, _randErr) 
 
 #define taosMemoryMalloc(_size) taosMemMalloc(_size)
 #define taosMemoryCalloc(_num, _size) taosMemCalloc(_num, _size)

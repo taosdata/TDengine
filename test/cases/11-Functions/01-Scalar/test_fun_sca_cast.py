@@ -1,0 +1,1699 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sql import TDSql
+from contextlib import closing
+import datetime
+import inspect
+import sys
+import uuid
+import taos
+
+
+class TestFunCast:
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.dbname = "db"
+        cls._datetime_epoch = datetime.datetime.fromtimestamp(0)
+
+    #
+    # ----------------------- sim -------------------
+    #
+    def do_cast_const(self):
+        tdLog.info(f"======== step1")
+        tdSql.prepare("db1", drop=True, vgroups=3)
+        tdSql.execute(f"use db1;")
+        tdSql.execute(
+            f"create stable st1 (fts timestamp, fbool bool, ftiny tinyint, fsmall smallint, fint int, fbig bigint, futiny tinyint unsigned, fusmall smallint unsigned, fuint int unsigned, fubig bigint unsigned, ffloat float, fdouble double, fbin binary(10), fnchar nchar(10)) tags(tts timestamp, tbool bool, ttiny tinyint, tsmall smallint, tint int, tbig bigint, tutiny tinyint unsigned, tusmall smallint unsigned, tuint int unsigned, tubig bigint unsigned, tfloat float, tdouble double, tbin binary(10), tnchar nchar(10));"
+        )
+        tdSql.execute(
+            f"create table tb1 using st1 tags('2022-07-10 16:31:00', true, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"create table tb2 using st1 tags('2022-07-10 16:32:00', false, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"create table tb3 using st1 tags('2022-07-10 16:33:00', true, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb1 values ('2022-07-10 16:31:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
+
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb2 values ('2022-07-10 16:32:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
+
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:01', false, 1, 1, 1, 1, 1, 1, 1, 1, 1.0, 1.0, 'a', 'a');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:02', true, 2, 2, 2, 2, 2, 2, 2, 2, 2.0, 2.0, 'b', 'b');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:03', false, 3, 3, 3, 3, 3, 3, 3, 3, 3.0, 3.0, 'c', 'c');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:04', true, 4, 4, 4, 4, 4, 4, 4, 4, 4.0, 4.0, 'd', 'd');"
+        )
+        tdSql.execute(
+            f"insert into tb3 values ('2022-07-10 16:33:05', false, 5, 5, 5, 5, 5, 5, 5, 5, 5.0, 5.0, 'e', 'e');"
+        )
+
+        tdSql.query(f"select 1+1n;")
+        tdSql.checkRows(1)
+
+        tdSql.checkData(0, 0, 2.000000000)
+
+        tdSql.query(f"select cast(1 as timestamp)+1n;")
+        tdSql.checkRows(1)
+        tdLog.info(f"==== {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, "1970-02-01 08:00:00.001000")
+
+        tdSql.query(
+            f"select cast('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as double);"
+        )
+        tdSql.query(f"select 1-1n;")
+        tdSql.checkRows(1)
+
+        # there is an *bug* in print timestamp that smaller than 0, so let's try value that is greater than 0.
+        tdSql.query(f"select cast(1 as timestamp)+1y;")
+        tdSql.checkRows(1)
+        tdLog.info(f"==== {tdSql.getData(0,0)}")
+        tdSql.checkData(0, 0, "1971-01-01 08:00:00.001000")
+
+        tdSql.query(f"select 1n-now();")
+        tdSql.query(f"select 1n+now();")
+
+    def do_cast_to_json_unknown_error_regression(self):
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+        tdSql.execute("create database if not exists tdsqlsmith_shared;")
+        tdSql.execute("use tdsqlsmith_shared;")
+
+        tdSql.execute(
+            "create table if not exists t1(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t2(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t3(ts timestamp, id int, v int, c1 int, c2 int, u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), geo geometry(100), de decimal(18,6));"
+        )
+
+        tdSql.execute(
+            "insert into t1 values(now,1,10,1,2,11,111111111,222222222,1.25,2.5,12,34,7,9,true,'alpha','beta','gamma','\\x010203','POINT(1 2)',123.456789);"
+        )
+        tdSql.execute(
+            "insert into t2 values(now,2,20,3,4,21,211111111,322222222,3.5,4.75,-12,44,-7,19,false,'left','right','delta','\\x0A0B0C','POINT(2 3)',223.000001);"
+        )
+        tdSql.execute(
+            "insert into t3 values(now,3,30,5,6,31,311111111,422222222,5.75,6.125,22,54,17,29,true,'foo','bar','omega','\\x112233','POINT(3 4)',323.5);"
+        )
+
+        sql_list = [
+            "select ok, b from t2 order by cast(ok not between ok and true as json) desc nulls first limit 32 offset 36;",
+            "select /*+ no_batch_scan() */ -ubi from t3 as x order by cast(u1 as json) asc nulls last, (case when vb then today() else cast(ubi as binary(16)) end) | (-usi) desc nulls last limit 36 offset 18;",
+            "select ti, a from t3 where si > 1.1 order by cast(si as json) desc nulls last, c1 asc nulls last limit 38;",
+            "select si, si from t3 where si > 19 order by cast(c1 as json) desc nulls last limit 7;",
+            "select vb, usi from t3 order by case upper(b) when cast(ok as json) then trim(a from a) else (ok not between false and ok) or (a in ('s_678', 's_775', 's_296')) end asc nulls last limit 15 offset 41;",
+            "select usi, si from t2 where f > 1.42 order by cast(si / v as json) desc nulls last, -f asc nulls last;",
+            "select ti, usi as y, sum(ubi), count(*) from t1 where isnull(ts) and ((c1 % 28) between ok and cast('s_489' as json)) group by ti, usi having count(*) > 47;",
+            "select de, si, usi from t2 order by +(22 + ceil(ubi)) desc nulls last, cast(geo as json) asc nulls last limit 27 offset 41;",
+            "select c2, ok, d from t2 order by cast(case today() when ok then today() else ok end as json) desc nulls last, case when n in (false, 35, '{\"k\":1}') then +14 else usi + ceil(abs(3)) end desc nulls last limit 11 offset 35;",
+            "select de, b, de from t3 order by (pow(id, d) - if(cast(id as json), id, a)) / uti asc nulls last limit 12;",
+            "select v from t1 as c where not (cast(ok as json) is not null) order by rand(ceil(si)) asc nulls last limit 42 offset 45;",
+            "select ti, n as b, max(bi) from t1 where cast(+43 as json) group by ti, n having max(c2) is not null limit 28 offset 3;",
+            "select if((+bi) / uti, case when null then ifnull(bi, c2) else v end, isnull(database())) from t2 as z where cast(ti as json);",
+            "select abs(uti), *, * from t1 order by substring(a, 1, 47) asc nulls last, cast(u1 as json) desc nulls last;",
+            "select de, bi from t3 order by cast(-c1 as json) asc nulls first, bi desc nulls last limit 34 offset 25;",
+            "select c2, ubi from t2 where usi > 25 order by cast(-f as json) asc nulls last;",
+            "select n, n, ti from t3 where si > 14 order by cast(ok as json) desc nulls last, true asc nulls last limit 25 offset 10;",
+            "select /*+ hash_join() */ cast(ubi as json) from t2 order by today() asc nulls last, +ubi asc nulls last limit 3;",
+            "select b from t3 where ubi > 6.39 order by cast(b as json) desc nulls last, usi % de asc nulls last limit 21 offset 8;",
+            "select id from t3 order by cast(de as json) desc nulls last, c2 asc nulls last;",
+            "select u1, v, d from t3 order by cast('s_860' as json) desc nulls last limit 16 offset 45;",
+            "select *, * from t1 order by id / (case cast(c1 as json) when id then d else f end) desc nulls last, -abs(round(id)) desc nulls last limit 25;",
+            "select +bi as a from t3 order by cast(ti as json) desc nulls last;",
+        ]
+
+        for idx, sql in enumerate(sql_list, start=1):
+            err_info = tdSql.error(sql)
+            if "Unknown error 65535" in err_info:
+                tdLog.exit(
+                    f"json cast regression failed at SQL #{idx}, still got unknown 65535, sql: {sql}, err: {err_info}"
+                )
+
+        print("do cast-to-json unknown-error regression .... [passed]")
+    
+    #
+    # ----------------------- system-test -------------------
+    #
+    def __cast_to_bigint(self, col_name, tbname):
+        __sql = f"select cast({col_name} as bigint), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(tdSql.queryRows):
+            tdSql.checkData( i, 0, None ) if data_tb_col[i] is None else tdSql.checkData( i, 0, int(data_tb_col[i]) )
+
+    def __range_to_bigint(self,cols,tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_bigint(col_name=col, tbname=table)
+
+    def __cast_to_timestamp(self, col_name, tbname):
+        __sql = f"select cast({col_name} as timestamp), {col_name} from {tbname}"
+        tdSql.query(sql=__sql)
+        data_tb_col = [result[1] for result in tdSql.queryResult]
+        for i in range(tdSql.queryRows):
+            if data_tb_col[i] is None:
+                tdSql.checkData( i, 0 , None )
+            if col_name not in ["c2", "double"] or tbname != f"{self.dbname}.t1" or i != 10:
+                date_init_stamp = datetime.datetime.fromtimestamp(data_tb_col[i]/1000)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+    def __range_to_timestamp(self, cols, tables):
+        for col in cols:
+            for table in tables:
+                self.__cast_to_timestamp(col_name=col, tbname=table)
+
+    def __test_bigint(self):
+        __table_list = [f"{self.dbname}.ct1", f"{self.dbname}.ct4", f"{self.dbname}.t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c10","c1+c2"]
+        self.__range_to_bigint(cols=__col_list, tables=__table_list)
+
+    def __test_timestamp(self):
+        __table_list = [f"{self.dbname}.ct1", f"{self.dbname}.ct4", f"{self.dbname}.t1"]
+        __col_list = ["c1","c2","c3","c4","c5","c6","c7","c1+c2"]
+        self.__range_to_timestamp(cols=__col_list, tables=__table_list)
+
+    def all_test(self):
+        _datetime_epoch = datetime.datetime.fromtimestamp(0)
+        tdSql.query(f"select c1  from {self.dbname}.ct4")
+        data_ct4_c1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c1  from {self.dbname}.t1")
+        data_t1_c1 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdLog.printNoPrefix("==========step2: cast int to bigint, expect no changes")
+
+        tdSql.query(f"select cast(c1 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c1)):
+            tdSql.checkData( i, 0, data_ct4_c1[i])
+        tdSql.query(f"select cast(c1 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            tdSql.checkData( i, 0, data_t1_c1[i])
+
+        tdLog.printNoPrefix("==========step5: cast int to binary, expect changes to str(int) ")
+
+        #tdSql.query(f"select cast(c1 as binary(32)) as b from {self.dbname}.ct4")
+        #for i in range(len(data_ct4_c1)):
+        #    tdSql.checkData( i, 0, str(data_ct4_c1[i]) )
+        tdSql.query(f"select cast(c1 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            tdSql.checkData( i, 0, str(data_t1_c1[i]) )
+            
+        tdSql.query(f"select cast(c1 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            tdSql.checkData( i, 0, str(data_t1_c1[i]) )
+
+        tdLog.printNoPrefix("==========step6: cast int to nchar, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c1 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c1)):
+            tdSql.checkData( i, 0, str(data_ct4_c1[i]) )
+        tdSql.query(f"select cast(c1 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            tdSql.checkData( i, 0, str(data_t1_c1[i]) )
+
+        tdLog.printNoPrefix("==========step7: cast int to timestamp, expect changes to timestamp ")
+
+        tdSql.query(f"select cast(c1 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c1)):
+            if data_ct4_c1[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c1[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+        tdSql.query(f"select cast(c1 as timestamp) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c1)):
+            if data_t1_c1[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c1[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+
+        tdLog.printNoPrefix("==========step8: cast bigint to bigint, expect no changes")
+        tdSql.query(f"select c2  from {self.dbname}.ct4")
+        data_ct4_c2 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c2  from {self.dbname}.t1")
+        data_t1_c2 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c2 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            tdSql.checkData( i, 0, data_ct4_c2[i])
+        tdSql.query(f"select cast(c2 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c2)):
+            tdSql.checkData( i, 0, data_t1_c2[i])
+
+
+        tdLog.printNoPrefix("==========step9: cast bigint to binary, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c2 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            tdSql.checkData( i, 0, str(data_ct4_c2[i]) )
+        tdSql.query(f"select cast(c2 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c2)):
+            tdSql.checkData( i, 0, str(data_t1_c2[i]) )
+            
+        tdSql.query(f"select cast(c2 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            tdSql.checkData( i, 0, str(data_ct4_c2[i]) )
+        tdSql.query(f"select cast(c2 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c2)):
+            tdSql.checkData( i, 0, str(data_t1_c2[i]) )
+
+        tdLog.printNoPrefix("==========step10: cast bigint to nchar, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c2 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            tdSql.checkData( i, 0, str(data_ct4_c2[i]) )
+        tdSql.query(f"select cast(c2 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c2)):
+            tdSql.checkData( i, 0, str(data_t1_c2[i]) )
+
+        tdLog.printNoPrefix("==========step11: cast bigint to timestamp, expect changes to timestamp ")
+
+        tdSql.query(f"select cast(c2 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c2)):
+            if data_ct4_c2[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c2[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+
+        # tdSql.query(f"select cast(c2 as timestamp) as b from {self.dbname}.t1")
+        # for i in range(len(data_t1_c2)):
+        #     if data_t1_c2[i] is None:
+        #         tdSql.checkData( i, 0 , None )
+        #     elif i == 10:
+        #         continue
+        #     else:
+        #         date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c2[i]) / 1000.0)
+        #         tdSql.checkData( i, 0, date_init_stamp)
+
+
+        tdLog.printNoPrefix("==========step12: cast smallint to bigint, expect no changes")
+        tdSql.query(f"select c3  from {self.dbname}.ct4")
+        data_ct4_c3 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c3  from {self.dbname}.t1")
+        data_t1_c3 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c3 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            tdSql.checkData( i, 0, data_ct4_c3[i])
+        tdSql.query(f"select cast(c3 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            tdSql.checkData( i, 0, data_t1_c3[i])
+
+
+        tdLog.printNoPrefix("==========step13: cast smallint to binary, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c3 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            tdSql.checkData( i, 0, str(data_ct4_c3[i]) )
+        tdSql.query(f"select cast(c3 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            tdSql.checkData( i, 0, str(data_t1_c3[i]) )
+            
+        tdSql.query(f"select cast(c3 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            tdSql.checkData( i, 0, str(data_ct4_c3[i]) )
+        tdSql.query(f"select cast(c3 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            tdSql.checkData( i, 0, str(data_t1_c3[i]) )
+
+        tdLog.printNoPrefix("==========step14: cast smallint to nchar, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c3 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            tdSql.checkData( i, 0, str(data_ct4_c3[i]) )
+        tdSql.query(f"select cast(c3 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            tdSql.checkData( i, 0, str(data_t1_c3[i]) )
+
+        tdLog.printNoPrefix("==========step15: cast smallint to timestamp, expect changes to timestamp ")
+
+        tdSql.query(f"select cast(c3 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c3)):
+            if data_ct4_c3[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c3[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+        tdSql.query(f"select cast(c3 as timestamp) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c3)):
+            if data_t1_c3[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c3[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+
+        tdLog.printNoPrefix("==========step16: cast tinyint to bigint, expect no changes")
+        tdSql.query(f"select c4  from {self.dbname}.ct4")
+        data_ct4_c4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c4  from {self.dbname}.t1")
+        data_t1_c4 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c4 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            tdSql.checkData( i, 0, data_ct4_c4[i])
+        tdSql.query(f"select cast(c4 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            tdSql.checkData( i, 0, data_t1_c4[i])
+
+
+        tdLog.printNoPrefix("==========step17: cast tinyint to binary, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c4 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            tdSql.checkData( i, 0, str(data_ct4_c4[i]) )
+        tdSql.query(f"select cast(c4 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            tdSql.checkData( i, 0, str(data_t1_c4[i]) )
+            
+        tdSql.query(f"select cast(c4 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            tdSql.checkData( i, 0, str(data_ct4_c4[i]) )
+        tdSql.query(f"select cast(c4 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            tdSql.checkData( i, 0, str(data_t1_c4[i]) )
+
+        tdLog.printNoPrefix("==========step18: cast tinyint to nchar, expect changes to str(int) ")
+
+        tdSql.query(f"select cast(c4 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            tdSql.checkData( i, 0, str(data_ct4_c4[i]) )
+        tdSql.query(f"select cast(c4 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            tdSql.checkData( i, 0, str(data_t1_c4[i]) )
+
+        tdLog.printNoPrefix("==========step19: cast tinyint to timestamp, expect changes to timestamp ")
+
+        tdSql.query(f"select cast(c4 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c4)):
+            if data_ct4_c4[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c4[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+        tdSql.query(f"select cast(c4 as timestamp) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c4)):
+            if data_t1_c4[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c4[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+
+        tdLog.printNoPrefix("==========step20: cast float to bigint, expect no changes")
+        tdSql.query(f"select c5  from {self.dbname}.ct4")
+        data_ct4_c5 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c5  from {self.dbname}.t1")
+        data_t1_c5 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c5 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            tdSql.checkData( i, 0, None ) if data_ct4_c5[i] is None else tdSql.checkData( i, 0, int(data_ct4_c5[i]) )
+        tdSql.query(f"select cast(c5 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None ) if data_t1_c5[i] is None else tdSql.checkData( i, 0, int(data_t1_c5[i]) )
+
+        tdLog.printNoPrefix("==========step21: cast float to binary, expect changes to str(int) ")
+        tdSql.query(f"select cast(c5 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkFloatString( i, 0, data_ct4_c5[i])
+        tdSql.query(f"select cast(c5 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkFloatString( i, 0, data_t1_c5[i])
+        tdSql.query(f"select cast(c5 as binary) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            tdSql.checkData( i, 0, str(data_ct4_c5[i]) )  if data_ct4_c5[i] is None else  tdSql.checkFloatString( i, 0, data_ct4_c5[i])
+        tdSql.query(f"select cast(c5 as binary) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, str(data_t1_c5[i]) )  if data_t1_c5[i] is None else tdSql.checkFloatString( i, 0, data_t1_c5[i])
+
+        tdLog.printNoPrefix("==========step22: cast float to nchar, expect changes to str(int) ")
+        tdSql.query(f"select cast(c5 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            tdSql.checkData( i, 0, None )  if data_ct4_c5[i] is None else  tdSql.checkFloatString( i, 0, data_ct4_c5[i])
+        tdSql.query(f"select cast(c5 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkFloatString( i, 0, data_t1_c5[i])
+        tdSql.query(f"select cast(c5 as nchar) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkFloatString( i, 0, data_t1_c5[i])
+        tdSql.query(f"select cast(c5 as varchar) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            tdSql.checkData( i, 0, None )  if data_t1_c5[i] is None else tdSql.checkFloatString( i, 0, data_t1_c5[i])
+
+        tdLog.printNoPrefix("==========step23: cast float to timestamp, expect changes to timestamp ")
+        tdSql.query(f"select cast(c5 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c5)):
+            if data_ct4_c5[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c5[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+        tdSql.query(f"select cast(c5 as timestamp) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c5)):
+            if data_t1_c5[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c5[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+        tdLog.printNoPrefix("==========step24: cast double to bigint, expect no changes")
+        tdSql.query(f"select c6  from {self.dbname}.ct4")
+        data_ct4_c6 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c6  from {self.dbname}.t1")
+        data_t1_c6 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c6 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c6)):
+            tdSql.checkData( i, 0, None ) if data_ct4_c6[i] is None else tdSql.checkData( i, 0, int(data_ct4_c6[i]) )
+        tdSql.query(f"select cast(c6 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c6)):
+            if data_t1_c6[i] is None:
+                tdSql.checkData( i, 0, None )
+            elif data_t1_c6[i] > 99999999 or data_t1_c6[i] < -999999:
+                continue
+            else:
+                tdSql.checkData( i, 0, int(data_t1_c6[i]) )
+
+        tdLog.printNoPrefix("==========step25: cast double to binary, expect changes to str(int) ")
+        tdSql.query(f"select cast(c6 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c6)):
+            tdSql.checkData( i, 0, None )  if data_ct4_c6[i] is None else  tdSql.checkFloatString( i, 0, data_ct4_c6[i])
+        tdSql.query(f"select cast(c6 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c6)):
+            tdSql.checkData( i, 0, None )  if data_t1_c6[i] is None else  tdSql.checkFloatString( i, 0, data_t1_c6[i])
+
+        tdLog.printNoPrefix("==========step26: cast double to nchar, expect changes to str(int) ")
+        tdSql.query(f"select cast(c6 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c6)):
+            tdSql.checkData( i, 0, None )  if data_ct4_c6[i] is None else  tdSql.checkFloatString( i, 0, data_ct4_c6[i])
+        tdSql.query(f"select cast(c6 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c6)):
+            tdSql.checkData( i, 0, None )  if data_t1_c6[i] is None else  tdSql.checkFloatString( i, 0, data_t1_c6[i])
+
+        tdLog.printNoPrefix("==========step27: cast double to timestamp, expect changes to timestamp ")
+        tdSql.query(f"select cast(c6 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c6)):
+            if data_ct4_c6[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c6[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+        # tdSql.query(f"select cast(c6 as timestamp) as b from {self.dbname}.t1")
+        # for i in range(len(data_t1_c6)):
+        #     if data_t1_c6[i] is None:
+        #         tdSql.checkData( i, 0 , None )
+        #     elif i == 10:
+        #         continue
+        #     else:
+        #         date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c6[i]) / 1000.0)
+        #         tdSql.checkData( i, 0, date_init_stamp)
+
+        tdLog.printNoPrefix("==========step28: cast bool to bigint, expect no changes")
+        tdSql.query(f"select c7  from {self.dbname}.ct4")
+        data_ct4_c7 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c7  from {self.dbname}.t1")
+        data_t1_c7 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdSql.query(f"select cast(c7 as bigint) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c7)):
+            tdSql.checkData( i, 0, data_ct4_c7[i])
+        tdSql.query(f"select cast(c7 as bigint) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c7)):
+            tdSql.checkData( i, 0, data_t1_c7[i])
+
+        tdLog.printNoPrefix("==========step29: cast bool to binary, expect changes to str(int) ")
+        tdSql.query(f"select cast(c7 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c7)):
+            tdSql.checkData( i, 0, None ) if data_ct4_c7[i] is None else tdSql.checkData( i, 0, str(data_ct4_c7[i]).lower() )
+        tdSql.query(f"select cast(c7 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c7)):
+            tdSql.checkData( i, 0, None ) if data_t1_c7[i] is None else tdSql.checkData( i, 0, str(data_t1_c7[i]).lower() )
+
+        tdLog.printNoPrefix("==========step30: cast bool to nchar, expect changes to str(int) ")
+        tdSql.query(f"select cast(c7 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c7)):
+            tdSql.checkData( i, 0, None ) if data_ct4_c7[i] is None else tdSql.checkData( i, 0, str(data_ct4_c7[i]).lower() )
+        tdSql.query(f"select cast(c7 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c7)):
+            tdSql.checkData( i, 0, None ) if data_t1_c7[i] is None else tdSql.checkData( i, 0, str(data_t1_c7[i]).lower() )
+
+        tdLog.printNoPrefix("==========step31: cast bool to timestamp, expect changes to timestamp ")
+        tdSql.query(f"select cast(c7 as timestamp) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c7)):
+            if data_ct4_c7[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_ct4_c7[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+        tdSql.query(f"select cast(c7 as timestamp) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c7)):
+            if data_t1_c7[i] is None:
+                tdSql.checkData( i, 0 , None )
+            else:
+                date_init_stamp = _datetime_epoch+datetime.timedelta(seconds=int(data_t1_c7[i]) / 1000.0)
+                tdSql.checkData( i, 0, date_init_stamp)
+
+
+        tdSql.query(f"select c8  from {self.dbname}.ct4")
+        data_ct4_c8 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c8  from {self.dbname}.t1")
+        data_t1_c8 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdLog.printNoPrefix("==========step32: cast binary to binary, expect no changes ")
+        tdSql.query(f"select cast(c8 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c8)):
+            tdSql.checkData( i, 0, None ) if data_ct4_c8[i] is None else  tdSql.checkData(i,0,data_ct4_c8[i])
+
+        tdSql.query(f"select cast(c8 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c8)):
+            tdSql.checkData( i, 0, None ) if data_t1_c8[i] is None else  tdSql.checkData(i,0,data_t1_c8[i])
+
+        tdLog.printNoPrefix("==========step33: cast binary to binary, expect truncate ")
+        tdSql.query(f"select cast(c8 as binary(2)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c8)):
+            if data_ct4_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i][:2]}")
+        tdSql.query(f"select cast(c8 as binary(2)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c8)):
+            if data_t1_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c8[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i][:2]}")
+
+        tdLog.printNoPrefix("==========step34: cast binary to nchar, expect changes to str(int) ")
+        tdSql.query(f"select cast(c8 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c8)):
+            if data_ct4_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c8[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c8[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c8[i]}")
+        tdSql.query(f"select cast(c8 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c8)):
+            if data_t1_c8[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c8[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c8[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c8[i]}")
+
+
+        tdSql.query(f"select c9  from {self.dbname}.ct4")
+        data_ct4_c9 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c9  from {self.dbname}.t1")
+        data_t1_c9 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        "c10 timestamp"
+
+        tdLog.printNoPrefix("==========step35: cast nchar to nchar, expect no changes ")
+        tdSql.query(f"select cast(c9 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c9)):
+            if data_ct4_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c9[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i]}")
+        tdSql.query(f"select cast(c9 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c9)):
+            tdSql.checkData( i, 0, data_t1_c9[i] )
+            if data_t1_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c9[i]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i]}")
+
+        tdLog.printNoPrefix("==========step36: cast nchar to nchar, expect truncate ")
+        tdSql.query(f"select cast(c9 as nchar(2)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c9)):
+            if data_ct4_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_ct4_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_ct4_c9[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_ct4_c9[i][:2]}")
+        tdSql.query(f"select cast(c9 as nchar(2)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c9)):
+            if data_t1_c9[i] is None:
+                tdSql.checkData( i, 0, None)
+            elif tdSql.getData(i,0) == data_t1_c9[i][:2]:
+                tdLog.info( f"sql:{tdSql.sql}, row:{i} col:0 data:{tdSql.queryResult[i][0]} == expect:{data_t1_c9[i][:2]}" )
+            else:
+                caller = inspect.getframeinfo(inspect.stack()[1][0])
+                tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{tdSql.sql} row:{i} col:0 data:{tdSql.queryResult[i][0]} != expect:{data_t1_c9[i][:2]}")
+
+        tdSql.query(f"select c10  from {self.dbname}.ct4")
+        data_ct4_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+        tdSql.query(f"select c10  from {self.dbname}.t1")
+        data_t1_c10 = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
+
+        tdLog.printNoPrefix("==========step37: cast timestamp to nchar, expect no changes ")
+        tdSql.query(f"select cast(c10 as nchar(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c10)):
+            if data_ct4_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            else:
+                time2str = str(int((data_ct4_c10[i]-datetime.datetime.fromtimestamp(0,data_ct4_c10[i].tzinfo)).total_seconds())*1000+int(data_ct4_c10[i].microsecond / 1000))
+                tdSql.checkData( i, 0, time2str )
+        tdSql.query(f"select cast(c10 as nchar(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c10)):
+            if data_t1_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
+            else:
+                time2str = str(int((data_t1_c10[i]-datetime.datetime.fromtimestamp(0,data_t1_c10[i].tzinfo)).total_seconds())*1000+int(data_t1_c10[i].microsecond / 1000))
+                tdSql.checkData( i, 0, time2str )
+
+        tdLog.printNoPrefix("==========step38: cast timestamp to binary, expect no changes ")
+        tdSql.query(f"select cast(c10 as binary(32)) as b from {self.dbname}.ct4")
+        for i in range(len(data_ct4_c10)):
+            if data_ct4_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            else:
+                time2str = str(int((data_ct4_c10[i]-datetime.datetime.fromtimestamp(0,data_ct4_c10[i].tzinfo)).total_seconds())*1000+int(data_ct4_c10[i].microsecond / 1000))
+                tdSql.checkData( i, 0, time2str )
+        tdSql.query(f"select cast(c10 as binary(32)) as b from {self.dbname}.t1")
+        for i in range(len(data_t1_c10)):
+            if data_t1_c10[i] is None:
+                tdSql.checkData( i, 0, None )
+            elif i == 10:
+                continue
+            else:
+                time2str = str(int((data_t1_c10[i]-datetime.datetime.fromtimestamp(0,data_t1_c10[i].tzinfo)).total_seconds())*1000+int(data_t1_c10[i].microsecond / 1000))
+                tdSql.checkData( i, 0, time2str )
+
+        tdLog.printNoPrefix("==========step39: cast constant operation to bigint, expect change to int ")
+        tdSql.query(f"select cast(12121.23323131  as bigint) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, 12121) for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131  as binary(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131  as binary(2)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131  as nchar(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131  as nchar(2)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+
+        tdSql.query(f"select cast(12121.23323131 + 321.876897998  as bigint) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, 12443) for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 321.876897998  as binary(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12443.110129') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 321.876897998  as binary(3)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '124') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 321.876897998  as nchar(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12443.110129') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 321.876897998  as nchar(3)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '124') for i in range(tdSql.queryRows) )
+
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as bigint) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, 12121) for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary(2)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as binary) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as nchar(16)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12121.233231') for i in range(tdSql.queryRows) )
+        tdSql.query(f"select cast(12121.23323131 + 'test~!@`#$%^&*(){'}'}{'{'}][;><.,' as nchar(2)) as b from {self.dbname}.ct4")
+        ( tdSql.checkData(i, 0, '12') for i in range(tdSql.queryRows) )
+
+        tdLog.printNoPrefix("==========step40: current cast condition, should return ok ")
+        tdSql.query(f"select cast(c1 as int) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as bool) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as tinyint) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as smallint) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as float) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as double) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as tinyint unsigned) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as smallint unsigned) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c1 as int unsigned) as b from {self.dbname}.ct4")
+
+        tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c5 as smallint) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c6 as float) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.ct4")
+
+        tdSql.query(f"select cast(c8 as timestamp ) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c9 as timestamp ) as b from {self.dbname}.ct4")
+        tdSql.query(f"select cast(c9 as binary(64) ) as b from {self.dbname}.ct4")
+
+        # enh of cast function about coverage
+
+        tdSql.query(f"select cast(c1 as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as tinyint unsigned) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as smallint unsigned) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c1 as int unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c6 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(c8 as timestamp ) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c9 as timestamp ) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c9 as binary(64) ) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select cast(abs(c2) as int) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(floor(c4) as tinyint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5+2 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(2 as float) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1")
+
+        tdSql.query(f"select max(cast(abs(c2) as int)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select log(cast(c3 as int),2) as b from {self.dbname}.stb1")
+        tdSql.query(f"select abs(cast(floor(c4) as tinyint)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select last(cast(c5+2 as smallint)) as b from {self.dbname}.stb1")
+        tdSql.query(f"select mavg(cast(2 as float),3) as b from {self.dbname}.stb1 partition by tbname")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 partition by tbname order by tbname")
+        tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1 partition by tbname")
+
+        # uion with cast and common cols
+
+        tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1 union all select c1 from {self.dbname}.stb1 ")
+        tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1 union all select c7 from {self.dbname}.ct1 ")
+        tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1 union all select c4 from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c5 as smallint) as b from {self.dbname}.stb1 union all select cast(c5 as smallint) as b from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c6 as float) as b from {self.dbname}.stb1 union all select c5 from {self.dbname}.stb1")
+        tdSql.query(f"select cast(c7 as double) as b from {self.dbname}.stb1 union all select 123 from {self.dbname}.stb1 ")
+        tdSql.query(f"select cast(c8 as tinyint unsigned) as b from {self.dbname}.stb1 union all select last(cast(c8 as tinyint unsigned)) from {self.dbname}.stb1")
+
+    def do_system_test_cast(self):
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table")
+        tdSql.execute(
+            f'''create table {self.dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+        tdSql.execute(
+            f'''
+            create table {self.dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table {self.dbname}.ct{i+1} using {self.dbname}.stb1 tags ( {i+1} )')
+
+        tdLog.printNoPrefix("==========step2:insert data")
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {self.dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {self.dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(f"insert into {self.dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {self.dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(f"insert into {self.dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {self.dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {self.dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {self.dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+        self.all_test()
+
+        # tdDnodes.stop(1)
+        # tdDnodes.start(1)
+
+        tdSql.execute(f"flush database {self.dbname}")
+
+        self.all_test()
+        
+        print("do system-test cast ................... [passed]")
+
+    #
+    # ----------------------- army -------------------
+    #
+    def cast_from_int_to_other(self):
+        # int
+        int_num1 = 2147483647
+        int_num2 = 2147483648
+        tdSql.query(f"select cast({int_num1} as int) re;")
+        tdSql.checkData(0, 0, int_num1)
+
+        tdSql.query(f"select cast({int_num2} as int) re;")
+        tdSql.checkData(0, 0, -int_num2)
+
+        tdSql.query(f"select cast({int_num2} as int unsigned) re;")
+        tdSql.checkData(0, 0, int_num2)
+
+        tdSql.query(f"select cast({int_num1} as bigint) re;")
+        tdSql.checkData(0, 0, int_num1)
+
+        tdSql.query(f"select cast({int_num1} as bigint unsigned) re;")
+        tdSql.checkData(0, 0, int_num1)
+
+        tdSql.query(f"select cast({int_num1} as smallint) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({int_num1} as smallint unsigned) re;")
+        tdSql.checkData(0, 0, 65535)
+
+        tdSql.query(f"select cast({int_num1} as tinyint) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({int_num1} as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, 255)
+
+        tdSql.query(f"select cast({int_num2} as float) re;")
+        tdSql.checkData(0, 0, "2147483648.0")
+
+        tdSql.query(f"select cast({int_num2} as double) re;")
+        tdSql.checkData(0, 0, "2147483648.0")
+
+        tdSql.query(f"select cast({int_num2} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({int_num2} as timestamp) as re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(int_num2) / 1000))
+
+        tdSql.query(f"select cast({int_num1} as varchar(5)) as re;")
+        tdSql.checkData(0, 0, "21474")
+
+        tdSql.query(f"select cast({int_num1} as binary(5)) as re;")
+        tdSql.checkData(0, 0, "21474")
+
+        tdSql.query(f"select cast({int_num1} as nchar(5));")
+        tdSql.checkData(0, 0, "21474")
+
+    def cast_from_bigint_to_other(self):
+        # bigint
+        bigint_num = 9223372036854775807
+        bigint_num2 = 9223372036854775808
+        tdSql.query(f"select cast({bigint_num} as int) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({bigint_num} as int unsigned) re;")
+        tdSql.checkData(0, 0, 4294967295)
+
+        tdSql.query(f"select cast({bigint_num} as bigint) re;")
+        tdSql.checkData(0, 0, bigint_num)
+
+        tdSql.query(f"select cast({bigint_num2} as bigint) re;")
+        tdSql.checkData(0, 0, -bigint_num2)
+
+        tdSql.query(f"select cast({bigint_num2} as bigint unsigned) re;")
+        tdSql.checkData(0, 0, bigint_num2)
+
+        tdSql.query(f"select cast({bigint_num} as smallint) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({bigint_num} as smallint unsigned) re;")
+        tdSql.checkData(0, 0, 65535)
+
+        tdSql.query(f"select cast({bigint_num} as tinyint) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({bigint_num} as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, 255)
+
+        tdSql.query(f"select cast({bigint_num} as float) re;")
+        tdSql.checkData(0, 0, 9.2233720e18)
+
+        tdSql.query(f"select cast({bigint_num} as double) re;")
+        tdSql.checkData(0, 0, 9.2233720e18)
+
+        tdSql.query(f"select cast({bigint_num} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        # WARN: datetime overflow dont worry
+        tdSql.query(f"select cast({bigint_num} as timestamp) as re;")
+        # tdSql.checkData(0, 0, "292278994-08-17 15:12:55.807")
+
+        tdSql.query(f"select cast({bigint_num} as varchar(5)) as re;")
+        tdSql.checkData(0, 0, "92233")
+
+        tdSql.query(f"select cast({bigint_num} as binary(5)) as re;")
+        tdSql.checkData(0, 0, "92233")
+
+        tdSql.query(f"select cast({bigint_num} as nchar(5));")
+        tdSql.checkData(0, 0, "92233")
+
+    def cast_from_smallint_to_other(self):
+        smallint_num = 32767
+        smallint_num2 = 32768
+        tdSql.query(f"select cast({smallint_num} as int) re;")
+        tdSql.checkData(0, 0, smallint_num)
+
+        tdSql.query(f"select cast({smallint_num} as int unsigned) re;")
+        tdSql.checkData(0, 0, smallint_num)
+
+        tdSql.query(f"select cast({smallint_num} as bigint) re;")
+        tdSql.checkData(0, 0, smallint_num)
+
+        tdSql.query(f"select cast({smallint_num2} as bigint unsigned) re;")
+        tdSql.checkData(0, 0, smallint_num2)
+
+        tdSql.query(f"select cast({smallint_num} as smallint) re;")
+        tdSql.checkData(0, 0, smallint_num)
+
+        tdSql.query(f"select cast({smallint_num2} as smallint) re;")
+        tdSql.checkData(0, 0, -smallint_num2)
+
+        tdSql.query(f"select cast({smallint_num2} as smallint unsigned) re;")
+        tdSql.checkData(0, 0, smallint_num2)
+
+        tdSql.query(f"select cast({smallint_num} as tinyint) re;")
+        tdSql.checkData(0, 0, -1)
+
+        tdSql.query(f"select cast({smallint_num} as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, 255)
+
+        tdSql.query(f"select cast({smallint_num} as float) re;")
+        tdSql.checkData(0, 0, "32767.0")
+
+        tdSql.query(f"select cast({smallint_num} as double) re;")
+        tdSql.checkData(0, 0, "32767.0")
+
+        tdSql.query(f"select cast({smallint_num} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({smallint_num} as timestamp) as re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(smallint_num) / 1000))
+
+        tdSql.query(f"select cast({smallint_num} as varchar(3)) as re;")
+        tdSql.checkData(0, 0, "327")
+
+        tdSql.query(f"select cast({smallint_num} as binary(3)) as re;")
+        tdSql.checkData(0, 0, "327")
+
+        tdSql.query(f"select cast({smallint_num} as nchar(3));")
+        tdSql.checkData(0, 0, "327")
+
+    def cast_from_tinyint_to_other(self):
+        tinyint_num = 127
+        tinyint_num2 = 128
+        tdSql.query(f"select cast({tinyint_num} as int) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num} as int unsigned) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num} as bigint) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num2} as bigint unsigned) re;")
+        tdSql.checkData(0, 0, tinyint_num2)
+
+        tdSql.query(f"select cast({tinyint_num} as smallint) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num} as smallint unsigned) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num} as tinyint) re;")
+        tdSql.checkData(0, 0, tinyint_num)
+
+        tdSql.query(f"select cast({tinyint_num2} as tinyint) re;")
+        tdSql.checkData(0, 0, -tinyint_num2)
+
+        tdSql.query(f"select cast({tinyint_num2} as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, tinyint_num2)
+
+        tdSql.query(f"select cast({tinyint_num} as float) re;")
+        tdSql.checkData(0, 0, "127.0")
+
+        tdSql.query(f"select cast({tinyint_num} as double) re;")
+        tdSql.checkData(0, 0, "127.0")
+
+        tdSql.query(f"select cast({tinyint_num} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({tinyint_num} as timestamp) as re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(tinyint_num) / 1000))
+
+        tdSql.query(f"select cast({tinyint_num} as varchar(2)) as re;")
+        tdSql.checkData(0, 0, "12")
+
+        tdSql.query(f"select cast({tinyint_num} as binary(2)) as re;")
+        tdSql.checkData(0, 0, "12")
+
+        tdSql.query(f"select cast({tinyint_num} as nchar(2));")
+        tdSql.checkData(0, 0, "12")
+
+    def cast_from_float_to_other(self):
+        # float
+        float_1001 = 3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798214808651328230664709384460955058223172535940812848111745028410270193852110555964462294895493038196442881097566593344612847564823378678316527120190914564856692346034861045432664821339360726024914127372458700660631558817488152092096282925409171536436789259036001133053054882046652138414695194151160943305727036575959195309218611738193261179310511854807446237996274956735188575272489122793818301194912983367336244065664308602139494639522473719070217986094370277053921717629317675238467481846766940513200056812714526356082778577134275778960917363717872146844090122495343014654958537105079227968925892354201995611212902196086403441815981362977477130996051870721134999999837297804995105973173281609631859502445945534690830264252230825334468503526193118817101000313783875288658753320838142061717766914730359825349042875546873115956286388235378759375195778185778053217122680661300192787661119590921642019
+
+        tdSql.query(f"select cast({float_1001} as int) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as int unsigned) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as tinyint) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as tinyint unsigned) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as smallint) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as smallint unsigned) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as bigint) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as bigint unsigned) as re;")
+        tdSql.checkData(0, 0, 3)
+
+        tdSql.query(f"select cast({float_1001} as double) as re;")
+        tdSql.checkData(0, 0, 3.141592653589793)
+
+        tdSql.query(f"select cast({float_1001} as float) as re;")
+        tdSql.checkData(0, 0, 3.1415927)
+
+        tdSql.query(f"select cast({float_1001} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({float_1001} as timestamp) as re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(float_1001) / 1000))
+
+        sql = f"select cast({float_1001} as varchar(5)) as re;"
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 3.141)
+
+        sql = f"select cast({float_1001} as binary(10)) as re;"
+        tdLog.debug(sql)
+        tdSql.query(sql)
+        tdSql.checkData(0, 0, 3.14159265)
+
+        tdSql.query(f"select cast({float_1001} as nchar(5));")
+        tdSql.checkData(0, 0, 3.141)
+
+    def cast_from_str_to_other(self):
+        # str
+        _str = "bcdefghigk"
+        str_410 = _str * 41
+        str_401 = _str * 40 + "b"
+        big_str = _str * 6552
+
+        tdSql.query(f"select cast('{str_410}' as binary(401)) as re;")
+        tdSql.checkData(0, 0, str_401)
+
+        tdSql.query(f"select cast('{str_410}' as varchar(401)) as re;")
+        tdSql.checkData(0, 0, str_401)
+
+        tdSql.query(f"select cast('{big_str}' as varchar(420)) as re;")
+        tdSql.checkData(0, 0, _str * 42)
+
+        tdSql.query(f"select cast('{str_410}' as nchar(401));")
+        tdSql.checkData(0, 0, str_401)
+
+        tdSql.query(f"select cast('北京' as nchar(10));")
+        tdSql.checkData(0, 0, "北京")
+
+        # tdSql.query(f"select cast('北京涛思数据有限公司' as nchar(6));")
+        # tdSql.checkData(0, 0, "北京涛思数据")
+
+        tdSql.query(f"select cast('{str_410}' as int) as re;")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as int unsigned) as re;")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as tinyint) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as tinyint unsigned) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as smallint) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as smallint unsigned) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as bigint) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as bigint unsigned) as re")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"select cast('{str_410}' as float) as re;")
+        tdSql.checkData(0, 0, 0.0000000)
+
+        tdSql.query(f"select cast('{str_410}' as double) as re;")
+        tdSql.checkData(0, 0, 0.000000000000000)
+
+        tdSql.query(f"select cast('{str_410}' as bool) as re")
+        tdSql.checkData(0, 0, False)
+
+        tdSql.query(f"select cast('{str_410}' as timestamp) as re")
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.000")
+
+    def cast_from_bool_to_other(self):
+        true_val = True
+        false_val = False
+        tdSql.query(f"select cast({false_val} as int) re, cast({true_val} as int) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as int unsigned) re, cast({true_val} as int unsigned) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as bigint) re, cast({true_val} as bigint) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(
+            f"select cast({false_val} as bigint unsigned) re, cast({true_val} as bigint unsigned) re;"
+        )
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(
+            f"select cast({false_val} as smallint unsigned) re, cast({true_val} as smallint unsigned) re;"
+        )
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as tinyint) re, cast({true_val} as tinyint) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(
+            f"select cast({false_val} as tinyint unsigned) re, cast({true_val} as tinyint unsigned) re;"
+        )
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as smallint) re, cast({true_val} as smallint) re;")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query(f"select cast({false_val} as float) re, cast({true_val} as float) re;")
+        tdSql.checkData(0, 0, 0.0000000)
+        tdSql.checkData(0, 1, 1.0000000)
+
+        tdSql.query(f"select cast({false_val} as double) re, cast({true_val} as double) re;")
+        tdSql.checkData(0, 0, 0.000000000000000)
+        tdSql.checkData(0, 1, 1.000000000000000)
+
+        tdSql.query(f"select cast({false_val} as bool) re, cast({true_val} as bool) re;")
+        tdSql.checkData(0, 0, false_val)
+        tdSql.checkData(0, 1, true_val)
+
+        tdSql.query(f"select cast({false_val} as timestamp) re, cast({true_val} as timestamp) re;")
+        tdSql.checkData(0, 0, "1970-01-01 08:00:00.000")
+        tdSql.checkData(0, 1, "1970-01-01 08:00:00.001")
+
+        tdSql.query(f"select cast({false_val} as varchar(3)) re, cast({true_val} as varchar(3)) re;")
+        tdSql.checkData(0, 0, "fal")
+        tdSql.checkData(0, 1, "tru")
+
+        tdSql.query(f"select cast({false_val} as binary(3)) re, cast({true_val} as binary(3)) re;")
+        tdSql.checkData(0, 0, "fal")
+        tdSql.checkData(0, 1, "tru")
+
+        tdSql.query(f"select cast({false_val} as nchar(3)) re, cast({true_val} as nchar(3)) re;")
+        tdSql.checkData(0, 0, "fal")
+        tdSql.checkData(0, 1, "tru")
+
+    def cast_from_timestamp_to_other(self):
+        # ts = self._datetime_epoch
+        # tdSql.query(f"select cast({ts} as int) re;")
+        # tdSql.checkData(0, 0, None)
+        # todo
+        pass
+
+    def cast_from_null_to_other(self):
+        tdSql.query(f"select cast(null as int) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as int unsigned) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as bigint) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as bigint unsigned) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as smallint) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as smallint unsigned) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as tinyint) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as float) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as double) re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as bool) as re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as timestamp) as re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as varchar(55)) as re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as binary(5)) as re;")
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query(f"select cast(null as nchar(5));")
+        tdSql.checkData(0, 0, None)
+
+    def cast_from_compute_to_other(self):
+        add1 = 123
+        add2 = 456
+        re = 579
+        tdSql.query(f"select cast({add1}+{add2} as int) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as int unsigned) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as bigint) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as bigint unsigned) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as smallint) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as smallint unsigned) re;")
+        tdSql.checkData(0, 0, re)
+
+        tdSql.query(f"select cast({add1}+{add2} as tinyint) re;")
+        tdSql.checkData(0, 0, 67)
+
+        tdSql.query(f"select cast({add1}+{add2} as tinyint unsigned) re;")
+        tdSql.checkData(0, 0, 67)
+
+        tdSql.query(f"select cast({add1}+{add2} as float) re;")
+        tdSql.checkData(0, 0, "579.0")
+
+        tdSql.query(f"select cast({add1}+{add2} as double) re;")
+        tdSql.checkData(0, 0, "579.0")
+
+        tdSql.query(f"select cast({add1}+{add2} as bool) as re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({add1}+{add2} as timestamp) as re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(re) / 1000))
+
+        tdSql.query(f"select cast({add1}+{add2} as varchar(2)) as re;")
+        tdSql.checkData(0, 0, "57")
+
+        tdSql.query(f"select cast({add1}+{add2} as binary(2)) as re;")
+        tdSql.checkData(0, 0, "57")
+
+        tdSql.query(f"select cast({add1}+{add2} as nchar(2));")
+        tdSql.checkData(0, 0, "57")
+
+        test_str = "'!@#'"
+        tdSql.query(f"select cast({add1}+{test_str} as int) re;")
+        tdSql.checkData(0, 0, add1)
+
+        tdSql.query(f"select cast({add1}+{test_str} as bigint) re;")
+        tdSql.checkData(0, 0, add1)
+
+        tdSql.query(f"select cast({add1}+{test_str} as smallint) re;")
+        tdSql.checkData(0, 0, add1)
+
+        tdSql.query(f"select cast({add1}+{test_str} as tinyint) re;")
+        tdSql.checkData(0, 0, add1)
+
+        tdSql.query(f"select cast({add1}+{test_str} as float) re;")
+        tdSql.checkData(0, 0, "123.0")
+
+        tdSql.query(f"select cast({add1}+{test_str} as double) re;")
+        tdSql.checkData(0, 0, "123.0")
+
+        tdSql.query(f"select cast({add1}+{test_str} as bool) re;")
+        tdSql.checkData(0, 0, True)
+
+        tdSql.query(f"select cast({add1}+{test_str} as timestamp) re;")
+        tdSql.checkData(0, 0, self._datetime_epoch + datetime.timedelta(seconds=int(add1) / 1000))
+
+        tdSql.query(f"select cast({add1}+{test_str} as varchar(2)) re;")
+        tdSql.checkData(0, 0, "12")
+
+        tdSql.query(f"select cast({add1}+{test_str} as binary(2)) re;")
+        tdSql.checkData(0, 0, "12")
+
+        tdSql.query(f"select cast({add1}+{test_str} as nchar(2)) re;")
+        tdSql.checkData(0, 0, "12")
+        
+    def ts5972(self):
+        tdSql.execute("CREATE DATABASE IF NOT EXISTS ts5972;")
+        tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
+        tdSql.execute("DROP TABLE IF EXISTS ts5972.t1;")
+        tdSql.execute("CREATE TABLE ts5972.t1(time TIMESTAMP, c0 DOUBLE);")
+        tdSql.execute("INSERT INTO ts5972.t1(time, c0) VALUES (1641024000000, 0.018518518518519), (1641024005000, 0.015151515151515), (1641024010000, 0.1234567891012345);")
+        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) != c0;")
+        tdSql.checkRows(0)
+        tdSql.query("SELECT c0, CAST(c0 AS BINARY(50)) FROM ts5972.t1 WHERE CAST(c0 AS BINARY(50)) == c0;")
+        tdSql.checkRows(3)
+
+
+    def cast_without_from(self):
+        self.cast_from_int_to_other()
+        self.cast_from_bigint_to_other()
+        self.cast_from_smallint_to_other()
+        self.cast_from_tinyint_to_other()
+        self.cast_from_float_to_other()
+        self.cast_from_str_to_other()
+        self.cast_from_bool_to_other()
+        self.cast_from_timestamp_to_other()
+        self.cast_from_compute_to_other()
+        # self.cast_from_null_to_other()
+
+    def do_army_cast(self):
+        # 'from table' case see system-test/2-query/cast.py
+        self.cast_without_from()
+        self.ts5972()
+
+    def do_cast_to_json_invalid(self):
+        """Regression test: CAST(expr AS JSON) must return a proper error, not Unknown error 65535.
+
+        Reproducer from SQL fuzzing. All CAST(... AS JSON) expressions on regular (non-JSON-tag)
+        columns/literals must be rejected at translation time with a descriptive error message
+        instead of propagating TSDB_CODE_FAILED (-1 / 65535) from castFunction's default branch.
+        """
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+        tdSql.execute("create database if not exists tdsqlsmith_shared;")
+        tdSql.execute("use tdsqlsmith_shared;")
+        tdSql.execute(
+            "create table if not exists t1(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t2(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "create table if not exists t3(ts timestamp, id int, v int, c1 int, c2 int, "
+            "u1 int unsigned, bi bigint, ubi bigint unsigned, f float, d double, "
+            "si smallint, usi smallint unsigned, ti tinyint, uti tinyint unsigned, "
+            "ok bool, a binary(32), b varchar(64), n nchar(32), vb varbinary(64), "
+            "geo geometry(100), de decimal(18,6));"
+        )
+        tdSql.execute(
+            "insert into t1 values(now,1,10,1,2,11,111111111,222222222,1.25,2.5,12,34,7,9,"
+            "true,'alpha','beta','gamma','\\x010203','POINT(1 2)',123.456789);"
+        )
+        tdSql.execute(
+            "insert into t2 values(now,2,20,3,4,21,211111111,322222222,3.5,4.75,-12,44,-7,19,"
+            "false,'left','right','delta','\\x0A0B0C','POINT(2 3)',223.000001);"
+        )
+        tdSql.execute(
+            "insert into t3 values(now,3,30,5,6,31,311111111,422222222,5.75,6.125,22,54,17,29,"
+            "true,'foo','bar','omega','\\x112233','POINT(3 4)',323.5);"
+        )
+
+        # All of the following must return a proper error (not Unknown error 65535)
+        tdSql.error("select n, si from t3 where c1 > 2.97 order by ((-ubi) % f) % (-22) asc nulls last, cast(ti as json) desc nulls last limit 12 offset 33;")
+        tdSql.error("select bi, ubi, ubi from t2 order by cast(-pow(usi, floor(pow(id, f))) as json) desc nulls last;")
+        tdSql.error("select c1 from t1 order by +(-(-f)) asc nulls last, cast(position('s_431' in upper(a)) as json) asc nulls last limit 50 offset 43;")
+        tdSql.error("select usi, vb from t1 where usi > 6 order by cast(v as json) asc nulls last limit 5 offset 45;")
+        tdSql.error("select v from t2 order by cast(pow(abs(bi), d) & ti as json) asc nulls last;")
+        tdSql.error("select f, ts, c2 from t2 order by c1 asc nulls last, cast(case when u1 then c2 else u1 end as json) desc nulls last limit 4 offset 15;")
+        tdSql.error("select a, c2, c1 from t1 order by case when cast(+ti as json) then si else -v end desc nulls first, -de asc nulls last limit 14 offset 36;")
+        tdSql.error("select ts, n from t2 order by cast(c1 as json) asc nulls last limit 13;")
+        tdSql.error("select n from t3 order by -(abs(uti) + (case cast(c2 as json) when geo then d else u1 end)) asc nulls last, si asc nulls last limit 30;")
+        tdSql.error("select uti, si, si from t1 order by if((now() in (now(), today(), today())) or (ok between ok and ok), trim(both a from b), concat(upper(b), n) is not null) asc nulls last, cast(today() as json) desc nulls last limit 30 offset 24;")
+        tdSql.error("select ts from t1 order by position(a in b) asc nulls last, cast(ifnull(a, b) as json) desc nulls last limit 38;")
+        tdSql.error("select d, geo, b from t2 where usi > 7.4 order by cast(f as json) desc nulls last, +abs(uti) desc nulls last;")
+        tdSql.query("select de, d as y, avg(c1), avg(d) from t3 as c where not ((case isnotnull(24) when de then lower(a) < b else bi end) not in ('s_693', 's_908', 's_727')) group by de, d limit 16 offset 12;")
+        tdSql.error("select cast(d as json), ti % (ubi - ceil(ceil(u1))) from t2 order by +u1 asc nulls last;")
+        tdSql.error("select de from t1 where u1 > 8.36 order by cast(case f when ti then d else rand() end as json) desc nulls last, c2 / (-(-c2)) asc nulls first limit 13;")
+        tdSql.error("select * from t3 where ((+c1) is null) and (cast(b as json) between vb and '{\"k\":1}') order by ubi asc nulls last limit 19;")
+        tdSql.error("select b, u1, c2 from t1 where uti > 13 order by cast(2 as json) asc nulls first limit 7 offset 48;")
+        tdSql.error("select ubi, bi, n from t2 order by if(case when id then 's_359' else f end, isnotnull(cast(c1 as json)), trim(b)) | floor(id) desc nulls last limit 6 offset 6;")
+        tdSql.error("select id from t3 order by (-v) + c1 desc nulls last, cast(b as json) asc nulls last limit 28 offset 21;")
+
+        tdSql.execute("drop database if exists tdsqlsmith_shared;")
+
+    def do_cast_varchar_to_nchar(self):
+        for charset in ("UTF-8", "GBK", "CP936"):
+            with closing(
+                taos.connect(host=self.host, port=self.port, charset=charset)
+            ) as conn, closing(conn.cursor()) as cursor:
+                sql = TDSql()
+                sql.init(cursor)
+                # CHAR supplies encoded bytes through the UTF-8 Python driver.
+                encoded = ",".join(str(b) for b in "中中中".encode(charset))
+                for width, expected in ((3, 3), (4, 3), (9, 3), (2, 2)):
+                    sql.query(
+                        "select char_length("
+                        f"cast(char({encoded}) as nchar({width})))",
+                        queryTimes=1,
+                    )
+                    sql.checkRows(1)
+                    sql.checkData(0, 0, expected)
+
+        print("CAST VARCHAR to NCHAR with connection charsets [passed]")
+
+    def do_cast_varchar_column_to_nchar(self):
+        with closing(
+            taos.connect(host=self.host, port=self.port, charset="UTF-8")
+        ) as conn, closing(conn.cursor()) as cursor:
+            sql = TDSql()
+            sql.init(cursor)
+            sql.query("select char_length(cast('中中中' as nchar(3)))",
+                      queryTimes=1)
+            sql.checkData(0, 0, 3)
+
+            sql.query("select cast(char(65, 255) as nchar(1))", queryTimes=1)
+            sql.checkData(0, 0, "A")
+            sql.error("select cast(char(65, 255) as nchar(2))",
+                      expectedErrno=0x3251)
+            sql.error(
+                "select char_length("
+                "cast(char(244, 144, 128, 128) as nchar(1)))",
+                expectedErrno=0x3251,
+            )
+            sql.query(
+                "select cast(char(65, 244, 144, 128, 128) as nchar(1))",
+                queryTimes=1,
+            )
+            sql.checkData(0, 0, "A")
+
+            db = f"cast_nchar_width_{uuid.uuid4().hex}"
+            sql.execute(f"create database {db} keep 36500")
+            try:
+                sql.execute(f"use {db}")
+                sql.execute("create table t (ts timestamp, v varchar(32))")
+                sql.execute(
+                    "insert into t values (1700000000000, 'A') "
+                    "(1700000000001, '中A文') (1700000000002, 'ABC') "
+                    "(1700000000003, '') (1700000000004, null)"
+                )
+                sql.query("select cast(v as nchar(2)) from t order by ts")
+                sql.checkRows(5)
+                for row, value in enumerate(("A", "中A", "AB", "", None)):
+                    sql.checkData(row, 0, value)
+
+                sql.execute(
+                    "create table mixed (ts timestamp, flag bool, "
+                    "v varchar(5), n nchar(1))"
+                )
+                sql.execute(
+                    "insert into mixed values "
+                    "(1700000000000, true, '文A', '中') "
+                    "(1700000000001, false, '文A', '中')"
+                )
+                sql.query(
+                    "select case when flag then n else v end "
+                    "from mixed order by ts",
+                    queryTimes=1,
+                )
+                sql.checkRows(2)
+                sql.checkData(0, 0, "中")
+                sql.checkData(1, 0, "文")
+            finally:
+                sql.execute(f"drop database {db}")
+
+        print("CAST VARCHAR column values to NCHAR [passed]")
+
+    # main
+    def test_cast_varchar_to_nchar(self):
+        """CAST multibyte VARCHAR to NCHAR by character count
+
+        1. Decode UTF-8, GBK, and CP936 using the connection charset.
+        2. Check shorter, exact, and wider target lengths.
+        3. Check VARCHAR column values with mixed widths, empty input, and NULL.
+        4. Check invalid bytes before and after the target width is filled.
+        5. Check implicit conversion of mixed VARCHAR and NCHAR CASE branches.
+
+        Catalog:
+            - Scalar Functions
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-24 Tony Zhang Add multibyte CAST regression coverage
+        """
+        self.do_cast_varchar_to_nchar()
+        self.do_cast_varchar_column_to_nchar()
+
+    def test_fun_sca_cast(self):
+        """ Fun: cast()
+
+        1. CAST on super table and normal table
+        2. CAST between all data types
+        3. CAST with null values
+        4. CAST constant operation
+        5. CAST with aggregation functions
+        6. CAST with union all
+        7. CAST with function embedded
+        8. CAST without from table
+        9. verify JIRA TS-5972
+        10. CAST to JSON returns proper error (not Unknown error 65535)
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-04-03 wpan Add CAST(... AS JSON) sqlsmith regression, assert no Unknown error 65535
+            - 2025-10-20 Alex Duan Migrated from uncatalog/army/query/function/test_cast.py
+            - 2025-09-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_cast.py
+            - 2025-08-23 Simon Guan Migrated function cast_const from tsim/scalar/scalar.sim
+
+        """
+        self.do_cast_const()
+        self.do_cast_to_json_unknown_error_regression()
+        self.do_army_cast()
+        self.do_system_test_cast()
+        self.do_cast_to_json_invalid()

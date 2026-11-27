@@ -67,6 +67,11 @@ int taos_monitor_count_occurrences(char *str, char *toSearch) {
 
 void taos_monitor_strip(char *s)
 {
+    // Defensive guard: a malformed label token (one without '=') leaves the value
+    // NULL. The caller in taos_metric_formatter_load_sample_new already guards this,
+    // but a NULL here would otherwise dereference NULL inside strlen() and crash the
+    // root taosd process, so reject it up front as well.
+    if (s == NULL) return;
     size_t i;
     size_t len = strlen(s);
     size_t offset = 0;
@@ -86,10 +91,10 @@ bool taos_monitor_is_match(const SJson* tags, char** pairs, int32_t count) {
     SJson* item = tjsonGetArrayItem(tags, i);
 
     char item_name[MONITOR_TAG_NAME_LEN] = {0};
-    if (tjsonGetStringValue(item, "name", item_name) != 0) return false;
+    if (tjsonGetStringValue1(item, "name", item_name, sizeof(item_name)) != 0) return false;
 
     char item_value[MONITOR_TAG_VALUE_LEN] = {0};
-    if (tjsonGetStringValue(item, "value", item_value) != 0) return false;
+    if (tjsonGetStringValue1(item, "value", item_value, sizeof(item_value)) != 0) return false;
 
     bool isfound = false;
     for(int32_t j = 0; j < count; j++){

@@ -1,0 +1,148 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+name: TDgpt New Frame Test
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.3.8'
+    paths:
+      - 'tools/tdgpt/**'
+      - 'source/libs/executor/src/forecastoperator.c'
+      - 'source/libs/executor/src/anomalywindowoperator.c'
+      - 'source/dnode/mnode/impl/src/mndAnode.c'
+      - 'include/common/tanalytics.h'
+      - 'source/common/src/tanalytics.c'
+      - 'test/ci/tdgpt_cases.task'
+      - 'test/cases/**/*-TDgpt/**'
+      - '.github/workflows/new-tdgpt-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-TDgptNewFramework
+  cancel-in-progress: true
+
+jobs:
+  unit-test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    defaults:
+      run:
+        working-directory: ${{ github.workspace }}/tools/tdgpt
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install flake8 pytest pytest-mock pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Checking the code with pylint
+        run: |
+          git ls-files -z '*.py' | xargs -0 -r pylint --exit-zero
+
+      - name: Checking the code with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+      - name: Run test cases with pytest
+        env:
+          TDGPT_CONF: ${{ runner.temp }}/tdgpt-test.config.py
+        run: |
+          python - <<'PY'
+          import os
+          import tempfile
+          from pathlib import Path
+
+          root = Path(tempfile.mkdtemp(prefix="tdgpt-test-", dir=os.environ["RUNNER_TEMP"]))
+          paths = {
+              "app_log": root / "log" / "taosanode.app.log",
+              "model_dir": root / "model",
+              "dynamic_model_dir": root / "model" / "dynamic",
+              "img_dir": root / "img",
+              "resource_dir": root / "resource",
+          }
+          for key, path in paths.items():
+              (path.parent if key == "app_log" else path).mkdir(parents=True, exist_ok=True)
+          Path(os.environ["TDGPT_CONF"]).write_text(
+              "".join(f"{key} = {str(path)!r}\n" for key, path in paths.items()),
+              encoding="utf-8",
+          )
+          PY
+          pytest
+
+  validate_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate changed test files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PYTHON'
+          import os
+          import subprocess
+          import sys
+          from pathlib import PurePosixPath
+
+          changed = subprocess.check_output([
+              "git", "diff", "--name-only", "-z", "--diff-filter=ACMR",
+              f'{os.environ["BASE_SHA"]}...{os.environ["HEAD_SHA"]}', "--", "test/cases/",
+          ])
+          failed = False
+          for raw in changed.split(b"\0"):
+              if not raw:
+                  continue
+              path = os.fsdecode(raw)
+              name = PurePosixPath(path).name
+              if not (name.startswith("test_") and name.endswith(".py")):
+                  continue
+              print(f"Validating {path}", flush=True)
+              result = subprocess.run([sys.executable, ".github/scripts/validate_tests.py", path])
+              failed = failed or result.returncode != 0
+          sys.exit(int(failed))
+          PYTHON
+
+  # Disabled by request: Linux functional tests use the self-hosted runner.
+  function-tests:
+    if: ${{ false }}
+    uses: taosdata/.github/.github/workflows/new-tdgpt-test.yml@main
+    with:
+      tdinternal: false

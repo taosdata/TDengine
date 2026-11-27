@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,12 +32,12 @@ extern "C" {
 // clang-format off
 extern int32_t tdbDebugFlag;
 
-#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
-#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255,          __VA_ARGS__); }} while(0)
+#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255,          __VA_ARGS__); }} while(0)
+#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN  ", DEBUG_WARN,  255,          __VA_ARGS__); }} while(0)
+#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB INFO  ", DEBUG_INFO,  255,          __VA_ARGS__); }} while(0)
+#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB DEBUG ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB TRACE ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 // For memory -----------------
@@ -55,7 +57,7 @@ typedef TdFilePtr tdb_fd_t;
 #define TDB_O_READ   TD_FILE_READ
 #define TDB_O_TRUNC  TD_FILE_TRUNC
 #define TDB_O_APPEND TD_FILE_APPEND
-#define TDB_O_RDWR   (TD_FILE_WRITE) | (TD_FILE_READ)
+#define TDB_O_RDWR   (TD_FILE_WRITE | TD_FILE_READ)
 
 #define tdbOsOpen(PATH, OPTION, MODE) taosOpenFile((PATH), (OPTION))
 #define tdbOsClose(FD)                taosCloseFile(&(FD))

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,6 +30,10 @@ typedef enum {
   TRANS_START_FUNC_MQ_REB = 3,
   TRANS_STOP_FUNC_MQ_REB = 4,
   TRANS_FUNC_RECOVER_STREAM_STEP_NEXT = 5,
+  TRANS_STOP_FUNC_SOD = 6,
+  TRANS_STOP_FUNC_SOD_ROLE_CHECK = 7,
+  TRANS_STOP_FUNC_STREAM_RECALC = 8,
+  TRANS_STOP_FUNC_STREAM_LIFECYCLE = 9,
 } ETrnFunc;
 
 typedef enum {
@@ -54,6 +60,13 @@ typedef struct {
   SSdbRaw  *pRaw;
 
   int64_t mTraceId;
+  int64_t startTime;
+  int64_t endTime;
+  int32_t groupId;
+  // For TDMT_VND_ALTER_CONFIRM actions: dnodeId of the vnode that answered the confirm (the vgroup
+  // leader), captured from the response. Stamped onto the vgroup's syncState at finish time so
+  // `show cluster alive` reports 1 immediately after commit (see mndTransSendRpcRsp). -1 = unset.
+  int32_t leaderDnodeId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
@@ -69,6 +82,7 @@ void    mndTransDrop(STrans *pTrans);
 
 int32_t mndTransAppendPrepareLog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
+int32_t mndTransAppendGroupRedolog(STrans *pTrans, SSdbRaw *pRaw, int32_t groupId);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendNullLog(STrans *pTrans);
@@ -78,28 +92,43 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
+void    mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen);
 void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetGroupParallel(STrans *pTrans);
+void    mndTransSetGroupParallelNum(STrans *pTrans, int32_t parallelNum);
+void    mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled);
+void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
+// True when vgId is no longer in the SDB or is DROPPING, i.e. its database was dropped (not a mere offline vnode).
+bool    mndTransVgroupIsGone(SMnode *pMnode, int32_t vgId);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans);
+int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans);
 #ifndef BUILD_NO_CALL
 static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
     return mndTransCheckConflict(pMnode, pTrans);
 }
 #endif
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
+// Optional pSyncStarted is false until sync proposal is attempted. True does not imply success.
+int32_t mndTransPrepareWithSyncStatus(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
-void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+void    mndTransExecute(SMnode *pMnode, STrans *pTrans, bool notSend);
 void    mndTransRefresh(SMnode *pMnode, STrans *pTrans);
 int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
 SSdbRaw *mndTransEncode(STrans *pTrans);
 SSdbRow *mndTransDecode(SSdbRaw *pRaw);
+// Releases a row returned by mndTransDecode. Such a row was never registered in
+// an SDB and its runtime state was never initialized, so it must be freed with
+// this function and never handed to mndTransDrop or an SDB: doing so would skip
+// the mutex teardown and free memory an SDB still references.
+void     mndTransFreeDecoded(SSdbRow *pRow);
 void     mndTransDropData(STrans *pTrans);
 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf);

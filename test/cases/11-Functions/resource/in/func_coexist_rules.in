@@ -1,0 +1,17 @@
+use ts_4893
+select abs(voltage), max(voltage) from fc_d
+select abs(voltage), min(voltage) from fc_d
+select abs(current), first(voltage) from fc_d
+select abs(current), last(voltage) from fc_d
+select voltage+1, lag(voltage, 1, 0), csum(current) from fc_d
+select diff(voltage, 0) from fc_d
+select diff(voltage, 1) from fc_d
+select abs(voltage), top(voltage, 3) from fc_d
+select abs(voltage), bottom(current, 3) from fc_d
+select abs(voltage), top(voltage, 5) from fc_d
+select abs(voltage)+1, tail(voltage, 2) from fc_d
+SELECT abs(voltage), abs(id) FROM ts_4893.fc_d
+SELECT diff(voltage, 2), diff(current) FROM ts_4893.fc_d
+SELECT diff(voltage, 0), diff(current, 1) FROM ts_4893.fc_d
+SELECT top(abs(voltage), 3) FROM ts_4893.fc_d
+SELECT abs(voltage), csum(current) FROM ts_4893.fc_d

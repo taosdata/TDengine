@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,8 +20,13 @@
 
 #include "executor.h"
 #include "filter.h"
+#include "osMemory.h"
 #include "qworker.h"
+#include "tarray.h"
+#include "ttypes.h"
+#ifdef USE_ROCKSDB
 #include "rocksdb/c.h"
+#endif
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"
@@ -40,13 +47,15 @@
 #include "trbtree.h"
 #include "tref.h"
 #include "tskiplist.h"
-#include "tstream.h"
+#include "stream.h"
 #include "ttime.h"
 #include "ttimer.h"
 #include "wal.h"
 
+#include "bse.h"
 #include "vnode.h"
 
+#include "metrics.h"
 #include "taos_monitor.h"
 
 #ifdef __cplusplus
@@ -54,6 +63,7 @@ extern "C" {
 #endif
 
 typedef struct SVnodeInfo         SVnodeInfo;
+typedef struct STxnWalManager     STxnWalManager;  // forward decl; defined in vnd.h
 typedef struct SSma               SSma;
 typedef struct STsdb              STsdb;
 typedef struct STQ                STQ;
@@ -81,9 +91,13 @@ typedef struct SCommitInfo        SCommitInfo;
 typedef struct SCompactInfo       SCompactInfo;
 typedef struct SQueryNode         SQueryNode;
 
+typedef struct SStreamNotifyHandleMap SStreamNotifyHandleMap;
+
 #define VNODE_META_TMP_DIR    "meta.tmp"
 #define VNODE_META_BACKUP_DIR "meta.backup"
 
+
+#define VNODE_TSDB_NAME_LEN  6
 #define VNODE_META_DIR       "meta"
 #define VNODE_TSDB_DIR       "tsdb"
 #define VNODE_TQ_DIR         "tq"
@@ -96,6 +110,7 @@ typedef struct SQueryNode         SQueryNode;
 #define VNODE_TQ_STREAM      "stream"
 #define VNODE_CACHE_DIR      "cache.rdb"
 #define VNODE_TSDB_CACHE_DIR VNODE_TSDB_DIR TD_DIRSEP VNODE_CACHE_DIR
+#define VNODE_BSE_DIR   "bse"
 
 #if SUSPEND_RESUME_TEST  // only for test purpose
 #define VNODE_BUFPOOL_SEGMENTS 1
@@ -134,13 +149,17 @@ void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
+int32_t vnodeCheckBlobSeqSlot(int64_t dataLen, uint64_t dataOffset);
+int32_t vnodeRefillMsgBody(SRpcMsg* pMsg, const void* pBody, int32_t bodyLen);
 
 void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);
 
+void  initStorageAPI(SStorageAPI* pAPI);
+
 // meta
 typedef struct SMStbCursor SMStbCursor;
-typedef struct STbUidStore STbUidStore;
+// typedef struct STbUidStore STbUidStore;
 
 #define META_BEGIN_HEAP_BUFFERPOOL 0
 #define META_BEGIN_HEAP_OS         1
@@ -148,6 +167,7 @@ typedef struct STbUidStore STbUidStore;
 
 int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaUpgrade(SVnode* pVnode, SMeta** ppMeta);
+int32_t         metaRebuildVTableStats(SMeta* pMeta);
 void            metaClose(SMeta** pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 TXN*            metaGetTxn(SMeta* pMeta);
@@ -160,32 +180,48 @@ int32_t         metaAlterSuperTable(SMeta* pMeta, int64_t version, SVCreateStbRe
 int32_t         metaDropSuperTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int32_t         metaCreateTable2(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** ppRsp);
 int32_t         metaDropTable2(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
+int32_t         metaDropOrphanedEntry(SMeta* pMeta, tb_uid_t uid, const SMetaEntry* pOldEntry);
 int32_t         metaTrimTables(SMeta* pMeta, int64_t version);
 int32_t         metaDropMultipleTables(SMeta* pMeta, int64_t version, SArray* tbUids);
 int             metaTtlFindExpired(SMeta* pMeta, int64_t timePointMs, SArray* tbUids, int32_t ttlDropMaxCount);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 int             metaUpdateChangeTimeWithLock(SMeta* pMeta, tb_uid_t uid, int64_t changeTimeMs);
-SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, int64_t* createTime);
+SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema** extSchema, int8_t type, bool ignoreExist);
+int64_t         metaGetTableCreateTime(SMeta* pMeta, tb_uid_t uid, int lock);
+SExtSchema*     metaGetSExtSchema(const SMetaEntry* pME);
+int32_t         metaGetRsmaSchema(const SMetaEntry* pME, SSchemaRsma** rsmaSchema);
 int32_t         metaGetTbTSchemaNotNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 int32_t         metaGetTbTSchemaMaybeNull(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock, STSchema** ppTSchema);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
+SRSchema*       metaGetTbTSchemaR(SMeta* pMeta, tb_uid_t uid, int32_t sver, int lock);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
+int             metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name);
 int             metaAlterCache(SMeta* pMeta, int32_t nPage);
+int             metaCreateRsma(SMeta* pMeta, int64_t version, SVCreateRsmaReq* pReq);
+int             metaDropRsma(SMeta* pMeta, int64_t version, SVDropRsmaReq* pReq);
+int             metaAlterRsma(SMeta* pMeta, int64_t version, SVAlterRsmaReq* pReq);
+void            metaFreeRsmaParam(SRSmaParam* pParam, int8_t type);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaTagFilterCachesClearAll(SMeta* pMeta);  // batch meta txn: see metaCache.c
+int32_t metaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid);  // batch meta txn: see metaCache.c
+int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
+void    metaCacheClear(SMeta* pMeta);
 
 int32_t metaAddIndexToSuperTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int32_t metaDropIndexFromSuperTable(SMeta* pMeta, int64_t version, SDropIndexReq* pReq);
 
 int64_t       metaGetTimeSeriesNum(SMeta* pMeta, int type);
 void          metaUpdTimeSeriesNum(SMeta* pMeta);
-SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock);
+SMCtbCursor*  metaOpenCtbCursor(void* pVnode, tb_uid_t uid, int lock, int64_t txnId);
 int32_t       metaResumeCtbCursor(SMCtbCursor* pCtbCur, int8_t first);
 void          metaPauseCtbCursor(SMCtbCursor* pCtbCur);
 void          metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t      metaCtbCursorNext(SMCtbCursor* pCtbCur);
+// Returns an error code separately from the UID; a zero UID means end of iteration.
+int32_t       metaCtbCursorNextChecked(SMCtbCursor* pCtbCur, tb_uid_t* pUid);
 SMStbCursor*  metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
 void          metaCloseStbCursor(SMStbCursor* pStbCur);
 tb_uid_t      metaStbCursorNext(SMStbCursor* pStbCur);
@@ -195,9 +231,32 @@ SArray*       metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*       metaGetSmaTbUids(SMeta* pMeta);
 void*         metaGetIdx(SMeta* pMeta);
 void*         metaGetIvtIdx(SMeta* pMeta);
+int32_t       metaFlagCache(SVnode* pVnode);
 
+// maxUids > 0 bounds the result set: more than maxUids qualifying children causes the scan
+// to stop and return TSDB_CODE_TXN_TOO_MANY_DDL_OPS (the bound is checked before pushing,
+// so exactly maxUids matches still succeed and the successful return carries at most maxUids
+// entries). maxUids is a ceiling of the txn budget share, not an exact allowance - being
+// conservative there is fine. maxUids <= 0 means unlimited (the non-txn path) - 0 is a
+// "no limit" sentinel, not "must match nothing".
+int32_t metaGetChildUidsByWhere(SMeta *pMeta, tb_uid_t suid, SNode *pWhere, SArray *pUidList, int32_t maxUids);
+// Pre-scan the child tables matched by a WHERE-based bulk tag update (action
+// TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL).  pUids/pVersions collect the matched uids and
+// their pre-txn versions (for rollback).  pNames, when non-NULL, collects the matched table
+// names (char[TSDB_TABLE_NAME_LEN] elements) so the caller can take per-table txn locks -
+// vnodeTxnLockTable keys on the full table name, which is not derivable from a uid alone.
+int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray *pUids, SArray *pVersions,
+                                       SArray *pNames);
 int64_t metaGetTbNum(SMeta* pMeta);
-void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags);
+void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int64_t txnId);
+int32_t metaGetTableUidsByNames(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
+int32_t metaGetTableInfosByNames(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
+
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api,
+                 uint64_t uid, col_id_t colId, SRWLatch* lock);
+int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
+                uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
+                uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -228,65 +287,42 @@ void    tsdbCacheInvalidateSchema(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, int
 int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq2* pMsg);
 int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq2* pMsg, SSubmitRsp2* pRsp);
 int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitTbData* pSubmitTbData, int32_t* affectedRows);
-int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey, int8_t secureDelete);
+int32_t tsdbSecureEraseFileRange(STsdb* pTsdb, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
 void    tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 int64_t tsdbGetEarliestTs(STsdb* pTsdb);
 
 // tq
 int32_t tqOpen(const char* path, SVnode* pVnode);
-void    tqNotifyClose(STQ*);
 void    tqClose(STQ*);
-int     tqPushMsg(STQ*, tmsg_t msgType);
 int     tqRegisterPushHandle(STQ* pTq, void* handle, SRpcMsg* pMsg);
 void    tqUnregisterPushHandle(STQ* pTq, void* pHandle);
 void    tqScanWalAsync(STQ* pTq);
 int32_t tqStopStreamTasksAsync(STQ* pTq);
-int32_t tqProcessTaskCheckPointSourceReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg* pRsp);
-int32_t tqProcessTaskCheckpointReadyMsg(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveTriggerRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskResetReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamHbRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessStreamReqCheckpointRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessAllTaskStopReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskChkptReportRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskCheckpointReadyRsp(STQ* pTq, SRpcMsg* pMsg);
-
-int32_t tqBuildStreamTask(void* pTq, SStreamTask* pTask, int64_t ver);
-int32_t tqScanWal(STQ* pTq);
 
 // injection error
 void streamMetaFreeTQDuringScanWalError(STQ* pTq);
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
-int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
+int32_t getCidInfo(const SArray* tags, const SArray* tagsArray, SArray** cidList, SArray** cidListArray);
+int32_t tqAddTbUidListForQuerySub(STQ* pTq, const SArray* tbUidList);
+int32_t tqDeleteTbUidList(STQ* pTq, SArray* tbUidList);
+int32_t tqUpdateTbUidListForQuerySub(STQ* pTq, const SArray* tbUidList, SArray* cidList, SArray* cidListArray);
+
 // tq-mq
-int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessSeekReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessPollPush(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg);
 
 // tq-stream
-int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskDropReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskPauseReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskResumeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskCheckRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskScanHistory(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqStreamProgressRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskUpdateCheckpointReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskConsenChkptIdReq(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
@@ -304,6 +340,7 @@ int32_t smaRetention(SSma* pSma, int64_t now);
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
+#if 0
 int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
 int32_t tdProcessRSmaDelete(SSma* pSma, int64_t version, void* pReq, void* pMsg, int32_t len);
@@ -311,6 +348,7 @@ int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
 void*   tdUidStoreFree(STbUidStore* pStore);
+#endif
 
 // SMetaSnapReader ========================================
 int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapReader** ppReader);
@@ -320,8 +358,15 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
+// metaSnapshot.c  -  txn.meta batched snapshot read/write (section 44 lazy COMMIT/ROLLBACK)
+//   metaSnapTxnMetaRead: emits one SNAP_DATA_TXN_META block containing all txn.meta entries.
+//                          On *ppData==NULL with code==0 there are no entries (stream done).
+//   metaSnapTxnMetaWrite: bulk-applies a SNAP_DATA_TXN_META payload via
+//                          metaTxnMetaUpsert (idempotent  -  safe on retry).
+int32_t metaSnapTxnMetaRead(SMeta* pMeta, uint8_t** ppData);
+int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
-int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
+int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId, void* pRanges,
                            STsdbSnapReader** ppReader);
 void    tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
@@ -331,7 +376,7 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, SSnapDataHdr* pHdr);
 int32_t tsdbSnapWriterPrepareClose(STsdbSnapWriter* pWriter, bool rollback);
 int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 // STsdbSnapRAWReader ========================================
-int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** ppReader);
+int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, int32_t destDnodeId, STsdbSnapRAWReader** ppReader);
 void    tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
 int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
 // STsdbSnapRAWWriter ========================================
@@ -420,8 +465,10 @@ struct SVnodeInfo {
   SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  int64_t   lastTxnConsumeTs;  // persisted: last consumer access time (ms); gates cache enable
 };
 
+#if 0
 typedef enum {
   TSDB_TYPE_TSDB = 0,     // TSDB
   TSDB_TYPE_TSMA = 1,     // TSMA
@@ -429,6 +476,7 @@ typedef enum {
   TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
   TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
 } ETsdbType;
+#endif
 
 struct STsdbKeepCfg {
   int8_t  precision;  // precision always be used with below keep cfgs
@@ -460,15 +508,44 @@ typedef struct {
   int64_t id;
 } SVATaskID;
 
+struct SVnodeWriteMetrics {
+  int64_t total_requests;
+  int64_t total_rows;
+  int64_t total_bytes;
+  int64_t cache_hit_ratio;
+  int64_t rpc_queue_wait;
+  int64_t preprocess_time;
+  int64_t apply_time;
+  int64_t apply_bytes;
+  int64_t fetch_batch_meta_time;
+  int64_t fetch_batch_meta_count;
+  int64_t memory_table_size;
+  int64_t commit_count;
+  int64_t merge_count;
+  int64_t commit_time;
+  int64_t merge_time;
+  int64_t block_commit_time;
+  int64_t blocked_commit_count;
+  int64_t memtable_wait_time;
+  int64_t last_cache_commit_time;
+  int64_t last_cache_commit_count;
+};
+
 struct SVnode {
-  char*     path;
-  SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  char*     path;
   STfs*     pTfs;
+  STfs*     pMountTfs;
   int32_t   diskPrimary;
+  SVnodeCfg config;
   SMsgCb    msgCb;
   bool      disableWrite;
+  bool      mounted;
+  int8_t    closing;  // atomic flag: 1 = vnodeClose in progress, async tasks should exit early
+
+  //  Metrics
+  SVnodeWriteMetrics writeMetrics;
 
   // Buffer Pool
   TdThreadMutex mutex;
@@ -483,13 +560,21 @@ struct SVnode {
 
   // commit variables
   SVATaskID commitTask;
+  SVATaskID commitTask2;
 
-  SMeta*        pMeta;
-  SSma*         pSma;
-  STsdb*        pTsdb;
-  SWal*         pWal;
-  STQ*          pTq;
-  SSink*        pSink;
+  struct {
+    TdThreadRwlock metaRWLock;
+    SMeta*         pMeta;
+    SMeta*         pNewMeta;
+    SVATaskID      metaCompactTask;
+  };
+
+  STsdb*          pTsdb;
+  SWal*           pWal;
+  STQ*            pTq;
+  SBse*           pBse;
+  SSink*          pSink;
+  STxnWalManager* pTxnWalMgr;  // txn-atomic WAL cache for CDC consumers
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -499,22 +584,43 @@ struct SVnode {
   int64_t       blockSeq;
   SQHandle*     pQuery;
   SVMonitorObj  monitor;
+  uint32_t      applyQueueErrorCount;
+
+  // Notification Handles
+  SStreamNotifyHandleMap* pNotifyHandleMap;
+
+  // Batch Metadata Transaction
+  SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
+  SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
+  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus)  -  thread-safe cache
+  TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
+  int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
+  SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
+  int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
+  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 -> no visibility filtering needed
+
+  TdThreadMutex backupSnapMutex;
+  SVSnapReader *pBackupSnapReader;
+  int64_t       backupSnapChainId;
+  int64_t       backupSnapBackupId;
+  int64_t       backupSnapIndex;
+  int64_t       backupSnapLastActivityMs;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
 
 #define VND_TSDB(vnd)       ((vnd)->pTsdb)
-#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
-#define VND_RSMA1(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L0])
-#define VND_RSMA2(vnd)      ((vnd)->pSma->pRSmaTsdb[TSDB_RETENTION_L1])
-#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 #define VND_IS_RSMA(v)      ((v)->config.isRsma == 1)
-#define VND_IS_TSMA(v)      ((v)->config.isTsma == 1)
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
+#define TSDB_CACHE_RESET(c)    (((c).cacheLast & 4) > 0)
 
+#define TSDB_TFS(v)            ((v)->pMountTfs ? (v)->pMountTfs : (v)->pTfs)
+#define TSDB_VID(v)            ((v)->mounted ? (v)->config.mountVgId : (v)->config.vgId)
+
+#if 0
 struct STbUidStore {
   tb_uid_t  suid;
   SArray*   tbUids;
@@ -529,7 +635,7 @@ struct SSma {
   void*         pTSmaEnv;
   void*         pRSmaEnv;
 };
-
+#endif
 #define SMA_CFG(s)                       (&(s)->pVnode->config)
 #define SMA_TSDB_CFG(s)                  (&(s)->pVnode->config.tsdbCfg)
 #define SMA_RETENTION(s)                 ((SRetention*)&(s)->pVnode->config.tsdbCfg.retentions)
@@ -542,10 +648,7 @@ struct SSma {
 #define SMA_RSMA_TSDB0(s)                ((s)->pVnode->pTsdb)
 #define SMA_RSMA_TSDB1(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L0])
 #define SMA_RSMA_TSDB2(s)                ((s)->pRSmaTsdb[TSDB_RETENTION_L1])
-#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : pVnode->pSma->pRSmaTsdb[level - 1])
-
-// sma
-void smaHandleRes(void* pVnode, int64_t smaId, const SArray* data);
+#define SMA_RSMA_GET_TSDB(pVnode, level) ((level == 0) ? pVnode->pTsdb : NULL)
 
 enum {
   SNAP_DATA_CFG = 0,
@@ -561,8 +664,21 @@ enum {
   SNAP_DATA_STREAM_TASK_CHECKPOINT = 10,
   SNAP_DATA_STREAM_STATE = 11,
   SNAP_DATA_STREAM_STATE_BACKEND = 12,
-  SNAP_DATA_TQ_CHECKINFO = 13,
+  // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
+  SNAP_DATA_BSE = 15,
+  // Batch-meta-txn (section 44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
+  // a follower joining via full snapshot can resume vacuum of large-txn
+  // shadow entries instead of leaking PRE_* status forever. Reader emits
+  // these AFTER SNAP_DATA_META so that the meta entries referenced by each
+  // finalized txn already exist on the receiving side.
+  SNAP_DATA_TXN_META = 16,
+  SNAP_DATA_MEDIUM = 17,
+  // WAL .txn files: replicate per-vnode CDC txn files so the follower has
+  // complete txn-entry history for TMQ lazy load within the snapshot range.
+  // Transmitted BEFORE TXN_META and META so the follower has .txn data
+  // available when META entries arrive.
+  SNAP_DATA_TXN_WAL = 18,
 };
 
 struct SSnapDataHdr {
@@ -577,6 +693,7 @@ struct SCommitInfo {
   SVnodeInfo info;
   SVnode*    pVnode;
   TXN*       txn;
+  bool       forceTrim;  // force trim WAL, ignore keepVersion constraint
 };
 
 struct SCompactInfo {
@@ -585,8 +702,6 @@ struct SCompactInfo {
   int64_t     commitID;
   STimeWindow tw;
 };
-
-void initStorageAPI(SStorageAPI* pAPI);
 
 // a simple hash table impl
 typedef struct SVHashTable SVHashTable;
@@ -606,8 +721,100 @@ int32_t vHashPut(SVHashTable* ht, void* obj);
 int32_t vHashGet(SVHashTable* ht, const void* obj, void** retObj);
 int32_t vHashDrop(SVHashTable* ht, const void* obj);
 
+// vnodeTxn.c  -  Batch metadata transaction (shadow-in-B+tree model)
+// DDL within a transaction writes directly to B+ tree with txnId/txnStatus set.
+// EMetaTxnStatus (defined in tdef.h): NORMAL, PRE_CREATE, PRE_ALTER, PRE_DROP, COMMITTED, ROLLEDBACK.
+// COMMIT: promotes shadow entries (clear txnId -> 0, txnStatus -> NORMAL; physically delete PRE_DROP).
+// ROLLBACK: undoes shadow entries (delete PRE_CREATE; restore PRE_DROP/PRE_ALTER to NORMAL).
+
+int32_t vnodeTxnInit(SVnode* pVnode);
+void    vnodeTxnCleanup(SVnode* pVnode);
+int32_t vnodeTxnResetForSnapshot(SVnode* pVnode);
+int32_t vnodeProcessTxnCommitReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+int32_t vnodeProcessTxnRollbackReq(SVnode* pVnode, int64_t ver, void* pReq, int32_t len, SRpcMsg* pRsp);
+int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
+
+int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray** ppQueries);
+
+// Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
+int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId, int64_t ver);
+int32_t vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+int32_t vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
+
+// Returns the minimum beginWalIndex across all live DDL txn entries in pVnode->pTxnHash.
+// Returns INT64_MAX when the hash is empty or all entries have beginWalIndex==0.
+// Caller must NOT hold pVnode->txnMutex.
+int64_t vnodeTxnGetMinBeginWalIndex(SVnode *pVnode);
+
+// TMQ notification: track created/dropped UIDs for post-COMMIT batch notification
+int32_t vnodeTxnTrackCreate(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+int32_t vnodeTxnTrackDrop(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
+
+// Conflict detection: incomingOp values for vnodeTxnCheckConflict
+#define TXN_CONFLICT_OP_CREATE 1
+#define TXN_CONFLICT_OP_ALTER  2
+#define TXN_CONFLICT_OP_DROP   3
+
+// Check if a non-txn DDL conflicts with active txn shadow entries in B+ tree.
+// Uses EMetaTxnStatus for conflict detection instead of in-memory shadow ops.
+int32_t vnodeTxnCheckConflict(SVnode* pVnode, const char* tableName, int8_t incomingOp);
+
+// Acquire table-level lock for a txn; returns TSDB_CODE_TXN_RESOURCE_BUSY on cross-txn conflict.
+int32_t vnodeTxnLockTable(SVnode* pVnode, const char* tableName, int64_t txnId);
+
+// Check if a DELETE DML on a specific UID conflicts with PRE_DROP shadow.
+int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
+// Mark txn as containing a DROP STB with children; forces lazy/vacuum COMMIT path.
+int32_t vnodeTxnMarkBulkDrop(SVnode* pVnode, int64_t txnId);
+
+// metaTable2.c  -  mark existing entry with txnId/txnStatus/txnOrigVer in-place
+int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
+// metaTable2.c  -  rollback ALTER: delete new version entry, restore pUidIdx to old version
+int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
+// metaEntry2.c  -  rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
+int32_t metaRollbackChildTableTags(SMeta* pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion);
+
+// metaEntry2.c  -  scan all entries with txnId != 0 (for VNode startup rebuild)
+typedef struct SMetaTxnScanEntry {
+  tb_uid_t uid;
+  int64_t  txnId;
+  int8_t   txnStatus;
+  int64_t  txnOrigVer;
+} SMetaTxnScanEntry;
+int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
+
+// metaEntry2.c  -  txn.idx CRUD (small B+ tree for O(k) startup rebuild)
+int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
+int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
+
+// metaEntry2.c  -  txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
+// beginWalIndex: WAL index of first DDL in this txn. Written at txn begin (TXN_META_NONE),
+// preserved through COMMIT/ROLLBACK upsert. Used at crash recovery to restore WAL keepVersion.
+#pragma pack(push, 1)
+typedef struct {
+  int8_t  status;         // ETxnMetaStatus: TXN_META_NONE / TXN_META_COMMITTED / TXN_META_ROLLEDBACK
+  int64_t timestamp;      // When finalized (ms); 0 for in-progress BEGIN record
+  int64_t beginWalIndex;  // WAL index of first DDL in this txn; 0 = unknown (old data)
+} STxnMetaVal;
+#pragma pack(pop)
+int32_t metaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal* pVal);
+int32_t metaTxnMetaDelete(SMeta* pMeta, int64_t txnId);
+int32_t metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal);
+int32_t metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult);
+
+// metaEntry2.c  -  visibility helper: check if txn is finalized (O(1) hash lookup)
+int8_t metaGetTxnMetaStatus(SMeta* pMeta, int64_t txnId);
+
+// vnodeTxn.c  -  rebuild in-memory txn state from B+ tree (called at VNode startup)
+int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);
+
+// vnodeTxn.c  -  lazy vacuum: process finalized txn entries in batches
+int32_t vnodeTxnVacuumBatch(SVnode* pVnode, int32_t maxOps);
+
 #ifdef __cplusplus
 }
 #endif
+
+int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
 
 #endif /*_TD_VNODE_DEF_H_*/

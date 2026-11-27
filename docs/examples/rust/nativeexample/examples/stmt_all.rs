@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 use taos::*;
 use taos_query::util::hex::hex_string_to_bytes;
 
@@ -45,14 +60,6 @@ async fn main() -> anyhow::Result<()> {
             Value::Bool(true),
             Value::VarChar("binary_value".into()),
             Value::NChar("nchar_value".into()),
-            // Value::VarBinary(vec![0x98, 0xf4, 0x6e].into()),
-            // Value::Geometry(
-            //     vec![
-            //         0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40,
-            //         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x40,
-            //     ]
-            //     .into(),
-            // ),
         ];
 
         // set table name and tags for the prepared statement.
@@ -66,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
                 return Err(err.into());
             }
         }
+
         for j in 0..NUM_ROWS {
             let values = vec![
                 ColumnView::from_millis_timestamp(vec![1648432611249 + j as i64]),

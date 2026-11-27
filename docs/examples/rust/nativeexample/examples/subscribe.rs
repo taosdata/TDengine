@@ -1,3 +1,18 @@
+// Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 use std::time::Duration;
 
 use chrono::{DateTime, Local};
@@ -35,12 +50,10 @@ async fn prepare(taos: Taos) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // std::env::set_var("RUST_LOG", "debug");
-    pretty_env_logger::init();
     let dsn = "taos://localhost:6030";
     let builder = TaosBuilder::from_dsn(dsn)?;
 
-    let taos = builder.build()?;
+    let taos = builder.build().await?;
     let db = "tmq";
 
     // prepare database
@@ -63,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
     // subscribe
     let tmq = TmqBuilder::from_dsn("taos://localhost:6030/?group.id=test")?;
 
-    let mut consumer = tmq.build()?;
+    let mut consumer = tmq.build().await?;
     consumer.subscribe(["tmq_meters"]).await?;
 
     {

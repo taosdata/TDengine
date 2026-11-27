@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,7 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
 #include "tsdb.h"
+#include "ttime.h"
+#include "tutil.h"
 #include "vnd.h"
 
 #define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                    \
@@ -34,7 +39,7 @@ void vnodeQueryClose(SVnode *pVnode) { qWorkerDestroy((void **)&pVnode->pQuery);
 
 int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol) {
   int8_t tblType = reader->me.type;
-  if (useCompress(tblType)) {
+  if (withColCompress(tblType)) {
     SColCmprWrapper *p = &(reader->me.colCmpr);
     if (numOfCol != p->nCols) {
       vError("fillTableColCmpr table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
@@ -49,7 +54,7 @@ int32_t fillTableColCmpr(SMetaReader *reader, SSchemaExt *pExt, int32_t numOfCol
   return 0;
 }
 
-void vnodePrintTableMeta(STableMetaRsp* pMeta) {
+void vnodeDebugTableMeta(STableMetaRsp *pMeta) {
   if (!(qDebugFlag & DEBUG_DEBUG)) {
     return;
   }
@@ -70,13 +75,83 @@ void vnodePrintTableMeta(STableMetaRsp* pMeta) {
   qDebug("sysInfo:%d", pMeta->sysInfo);
   if (pMeta->pSchemas) {
     for (int32_t i = 0; i < (pMeta->numOfColumns + pMeta->numOfTags); ++i) {
-      SSchema* pSchema = pMeta->pSchemas + i;
-      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes, pSchema->name);
+      SSchema *pSchema = pMeta->pSchemas + i;
+      qDebug("%d col/tag: type:%d, flags:%d, colId:%d, bytes:%d, name:%s", i, pSchema->type, pSchema->flags,
+             pSchema->colId, pSchema->bytes, pSchema->name);
+    }
+  }
+}
+
+int32_t fillTableColRef(SMetaReader *reader, SColRef *pRef, int32_t numOfCol) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t line = 0;
+  int8_t tblType = reader->me.type;
+  if (hasColRef(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfCol != p->nCols) {
+      vError("fillTableColRef table type:%d, col num:%d, col cmpr num:%d mismatch", tblType, numOfCol, p->nCols);
+      code = TSDB_CODE_APP_ERROR;
+      goto _return;
+    }
+    for (int i = 0; i < p->nCols; i++) {
+      SColRef *pColRef = &p->pColRef[i];
+      pRef[i].hasRef = pColRef->hasRef;
+      pRef[i].id = pColRef->id;
+      if (pRef[i].hasRef) {
+        pRef[i].refType = pColRef->refType;
+        tstrncpy(pRef[i].refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pRef[i].refSchemaName, pColRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+        tstrncpy(pRef[i].refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRef[i].refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
+        if (pColRef->tagCondLen > 0 && pColRef->tagCondJson) {
+          pRef[i].tagCondLen = pColRef->tagCondLen;
+          pRef[i].tagCondJson = taosStrdup(pColRef->tagCondJson);
+          QUERY_CHECK_NULL(pRef[i].tagCondJson, code, line, _return, terrno);
+        } else {
+          pRef[i].tagCondLen = 0;
+          pRef[i].tagCondJson = NULL;
+        }
+        if (pColRef->filterCondLen > 0 && pColRef->filterCondJson) {
+          pRef[i].filterCondLen = pColRef->filterCondLen;
+          pRef[i].filterCondJson = taosStrdup(pColRef->filterCondJson);
+          QUERY_CHECK_NULL(pRef[i].filterCondJson, code, line, _return, terrno);
+        } else {
+          pRef[i].filterCondLen = 0;
+          pRef[i].filterCondJson = NULL;
+        }
+      }
     }
   }
 
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
 }
 
+int32_t fillTableTagRef(SMetaReader *reader, SColRef *pRef, int32_t numOfTagRefs) {
+  int8_t tblType = reader->me.type;
+  if (hasTagRef(tblType)) {
+    SColRefWrapper *p = &(reader->me.colRef);
+    if (numOfTagRefs != p->nTagRefs) {
+      vError("fillTableTagRef table type:%d, tag ref num:%d, expected:%d mismatch", tblType, numOfTagRefs, p->nTagRefs);
+      return TSDB_CODE_APP_ERROR;
+    }
+    for (int i = 0; i < p->nTagRefs; i++) {
+      SColRef *pTagRef = &p->pTagRef[i];
+      pRef[i].hasRef = pTagRef->hasRef;
+      pRef[i].id = pTagRef->id;
+      if (pRef[i].hasRef) {
+        tstrncpy(pRef[i].refDbName, pTagRef->refDbName, TSDB_DB_NAME_LEN);
+        tstrncpy(pRef[i].refTableName, pTagRef->refTableName, TSDB_TABLE_NAME_LEN);
+        tstrncpy(pRef[i].refColName, pTagRef->refColName, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  return 0;
+}
 
 int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   STableInfoReq  infoReq = {0};
@@ -91,12 +166,19 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  uint8_t        autoCreateCtb = 0;
+  SSchema       *pMergedCols = NULL;  // vchild: vstb row schema + own (extension) columns
+  SColRef       *pMergedRefs = NULL;  // vchild: persisted colRef + own column refs
+  int32_t        nMergedCols = 0;
+  SSchema       *pMergedTags = NULL;  // vchild: vstb tag schema + own (extension) tags
+  int32_t        nMergedTags = 0;
 
   // decode req
   if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
     code = terrno;
     goto _exit4;
   }
+  autoCreateCtb = infoReq.autoCreateCtb;
 
   if (infoReq.option == REQ_OPT_TBUID) reqTbUid = true;
   metaRsp.dbId = pVnode->config.dbId;
@@ -104,7 +186,8 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   (void)memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
 
   if (!reqTbUid) {
-    (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", infoReq.dbFName, infoReq.tbName);
+    if (pVnode->mounted) tTrimMountPrefix(tableFName);
     code = vnodeValidateTableHash(pVnode, tableFName);
     if (code) {
       goto _exit4;
@@ -112,16 +195,16 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK, infoReq.txnId);
   if (reqTbUid) {
-    errno = 0;
+    SET_ERRNO(0);
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
-    if (errno == ERANGE || tbUid == 0) {
+    if (ERRNO == ERANGE || tbUid == 0) {
       code = TSDB_CODE_TDB_TABLE_NOT_EXIST;
       goto _exit3;
     }
     SMetaReader mr3 = {0};
-    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK);
+    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK, infoReq.txnId);
     if ((code = metaReaderGetTableEntryByUid(&mr3, tbUid)) < 0) {
       metaReaderClear(&mr3);
       TAOS_CHECK_GOTO(code, NULL, _exit3);
@@ -137,29 +220,68 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   metaRsp.tableType = mer1.me.type;
   metaRsp.vgId = TD_VID(pVnode);
   metaRsp.tuid = mer1.me.uid;
+  metaRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
 
-  if (mer1.me.type == TSDB_SUPER_TABLE) {
-    tstrncpy(metaRsp.stbName, mer1.me.name, TSDB_TABLE_NAME_LEN);
-    schema = mer1.me.stbEntry.schemaRow;
-    schemaTag = mer1.me.stbEntry.schemaTag;
-    metaRsp.suid = mer1.me.uid;
-  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
+  switch (mer1.me.type) {
+    case TSDB_SUPER_TABLE: {
+      tstrncpy(metaRsp.stbName, mer1.me.name, sizeof(metaRsp.stbName));
+      schema = mer1.me.stbEntry.schemaRow;
+      schemaTag = mer1.me.stbEntry.schemaTag;
+      metaRsp.suid = mer1.me.uid;
+      metaRsp.virtualStb = TABLE_IS_VIRTUAL(mer1.me.flags);
+      metaRsp.ownerId = mer1.me.stbEntry.ownerId;
+      metaRsp.secLvl = mer1.me.stbEntry.securityLevel;
+      break;
+    }
+    case TSDB_CHILD_TABLE:
+    case TSDB_VIRTUAL_CHILD_TABLE:{
+      metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, infoReq.txnId);
+      if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit2;
 
-    tstrncpy(metaRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
-    metaRsp.suid = mer2.me.uid;
-    schema = mer2.me.stbEntry.schemaRow;
-    schemaTag = mer2.me.stbEntry.schemaTag;
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
-    schema = mer1.me.ntbEntry.schemaRow;
-  } else {
-    vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
-    goto _exit3;
+      tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
+      metaRsp.suid = mer2.me.uid;
+      metaRsp.ownerId = mer2.me.stbEntry.ownerId;  // child table inherits ownerId from stb
+      metaRsp.secLvl = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
+      schema = mer2.me.stbEntry.schemaRow;
+      schemaTag = mer2.me.stbEntry.schemaTag;
+      break;
+    }
+    case TSDB_NORMAL_TABLE:
+      metaRsp.secLvl = pVnode->config.securityLevel;  // normal table inherits secLvl from vnode config
+    case TSDB_VIRTUAL_NORMAL_TABLE: {
+      schema = mer1.me.ntbEntry.schemaRow;
+      schemaTag = mer1.me.ntbEntry.schemaTag;  // normal/virtual-normal tables may own tags
+      metaRsp.ownerId = mer1.me.ntbEntry.ownerId;
+      break;
+    }
+    default: {
+      vError("vnodeGetTableMeta get invalid table type:%d", mer1.me.type);
+      goto _exit3;
+    }
   }
 
-  metaRsp.numOfTags = schemaTag.nCols;
-  metaRsp.numOfColumns = schema.nCols;
+  // For a virtual child table, build the merged column view first: vstb row schema followed
+  // by the vchild's own (extension) columns, persisted colRef followed by own column refs.
+  nMergedCols = schema.nCols;
+  if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaBuildMergedColView(&mer1.me, &schema, &pMergedCols, &pMergedRefs, &nMergedCols);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableMeta build merged col view for %s failed since %s", TD_VID(pVnode),
+             infoReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+    // merged tag view: vstb tag schema followed by the vchild's own (extension) tags
+    nMergedTags = schemaTag.nCols;
+    code = metaBuildMergedTagView(&mer1.me, &schemaTag, &pMergedTags, &nMergedTags);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableMeta build merged tag view for %s failed since %s", TD_VID(pVnode),
+             infoReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+  }
+
+  metaRsp.numOfTags = (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? nMergedTags : schemaTag.nCols;
+  metaRsp.numOfColumns = nMergedCols;
   metaRsp.precision = pVnode->config.tsdbCfg.precision;
   metaRsp.sversion = schema.version;
   metaRsp.tversion = schemaTag.version;
@@ -169,22 +291,111 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = terrno;
     goto _exit;
   }
-  (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
-  if (schemaTag.nCols) {
-    (void)memcpy(metaRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  if (pMergedCols) {
+    (void)memcpy(metaRsp.pSchemas, pMergedCols, sizeof(SSchema) * nMergedCols);
+  } else {
+    (void)memcpy(metaRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
+  }
+  if (pMergedTags) {
+    (void)memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, pMergedTags, sizeof(SSchema) * nMergedTags);
+  } else if (schemaTag.nCols) {
+    (void)memcpy(metaRsp.pSchemas + metaRsp.numOfColumns, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
   if (metaRsp.pSchemaExt) {
-    SMetaReader *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
-    code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, metaRsp.numOfColumns);
+    SMetaReader *pReader =
+        (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
+    // col compress/ext schema of the vstb part only; own columns keep zeroed ext schema
+    code = fillTableColCmpr(pReader, metaRsp.pSchemaExt, schema.nCols);
     if (code < 0) {
       goto _exit;
+    }
+    for (int32_t i = 0; i < metaRsp.numOfColumns; i++) {
+      metaRsp.pSchemaExt[i].colId = metaRsp.pSchemas[i].colId;
+      if (i < schema.nCols) {
+        if (pReader->me.pExtSchemas) {
+          metaRsp.pSchemaExt[i].typeMod = pReader->me.pExtSchemas[i].typeMod;
+        }
+      } else if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE && mer1.me.own.pOwnColExtSchemas != NULL &&
+                 mer1.me.own.nOwnCols == metaRsp.numOfColumns - schema.nCols) {
+        // every producer path allocates the own ext area with nOwnCols entries, so a non-NULL
+        // array covers the whole own range; the count check keeps that local instead of assumed
+        metaRsp.pSchemaExt[i].typeMod = mer1.me.own.pOwnColExtSchemas[i - schema.nCols].typeMod;
+      }
     }
   } else {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+  if (hasColRef(mer1.me.type)) {
+    metaRsp.rversion = mer1.me.colRef.version;
+    if (pMergedRefs) {
+      // merged view already validated (persisted colRef aligned with the vstb schema) and
+      // deep-copied by metaBuildMergedColView; transfer ownership to the response
+      metaRsp.pColRefs = pMergedRefs;
+      pMergedRefs = NULL;
+    } else {
+      metaRsp.pColRefs = (SColRef*)taosMemoryCalloc(metaRsp.numOfColumns, sizeof(SColRef));
+      if (metaRsp.pColRefs) {
+        code = fillTableColRef(&mer1, metaRsp.pColRefs, metaRsp.numOfColumns);
+        if (code < 0) {
+          goto _exit;
+        }
+      }
+    }
+    metaRsp.numOfColRefs = metaRsp.numOfColumns;
 
-  vnodePrintTableMeta(&metaRsp);
+    // Fill tag references
+    if (mer1.me.colRef.nTagRefs > 0) {
+      metaRsp.pTagRefs = (SColRef*)taosMemoryCalloc(mer1.me.colRef.nTagRefs, sizeof(SColRef));
+      if (metaRsp.pTagRefs) {
+        code = fillTableTagRef(&mer1, metaRsp.pTagRefs, mer1.me.colRef.nTagRefs);
+        if (code < 0) {
+          taosMemoryFreeClear(metaRsp.pTagRefs);
+          goto _exit;
+        }
+      } else {
+        code = terrno;
+        goto _exit;
+      }
+      metaRsp.numOfTagRefs = mer1.me.colRef.nTagRefs;
+    } else {
+      metaRsp.pTagRefs = NULL;
+      metaRsp.numOfTagRefs = 0;
+    }
+  } else {
+    metaRsp.pColRefs = NULL;
+    metaRsp.numOfColRefs = 0;
+    metaRsp.pTagRefs = NULL;
+    metaRsp.numOfTagRefs = 0;
+  }
+
+  // Fill series
+  if (mer1.me.series.nSeries > 0) {
+    metaRsp.numOfSeries = mer1.me.series.nSeries;
+    metaRsp.pSeries = taosMemoryCalloc(mer1.me.series.nSeries, sizeof(SSeriesEntry));
+    if (metaRsp.pSeries) {
+      for (int32_t i = 0; i < mer1.me.series.nSeries; i++) {
+        SSeriesEntry *src = &mer1.me.series.pSeries[i];
+        SSeriesEntry *dst = &metaRsp.pSeries[i];
+        tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+        tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+        tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+        dst->tagCondLen = src->tagCondLen;
+        dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+      }
+    } else {
+      code = terrno;
+      goto _exit;
+    }
+  } else {
+    metaRsp.numOfSeries = 0;
+    metaRsp.pSeries = NULL;
+  }
+
+  code = tCloneVtableReferenceExt(&mer1.me.referenceExt, &metaRsp.referenceExt);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+  vnodeDebugTableMeta(&metaRsp);
 
   // encode and send response
   rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -211,8 +422,13 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
 _exit:
-  taosMemoryFree(metaRsp.pSchemas);
-  taosMemoryFree(metaRsp.pSchemaExt);
+  taosMemoryFreeClear(pMergedCols);
+  taosMemoryFreeClear(pMergedTags);
+  if (pMergedRefs) {
+    tFreeSColRefArray(pMergedRefs, nMergedCols);
+    taosMemoryFreeClear(pMergedRefs);
+  }
+  tFreeSTableMetaRsp(&metaRsp);
 _exit2:
   metaReaderClear(&mer2);
 _exit3:
@@ -222,10 +438,15 @@ _exit4:
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
-  rpcMsg.msgType = pMsg->msgType;
+  rpcMsg.msgType = direct ? pMsg->msgType + 1 : pMsg->msgType;
+
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && autoCreateCtb == 1) {
+    code = TSDB_CODE_SUCCESS;
+  }
 
   if (code) {
-    qError("get table %s meta with %" PRIu8 " failed cause of %s", infoReq.tbName, infoReq.option, tstrerror(code));
+    qError("vgId:%d, get table %s meta with %" PRIu8 " failed cause of %s", pVnode->config.vgId, infoReq.tbName,
+           infoReq.option, tstrerror(code));
   }
 
   if (direct) {
@@ -249,6 +470,11 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   void          *pRsp = NULL;
   SSchemaWrapper schema = {0};
   SSchemaWrapper schemaTag = {0};
+  SSchema       *pMergedCols = NULL;  // vchild: vstb row schema + own (extension) columns
+  SColRef       *pMergedRefs = NULL;  // vchild: persisted colRef + own column refs
+  int32_t        nMergedCols = 0;
+  SSchema       *pMergedTags = NULL;  // vchild: vstb tag schema + own (extension) tags
+  int32_t        nMergedTags = 0;
 
   // decode req
   if (tDeserializeSTableCfgReq(pMsg->pCont, pMsg->contLen, &cfgReq) != 0) {
@@ -259,14 +485,15 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   tstrncpy(cfgRsp.tbName, cfgReq.tbName, TSDB_TABLE_NAME_LEN);
   (void)memcpy(cfgRsp.dbFName, cfgReq.dbFName, sizeof(cfgRsp.dbFName));
 
-  (void)tsnprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  (void)snprintf(tableFName, TSDB_TABLE_FNAME_LEN, "%s.%s", cfgReq.dbFName, cfgReq.tbName);
+  if (pVnode->mounted) tTrimMountPrefix(tableFName);
   code = vnodeValidateTableHash(pVnode, tableFName);
   if (code) {
     goto _exit;
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK, cfgReq.txnId);
 
   if (metaGetTableEntryByName(&mer1, cfgReq.tbName) < 0) {
     code = terrno;
@@ -274,17 +501,21 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   cfgRsp.tableType = mer1.me.type;
+  cfgRsp.isAudit = pVnode->config.isAudit ? 1 : 0;
+  cfgRsp.secureDelete = pVnode->config.secureDelete;
 
   if (mer1.me.type == TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
-  } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+  } else if (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, cfgReq.txnId);
+    if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;
     schemaTag = mer2.me.stbEntry.schemaTag;
+    cfgRsp.ownerId = mer2.me.stbEntry.ownerId;        // child table inherits ownerId from stb
+    cfgRsp.securityLevel = mer2.me.stbEntry.securityLevel;  // child table inherits secLvl from stb
     cfgRsp.ttl = mer1.me.ctbEntry.ttlDays;
     cfgRsp.commentLen = mer1.me.ctbEntry.commentLen;
     if (mer1.me.ctbEntry.commentLen > 0) {
@@ -302,9 +533,12 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit;
     }
     (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
-  } else if (mer1.me.type == TSDB_NORMAL_TABLE) {
+  } else if (mer1.me.type == TSDB_NORMAL_TABLE || mer1.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
     schema = mer1.me.ntbEntry.schemaRow;
+    schemaTag = mer1.me.ntbEntry.schemaTag;  // normal/virtual-normal tables may own tags
     cfgRsp.ttl = mer1.me.ntbEntry.ttlDays;
+    cfgRsp.ownerId = mer1.me.ntbEntry.ownerId;
+    cfgRsp.securityLevel = mer1.me.type == TSDB_NORMAL_TABLE ? pVnode->config.securityLevel : 0;
     cfgRsp.commentLen = mer1.me.ntbEntry.commentLen;
     if (mer1.me.ntbEntry.commentLen > 0) {
       cfgRsp.pComment = taosStrdup(mer1.me.ntbEntry.comment);
@@ -313,38 +547,203 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
         goto _exit;
       }
     }
+    // owned tag values: copy ntbEntry.pTags so the executor's local-tag reading path
+    // (which reads cfgRsp.pTags) can project them. Mirrors the child-table branch above.
+    if (mer1.me.ntbEntry.schemaTag.nCols > 0 && mer1.me.ntbEntry.pTags != NULL) {
+      STag *pTag = (STag *)mer1.me.ntbEntry.pTags;
+      cfgRsp.tagsLen = pTag->len;
+      cfgRsp.pTags = taosMemoryMalloc(cfgRsp.tagsLen);
+      if (NULL == cfgRsp.pTags) {
+        code = terrno;
+        goto _exit;
+      }
+      (void)memcpy(cfgRsp.pTags, pTag, cfgRsp.tagsLen);
+    }
   } else {
     vError("vnodeGetTableCfg get invalid table type:%d", mer1.me.type);
     code = TSDB_CODE_APP_ERROR;
     goto _exit;
   }
 
-  cfgRsp.numOfTags = schemaTag.nCols;
-  cfgRsp.numOfColumns = schema.nCols;
-  cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
-  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryMalloc(cfgRsp.numOfColumns * sizeof(SSchemaExt));
+  // For a virtual child table, build the merged column view first: vstb row schema followed
+  // by the vchild's own (extension) columns, persisted colRef followed by own column refs.
+  nMergedCols = schema.nCols;
+  if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+    code = metaBuildMergedColView(&mer1.me, &schema, &pMergedCols, &pMergedRefs, &nMergedCols);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableCfg build merged col view for %s failed since %s", TD_VID(pVnode),
+             cfgReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+    // merged tag view: vstb tag schema followed by the vchild's own (extension) tags
+    nMergedTags = schemaTag.nCols;
+    code = metaBuildMergedTagView(&mer1.me, &schemaTag, &pMergedTags, &nMergedTags);
+    if (code) {
+      vError("vgId:%d, vnodeGetTableCfg build merged tag view for %s failed since %s", TD_VID(pVnode),
+             cfgReq.tbName, tstrerror(code));
+      goto _exit;
+    }
+  }
 
-  if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt) {
+  cfgRsp.numOfTags = (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? nMergedTags : schemaTag.nCols;
+  cfgRsp.numOfColumns = nMergedCols;
+  cfgRsp.virtualStb = false; // vnode don't have super table, so it's always false
+  cfgRsp.pSchemas = (SSchema *)taosMemoryMalloc(sizeof(SSchema) * (cfgRsp.numOfColumns + cfgRsp.numOfTags));
+  cfgRsp.pSchemaExt = (SSchemaExt *)taosMemoryCalloc(cfgRsp.numOfColumns, sizeof(SSchemaExt));
+  cfgRsp.pColRefs = (SColRef *)taosMemoryCalloc(cfgRsp.numOfColumns, sizeof(SColRef));
+  cfgRsp.numOfTagRefs = 0;
+  cfgRsp.pTagRefs = NULL;
+
+  if (NULL == cfgRsp.pSchemas || NULL == cfgRsp.pSchemaExt || NULL == cfgRsp.pColRefs) {
     code = terrno;
     goto _exit;
   }
-  (void)memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
-  if (schemaTag.nCols) {
-    (void)memcpy(cfgRsp.pSchemas + schema.nCols, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
+  if (pMergedCols) {
+    (void)memcpy(cfgRsp.pSchemas, pMergedCols, sizeof(SSchema) * nMergedCols);
+  } else {
+    (void)memcpy(cfgRsp.pSchemas, schema.pSchema, sizeof(SSchema) * schema.nCols);
+  }
+  if (pMergedTags) {
+    (void)memcpy(cfgRsp.pSchemas + cfgRsp.numOfColumns, pMergedTags, sizeof(SSchema) * nMergedTags);
+  } else if (schemaTag.nCols) {
+    (void)memcpy(cfgRsp.pSchemas + cfgRsp.numOfColumns, schemaTag.pSchema, sizeof(SSchema) * schemaTag.nCols);
   }
 
-  // if (useCompress(cfgRsp.tableType)) {
+  SMetaReader    *pReader = (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? &mer2 : &mer1;
+  SColRefWrapper *pColRef = &mer1.me.colRef;
 
-  SMetaReader     *pReader = mer1.me.type == TSDB_CHILD_TABLE ? &mer2 : &mer1;
-  SColCmprWrapper *pColCmpr = &pReader->me.colCmpr;
+  if (withExtSchema(cfgRsp.tableType)) {
+    // col compress/ext schema of the vstb part; own columns carry typeMod (e.g. decimal
+    // precision/scale) from the vchild entry's own-col ext area when present.
+    code = fillTableColCmpr(pReader, cfgRsp.pSchemaExt, schema.nCols);
+    if (code < 0) {
+      goto _exit;
+    }
 
-  for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
-    SColCmpr   *pCmpr = &pColCmpr->pColCmpr[i];
-    SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
-    pSchExt->colId = pCmpr->id;
-    pSchExt->compress = pCmpr->alg;
+    for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+      SSchemaExt *pSchExt = cfgRsp.pSchemaExt + i;
+      pSchExt->colId = cfgRsp.pSchemas[i].colId;
+      if (i < schema.nCols) {
+        if (pReader->me.pExtSchemas) {
+          pSchExt->typeMod = pReader->me.pExtSchemas[i].typeMod;
+        }
+      } else if (mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE && mer1.me.own.pOwnColExtSchemas != NULL &&
+                 mer1.me.own.nOwnCols == cfgRsp.numOfColumns - schema.nCols) {
+        // see the same guard in vnodeGetTableMeta: a non-NULL own ext area is sized nOwnCols;
+        // verify the count so the index below is provably in range
+        pSchExt->typeMod = mer1.me.own.pOwnColExtSchemas[i - schema.nCols].typeMod;
+      }
+    }
   }
-  //}
+
+  cfgRsp.virtualStb = false;
+  if (hasColRef(cfgRsp.tableType)) {
+    if (pMergedRefs) {
+      // merged view already validated and deep-copied by metaBuildMergedColView;
+      // transfer ownership to the response
+      taosMemoryFreeClear(cfgRsp.pColRefs);
+      cfgRsp.pColRefs = pMergedRefs;
+      pMergedRefs = NULL;
+    } else {
+      for (int32_t i = 0; i < cfgRsp.numOfColumns; i++) {
+        SColRef *pRef = &pColRef->pColRef[i];
+        cfgRsp.pColRefs[i].hasRef = pRef->hasRef;
+        cfgRsp.pColRefs[i].id = pRef->id;
+        if (cfgRsp.pColRefs[i].hasRef) {
+          cfgRsp.pColRefs[i].refType = pRef->refType;
+          tstrncpy(cfgRsp.pColRefs[i].refSourceName, pRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refSchemaName, pRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(cfgRsp.pColRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+          if (pRef->tagCondJson) {
+            cfgRsp.pColRefs[i].tagCondLen = pRef->tagCondLen;
+            cfgRsp.pColRefs[i].tagCondJson = taosStrdup(pRef->tagCondJson);
+          } else {
+            cfgRsp.pColRefs[i].tagCondLen = 0;
+            cfgRsp.pColRefs[i].tagCondJson = NULL;
+          }
+        }
+        if (pRef->filterCondLen > 0 && pRef->filterCondJson) {
+          cfgRsp.pColRefs[i].filterCondLen = pRef->filterCondLen;
+          cfgRsp.pColRefs[i].filterCondJson = taosStrdup(pRef->filterCondJson);
+          if (NULL == cfgRsp.pColRefs[i].filterCondJson) {
+            code = terrno;
+            goto _exit;
+          }
+        }
+      }
+    }
+
+    cfgRsp.numOfTagRefs = pColRef->nTagRefs;
+    if (cfgRsp.numOfTagRefs > 0) {
+      if (NULL == pColRef->pTagRef) {
+        code = TSDB_CODE_APP_ERROR;
+        goto _exit;
+      }
+      cfgRsp.pTagRefs = (SColRef *)taosMemoryCalloc(cfgRsp.numOfTagRefs, sizeof(SColRef));
+      if (NULL == cfgRsp.pTagRefs) {
+        code = terrno;
+        goto _exit;
+      }
+
+      for (int32_t i = 0; i < cfgRsp.numOfTagRefs; i++) {
+        SColRef *pRef = &pColRef->pTagRef[i];
+        cfgRsp.pTagRefs[i].hasRef = pRef->hasRef;
+        cfgRsp.pTagRefs[i].id = pRef->id;
+        if (cfgRsp.pTagRefs[i].hasRef) {
+          cfgRsp.pTagRefs[i].refType = pRef->refType;
+          tstrncpy(cfgRsp.pTagRefs[i].refSourceName, pRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refSchemaName, pRef->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refDbName, pRef->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refTableName, pRef->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(cfgRsp.pTagRefs[i].refColName, pRef->refColName, TSDB_COL_NAME_LEN);
+          if (pRef->tagCondJson) {
+            cfgRsp.pTagRefs[i].tagCondLen = pRef->tagCondLen;
+            cfgRsp.pTagRefs[i].tagCondJson = taosStrdup(pRef->tagCondJson);
+            if (NULL == cfgRsp.pTagRefs[i].tagCondJson) {
+              code = terrno;
+              goto _exit;
+            }
+          }
+          if (pRef->filterCondLen > 0 && pRef->filterCondJson) {
+            cfgRsp.pTagRefs[i].filterCondLen = pRef->filterCondLen;
+            cfgRsp.pTagRefs[i].filterCondJson = taosStrdup(pRef->filterCondJson);
+            if (NULL == cfgRsp.pTagRefs[i].filterCondJson) {
+              code = terrno;
+              goto _exit;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  code = tCloneVtableReferenceExt(&mer1.me.referenceExt, &cfgRsp.referenceExt);
+  if (code != TSDB_CODE_SUCCESS) goto _exit;
+
+  // populate series
+  if (mer1.me.series.nSeries > 0) {
+    cfgRsp.numOfSeries = mer1.me.series.nSeries;
+    cfgRsp.pSeries = taosMemoryCalloc(mer1.me.series.nSeries, sizeof(SSeriesEntry));
+    if (cfgRsp.pSeries) {
+      for (int32_t i = 0; i < mer1.me.series.nSeries; i++) {
+        SSeriesEntry *src = &mer1.me.series.pSeries[i];
+        SSeriesEntry *dst = &cfgRsp.pSeries[i];
+        tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+        tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+        tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+        if (src->tagCondLen > 0) {
+          dst->tagCondJson = taosStrdup(src->tagCondJson);
+          dst->tagCondLen = src->tagCondLen;
+        } else {
+          dst->tagCondJson = NULL;
+          dst->tagCondLen = 0;
+        }
+      }
+    }
+  }
 
   // encode and send response
   rspLen = tSerializeSTableCfgRsp(NULL, 0, &cfgRsp);
@@ -388,6 +787,12 @@ _exit:
   }
 
   tFreeSTableCfgRsp(&cfgRsp);
+  taosMemoryFreeClear(pMergedCols);
+  taosMemoryFreeClear(pMergedTags);
+  if (pMergedRefs) {
+    tFreeSColRefArray(pMergedRefs, nMergedCols);
+    taosMemoryFreeClear(pMergedRefs);
+  }
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
   return code;
@@ -463,10 +868,22 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
           qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
         }
         break;
-      case TDMT_VND_GET_STREAM_PROGRESS:
+      case TDMT_VND_VSUBTABLES_META:
         // error code has been set into reqMsg, no need to handle it here.
-        if (TSDB_CODE_SUCCESS != vnodeGetStreamProgress(pVnode, &reqMsg, false)) {
-          qWarn("vnodeGetBatchMeta failed, msgType:%d", req->msgType);
+        if (TSDB_CODE_SUCCESS != vnodeGetVSubtablesMeta(pVnode, &reqMsg)) {
+          qWarn("vnodeGetVSubtablesMeta failed, msgType:%d", req->msgType);
+        }
+        break;
+      case TDMT_VND_VSTB_REF_DBS:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetVStbRefDbs(pVnode, &reqMsg)) {
+          qWarn("vnodeGetVStbRefDbs failed, msgType:%d", req->msgType);
+        }
+        break;
+      case TDMT_VND_VTB_TAG_COND:
+        // error code has been set into reqMsg, no need to handle it here.
+        if (TSDB_CODE_SUCCESS != vnodeGetVTbTagCond(pVnode, &reqMsg, false)) {
+          qWarn("vnodeGetVTbTagCond failed, msgType:%d", req->msgType);
         }
         break;
       default:
@@ -528,8 +945,692 @@ _exit:
   return code;
 }
 
+#define VNODE_DO_META_QUERY(pVnode, cmd)                 \
+  do {                                                   \
+    (void)taosThreadRwlockRdlock(&(pVnode)->metaRWLock); \
+    cmd;                                                 \
+    (void)taosThreadRwlockUnlock(&(pVnode)->metaRWLock); \
+  } while (0)
+
+int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SMetaReader                mr = {0};
+  bool                       readerInit = false;
+  SVCTableRefCols*           pTb = NULL;
+  int32_t                    refColsNum = 0;
+  char                       tbFName[TSDB_TABLE_FNAME_LEN];
+  SSHashObj*                 pSrcTbls = NULL;
+  SSHashObj*                 pContentDedup = NULL;
+
+  SArray *pList = taosArrayInit(10, sizeof(uint64_t));
+  QUERY_CHECK_NULL(pList, code, line, _return, terrno);
+
+  QUERY_CHECK_CODE(pHandle->api.metaFn.getChildTableList(pHandle->vnode, suid, pList), line, _return);
+
+  size_t num = taosArrayGetSize(pList);
+  *ppRes = taosArrayInit(num, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno);
+  pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
+  pContentDedup = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pContentDedup, code, line, _return, terrno);
+
+  for (int32_t i = 0; i < num; ++i) {
+    uint64_t* id = taosArrayGet(pList, i);
+    QUERY_CHECK_NULL(id, code, line, _return, terrno);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
+    QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
+    readerInit = true;
+
+    int32_t nAllColRefs = mr.me.colRef.nCols + mr.me.own.nOwnCols;
+    refColsNum = 0;
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (pCol->hasRef) {
+        refColsNum++;
+      }
+    }
+
+    int32_t tagRefColsNum = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (mr.me.colRef.pTagRef[j].hasRef) {
+        tagRefColsNum++;
+      }
+    }
+
+    if (refColsNum <= 0 && tagRefColsNum <= 0) {
+      pHandle->api.metaReaderFn.clearReader(&mr);
+      readerInit = false;
+      continue;
+    }
+
+    // Size the compact block (entries + string arena) and count source tables.
+    uint64_t arenaBytes = 0;
+    tSimpleHashClear(pSrcTbls);
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (!pCol->hasRef) {
+        continue;
+      }
+
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&mr.me.referenceExt, pCol->id);
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&mr.me.referenceExt, pCol->id);
+      if (pLink != NULL) arenaBytes += strlen(pLink->alias) + 1;
+      if (pReference != NULL) arenaBytes += strlen(pReference->timeColumn) + 1;
+      arenaBytes += strlen(pCol->refDbName) + 1;
+      arenaBytes += strlen(pCol->refTableName) + 1;
+      arenaBytes += strlen(pCol->refColName) + 1;
+      if (pCol->refSourceName[0] != '\0') {
+        arenaBytes += strlen(pCol->refSourceName) + 1;
+      }
+      if (pCol->refSchemaName[0] != '\0') {
+        arenaBytes += strlen(pCol->refSchemaName) + 1;
+      }
+
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", pCol->refDbName, pCol->refTableName);
+
+      if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+        QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+      }
+    }
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (!mr.me.colRef.pTagRef[j].hasRef) {
+        continue;
+      }
+
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refDbName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refTableName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refColName) + 1;
+      if (mr.me.colRef.pTagRef[j].refSourceName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pTagRef[j].refSourceName) + 1;
+      }
+      if (mr.me.colRef.pTagRef[j].refSchemaName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pTagRef[j].refSchemaName) + 1;
+      }
+
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", mr.me.colRef.pTagRef[j].refDbName, mr.me.colRef.pTagRef[j].refTableName);
+
+      if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
+        QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
+      }
+    }
+
+    SVctRefContent* pContent = tVctRefContentAlloc(refColsNum, tagRefColsNum, arenaBytes);
+    QUERY_CHECK_NULL(pContent, code, line, _return, terrno);
+
+    uint32_t arenaPos = 0;
+    int32_t  colIdx = 0;
+    for (int32_t j = 0; j < nAllColRefs; j++) {
+      const SColRef *pCol = j < mr.me.colRef.nCols ? &mr.me.colRef.pColRef[j] :
+          &mr.me.own.pOwnColRefs[j - mr.me.colRef.nCols];
+      if (!pCol->hasRef) {
+        continue;
+      }
+
+      SRefColEntry* pEntry = vctContentColAt(pContent, colIdx);
+      pEntry->colId = pCol->id;
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&mr.me.referenceExt, pEntry->colId);
+      const SReferenceEntry *pReference = tVtableReferenceForColumn(&mr.me.referenceExt, pEntry->colId);
+      if (pLink != NULL) {
+        pEntry->bindingKind = pLink->bindingKind;
+        pEntry->aliasOff = tVctRefContentPutStr(pContent, &arenaPos, pLink->alias);
+      }
+      if (pReference != NULL) {
+        pEntry->timeOff = tVctRefContentPutStr(pContent, &arenaPos, pReference->timeColumn);
+      }
+      if (pCol->filterCondLen > 0) {
+        pEntry->flags |= VCT_REF_FLAG_HAS_FILTER_COND;
+      }
+      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refDbName);
+      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refTableName);
+      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refColName);
+      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refSourceName);
+      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, pCol->refSchemaName);
+      colIdx++;
+    }
+
+    // Fill tag refs
+    int32_t tagIdx = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (!mr.me.colRef.pTagRef[j].hasRef) {
+        continue;
+      }
+
+      SRefColEntry* pEntry = vctContentTagAt(pContent, tagIdx);
+      pEntry->colId = mr.me.colRef.pTagRef[j].id;
+      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refDbName);
+      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refTableName);
+      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refColName);
+      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refSourceName);
+      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refSchemaName);
+      tagIdx++;
+    }
+
+    // Children over few source tables share one content block per unique
+    // ref pattern instead of carrying a private copy each.
+    SVctRefContent** ppKept = (SVctRefContent**)tSimpleHashGet(pContentDedup, pContent, (uint32_t)pContent->bufLen);
+    if (NULL != ppKept) {
+      taosMemoryFree(pContent);
+      pContent = *ppKept;
+    } else {
+      code = tSimpleHashPut(pContentDedup, pContent, (uint32_t)pContent->bufLen, &pContent, sizeof(pContent));
+      if (code) {
+        // the block is owned by no one else yet; release it on the way out
+        taosMemoryFree(pContent);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+
+    pTb = tVctRefRecordNew(mr.me.uid, tSimpleHashGetSize(pSrcTbls), refColsNum, tagRefColsNum, pContent);
+    if (NULL == pTb) {
+      code = terrno;
+      goto _return;
+    }
+
+    pTb->rversion = mr.me.colRef.version;
+    QUERY_CHECK_NULL(taosArrayPush(*ppRes, &pTb), code, line, _return, terrno);
+    pTb = NULL;
+
+    pHandle->api.metaReaderFn.clearReader(&mr);
+    readerInit = false;
+  }
+
+_return:
+
+  if (readerInit) {
+    pHandle->api.metaReaderFn.clearReader(&mr);
+  }
+
+  taosArrayDestroy(pList);
+  taosMemoryFree(pTb);
+  tSimpleHashCleanup(pSrcTbls);
+  tSimpleHashCleanup(pContentDedup);
+
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppDbs, SArray** ppExtSources) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  int32_t                    line = 0;
+  SMetaReader                mr = {0};
+  bool                       readerInit = false;
+  SSHashObj*                 pDbNameHash = NULL;
+  SSHashObj*                 pExtSourceHash = NULL;
+  SArray*                    pList = NULL;
+
+  pList = taosArrayInit(10, sizeof(uint64_t));
+  QUERY_CHECK_NULL(pList, code, line, _return, terrno);
+
+  *ppDbs = taosArrayInit(10, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppDbs, code, line, _return, terrno)
+
+  *ppExtSources = taosArrayInit(4, POINTER_BYTES);
+  QUERY_CHECK_NULL(*ppExtSources, code, line, _return, terrno)
+  
+  // lookup in cache
+  code = pHandle->api.metaFn.metaGetCachedRefDbs(pHandle->vnode, suid, *ppDbs);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  if (taosArrayGetSize(*ppDbs) > 0) {
+    // found in cache, also get ext sources from cache
+    code = pHandle->api.metaFn.metaGetCachedExtSources(pHandle->vnode, suid, *ppExtSources);
+    QUERY_CHECK_CODE(code, line, _return);
+    goto _return;
+  } else {
+    code = pHandle->api.metaFn.getChildTableList(pHandle->vnode, suid, pList);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    size_t num = taosArrayGetSize(pList);
+    pDbNameHash = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    QUERY_CHECK_NULL(pDbNameHash, code, line, _return, terrno);
+
+    pExtSourceHash = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    QUERY_CHECK_NULL(pExtSourceHash, code, line, _return, terrno);
+
+    for (int32_t i = 0; i < num; ++i) {
+      uint64_t* id = taosArrayGet(pList, i);
+      QUERY_CHECK_NULL(id, code, line, _return, terrno);
+
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
+      readerInit = true;
+
+      code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id);
+      QUERY_CHECK_CODE(code, line, _return);
+
+      for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+        if (mr.me.colRef.pColRef[j].hasRef) {
+          if (mr.me.colRef.pColRef[j].refSourceName[0] != '\0') {
+            const char* srcName = mr.me.colRef.pColRef[j].refSourceName;
+            if (NULL == tSimpleHashGet(pExtSourceHash, srcName, strlen(srcName))) {
+              char *dup = taosStrdup(srcName);
+              QUERY_CHECK_NULL(dup, code, line, _return, terrno);
+              QUERY_CHECK_NULL(taosArrayPush(*ppExtSources, &dup), code, line, _return, terrno);
+              code = tSimpleHashPut(pExtSourceHash, srcName, strlen(srcName), NULL, 0);
+              QUERY_CHECK_CODE(code, line, _return);
+            }
+          } else {
+            if (NULL == tSimpleHashGet(pDbNameHash, mr.me.colRef.pColRef[j].refDbName, strlen(mr.me.colRef.pColRef[j].refDbName))) {
+              char *refDbName = taosStrdup(mr.me.colRef.pColRef[j].refDbName);
+              QUERY_CHECK_NULL(refDbName, code, line, _return, terrno);
+              QUERY_CHECK_NULL(taosArrayPush(*ppDbs, &refDbName), code, line, _return, terrno);
+              code = tSimpleHashPut(pDbNameHash, refDbName, strlen(refDbName), NULL, 0);
+              QUERY_CHECK_CODE(code, line, _return);
+            }
+          }
+        }
+      }
+
+      pHandle->api.metaReaderFn.clearReader(&mr);
+      readerInit = false;
+    }
+
+    code = pHandle->api.metaFn.metaPutRefDbsToCache(pHandle->vnode, suid, *ppDbs);
+    QUERY_CHECK_CODE(code, line, _return);
+
+    code = pHandle->api.metaFn.metaPutExtSourcesToCache(pHandle->vnode, suid, *ppExtSources);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
+_return:
+
+  if (readerInit) {
+    pHandle->api.metaReaderFn.clearReader(&mr);
+  }
+
+  taosArrayDestroy(pList);
+  tSimpleHashCleanup(pDbNameHash);
+  tSimpleHashCleanup(pExtSourceHash);
+
+  if (code) {
+    qError("%s failed since %s", __func__, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t        code = 0;
+  int32_t        rspSize = 0;
+  SVSubTablesReq req = {0};
+  SVSubTablesRsp rsp = {0};
+  SRpcMsg      rspMsg = {0};
+  void        *pRsp = NULL;
+  int32_t      line = 0;
+
+  if (tDeserializeSVSubTablesReq(pMsg->pCont, pMsg->contLen, &req)) {
+    code = terrno;
+    qError("tDeserializeSVSubTablesReq failed");
+    goto _return;
+  }
+
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
+  initStorageAPI(&handle.api);
+
+  QUERY_CHECK_CODE(vnodeReadVSubtables(&handle, req.suid, &rsp.pTables), line, _return);
+  rsp.vgId = TD_VID(pVnode);
+
+  rspSize = tSerializeSVSubTablesRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+  pRsp = taosMemoryCalloc(1, rspSize);
+  if (pRsp == NULL) {
+    code = terrno;
+    qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
+    goto _return;
+  }
+  rspSize = tSerializeSVSubTablesRsp(pRsp, rspSize, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVSubTablesRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+
+_return:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code) {
+    qError("vnd get virtual subtables failed cause of %s", tstrerror(code));
+  }
+
+  *pMsg = rspMsg;
+  
+  tDestroySVSubTablesRsp(&rsp);
+
+  //tmsgSendRsp(&rspMsg);
+
+  return code;
+}
+
+int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVCheckHasCtbReq req = {0};
+  int32_t          code = 0;
+  void            *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t          bufLen = pMsg->contLen - sizeof(SMsgHead);
+
+  code = tDeserializeSVCheckHasCtbReq(pBuf, bufLen, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to deserialize check-has-ctb req", TD_VID(pVnode));
+    goto _exit;
+  }
+
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, req.suid, 0, 0);
+  if (pCur == NULL) {
+    code = (terrno != 0) ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    vError("vgId:%d, failed to open ctb cursor for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+  } else {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    metaCloseCtbCursor(pCur);
+    if (id != 0) {
+      code = TSDB_CODE_MND_VST_PARENT_HAS_VCT;
+    }
+  }
+
+_exit:;
+  SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  tmsgSendRsp(&rspMsg);
+  return 0;  // return 0 so fetch worker doesn't double-send response
+}
+
+// Pre-check for a virtual stb alter that introduces new column/tag names: fail with
+// TSDB_CODE_VND_COL_ALREADY_EXISTS if any vchild table of the stb already owns one of the
+// names as an own (extension) column/tag. Same check as the backstop in metaEntry2.c, run
+// ahead of the real alter so the mnode-side trans can fail cleanly. On conflict the response
+// also carries a text payload naming the conflicting child table (defect 7160321463): the
+// mnode trans forwards it to the client so the error message points at the conflict source
+// instead of a bare "Table column already exists".
+int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVCheckStbAlterNameReq req = {0};
+  int32_t                code = 0;
+  void                  *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t                bufLen = pMsg->contLen - sizeof(SMsgHead);
+  char                   errText[TSDB_TABLE_NAME_LEN * 2 + TSDB_COL_NAME_LEN + 128] = {0};
+
+  code = tDeserializeSVCheckStbAlterNameReq(pBuf, bufLen, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to deserialize check-stb-alter-name req", TD_VID(pVnode));
+    goto _exit;
+  }
+
+  {
+    // single pass over the children for all names; the first conflict wins and is reported
+    SOwnNameConflictInfo conflict = {0};
+    code = metaCheckOwnNameConflictsOfChildTables(pVnode->pMeta, req.suid, req.pNames, &conflict);
+    if (code != 0) {
+      vError("vgId:%d, check-stb-alter-name failed for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+      if (code == TSDB_CODE_VND_COL_ALREADY_EXISTS && conflict.childName[0] != '\0') {
+        // best-effort stable name (suid is the stb entry uid); a failed lookup only drops the
+        // stable name from the message, child table and column names are already known
+        char         stbName[TSDB_TABLE_NAME_LEN] = {0};
+        SMetaEntry  *pStbEntry = NULL;
+        if (metaFetchEntryByUid(pVnode->pMeta, req.suid, &pStbEntry) == 0 && pStbEntry != NULL) {
+          tstrncpy(stbName, pStbEntry->name, sizeof(stbName));
+          metaFetchEntryFree(&pStbEntry);
+        }
+        if (stbName[0] != '\0') {
+          (void)snprintf(errText, sizeof(errText),
+                         "Table column already exists on stable %s (conflicting child table: %s, %s: %s)", stbName,
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        } else {
+          (void)snprintf(errText, sizeof(errText), "Table column already exists (conflicting child table: %s, %s: %s)",
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        }
+      }
+      goto _exit;
+    }
+  }
+
+_exit:;
+  tFreeSVCheckStbAlterNameReq(&req);
+  SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  int32_t errLen = (int32_t)strlen(errText);
+  if (errLen > 0) {
+    // attach the conflict detail as the response body; the error code stays authoritative,
+    // clients that ignore the body keep seeing the stock message for the code
+    rspMsg.pCont = rpcMallocCont(errLen + 1);
+    if (rspMsg.pCont != NULL) {
+      memcpy(rspMsg.pCont, errText, errLen + 1);
+      rspMsg.contLen = errLen + 1;
+    }
+  }
+  tmsgSendRsp(&rspMsg);
+  return 0;  // return 0 so fetch worker doesn't double-send response
+}
+
+int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
+  int32_t        code = 0;
+  int32_t        rspSize = 0;
+  SVStbRefDbsReq req = {0};
+  SVStbRefDbsRsp rsp = {0};
+  SRpcMsg        rspMsg = {0};
+  void          *pRsp = NULL;
+  int32_t        line = 0;
+
+  if (tDeserializeSVStbRefDbsReq(pMsg->pCont, pMsg->contLen, &req)) {
+    code = terrno;
+    qError("tDeserializeSVSubTablesReq failed");
+    goto _return;
+  }
+
+  SReadHandle handle = {0};
+  handle.vnode = pVnode;
+  initStorageAPI(&handle.api);
+
+  code = vnodeReadVStbRefDbs(&handle, req.suid, &rsp.pDbs, &rsp.pExtSources);
+  QUERY_CHECK_CODE(code, line, _return);
+  rsp.vgId = TD_VID(pVnode);
+
+  rspSize = tSerializeSVStbRefDbsRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVStbRefDbsRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+  pRsp = taosMemoryCalloc(1, rspSize);
+  if (pRsp == NULL) {
+    code = terrno;
+    qError("rpcMallocCont %d failed, error:%d", rspSize, terrno);
+    goto _return;
+  }
+  rspSize = tSerializeSVStbRefDbsRsp(pRsp, rspSize, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVStbRefDbsRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+
+_return:
+
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = rspSize;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+
+  if (code) {
+    qError("vnd get virtual stb ref db failed cause of %s", tstrerror(code));
+  }
+
+  *pMsg = rspMsg;
+
+  tDestroySVStbRefDbsRsp(&rsp);
+
+  return code;
+}
+
+int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      line = 0;
+  int32_t      rspSize = 0;
+  SVTagCondReq req = {0};
+  SVTagCondRsp rsp = {0};
+  SRpcMsg      rspMsg = {0};
+  void        *pRsp = NULL;
+  SMetaReader  mer = {0};
+
+  if (tDeserializeSVTagCondReq(pMsg->pCont, pMsg->contLen, &req)) {
+    code = terrno;
+    qError("tDeserializeSVTagCondReq failed");
+    goto _return;
+  }
+
+  metaReaderDoInit(&mer, pVnode->pMeta, META_READER_LOCK, 0);
+  code = metaReaderGetTableEntryByUid(&mer, req.uid);
+  QUERY_CHECK_CODE(code, line, _return);
+
+  rsp.pEntries = taosArrayInit(8, sizeof(SVTagCondEntry));
+  QUERY_CHECK_NULL(rsp.pEntries, code, line, _return, terrno);
+  rsp.pFilterConds = taosArrayInit(8, sizeof(SVtbColFilterCond));
+  QUERY_CHECK_NULL(rsp.pFilterConds, code, line, _return, terrno);
+
+  rsp.rversion = mer.me.colRef.version;
+  rsp.pBindings = taosArrayInit(8, sizeof(SVtableRuntimeBinding));
+  QUERY_CHECK_NULL(rsp.pBindings, code, line, _return, terrno);
+  if (hasColRef(mer.me.type)) {
+    SColRefWrapper *p = &(mer.me.colRef);
+    int32_t nOwnCols = mer.me.type == TSDB_VIRTUAL_CHILD_TABLE ? mer.me.own.nOwnCols : 0;
+    for (int32_t i = 0; i < p->nCols + nOwnCols; ++i) {
+      SColRef *pColRef = i < p->nCols ? &p->pColRef[i] : &mer.me.own.pOwnColRefs[i - p->nCols];
+      const SVtableBindingLink *pLink =
+          tVtableBindingForColumn(&mer.me.referenceExt, pColRef->id);
+      if (pColRef->hasRef && pLink != NULL) {
+        SVtableRuntimeBinding binding = {.colId = pColRef->id, .bindingKind = pLink->bindingKind};
+        tstrncpy(binding.referenceAlias, pLink->alias, sizeof(binding.referenceAlias));
+        const SReferenceEntry *pReference =
+            tVtableReferenceForColumn(&mer.me.referenceExt, pColRef->id);
+        if (pReference != NULL) {
+          tstrncpy(binding.timeColumn, pReference->timeColumn, sizeof(binding.timeColumn));
+        }
+        void *pResult = taosArrayPush(rsp.pBindings, &binding);
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
+      }
+      if (pColRef->hasRef && pColRef->tagCondLen > 0 && pColRef->tagCondJson != NULL) {
+        SVTagCondEntry entry = {0};
+        entry.colId = pColRef->id;
+        entry.tagCondLen = pColRef->tagCondLen;
+        entry.tagCondJson = taosStrdup(pColRef->tagCondJson);
+        QUERY_CHECK_NULL(entry.tagCondJson, code, line, _return, terrno);
+        void *pResult = taosArrayPush(rsp.pEntries, &entry);
+        if (NULL == pResult) {
+          taosMemoryFreeClear(entry.tagCondJson);
+        }
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
+      }
+
+      if (pColRef->hasRef && pColRef->filterCondLen > 0 && pColRef->filterCondJson != NULL) {
+        SVtbColFilterCond filterCond = {0};
+        filterCond.colId = pColRef->id;
+        filterCond.filterCondLen = pColRef->filterCondLen;
+        filterCond.filterCondJson = taosStrdup(pColRef->filterCondJson);
+        QUERY_CHECK_NULL(filterCond.filterCondJson, code, line, _return, terrno);
+        void *pResult = taosArrayPush(rsp.pFilterConds, &filterCond);
+        if (NULL == pResult) {
+          taosMemoryFreeClear(filterCond.filterCondJson);
+        }
+        QUERY_CHECK_NULL(pResult, code, line, _return, terrno);
+      }
+    }
+  }
+  rsp.numOfBindings = taosArrayGetSize(rsp.pBindings);
+  rsp.numOfRefs = taosArrayGetSize(rsp.pEntries);
+  rsp.numOfFilterConds = taosArrayGetSize(rsp.pFilterConds);
+
+  rspSize = tSerializeSVTagCondRsp(NULL, 0, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVTagCondRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+  if (direct) {
+    pRsp = rpcMallocCont(rspSize);
+  } else {
+    pRsp = taosMemoryCalloc(1, rspSize);
+  }
+  QUERY_CHECK_NULL(pRsp, code, line, _return, terrno);
+  rspSize = tSerializeSVTagCondRsp(pRsp, rspSize, &rsp);
+  if (rspSize < 0) {
+    code = rspSize;
+    qError("tSerializeSVTagCondRsp failed, error:%d", rspSize);
+    goto _return;
+  }
+
+_return:
+  metaReaderClear(&mer);
+  rspMsg.info = pMsg->info;
+  rspMsg.pCont = pRsp;
+  rspMsg.contLen = (code == 0) ? rspSize : 0;
+  rspMsg.code = code;
+  rspMsg.msgType = pMsg->msgType;
+  if (code) {
+    qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  }
+  if (direct) {
+    tmsgSendRsp(&rspMsg);
+  } else {
+    *pMsg = rspMsg;
+  }
+  tDestroySVTagCondRsp(&rsp);
+  return code;
+}
+
+static int32_t vnodeGetCompStorage(SVnode *pVnode, int64_t *output) {
+  int32_t code = 0;
+#ifdef TD_ENTERPRISE
+  int32_t now = taosGetTimestampSec();
+  if (llabs(now - pVnode->config.vndStats.storageLastUpd) >= 30) {
+    pVnode->config.vndStats.storageLastUpd = now;
+
+    SDbSizeStatisInfo info = {0};
+    if (0 == (code = vnodeGetDBSize(pVnode, &info))) {
+      int64_t compSize =
+          info.l1Size + info.l2Size + info.l3Size + info.cacheSize + info.walSize + info.metaSize + +info.ssSize;
+      if (compSize >= 0) {
+        pVnode->config.vndStats.compStorage = compSize;
+      } else {
+        vError("vnode get comp storage failed since compSize is negative:%" PRIi64, compSize);
+        code = TSDB_CODE_APP_ERROR;
+      }
+    } else {
+      vWarn("vnode get comp storage failed since %s", tstrerror(code));
+    }
+  }
+  if (output) *output = pVnode->config.vndStats.compStorage;
+#endif
+  return code;
+}
+
+static void vnodeGetBufferInfo(SVnode *pVnode, int64_t *bufferSegmentUsed, int64_t *bufferSegmentSize) {
+  *bufferSegmentUsed = 0;
+  *bufferSegmentSize = 0;
+  if (pVnode) {
+    (void)taosThreadMutexLock(&pVnode->mutex);
+
+    if (pVnode->inUse) {
+      *bufferSegmentUsed = pVnode->inUse->size;
+    }
+    *bufferSegmentSize = pVnode->config.szBuf / VNODE_BUFPOOL_SEGMENTS;
+
+    (void)taosThreadMutexUnlock(&pVnode->mutex);
+  }
+}
+
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   SSyncState state = syncGetState(pVnode->sync);
+  pLoad->syncAppliedIndex = pVnode->state.applied;
+  syncGetCommitIndex(pVnode->sync, &pLoad->syncCommitIndex);
 
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = state.state;
@@ -538,19 +1639,54 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->roleTimeMs = state.roleTimeMs;
   pLoad->startTimeMs = state.startTimeMs;
   pLoad->syncCanRead = state.canRead;
-  pLoad->learnerProgress = state.progress;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfCachedTables = tsdbCacheGetElems(pVnode);
-  pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
-  pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1);
-  pLoad->totalStorage = (int64_t)3 * 1073741824;
-  pLoad->compStorage = (int64_t)2 * 1073741824;
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTables = metaGetTbNum(pVnode->pMeta));
+  VNODE_DO_META_QUERY(pVnode, pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta, 1));
+  pLoad->totalStorage = (int64_t)3 * 1073741824;  // TODO
+  (void)vnodeGetCompStorage(pVnode, &pLoad->compStorage);
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
   pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
   pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
+  vnodeGetBufferInfo(pVnode, &pLoad->bufferSegmentUsed, &pLoad->bufferSegmentSize);
+  vDebug("vgId:%d, get vnode load, state:%s snapSeq:%d, learnerProgress:%d, totalIndex:%" PRId64, TD_VID(pVnode),
+         syncStr(state.state), state.snapSeq, state.progress, state.totalIndex);
+  pLoad->learnerProgress = state.progress;
+  pLoad->snapSeq = state.snapSeq;
+  pLoad->syncTotalIndex = state.totalIndex;
+  pLoad->snapshotSending = syncSnapshotSending(pVnode->sync) ? 1 : 0;
+  // Report per-target snapshot-send progress, so the mnode can display progress and compute the rate per target follower dnodeId.
+  // Fetch the byte summary grouped by destDnodeId from tsdb, and convert each entry into an SVnodeSnapProgress filled into pLoad->pSnapProgress.
+  pLoad->pSnapProgress = NULL;
+  SArray *pSnapGroups = taosArrayInit(4, sizeof(STsdbSnapSendGroup));
+  if (pSnapGroups != NULL) {
+    tsdbGetSnapSendSummary(pVnode->pTsdb, pSnapGroups);
+    int32_t numGroups = (int32_t)taosArrayGetSize(pSnapGroups);
+    if (numGroups > 0) {
+      pLoad->pSnapProgress = taosArrayInit(numGroups, sizeof(SVnodeSnapProgress));
+      if (pLoad->pSnapProgress != NULL) {
+        for (int32_t g = 0; g < numGroups; g++) {
+          STsdbSnapSendGroup *pGroup = (STsdbSnapSendGroup *)taosArrayGet(pSnapGroups, g);
+          if (pGroup == NULL) continue;
+          SVnodeSnapProgress prog = {.destDnodeId = pGroup->destDnodeId,
+                                     .snapTotalSize = pGroup->total,
+                                     .snapTransferredSize = pGroup->transferred};
+          if (taosArrayPush(pLoad->pSnapProgress, &prog) == NULL) {
+            vError("vgId:%d, failed to push snap progress for destDnodeId:%d", TD_VID(pVnode), pGroup->destDnodeId);
+          }
+        }
+        vDebug("vgId:%d, report snap send progress, numGroups:%d", TD_VID(pVnode), numGroups);
+      } else {
+        vError("vgId:%d, failed to alloc pSnapProgress array for vnode load", TD_VID(pVnode));
+      }
+    }
+    taosArrayDestroy(pSnapGroups);
+  } else {
+    vError("vgId:%d, failed to alloc snap send groups array for vnode load", TD_VID(pVnode));
+  }
   return 0;
 }
 
@@ -577,7 +1713,7 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
                             "nBatchInsertSuccess");
 }
 
-void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables) {
+void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, SVnodeTableNums *pNums) {
   SVnode    *pVnodeObj = pVnode;
   SVnodeCfg *pConf = &pVnodeObj->config;
 
@@ -589,13 +1725,43 @@ void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *num
     *vgId = TD_VID(pVnodeObj);
   }
 
-  if (numOfTables) {
-    *numOfTables = pConf->vndStats.numOfNTables + pConf->vndStats.numOfCTables;
+  if (pNums) {
+    pNums->ntb = pConf->vndStats.numOfNTables;
+    pNums->ctb = pConf->vndStats.numOfCTables;
+    pNums->vtb = pConf->vndStats.numOfVTables;
+    pNums->vctb = pConf->vndStats.numOfVCTables;
   }
+}
 
-  if (numOfNormalTables) {
-    *numOfNormalTables = pConf->vndStats.numOfNTables;
-  }
+int8_t vnodeGetSecurityLevel(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.securityLevel;
+}
+
+// Same ownership rule as vnodeValidateTableHash, but takes the bare table name
+// and returns a bool instead of raising TSDB_CODE_VND_HASH_MISMATCH, so scans
+// can cheaply skip names this vnode cannot own. Mount-prefix trimming mirrors
+// the create/lookup paths (metaFilterTableByHash, vnodeGetTableInfo).
+bool vnodeTbNameInHashRange(void *pVnode, const char *tbName) {
+  SVnode *pVnodeObj = pVnode;
+  char    tbFName[TSDB_TABLE_FNAME_LEN + 1];
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pVnodeObj->config.dbname, tbName);
+  tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
+  if (pVnodeObj->mounted) tTrimMountPrefix(tbFName);
+
+  uint32_t hashValue = taosGetTbHashVal(tbFName, (int32_t)strlen(tbFName), pVnodeObj->config.hashMethod,
+                                        pVnodeObj->config.hashPrefix, pVnodeObj->config.hashSuffix);
+  return hashValue >= pVnodeObj->config.hashBegin && hashValue <= pVnodeObj->config.hashEnd;
+}
+
+int8_t vnodeGetTsdbPrecision(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.tsdbCfg.precision;
+}
+
+bool vnodeHasPendingTxnEntries(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return metaHasPendingTxnEntries(pVnodeObj->pMeta);
 }
 
 int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
@@ -608,7 +1774,7 @@ int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
   int32_t      code = TSDB_CODE_SUCCESS;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1, 0);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
     return terrno;
@@ -639,9 +1805,9 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SVnode      *pVnodeObj = pVnode;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1, 0);
   if (NULL == pCur) {
-    qError("vnode get all table list failed");
+    qError("vnode get ctb id list failed, suid:%" PRId64, suid);
     return terrno;
   }
 
@@ -650,7 +1816,7 @@ int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
     if (id == 0) {
       break;
     }
-
+    qTrace("vnodeGetCtbIdList: got ctb id %" PRId64 " for suid %" PRId64, id, suid);
     if (NULL == taosArrayPush(list, &id)) {
       qError("taosArrayPush failed");
       code = terrno;
@@ -719,7 +1885,7 @@ _exit:
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0, 0);
   if (!pCur) {
     return terrno;
   }
@@ -739,7 +1905,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL);
+  SSchemaWrapper *pSW = metaGetTableSchema(pVnode->pMeta, suid, -1, 0, NULL, 0, false);
   if (pSW) {
     *num = pSW->nCols;
     tDeleteSchemaWrapper(pSW);
@@ -750,93 +1916,42 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   return TSDB_CODE_SUCCESS;
 }
 
-#ifdef TD_ENTERPRISE
-const char *tkLogStb[] = {"cluster_info",
-                          "data_dir",
-                          "dnodes_info",
-                          "d_info",
-                          "grants_info",
-                          "keeper_monitor",
-                          "logs",
-                          "log_dir",
-                          "log_summary",
-                          "m_info",
-                          "taosadapter_restful_http_request_fail",
-                          "taosadapter_restful_http_request_in_flight",
-                          "taosadapter_restful_http_request_summary_milliseconds",
-                          "taosadapter_restful_http_request_total",
-                          "taosadapter_system_cpu_percent",
-                          "taosadapter_system_mem_percent",
-                          "temp_dir",
-                          "vgroups_info",
-                          "vnodes_role"};
-const char *tkAuditStb[] = {"operations"};
-const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
-const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
+int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags) {
+  SMetaReader mr = {0};
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK, 0);
 
-// exclude stbs of taoskeeper log
-static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      tbNum = 0;
-  const char **pTbArr = NULL;
-  const char  *dbName = NULL;
-  *tbSize = 0;
-
-  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = tkLogStbNum;
-    pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN)) {
-    tbNum = tkAuditStbNum;
-    pTbArr = (const char **)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    if (*tbSize < tbNum) {
-      for (int32_t i = 0; i < tbNum; ++i) {
-        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
-        if (suid != 0) {
-          code = metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
-          if (TSDB_CODE_SUCCESS != code) {
-            return code;
-          }
-        }
-      }
-      *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    }
+  int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (keep) *keep = mr.me.stbEntry.keep;
+    if (flags) *flags = mr.me.flags;
+  } else {
+    if (keep) *keep = 0;
+    if (flags) *flags = 0;
   }
 
-  return code;
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
 }
-#endif
 
-static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
-  SVnode *pVnode = (SVnode *)arg1;
-
-  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
-    return true;
-  }
-  return false;
+bool vnodeIsTimeSeriesExcluded(SVnode *pVnode) {
+  return grantIsTimeSeriesExcluded(pVnode);
 }
 
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
+  if (vnodeIsTimeSeriesExcluded(pVnode)) {
+    *num = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
     return terrno;
   }
 
-  int32_t tbFilterSize = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-#ifdef TD_ENTERPRISE
-  code = vnodeGetTimeSeriesBlackList(pVnode, &tbFilterSize);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _exit;
-  }
-#endif
 
-  if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
-      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
+  if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
     return terrno;
@@ -849,11 +1964,14 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
 
     int64_t ctbNum = 0;
     int32_t numOfCols = 0;
-    code = metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols);
+    int8_t  flags = 0;
+    code = metaGetStbStats(pVnode, suid, &ctbNum, &numOfCols, &flags);
     if (TSDB_CODE_SUCCESS != code) {
       goto _exit;
     }
-    *num += ctbNum * (numOfCols - 1);
+    if (!TABLE_IS_VIRTUAL(flags)) {
+      *num += ctbNum * (numOfCols - 1);
+    }
   }
 
 _exit:
@@ -903,99 +2021,140 @@ void *vnodeGetIvtIdx(void *pVnode) {
   return metaGetIvtIdx(((SVnode *)pVnode)->pMeta);
 }
 
-int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid) {
-  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid);
+int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64_t *suid, SSchemaWrapper **pTagSchema) {
+  return tsdbGetTableSchema(((SVnode *)pVnode)->pMeta, uid, pSchema, suid, pTagSchema);
 }
 
-int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
-  SVnode *pVnodeObj = pVnode;
-  if (pVnodeObj == NULL) {
-    return TSDB_CODE_VND_NOT_EXIST;
-  }
+static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_PATH_LEN] = {0};
 
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryDir(pVnodeObj->path, pVnodeObj->diskPrimary, pVnodeObj->pTfs, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
     int64_t size = {0};
-    (void)snprintf(path + offset, TSDB_FILENAME_LEN, "%s%s", TD_DIRSEP, dirName[i]);
+    (void)snprintf(path + offset, TSDB_PATH_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
-      return code;
+      uWarn("vnode %d get dir %s %s size failed since %s", TD_VID(pVnode), path, dirName[i], tstrerror(code));
     }
     path[offset] = 0;
     dirSize[i] = size;
   }
 
-  pInfo->l1Size = dirSize[0] - dirSize[3];
+  pInfo->l1Size = 0;
   pInfo->walSize = dirSize[1];
   pInfo->metaSize = dirSize[2];
   pInfo->cacheSize = dirSize[3];
+  return code;
+}
+int32_t vnodeGetDBSize(void *pVnode, SDbSizeStatisInfo *pInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL) {
+    return TSDB_CODE_VND_NOT_EXIST;
+  }
+  code = vnodeGetDBPrimaryInfo(pVnode, pInfo);
+  if (code != 0) goto _exit;
 
-  code = tsdbGetS3Size(pVnodeObj->pTsdb, &pInfo->s3Size);
-
+  code = tsdbGetFsSize(pVnodeObj->pTsdb, pInfo);
+_exit:
   return code;
 }
 
-int32_t vnodeGetStreamProgress(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
-  int32_t            code = 0;
-  SStreamProgressReq req;
-  SStreamProgressRsp rsp = {0};
-  SRpcMsg            rpcMsg = {.info = pMsg->info, .code = 0};
-  char              *buf = NULL;
-  int32_t            rspLen = 0;
-  code = tDeserializeStreamProgressReq(pMsg->pCont, pMsg->contLen, &req);
-
-  if (code == TSDB_CODE_SUCCESS) {
-    rsp.fetchIdx = req.fetchIdx;
-    rsp.subFetchIdx = req.subFetchIdx;
-    rsp.vgId = req.vgId;
-    rsp.streamId = req.streamId;
-    rspLen = tSerializeStreamProgressRsp(0, 0, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    if (direct) {
-      buf = rpcMallocCont(rspLen);
-    } else {
-      buf = taosMemoryCalloc(1, rspLen);
-    }
-    if (!buf) {
-      code = terrno;
-      goto _OVER;
-    }
+int32_t vnodeGetLastCacheStats(void *pVnode, SLastCacheStats *pStats) {
+  SVnode *pVnodeObj = pVnode;
+  if (pVnodeObj == NULL || pVnodeObj->pTsdb == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = tqGetStreamExecInfo(pVnode, req.streamId, &rsp.progressDelay, &rsp.fillHisFinished);
-  }
-  if (code == TSDB_CODE_SUCCESS) {
-    rspLen = tSerializeStreamProgressRsp(buf, rspLen, &rsp);
-    if (rspLen < 0) {
-      code = terrno;
-      goto _OVER;
-    }
-    rpcMsg.pCont = buf;
-    buf = NULL;
-    rpcMsg.contLen = rspLen;
-    rpcMsg.code = code;
-    rpcMsg.msgType = pMsg->msgType;
-    if (direct) {
-      tmsgSendRsp(&rpcMsg);
-    } else {
-      *pMsg = rpcMsg;
-    }
-  }
-
-_OVER:
-  if (buf) {
-    taosMemoryFree(buf);
+  int32_t code = tsdbGetLastCacheStats(pVnodeObj->pTsdb, pStats);
+  if (code == 0) {
+    pStats->dnodeId = vnodeGetDnodeId();
   }
   return code;
+}
+
+/*
+ * Get raw write metrics for a vnode
+ */
+int32_t vnodeGetRawWriteMetrics(void *pVnode, SRawWriteMetrics *pRawMetrics) {
+  if (pVnode == NULL || pRawMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode      *pVnode1 = (SVnode *)pVnode;
+  SSyncMetrics syncMetrics = syncGetMetrics(pVnode1->sync);
+
+  // Copy values following SRawWriteMetrics structure order
+  pRawMetrics->total_requests = atomic_load_64(&pVnode1->writeMetrics.total_requests);
+  pRawMetrics->total_rows = atomic_load_64(&pVnode1->writeMetrics.total_rows);
+  pRawMetrics->total_bytes = atomic_load_64(&pVnode1->writeMetrics.total_bytes);
+  pRawMetrics->fetch_batch_meta_time = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_time);
+  pRawMetrics->fetch_batch_meta_count = atomic_load_64(&pVnode1->writeMetrics.fetch_batch_meta_count);
+  pRawMetrics->preprocess_time = atomic_load_64(&pVnode1->writeMetrics.preprocess_time);
+  pRawMetrics->wal_write_bytes = atomic_load_64(&syncMetrics.wal_write_bytes);
+  pRawMetrics->wal_write_time = atomic_load_64(&syncMetrics.wal_write_time);
+  pRawMetrics->apply_bytes = atomic_load_64(&pVnode1->writeMetrics.apply_bytes);
+  pRawMetrics->apply_time = atomic_load_64(&pVnode1->writeMetrics.apply_time);
+  pRawMetrics->commit_count = atomic_load_64(&pVnode1->writeMetrics.commit_count);
+  pRawMetrics->commit_time = atomic_load_64(&pVnode1->writeMetrics.commit_time);
+  pRawMetrics->memtable_wait_time = atomic_load_64(&pVnode1->writeMetrics.memtable_wait_time);
+  pRawMetrics->blocked_commit_count = atomic_load_64(&pVnode1->writeMetrics.blocked_commit_count);
+  pRawMetrics->blocked_commit_time = atomic_load_64(&pVnode1->writeMetrics.block_commit_time);
+  pRawMetrics->merge_count = atomic_load_64(&pVnode1->writeMetrics.merge_count);
+  pRawMetrics->merge_time = atomic_load_64(&pVnode1->writeMetrics.merge_time);
+  pRawMetrics->last_cache_commit_time = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_time);
+  pRawMetrics->last_cache_commit_count = atomic_load_64(&pVnode1->writeMetrics.last_cache_commit_count);
+
+  return 0;
+}
+
+/*
+ * Reset raw write metrics for a vnode by subtracting old values
+ */
+int32_t vnodeResetRawWriteMetrics(void *pVnode, const SRawWriteMetrics *pOldMetrics) {
+  if (pVnode == NULL || pOldMetrics == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVnode *pVnode1 = (SVnode *)pVnode;
+
+  // Reset vnode write metrics using atomic operations to subtract old values
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_requests, pOldMetrics->total_requests);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_rows, pOldMetrics->total_rows);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.total_bytes, pOldMetrics->total_bytes);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_time, pOldMetrics->fetch_batch_meta_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.fetch_batch_meta_count, pOldMetrics->fetch_batch_meta_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.preprocess_time, pOldMetrics->preprocess_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_bytes, pOldMetrics->apply_bytes);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.apply_time, pOldMetrics->apply_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_count, pOldMetrics->commit_count);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.commit_time, pOldMetrics->commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_time, pOldMetrics->merge_time);
+
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.memtable_wait_time, pOldMetrics->memtable_wait_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.blocked_commit_count, pOldMetrics->blocked_commit_count);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.block_commit_time, pOldMetrics->blocked_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.merge_count, pOldMetrics->merge_count);
+
+  // Reset new cache metrics
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_time, pOldMetrics->last_cache_commit_time);
+  (void)atomic_sub_fetch_64(&pVnode1->writeMetrics.last_cache_commit_count, pOldMetrics->last_cache_commit_count);
+
+  // Reset sync metrics
+  SSyncMetrics syncMetrics = {
+      .wal_write_bytes = pOldMetrics->wal_write_bytes,
+      .wal_write_time = pOldMetrics->wal_write_time,
+  };
+  syncResetMetrics(pVnode1->sync, &syncMetrics);
+
+  return 0;
 }

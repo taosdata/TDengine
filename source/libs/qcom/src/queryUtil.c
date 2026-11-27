@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -58,58 +60,143 @@ const SSchema* tGetTbnameColumnSchema() {
   return &_s; 
 }
 
+bool hasDecimalBytesTypeInfo(int32_t bytes) { return (((uint32_t)bytes >> 24) != 0); }
+
+/*
+ * Build a comparable ref-column type from schema metadata.
+ *
+ * typeMod carries decimal precision/scale and timestamp precision when schemaExt
+ * is present. When it is absent, fall back to the legacy decimal metadata encoded
+ * in schema bytes.
+ */
+void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType) {
+  if (NULL == pSchema || NULL == pType) {
+    return;
+  }
+
+  memset(pType, 0, sizeof(*pType));
+  pType->type = pSchema->type;
+  pType->bytes = pSchema->bytes;
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    fillTypeFromTypeMod(pType, typeMod);
+  } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+    // Legacy external schemas encode precision/scale inside the schema bytes; when
+    // typeMod is also present the packed form must still be unpacked first, or the
+    // packed int would be taken as the column value size.
+    if (hasDecimalBytesTypeInfo(pType->bytes)) {
+      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
+    }
+    if (typeMod != 0) {
+      fillTypeFromTypeMod(pType, typeMod);
+    }
+  }
+}
+
+bool isSameRefDataType(const SDataType* pLeft, const SDataType* pRight) {
+  if (pLeft->type != pRight->type) {
+    return false;
+  }
+  if (!IS_VAR_DATA_TYPE(pLeft->type) && pLeft->bytes != pRight->bytes) {
+    return false;
+  }
+  if (IS_DECIMAL_TYPE(pLeft->type) &&
+      (pLeft->precision != pRight->precision || pLeft->scale != pRight->scale)) {
+    return false;
+  }
+
+  return true;
+}
+
+int32_t getNormalColSchemaIndex(const STableMeta* pTableMeta, const char* pColName) {
+  if (NULL == pTableMeta || NULL == pColName) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcmp(pColName, pTableMeta->schema[i].name)) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   if (!pSchema) {
     return false;
   }
-  int32_t rowLen = 0;
+  int32_t    rowLen = 0;
+  SSHashObj* pNameHash = tSimpleHashInit(numOfCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!pNameHash) {
+    return false;
+  }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       qError("The %d col/tag data type error, type:%d", i, pSchema[i].type);
-      return false;
+      goto _error;
     }
 
     // 2. valid length for each type
     if (pSchema[i].type == TSDB_DATA_TYPE_BINARY || pSchema[i].type == TSDB_DATA_TYPE_VARBINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
         qError("The %d col/tag var data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
       if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         qError("The %d col/tag nchar data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     } else if (pSchema[i].type == TSDB_DATA_TYPE_GEOMETRY) {
       if (pSchema[i].bytes > TSDB_MAX_GEOMETRY_LEN) {
         qError("The %d col/tag geometry data len error, len:%d", i, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
+    } else if (IS_STR_DATA_BLOB(pSchema[i].type)) {
+      if (pSchema[i].bytes >= TSDB_MAX_BLOB_LEN) {
+        qError("The %d col/tag blob data len error, len:%d", i, pSchema[i].bytes);
+        goto _error;
+      } 
+
     } else {
       if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         qError("The %d col/tag data len error, type:%d, len:%d", i, pSchema[i].type, pSchema[i].bytes);
-        return false;
+        goto _error;
       }
     }
 
     // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, j, pSchema[j].name);
-        return false;
-      }
+    size_t   nameLen = strnlen(pSchema[i].name, sizeof(pSchema[i].name));
+    int32_t  nameIdx = i;
+    int32_t* pIdx = tSimpleHashGet(pNameHash, pSchema[i].name, nameLen);
+    if (pIdx != NULL) {
+      qError("The %d col/tag name %s is same with %d col/tag name %s", i, pSchema[i].name, *pIdx,
+             pSchema[*pIdx].name);
+      goto _error;
+    }
+    if (tSimpleHashPut(pNameHash, pSchema[i].name, nameLen, &nameIdx, sizeof(nameIdx)) != TSDB_CODE_SUCCESS) {
+      goto _error;
     }
 
     rowLen += pSchema[i].bytes;
   }
 
+  tSimpleHashCleanup(pNameHash);
   return rowLen <= maxLen;
+_error:
+  tSimpleHashCleanup(pNameHash);
+  return false;
 }
 
-bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
-  if (!pSchema || !VALIDNUMOFCOLS(numOfCols)) {
+bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags, bool isVirtual) {
+  if (!pSchema) {
+    qError("invalid numOfCols: %d", numOfCols);
+    return false;
+  }
+
+  if ((isVirtual && !VALIDNUMOFCOLSVIRTUAL(numOfCols)) || (!isVirtual && !VALIDNUMOFCOLS(numOfCols))) {
     qError("invalid numOfCols: %d", numOfCols);
     return false;
   }
@@ -125,7 +212,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
     return false;
   }
 
-  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+  if (!doValidateSchema(pSchema, numOfCols, isVirtual ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW)) {
     qError("validate schema columns failed");
     return false;
   }
@@ -139,11 +226,24 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 }
 
 static STaskQueue taskQueue = {0};
+static int32_t    shutdownSentinel = 0;
+
+bool beginAsyncWorkShutdown() {
+  return atomic_val_compare_exchange_32(&shutdownSentinel, 0, 1) == 0;
+}
+
+bool mayCreateAsyncWork() { return atomic_load_32(&shutdownSentinel) == 0; }
+
+static threadlocal bool inAsyncTask = false;
+
+bool taosInAsyncTask(void) { return inAsyncTask; }
 
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   if(!pSchedMsg || !pSchedMsg->ahandle) return;
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  inAsyncTask = true;
   (void)execFn(pSchedMsg->thandle);
+  inAsyncTask = false;
   taosFreeQitem(pSchedMsg);
 }
 
@@ -165,7 +265,7 @@ int32_t initTaskQueue() {
     return -1;
   }
 
-  qDebug("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
+  qInfo("task queue is initialized, numOfThreads: %d", tsNumOfTaskQueueThreads);
   return 0;
 }
 
@@ -176,14 +276,25 @@ int32_t cleanupTaskQueue() {
 
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) {
   SSchedMsg* pSchedMsg; 
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
   int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
-  if (rc) return rc;
+  if (rc) {
+    return rc;
+  }
   pSchedMsg->fp = NULL;
   pSchedMsg->ahandle = execFn;
   pSchedMsg->thandle = execParam;
   pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
 }
 
 int32_t taosAsyncWait() {
@@ -202,11 +313,38 @@ int32_t taosAsyncRecover() {
   return taskQueue.wrokrerPool.pCb->afterRecoverFromBlocking(&taskQueue.wrokrerPool);
 }
 
+int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam) {
+  SSchedMsg* pSchedMsg;
+  if (!mayCreateAsyncWork()) {
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
+
+  int32_t rc = taosAllocateQitem(sizeof(SSchedMsg), DEF_QITEM, 0, (void **)&pSchedMsg);
+  if (rc) {
+    return rc;
+  }
+
+  pSchedMsg->fp = NULL;
+  pSchedMsg->ahandle = execFn;
+  pSchedMsg->thandle = execParam;
+  // pSchedMsg->msg = code;
+
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc) {
+    taosFreeQitem(pSchedMsg);
+  }
+
+  return rc;
+}
+
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   if (NULL == pMsgBody) {
     return;
   }
 
+  
+  qDebug("ahandle %p freed, QID:0x%" PRIx64, pMsgBody, pMsgBody->requestId);
+  
   taosMemoryFreeClear(pMsgBody->target.dbFName);
   taosMemoryFreeClear(pMsgBody->msgInfo.pData);
   if (pMsgBody->paramFreeFp) {
@@ -218,14 +356,24 @@ void destroyAhandle(void *ahandle) {
   SMsgSendInfo *pSendInfo = ahandle;
   if (pSendInfo == NULL) return;
 
+  if (pSendInfo->streamAHandle) {
+    qDebug("stream ahandle %p freed", pSendInfo);
+  }
+
   destroySendMsgInfo(pSendInfo);
 }
 
 int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo,
                                 bool persistHandle, void* rpcCtx) {                         
-  QUERY_PARAM_CHECK(pTransporter);
-  QUERY_PARAM_CHECK(epSet);
-  QUERY_PARAM_CHECK(pInfo);
+  if (NULL == pTransporter || NULL == epSet || NULL == pInfo) {
+    destroySendMsgInfo(pInfo);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (!mayCreateAsyncWork()) {
+    destroySendMsgInfo(pInfo);
+    return TSDB_CODE_APP_IS_STOPPING;
+  }
 
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
@@ -235,6 +383,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);
+  taosMemoryFreeClear(pInfo->msgInfo.pData);
   SRpcMsg rpcMsg = {
     .msgType = pInfo->msgType,
     .pCont = pMsg,
@@ -245,10 +394,14 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
     .code = 0
   };
   TRACE_SET_ROOTID(&rpcMsg.info.traceId, pInfo->requestId);
+  TRACE_SET_MSGID(&rpcMsg.info.traceId, tGenIdPI64());
+  int32_t msgType = pInfo->msgType;
 
   int code = rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   if (code) {
     destroySendMsgInfo(pInfo);
+  } else {
+    qDebug("msg %s sent, 0x%" PRIx64 ":0x%" PRIx64, TMSG_INFO(msgType), TRACE_GET_ROOTID(&rpcMsg.info.traceId), TRACE_GET_MSGID(&rpcMsg.info.traceId));
   }
   return code;
 }
@@ -256,6 +409,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
 int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
+
 int32_t asyncFreeConnById(void* pTransporter, int64_t pid) {
   QUERY_PARAM_CHECK(pTransporter);
   return rpcFreeConnById(pTransporter, pid);
@@ -304,7 +458,14 @@ void freeSTableMetaRspPointer(void *p) {
 }
 
 void destroyQueryExecRes(SExecResult* pRes) {
-  if (NULL == pRes || NULL == pRes->res) {
+  if (NULL == pRes) {
+    return;
+  }
+
+  taosMemoryFreeClear(pRes->extErrMsg);
+  taosMemoryFreeClear(pRes->extPushdownDiag);
+
+  if (NULL == pRes->res) {
     return;
   }
 
@@ -327,51 +488,54 @@ void destroyQueryExecRes(SExecResult* pRes) {
     }
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
+      qDebug("query execRes %p freed", pRes->res);
       taosArrayDestroy((SArray*)pRes->res);
       break;
     }
     default:
-      qError("invalid exec result for request type %d", pRes->msgType);
+      qError("invalid exec result for request type:%d", pRes->msgType);
   }
+
+  pRes->res = NULL;
 }
 // clang-format on
-int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
+int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len, void *charsetCxt) {
   QUERY_PARAM_CHECK(str);
   QUERY_PARAM_CHECK(buf);
   int32_t n = 0;
 
   switch (type) {
     case TSDB_DATA_TYPE_NULL:
-      n = tsnprintf(str, capacity, "null");
+      n = snprintf(str, capacity, "null");
       break;
 
     case TSDB_DATA_TYPE_BOOL:
-      n = tsnprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
+      n = snprintf(str, capacity, (*(int8_t*)buf) ? "true" : "false");
       break;
 
     case TSDB_DATA_TYPE_TINYINT:
-      n = tsnprintf(str, capacity, "%d", *(int8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(int16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_INT:
-      n = tsnprintf(str, capacity, "%d", *(int32_t*)buf);
+      n = snprintf(str, capacity, "%d", *(int32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      n = tsnprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
+      n = snprintf(str, capacity, "%" PRId64, *(int64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
-      n = tsnprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_FLOAT_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      n = tsnprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
+      n = snprintf(str, capacity, "%e", GET_DOUBLE_VAL(buf));
       break;
 
     case TSDB_DATA_TYPE_VARBINARY: {
@@ -410,27 +574,28 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
-      if (length <= 0) {
+      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize,
+                                                       str + 1, charsetCxt);
+      if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
       *(str + length + 1) = '"';
       n = length + 2;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      n = tsnprintf(str, capacity, "%d", *(uint8_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint8_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_USMALLINT:
-      n = tsnprintf(str, capacity, "%d", *(uint16_t*)buf);
+      n = snprintf(str, capacity, "%d", *(uint16_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = tsnprintf(str, capacity, "%u", *(uint32_t*)buf);
+      n = snprintf(str, capacity, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = tsnprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
+      n = snprintf(str, capacity, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     default:
@@ -443,7 +608,7 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
+void parseTagDatatoJson(void* p, char** jsonStr, void* charsetCxt) {
   if (!p || !jsonStr) {
     qError("parseTagDatatoJson invalid input, line:%d", __LINE__);
     return;
@@ -484,15 +649,17 @@ void parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt) {
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData + 1, 1);
         if (tagJsonValue == NULL) {
           goto end;
         }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
-                 charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
-                 pTagVal->pData);
+          qError("charset:%s to %s convert json value failed",
+                 DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL
+                     ? ((SConvInfo*)charsetCxt)->charset
+                     : tsCharset);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
@@ -541,14 +708,140 @@ end:
   taosArrayDestroy(pTagVals);
   if (string == NULL) {
     string = taosStrdup(TSDB_DATA_NULL_STR_L);
-    if(string == NULL) {
+    if (string == NULL) {
       qError("failed to strdup null string");
     }
   }
   *jsonStr = string;
 }
 
-int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
+                  char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
+                  const char* tagCondJson, int32_t tagCondLen) {
+  colRef->id = colId;
+  colRef->hasRef = true;
+  colRef->refType = refType;
+  tstrncpy(colRef->refDbName, refDbName, TSDB_DB_NAME_LEN);
+  tstrncpy(colRef->refTableName, refTableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(colRef->refColName, refColName, TSDB_COL_NAME_LEN);
+  if (refSourceName && refSourceName[0]) {
+    tstrncpy(colRef->refSourceName, refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  } else {
+    colRef->refSourceName[0] = '\0';
+  }
+  if (refSchemaName && refSchemaName[0]) {
+    tstrncpy(colRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  } else {
+    colRef->refSchemaName[0] = '\0';
+  }
+  if (tagCondLen > 0) {
+    colRef->tagCondJson = taosStrdup(tagCondJson);
+    colRef->tagCondLen = tagCondLen;
+  } else {
+    colRef->tagCondJson = NULL;
+    colRef->tagCondLen = 0;
+  }
+  colRef->filterCondJson = NULL;
+  colRef->filterCondLen = 0;
+  if (colName) {
+    tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
+  } else {
+    colRef->colName[0] = '\0';
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+void queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries) {
+  if (NULL == pSeries) {
+    return;
+  }
+
+  for (int32_t i = 0; i < nSeries; ++i) {
+    taosMemoryFreeClear(pSeries[i].tagCondJson);
+  }
+  taosMemoryFree(pSeries);
+}
+
+void queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols) {
+  tFreeSColRefArray(pColRef, nCols);
+}
+
+void queryFreeTableMeta(STableMeta* pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  if (pMeta->tableType != TSDB_CHILD_TABLE) {
+    queryFreeColRefTagConds(pMeta->colRef, pMeta->numOfColRefs);
+    queryFreeColRefTagConds(pMeta->tagRef, pMeta->numOfTagRefs);
+    queryFreeSeriesEntries(pMeta->seriesEntries, pMeta->numOfSeries);
+    tFreeVtableReferenceExt(&pMeta->referenceExt);
+  }
+  taosMemoryFree(pMeta);
+}
+
+int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst) {
+  if (NULL == pDst || nCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    pDst[i].tagCondJson = NULL;
+    pDst[i].filterCondJson = NULL;
+  }
+
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    if (pSrc[i].tagCondJson) {
+      pDst[i].tagCondJson = taosStrdup(pSrc[i].tagCondJson);
+      if (NULL == pDst[i].tagCondJson) {
+        queryFreeColRefTagConds(pDst, i);
+        return terrno;
+      }
+    }
+    if (pSrc[i].filterCondJson) {
+      pDst[i].filterCondJson = taosStrdup(pSrc[i].filterCondJson);
+      if (NULL == pDst[i].filterCondJson) {
+        queryFreeColRefTagConds(pDst, i + 1);
+        return terrno;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst) {
+  QUERY_PARAM_CHECK(ppDst);
+  *ppDst = NULL;
+
+  if (NULL == pSrc || nSeries <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSeriesEntry* pDst = taosMemoryCalloc(nSeries, sizeof(SSeriesEntry));
+  if (NULL == pDst) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < nSeries; ++i) {
+    TAOS_MEMCPY(&pDst[i], &pSrc[i], sizeof(SSeriesEntry));
+    pDst[i].tagCondJson =
+        (pSrc[i].tagCondLen > 0 && pSrc[i].tagCondJson) ? taosStrdup(pSrc[i].tagCondJson) : NULL;
+    if (pSrc[i].tagCondLen > 0 && pSrc[i].tagCondJson && NULL == pDst[i].tagCondJson) {
+      queryFreeSeriesEntries(pDst, i);
+      return terrno;
+    }
+  }
+
+  *ppDst = pDst;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
@@ -556,34 +849,59 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
 
   int32_t numOfField = pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags;
-  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < TSDB_MIN_COLUMNS) {
+  // Sparse external schemas start with one column and materialize others lazily.
+  int32_t minColumns = pSrc->extSrcSynthetic ? 1 : TSDB_MIN_COLUMNS;
+  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < minColumns) {
     *pDst = NULL;
-    qError("too many column and tag num:%d,%d", pSrc->tableInfo.numOfColumns, pSrc->tableInfo.numOfTags);
+    qError("invalid column and tag num:%d,%d", pSrc->tableInfo.numOfColumns,
+           pSrc->tableInfo.numOfTags);
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
-  int32_t schemaExtSize = 0;
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
-    schemaExtSize = pSrc->tableInfo.numOfColumns * sizeof(SSchemaExt);
-  }
-  *pDst = taosMemoryMalloc(metaSize + schemaExtSize);
+  int32_t metaSize = TABLE_META_FULL_SIZE(pSrc);
+  *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
     return terrno;
   }
   memcpy(*pDst, pSrc, metaSize);
-  if (useCompress(pSrc->tableType) && pSrc->schemaExt) {
-    (*pDst)->schemaExt = (SSchemaExt*)((char*)*pDst + metaSize);
-    memcpy((*pDst)->schemaExt, pSrc->schemaExt, schemaExtSize);
-  } else {
-    (*pDst)->schemaExt = NULL;
+  tableMetaResetPointers(*pDst);
+  (*pDst)->seriesEntries = NULL;
+  memset(&(*pDst)->referenceExt, 0, sizeof((*pDst)->referenceExt));
+
+  int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
+  if (TSDB_CODE_SUCCESS != code) {
+    (*pDst)->tagRef = NULL;
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
   }
+
+  code = queryCloneColRefTagConds(pSrc->tagRef, pSrc->numOfTagRefs, (*pDst)->tagRef);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+
+  code = tCloneVtableReferenceExt(&pSrc->referenceExt, &(*pDst)->referenceExt);
+  if (code != TSDB_CODE_SUCCESS) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+  code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+  if (NULL == (*pDst)->seriesEntries) (*pDst)->numOfSeries = 0;
 
   return TSDB_CODE_SUCCESS;
 }
 
 void getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType) {
-  if(!pMeta || !pName || !pType) return;
+  if (!pMeta || !pName || !pType) return;
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pName, pMeta->schema[i].name)) {
@@ -673,6 +991,17 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->comment = taosStrdup(pSrc->comment);
     if (NULL == (*pDst)->comment) goto _exit;
   }
+  (*pDst)->sqlLen = pSrc->sqlLen;
+  if (pSrc->sqlLen > 0) {
+    if (pSrc->sql == NULL) {
+      // not an allocation failure, so terrno may still be 0 here
+      terrno = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    (*pDst)->sql = taosMemoryMalloc(pSrc->sqlLen);
+    if ((*pDst)->sql == NULL) goto _exit;
+    memcpy((*pDst)->sql, pSrc->sql, pSrc->sqlLen);
+  }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
@@ -689,18 +1018,51 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     STag* pTag = (STag*)pSrc->ctb.pTag;
     if (pTag) {
       (*pDst)->ctb.pTag = taosMemoryMalloc(pTag->len);
-      if(NULL == (*pDst)->ctb.pTag) goto _exit;
+      if (NULL == (*pDst)->ctb.pTag) goto _exit;
       memcpy((*pDst)->ctb.pTag, pTag, pTag->len);
     }
   } else {
     (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
-    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.version;
     if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
       (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
       if (NULL == (*pDst)->ntb.schemaRow.pSchema) goto _exit;
       memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
     }
+    if (pSrc->type == TSDB_NORMAL_TABLE) {
+      (*pDst)->colCmpr.nCols = pSrc->colCmpr.nCols;
+      (*pDst)->colCmpr.version = pSrc->colCmpr.version;
+      if (pSrc->colCmpr.nCols > 0 && pSrc->colCmpr.pColCmpr) {
+        (*pDst)->colCmpr.pColCmpr = taosMemoryMalloc(pSrc->colCmpr.nCols * sizeof(SColCmpr));
+        if ((*pDst)->colCmpr.pColCmpr == NULL) goto _exit;
+        memcpy((*pDst)->colCmpr.pColCmpr, pSrc->colCmpr.pColCmpr, pSrc->colCmpr.nCols * sizeof(SColCmpr));
+      }
+      if (pSrc->pExtSchemas) {
+        (*pDst)->pExtSchemas = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+        if ((*pDst)->pExtSchemas == NULL) goto _exit;
+        memcpy((*pDst)->pExtSchemas, pSrc->pExtSchemas, pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+      }
+      (*pDst)->ntb.userId = pSrc->ntb.userId;
+    }
+    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above;
+    // a cloned request must not silently lose its tags.
+    (*pDst)->ntb.schemaTag.nCols = pSrc->ntb.schemaTag.nCols;
+    (*pDst)->ntb.schemaTag.version = pSrc->ntb.schemaTag.version;
+    if (pSrc->ntb.schemaTag.nCols > 0 && pSrc->ntb.schemaTag.pSchema) {
+      (*pDst)->ntb.schemaTag.pSchema = taosMemoryMalloc(pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+      if (NULL == (*pDst)->ntb.schemaTag.pSchema) goto _exit;
+      memcpy((*pDst)->ntb.schemaTag.pSchema, pSrc->ntb.schemaTag.pSchema,
+             pSrc->ntb.schemaTag.nCols * sizeof(SSchema));
+    }
+    STag* pNtbTags = (STag*)pSrc->ntb.pTags;
+    if (pNtbTags) {
+      (*pDst)->ntb.pTags = taosMemoryMalloc(pNtbTags->len);
+      if (NULL == (*pDst)->ntb.pTags) goto _exit;
+      memcpy((*pDst)->ntb.pTags, pNtbTags, pNtbTags->len);
+    }
   }
+  (*pDst)->txnId = pSrc->txnId;
+  (*pDst)->txnStatus = pSrc->txnStatus;
 
   return TSDB_CODE_SUCCESS;
 
@@ -718,6 +1080,218 @@ void freeDbCfgInfo(SDbCfgInfo* pInfo) {
   taosMemoryFree(pInfo);
 }
 
-void* getTaskPoolWorkerCb() {
-  return taskQueue.wrokrerPool.pCb;
+void* getTaskPoolWorkerCb() { return taskQueue.wrokrerPool.pCb; }
+
+void tFreeStreamVtbOtbInfo(void* param);
+void tFreeStreamVtbVtbInfo(void* param);
+void tFreeStreamVtbDbVgInfo(void* param);
+
+void destroySTagsInfo(STagsInfo* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  taosArrayDestroy(pInfo->STagNames);
+
+  for (int i = 0; i < taosArrayGetSize(pInfo->pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pInfo->pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
+  taosArrayDestroy(pInfo->pTagVals);
+  taosMemoryFreeClear(pInfo->pTagIndex);
+  taosMemoryFreeClear(pInfo);
+}
+
+void qDestroyBoundColInfo(void* pInfo) {
+  if (NULL == pInfo) {
+    return;
+  }
+  SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
+
+  taosMemoryFreeClear(pBoundInfo->pColIndex);
+  destroySTagsInfo(pBoundInfo->parseredTags);
+}
+
+// ---- batch meta txn: txn-local super table schemas for ins_tags / ins_columns ----
+// Format (tEncoder): version(i8=1), n(i32), then per stb: suid(i64), sversion(i32), tversion(i32), nCols(i32),
+// nTags(i32), nCols+nTags SSchema, nCols typeMod(i32). Only ever exchanged between a client and the vnode
+// executing its plan; the plan field carrying it is omitted when there is nothing to send.
+#define TXN_STB_SCHEMAS_VERSION 1
+// Lower bounds of the encoding, used to reject a forged count before anything is allocated for it.
+// SSchema (tEncodeSSchema): type(1) + flags(1) + bytes(varint, >= 1) + colId(varint, >= 1) + name (length varint, >= 1;
+// an empty name is not assumed away) = 5
+#define TXN_STB_SCHEMA_MIN_BYTES 5
+// one stb entry: suid(8) + sversion(4) + tversion(4) + nCols(4) + nTags(4) + one schema + one typeMod(4)
+#define TXN_STB_ENTRY_MIN_BYTES (8 + 4 + 4 + 4 + 4 + TXN_STB_SCHEMA_MIN_BYTES + 4)
+
+static int32_t queryEncodeTxnStbSchemasImpl(SEncoder* pEncoder, const SArray* pStbMetas) {
+  int32_t n = (int32_t)taosArrayGetSize(pStbMetas);
+  TAOS_CHECK_RETURN(tStartEncode(pEncoder));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, TXN_STB_SCHEMAS_VERSION));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, n));
+  for (int32_t i = 0; i < n; ++i) {
+    const STableMeta* pMeta = *(const STableMeta**)taosArrayGet(pStbMetas, i);
+    int32_t           nCols = pMeta->tableInfo.numOfColumns;
+    int32_t           nTags = pMeta->tableInfo.numOfTags;
+    // only a super table's own schema is shipped (no merged vchild view), and the decoder enforces the same bounds
+    if (pMeta->tableType != TSDB_SUPER_TABLE || pMeta->schema == NULL || nCols <= 0 || nCols > TSDB_MAX_COLUMNS ||
+        nTags < 0 || nTags > TSDB_MAX_TAGS) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    TAOS_CHECK_RETURN(tEncodeI64(pEncoder, (int64_t)pMeta->uid));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->sversion));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->tversion));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, nCols));
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, nTags));
+    for (int32_t j = 0; j < nCols + nTags; ++j) {
+      TAOS_CHECK_RETURN(tEncodeSSchema(pEncoder, &pMeta->schema[j]));
+    }
+    for (int32_t j = 0; j < nCols; ++j) {
+      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pMeta->schemaExt != NULL ? pMeta->schemaExt[j].typeMod : 0));
+    }
+  }
+  tEndEncode(pEncoder);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryEncodeTxnStbSchemas(const SArray* pStbMetas, char** ppBuf, int32_t* pLen) {
+  *ppBuf = NULL;
+  *pLen = 0;
+  if (taosArrayGetSize(pStbMetas) == 0) return TSDB_CODE_SUCCESS;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  int32_t code = queryEncodeTxnStbSchemasImpl(&encoder, pStbMetas);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);  // released on every path: the sizing pass owns an internal buffer
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (len <= 0 || len > TXN_STB_SCHEMAS_MAX_LEN) return TSDB_CODE_INVALID_MSG;
+
+  char* pBuf = taosMemoryMalloc(len);
+  if (pBuf == NULL) return terrno;
+  tEncoderInit(&encoder, (uint8_t*)pBuf, len);
+  code = queryEncodeTxnStbSchemasImpl(&encoder, pStbMetas);
+  int32_t written = encoder.pos;
+  tEncoderClear(&encoder);
+  // both passes walk the same metas under the caller's lock, so they must agree to the byte
+  if (code == TSDB_CODE_SUCCESS && written != len) code = TSDB_CODE_INTERNAL_ERROR;
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pBuf);
+    return code;
+  }
+  *ppBuf = pBuf;
+  *pLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void queryFreeTxnStbSchema(void* p) {
+  STxnStbSchema* pStb = (STxnStbSchema*)p;
+  taosMemoryFreeClear(pStb->schemaRow.pSchema);
+  taosMemoryFreeClear(pStb->schemaTag.pSchema);
+  taosMemoryFreeClear(pStb->pExtSchemas);
+}
+
+void queryDestroyTxnStbSchemas(SHashObj* pHash) { taosHashCleanup(pHash); }
+
+int32_t queryDecodeTxnStbSchemas(const char* pBuf, int32_t len, SHashObj** ppHash) {
+  *ppHash = NULL;
+  if (pBuf == NULL || len <= 0) return TSDB_CODE_SUCCESS;
+  if (len > TXN_STB_SCHEMAS_MAX_LEN) return TSDB_CODE_INVALID_MSG;  // the length comes from a plan: bound it again here
+
+  int32_t   code = TSDB_CODE_SUCCESS;
+  int32_t   lino = 0;
+  SDecoder  decoder = {0};
+  SHashObj* pHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+  if (pHash == NULL) return terrno;
+  taosHashSetFreeFp(pHash, queryFreeTxnStbSchema);
+
+  tDecoderInit(&decoder, (uint8_t*)pBuf, len);
+  int8_t  version = 0;
+  int32_t n = 0;
+  TAOS_CHECK_GOTO(tStartDecode(&decoder), &lino, _exit);
+  TAOS_CHECK_GOTO(tDecodeI8(&decoder, &version), &lino, _exit);
+  if (version != TXN_STB_SCHEMAS_VERSION) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  TAOS_CHECK_GOTO(tDecodeI32(&decoder, &n), &lino, _exit);
+  // A stb entry is at least suid(8) + 4 x I32 + one SSchema; an n that the blob cannot possibly hold is forged, and
+  // must not get as far as allocating per entry.
+  if (n < 0 || n > len / TXN_STB_ENTRY_MIN_BYTES) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+  for (int32_t i = 0; i < n; ++i) {
+    STxnStbSchema stb = {0};
+    int32_t       nCols = 0, nTags = 0;
+    TAOS_CHECK_GOTO(tDecodeI64(&decoder, &stb.suid), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &stb.schemaRow.version), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &stb.schemaTag.version), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &nCols), &lino, _exit);
+    TAOS_CHECK_GOTO(tDecodeI32(&decoder, &nTags), &lino, _exit);
+    if (nCols <= 0 || nCols > TSDB_MAX_COLUMNS || nTags < 0 || nTags > TSDB_MAX_TAGS) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    // the bytes of the schemas that follow must exist before they are allocated for: (nCols + nTags) SSchema of at
+    // least TXN_STB_SCHEMA_MIN_BYTES and nCols typeMods
+    int64_t remaining = decoder.pos <= decoder.size ? (int64_t)decoder.size - (int64_t)decoder.pos : 0;
+    if ((int64_t)(nCols + nTags) * TXN_STB_SCHEMA_MIN_BYTES + (int64_t)nCols * (int64_t)sizeof(int32_t) > remaining) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
+    }
+    stb.schemaRow.nCols = nCols;
+    stb.schemaTag.nCols = nTags;
+    stb.schemaRow.pSchema = taosMemoryCalloc(nCols, sizeof(SSchema));
+    stb.schemaTag.pSchema = nTags > 0 ? taosMemoryCalloc(nTags, sizeof(SSchema)) : NULL;
+    stb.pExtSchemas = taosMemoryCalloc(nCols, sizeof(SExtSchema));
+    if (stb.schemaRow.pSchema == NULL || (nTags > 0 && stb.schemaTag.pSchema == NULL) || stb.pExtSchemas == NULL) {
+      code = terrno;
+      queryFreeTxnStbSchema(&stb);
+      goto _exit;
+    }
+    for (int32_t j = 0; j < nCols && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeSSchema(&decoder, &stb.schemaRow.pSchema[j]);
+    }
+    for (int32_t j = 0; j < nTags && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeSSchema(&decoder, &stb.schemaTag.pSchema[j]);
+    }
+    for (int32_t j = 0; j < nCols && code == TSDB_CODE_SUCCESS; ++j) {
+      code = tDecodeI32(&decoder, &stb.pExtSchemas[j].typeMod);
+    }
+    if (code == TSDB_CODE_SUCCESS && taosHashGet(pHash, &stb.suid, sizeof(int64_t)) != NULL) {
+      code = TSDB_CODE_INVALID_MSG;  // a super table is shipped once; a repeat would silently replace the first
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = taosHashPut(pHash, &stb.suid, sizeof(int64_t), &stb, sizeof(stb));  // hash owns stb's buffers now
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      queryFreeTxnStbSchema(&stb);
+      goto _exit;
+    }
+  }
+  // Inside the frame: the counts must have consumed exactly what the frame declares. Outside it (after tEndDecode):
+  // nothing may follow the frame. Either leftover means the declared counts do not describe the blob.
+  if (!tDecodeIsEnd(&decoder)) {
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto _exit;
+  }
+  tEndDecode(&decoder);
+  if (!tDecodeIsEnd(&decoder)) {
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto _exit;
+  }
+
+_exit:
+  tDecoderClear(&decoder);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to decode txn stb schemas at line %d since %s", lino, tstrerror(code));
+    taosHashCleanup(pHash);
+    return code;
+  }
+  *ppHash = pHash;
+  return TSDB_CODE_SUCCESS;
 }

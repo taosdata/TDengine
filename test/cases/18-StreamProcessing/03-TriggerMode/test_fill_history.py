@@ -1,0 +1,339 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import time
+import math
+from new_test_framework.utils import tdLog, tdSql, tdStream
+
+
+class TestStreamStateFillHistory:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def test_stream_fill_history(self):
+        """Options: fill history
+
+        1. Create snode and database
+        2. Create super table and sub tables
+        3. Create streams with fill_history option
+        4. Insert data into source tables
+        5. Check stream results
+
+        Since: v3.3.3.7
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-5-26 Guoxy Created
+
+        """
+
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.createSnode()
+
+        tdLog.info(f"=============== create database")
+        tdSql.prepare(dbname="sdb", vgroups=1)
+
+        tdLog.info(f"=============== create super table")
+        tdSql.execute(f"create stable stb (cts timestamp, cint int, cuint int unsigned) tags(tint int);")
+
+        tdLog.info(f"=============== write query data")
+        sqls = [
+            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct1 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                     
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                    
+            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct3 using stb tags(1) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+                    
+            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:00', 0, 0)('2024-01-01 00:00:01', 0, 0)('2024-01-01 00:00:02', 1, 1)('2024-01-01 00:00:03', 1, 1)('2024-01-01 00:00:04', 1, 1);",
+            "insert into ct4 using stb tags(2) values ('2024-01-01 00:00:05', 2, 2)('2024-01-01 00:00:06', 2, 2)('2024-01-01 00:00:07', 2, 2)('2024-01-01 00:00:08', 2, 2)('2024-01-01 00:00:09', 3, 3);",
+        ]
+        tdSql.executes(sqls)
+        tdSql.query("select _wstart, count(cint), avg(cint) from stb partition by tbname state_window(cint)")
+        tdSql.printResult()       
+        
+        tdLog.info(f"=============== create stream")
+        sql1 = "create stream s1 state_window(cint) from ct1                                              into res_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql2 = "create stream s2 state_window(cint) from ct2 stream_options(fill_history('2024-01-01 00:00:00')) into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql5 = "create stream s5 state_window(cint) from ct2 into res_ct2 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+        sql3 = "create stream s3 state_window(cint) from stb partition by tbname into stb_res OUTPUT_SUBTABLE(CONCAT('res_stb_', tbname)) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows partition by tbname;"
+        sql4 = "create stream s4 state_window(cint) from stb partition by tbname, tint into stb_mtag_res OUTPUT_SUBTABLE(CONCAT('res_stb_mtag_', tbname, '_', cast(tint as varchar))) (firstts, num_v, cnt_v, avg_v) tags (nameoftbl varchar(128) as tbname, gid bigint as _tgrpid) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+         
+        streams = [
+            self.StreamItem(sql1, self.checks1),
+            self.StreamItem(sql2, self.checks2),
+            # self.StreamItem(sql3, self.checks3),
+            # self.StreamItem(sql4, self.checks4),
+        ]
+
+        for stream in streams:
+            tdSql.execute(stream.sql)
+        tdStream.checkStreamStatus()
+        time.sleep(10)
+
+        tdLog.info(f"=============== write query data")
+        sqls = [
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:01', 0, 0);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:02', 1, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:03', 1, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:04', 1, 1);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:05', 2, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:06', 2, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:07', 2, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:08', 2, 2);",
+            "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:09', 3, 3);",
+            
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:02', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:03', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:04', 1, 1);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:05', 2, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:06', 2, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:07', 2, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:08', 2, 2);",
+            "insert into ct2 using stb tags(2) values ('2025-01-01 00:00:09', 3, 3);",
+            
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:00', 0, 0);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:01', 0, 0);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:02', 1, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:03', 1, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:04', 1, 1);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:05', 2, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:06', 2, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:07', 2, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:08', 2, 2);",
+            "insert into ct3 using stb tags(1) values ('2025-01-01 00:00:09', 3, 3);",
+            
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:00', 0, 0);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:01', 0, 0);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:02', 1, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:03', 1, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:04', 1, 1);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:05', 2, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:06', 2, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:07', 2, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:08', 2, 2);",
+            "insert into ct4 using stb tags(2) values ('2025-01-01 00:00:09', 3, 3);",
+        ]
+        tdSql.executes(sqls)
+        tdSql.query("select _wstart, count(cint), avg(cint) from stb partition by tbname state_window(cint)")
+        tdSql.printResult()
+
+        tdLog.info(f"=============== check stream result")
+        for stream in streams:
+            stream.check()
+
+
+        # ############ true_for 
+        # sql5 = "create stream s5 state_window(cint) true_for(5s) from ct1 into res_truefor_ct1 (firstts, num_v, cnt_v, avg_v) as select first(_c0), _twrownum, count(*), avg(cuint) from %%trows;"
+         
+        # tdSql.execute(sql5)
+        # # tdStream.checkStreamStatus("s5")
+        # time.sleep(3)
+        # # self.checks5(0)
+                
+        # tdLog.info(f"=============== continue write data into ct1 for true_for(5s)")
+        # sqls = [
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:10', 4, 0);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:11', 4, 0);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:15', 4, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:16', 5, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:17', 5, 1);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:18', 5, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:21', 5, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:22', 6, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:29', 6, 2);",
+        #     "insert into ct1 using stb tags(1) values ('2025-01-01 00:00:30', 7, 3);",
+        # ]
+        # tdSql.executes(sqls)
+        # self.checks5(1)
+        
+        # ############ option: fill history
+        
+        # ############ option: max_delay
+        
+        # ############ option: watermark
+        
+        return
+
+    def test_fill_history_start_time_filters_late_rows(self):
+        """FILL_HISTORY start time filters later writes with older event times
+
+        1. Create a stream on an empty table with a history start time
+        2. Wait for the stream and insert rows on both sides of the boundary
+        3. Verify only rows at or after the boundary trigger calculations
+
+        Catalog:
+            - Streams:03-TriggerMode
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7048315279
+
+        History:
+            - 2026-07-14 Created
+        """
+
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.execute("create table t1 (ts timestamp, c1 int)")
+        tdSql.execute(
+            "create stream s1 interval(1s) sliding(1s) from t1 "
+            "stream_options(fill_history('2026-07-09 00:00:00')) "
+            "into dst (wstart, cnt) as select _twstart, count(*) from t1 "
+            "where _c0 >= _twstart and _c0 < _twend"
+        )
+        tdStream.checkStreamStatus("s1")
+
+        tdSql.execute(
+            "insert into t1 values "
+            "('2026-07-08 23:59:58', 1), "
+            "('2026-07-08 23:59:59', 2), "
+            "('2026-07-09 00:00:00', 3), "
+            "('2026-07-09 00:00:01', 4), "
+            "('2026-07-09 00:00:02', 5)"
+        )
+
+        tdSql.checkResultsByFunc(
+            sql="select wstart, cnt from dst order by wstart",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2026-07-09 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2026-07-09 00:00:01.000")
+            and tdSql.compareData(1, 1, 1),
+            retry=30,
+        )
+
+    def test_fill_history_skips_tables_without_data_after_start(self):
+        """FILL_HISTORY skips tables without data after the history start
+
+        A partition may contain both active tables and tables whose latest row
+        precedes the history start. The active tables must still determine the
+        partition's first timestamp, while partitions with no eligible rows
+        must not produce output.
+
+        Catalog:
+            - Streams:03-TriggerMode
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073766431
+
+        History:
+            - 2026-08-14 Created
+        """
+
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.execute(
+            "create stable windspeeds (ts timestamp, speed int) "
+            "tags(site varchar(16), sensor int)"
+        )
+        tdSql.executes(
+            [
+                "create table stale_same_group using windspeeds tags('site1', 1)",
+                "create table active_same_group using windspeeds tags('site1', 1)",
+                "create table stale_only_group using windspeeds tags('site2', 2)",
+                "insert into stale_same_group values ('2026-05-31 23:59:59', 100)",
+                "insert into active_same_group values "
+                "('2026-06-01 00:10:00', 10) "
+                "('2026-06-01 00:20:00', 20)",
+                "insert into stale_only_group values ('2026-05-31 23:59:59', 200)",
+            ]
+        )
+        tdSql.execute(
+            "create stream s_missing_ts interval(1h) sliding(1h) from windspeeds "
+            "partition by site, sensor "
+            "stream_options(fill_history('2026-06-01 00:00:00')) "
+            "into dst_missing_ts as select _twend as window_end, max(speed) as max_speed "
+            "from %%trows"
+        )
+        tdStream.checkStreamStatus("s_missing_ts")
+
+        tdSql.checkResultsByFunc(
+            sql="select window_end, max_speed from dst_missing_ts order by window_end",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2026-06-01 01:00:00.000")
+            and tdSql.compareData(0, 1, 20),
+            retry=30,
+        )
+
+    def checks1(self):
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct1"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 2)
+            and tdSql.compareData(0, 2, 2)
+            and tdSql.compareData(1, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(1, 1, 3)
+            and tdSql.compareData(1, 2, 3)
+            and tdSql.compareData(2, 0, "2025-01-01 00:00:05.000")
+            and tdSql.compareData(2, 1, 4)
+            and tdSql.compareData(2, 2, 4),
+        )
+
+        tdSql.query("desc sdb.res_ct1")
+        tdSql.printResult()
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "firstts")
+        tdSql.checkData(1, 0, "num_v")
+        tdSql.checkData(2, 0, "cnt_v")
+        tdSql.checkData(3, 0, "avg_v")
+        tdSql.checkData(0, 1, "TIMESTAMP")
+        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(2, 1, "BIGINT")
+        tdSql.checkData(3, 1, "DOUBLE")
+        tdSql.checkData(0, 2, "8")
+        tdSql.checkData(1, 2, "8")
+        tdSql.checkData(2, 2, "8")
+        tdSql.checkData(3, 2, "8")
+        tdLog.info(f"=============== check s1 result success !!!!!!!! =====================")
+        return
+
+    def checks2(self):
+        result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct2"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 7
+            and tdSql.compareData(0, 0, "2024-01-01 00:00:00.000")
+            and tdSql.compareData(1, 0, "2024-01-01 00:00:02.000")
+            and tdSql.compareData(2, 0, "2024-01-01 00:00:05.000")
+            and tdSql.compareData(5, 0, "2025-01-01 00:00:02.000")
+            and tdSql.compareData(6, 0, "2025-01-01 00:00:05.000"),
+        )
+        tdLog.info(f"=============== check s2 result success !!!!!!!! =====================")
+        return
+
+    class StreamItem:
+        def __init__(self, sql, checkfunc):
+            self.sql = sql
+            self.checkfunc = checkfunc
+
+        def check(self):
+            self.checkfunc()

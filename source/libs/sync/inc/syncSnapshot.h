@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,7 +28,6 @@ extern "C" {
 #define SYNC_SNAPSHOT_SEQ_INVALID      -2
 #define SYNC_SNAPSHOT_SEQ_PREP         -1
 #define SYNC_SNAPSHOT_SEQ_BEGIN        0
-#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
@@ -52,6 +53,19 @@ typedef struct SyncSnapBlock {
 
 void syncSnapBlockDestroy(void *ptr);
 
+// Snapshot rate limiter (global per dnode, shared by all vgroup senders)
+typedef struct SSnapshotRateLimiter {
+  TdThreadMutex mutex;
+  int64_t       tokens;      // available tokens in bytes, may go negative
+  int64_t       lastFillMs;  // last refill timestamp in milliseconds
+} SSnapshotRateLimiter;
+
+int32_t snapshotRateLimiterCreate(SSnapshotRateLimiter **ppLimiter);
+void    snapshotRateLimiterDestroy(SSnapshotRateLimiter **ppLimiter);
+bool    snapshotRateLimiterTryConsume(void);
+void    snapshotRateLimiterDeduct(int32_t bytes);
+void    snapshotRateLimiterCleanUp(void);
+
 typedef struct SSyncSnapshotSender {
   int8_t         start;
   int32_t        seq;
@@ -62,7 +76,7 @@ typedef struct SSyncSnapshotSender {
   SSyncCfg       lastConfig;
   int64_t        sendingMS;
   SyncTerm       term;
-  int64_t        startTime;
+  int64_t        senderStartTime;
   int64_t        lastSendTime;
   bool           finish;
 
@@ -87,7 +101,7 @@ typedef struct SSyncSnapshotReceiver {
   int32_t  ack;
   SyncTerm term;
   SRaftId  fromId;
-  int64_t  startTime;
+  int64_t  receiverStartTime;
 
   // update when begin
   void          *pWriter;
@@ -103,6 +117,9 @@ typedef struct SSyncSnapshotReceiver {
 } SSyncSnapshotReceiver;
 
 int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapshotReceiver **ppReceiver);
+
+// validates the outer TLV header of a TDMT_SYNC_PREP_SNAPSHOT payload against its actual size
+int32_t syncSnapCheckPrepData(const void *data, uint32_t dataLen);
 void    snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void    snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
 void    snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);

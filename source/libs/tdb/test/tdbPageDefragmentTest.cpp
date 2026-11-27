@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 
 #define ALLOW_FORBID_FUNC
@@ -40,7 +57,7 @@ static void clearPool(SPoolMem *pPool) {
     taosMemoryFree(pMem);
   } while (1);
 
-  assert(pPool->size == 0);
+  TD_ALWAYS_ASSERT(pPool->size == 0);
 }
 
 static void closePool(SPoolMem *pPool) {
@@ -55,7 +72,7 @@ static void *poolMalloc(void *arg, size_t size) {
 
   pMem = (SPoolMem *)taosMemoryMalloc(sizeof(*pMem) + size);
   if (pMem == NULL) {
-    assert(0);
+    TD_ALWAYS_ASSERT(0);
   }
 
   pMem->size = sizeof(*pMem) + size;
@@ -141,7 +158,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, 0, NULL);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0, NULL);
   if (ret) {
     pEnv = NULL;
   }
@@ -352,7 +369,7 @@ TEST(TdbPageDefragmentTest, DISABLED_simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -484,7 +501,7 @@ TEST(TdbPageDefragmentTest, seq_insert) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -564,7 +581,7 @@ TEST(TdbPageDefragmentTest, seq_delete) {
   int const     pageSize = 1 * 1024 * 1024;
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -647,7 +664,7 @@ TEST(TdbPageDefragmentTest, defragment_insert) {
   int const     pageSize = 1 * 1024 * 1024;
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, 0, NULL);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0, NULL);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database

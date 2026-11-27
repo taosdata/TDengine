@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,44 +16,57 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndProfile.h"
 #include "audit.h"
+#include "crypt.h"
+#include "mndCluster.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndPrivilege.h"
-#include "mndProfile.h"
 #include "mndQnode.h"
+#include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
+#include "mndExtSource.h"
 #include "mndStb.h"
+#include "mndToken.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndView.h"
 #include "tglobal.h"
+#include "totp.h"
 #include "tversion.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 typedef struct {
   uint32_t id;
   int8_t   connType;
+  int8_t   killed;
   char     user[TSDB_USER_LEN];
+  char     tokenName[TSDB_TOKEN_LEN];
   char     app[TSDB_APP_NAME_LEN];  // app name that invokes taosc
   int64_t  appStartTimeMs;          // app start time
   int32_t  pid;                     // pid of app that invokes taosc
-  uint32_t ip;
-  uint16_t port;
-  int8_t   killed;
+  int32_t  numOfQueries;
   int64_t  loginTimeMs;
   int64_t  lastAccessTimeMs;
   uint64_t killId;
-  int32_t  numOfQueries;
-  SRWLatch queryLock;
   SArray  *pQueries;  // SArray<SQueryDesc>
   char     userApp[TSDB_APP_NAME_LEN];
+  SRWLatch queryLock;
   uint32_t userIp;
+  SIpAddr  userDualIp;
+  SIpAddr  addr;
+  char     sVer[TSDB_VERSION_LEN];
+  char     cInfo[CONNECTOR_INFO_LEN];
 } SConnObj;
 
 typedef struct {
   int64_t            appId;
-  uint32_t           ip;
+  SIpAddr            cliAddr;
   int32_t            pid;
   char               name[TSDB_APP_NAME_LEN];
   int64_t            startTime;
@@ -69,8 +84,6 @@ typedef struct {
 
 #define CACHE_OBJ_KEEP_TIME 3  // s
 
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
-                               int32_t pid, const char *app, int64_t startTime);
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, uint32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn, bool extendLifespan);
@@ -78,6 +91,11 @@ static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SRpcMsg *pReq);
 static int32_t   mndProcessConnectReq(SRpcMsg *pReq);
+static int32_t   mndProcessSaslStepReq(SRpcMsg *pReq);
+#ifdef USE_LIBGSASL
+static int32_t   mndSaslInit(SMnode *pMnode);
+static void      mndSaslCleanup(SMnode *pMnode);
+#endif
 static int32_t   mndProcessKillQueryReq(SRpcMsg *pReq);
 static int32_t   mndProcessKillConnReq(SRpcMsg *pReq);
 static int32_t   mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -108,8 +126,17 @@ int32_t mndInitProfile(SMnode *pMnode) {
     TAOS_RETURN(code);
   }
 
+#ifdef USE_LIBGSASL
+  if (tsForceScram) {
+    TAOS_CHECK_RETURN(mndSaslInit(pMnode));
+  }
+#endif
+
   mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectReq);
+  if (tsForceScram) {
+    mndSetMsgHandle(pMnode, TDMT_MND_AUTH_SASL, mndProcessSaslStepReq);
+  }
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
@@ -126,6 +153,11 @@ int32_t mndInitProfile(SMnode *pMnode) {
 
 void mndCleanupProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+#ifdef USE_LIBGSASL
+  if (tsForceScram) {
+    mndSaslCleanup(pMnode);
+  }
+#endif
   if (pMgmt->connCache != NULL) {
     taosCacheCleanup(pMgmt->connCache);
     pMgmt->connCache = NULL;
@@ -137,18 +169,52 @@ void mndCleanupProfile(SMnode *pMnode) {
   }
 }
 
-static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp) {
+static void getUserIpFromConnObj(SConnObj *pConn, char *dst) {
+  static char *none = "0.0.0.0";
+  if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
+    taosInetNtoa(varDataVal(dst), pConn->userIp);
+    varDataLen(dst) = strlen(varDataVal(dst));
+  }
+
+  if (pConn->userDualIp.ipv4[0] != 0 && strncmp(pConn->userDualIp.ipv4, none, strlen(none)) != 0) {
+    char   *ipstr = IP_ADDR_STR(&pConn->userDualIp);
+    int32_t len = strlen(ipstr);
+    memcpy(varDataVal(dst), ipstr, len);
+    varDataLen(dst) = len;
+  }
+  return;
+}
+static void setUserInfo2Conn(SConnObj *connObj, char *userApp, uint32_t userIp, char *cInfo) {
   if (connObj == NULL) {
     return;
   }
   tstrncpy(connObj->userApp, userApp, sizeof(connObj->userApp));
+  tstrncpy(connObj->cInfo, cInfo, sizeof(connObj->cInfo));
   connObj->userIp = userIp;
 }
-static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType, uint32_t ip, uint16_t port,
-                               int32_t pid, const char *app, int64_t startTime) {
+static void setUserInfoIpToConn(SConnObj *connObj, SIpRange *pRange) {
+  int32_t code = 0;
+  if (connObj == NULL) {
+    return;
+  }
+
+  code = tIpUintToStr(pRange, &connObj->userDualIp);
+  if (code != 0) {
+    mError("conn:%u, failed to set user ip to conn since %s", connObj->id, tstrerror(code));
+    return;
+  }
+}
+
+
+
+static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, const char* tokenName, int8_t connType, SIpAddr *pAddr,
+                               int32_t pid, const char *app, int64_t startTime, const char *sVer) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   char     connStr[255] = {0};
+  char    *ip = IP_ADDR_STR(pAddr);
+  uint16_t port = pAddr->port;
+
   int32_t  len = tsnprintf(connStr, sizeof(connStr), "%s%d%d%d%s", user, ip, port, pid, app);
   uint32_t connId = mndGenerateUid(connStr, len);
   if (startTime == 0) startTime = taosGetTimestampMs();
@@ -158,8 +224,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
       .connType = connType,
       .appStartTimeMs = startTime,
       .pid = pid,
-      .ip = ip,
-      .port = port,
+      .addr = *pAddr,
       .killed = 0,
       .loginTimeMs = taosGetTimestampMs(),
       .lastAccessTimeMs = 0,
@@ -169,8 +234,10 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
   };
 
   connObj.lastAccessTimeMs = connObj.loginTimeMs;
-  tstrncpy(connObj.user, user, TSDB_USER_LEN);
-  tstrncpy(connObj.app, app, TSDB_APP_NAME_LEN);
+  tstrncpy(connObj.user, user, sizeof(connObj.user));
+  tstrncpy(connObj.tokenName, tokenName, sizeof(connObj.tokenName));
+  tstrncpy(connObj.app, app, sizeof(connObj.app));
+  tstrncpy(connObj.sVer, sVer, sizeof(connObj.sVer));
 
   SConnObj *pConn =
       taosCachePut(pMgmt->connCache, &connId, sizeof(uint32_t), &connObj, sizeof(connObj), CACHE_OBJ_KEEP_TIME * 1000);
@@ -183,6 +250,8 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
     return pConn;
   }
 }
+
+
 
 static void mndFreeConn(SConnObj *pConn) {
   taosWLockLatch(&pConn->queryLock);
@@ -234,73 +303,459 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
   }
 }
 
+
+
+// TODO: if there are many connections, this function may be slow
+int32_t mndCountUserConns(SMnode *pMnode, const char *user) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SCacheIter   *pIter = taosCacheCreateIter(pMgmt->connCache);
+  if (pIter == NULL) {
+    mError("failed to create conn cache iterator");
+    return -1;
+  }
+
+  int32_t    count = 0;
+  SConnObj  *pConn = NULL;
+  while ((pConn = mndGetNextConn(pMnode, pIter)) != NULL) {
+    if (strncmp(pConn->user, user, TSDB_USER_LEN) == 0) {
+      count++;
+    }
+    mndReleaseConn(pMnode, pConn, true);
+  }
+
+  return count;
+}
+
+
+
+static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
+  int32_t code = 0;
+
+  char currPass[TSDB_PASSWORD_LEN] = {0};
+  taosRLockLatch(&pUser->lock);
+  (void)memcpy(currPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN);
+  taosRUnLockLatch(&pUser->lock);
+
+  // A user with no legacy password hash (all-zero) must never authenticate by password: an empty
+  // supplied password would otherwise compare equal below. Such a user can only authenticate via the
+  // SASL handshake (which does not call this function). taosEncryptPass_c never yields an all-zero
+  // hash for a real password, so this rejects only the unprovisioned/zeroed sentinel.
+  bool currPassEmpty = true;
+  for (size_t i = 0; i < sizeof(currPass) - 1; i++) {
+    if (currPass[i] != 0) {
+      currPassEmpty = false;
+      break;
+    }
+  }
+  if (currPassEmpty) {
+    return TSDB_CODE_MND_AUTH_FAILURE;
+  }
+
+  char pass[TSDB_PASSWORD_LEN] = {0};
+  (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
+  pass[TSDB_PASSWORD_LEN - 1] = 0;
+
+  if (pUser->passEncryptAlgorithm != 0 && strlen(tsDataKey) > 0) {
+    code = mndEncryptPass(pass, pUser->salt, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  // constant time comparison to prevent timing attack
+  volatile uint8_t res = 0;
+  for (size_t i = 0; i < sizeof(pass) - 1; i++) {
+    res |= pass[i] ^ currPass[i];
+  }
+
+ return (res == 0) ? TSDB_CODE_SUCCESS: TSDB_CODE_MND_AUTH_FAILURE;
+}
+
+
+
+static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
+  if (!mndIsTotpEnabledUser(pUser)) {
+    return true;
+  }
+  return taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1) != 0;
+}
+
+// ----------------------------------------------------------------------------
+// SCRAM-SHA-256 application-layer authentication handshake (libgsasl).
+//
+// The single CONNECT is preceded by one or more TDMT_MND_AUTH_SASL rounds: the client and server
+// shuttle opaque SASL tokens (gsasl_step64 output) until the exchange completes, at which point the
+// server mints a short-lived one-time auth token. The client then runs the normal CONNECT carrying
+// that token, and mndProcessConnectReq trusts it instead of verifying a password. Everything is
+// leader-local because all mnode RPC is served by the leader.
+// ----------------------------------------------------------------------------
+#define MND_SASL_HANDSHAKE_TTL_MS 10000  // covers an in-flight handshake and the follow-up CONNECT
+
+#ifdef USE_LIBGSASL
+typedef struct {
+  Gsasl_session *sctx;
+  char           user[TSDB_USER_LEN];
+} SSaslSessionCache;
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SSaslTokenCache;
+
+static void mndFreeSaslSession(void *p) {
+  SSaslSessionCache *pSess = p;
+  if (pSess != NULL && pSess->sctx != NULL) {
+    gsasl_finish(pSess->sctx);
+    pSess->sctx = NULL;
+  }
+}
+
+static void mndBinToHex(const uint8_t *in, int32_t len, char *out) {
+  static const char *hex = "0123456789abcdef";
+  for (int32_t i = 0; i < len; i++) {
+    out[i * 2] = hex[(in[i] >> 4) & 0xf];
+    out[i * 2 + 1] = hex[in[i] & 0xf];
+  }
+  out[len * 2] = 0;
+}
+
+// Supply the SCRAM secrets (never a plaintext password) for the authenticating user. The SMnode is
+// fetched from the gsasl global callback hook; the user name comes from GSASL_AUTHID parsed by gsasl.
+static int mndSaslServerCb(Gsasl *ctx, Gsasl_session *sctx, Gsasl_property prop) {
+  SMnode *pMnode = gsasl_callback_hook_get(ctx);
+  if (pMnode == NULL) return GSASL_NO_CALLBACK;
+
+  if (prop != GSASL_SCRAM_ITER && prop != GSASL_SCRAM_SALT && prop != GSASL_SCRAM_STOREDKEY &&
+      prop != GSASL_SCRAM_SERVERKEY) {
+    return GSASL_NO_CALLBACK;
+  }
+
+  const char *authid = gsasl_property_fast(sctx, GSASL_AUTHID);
+  if (authid == NULL) return GSASL_NO_AUTHID;
+
+  SUserObj *pUser = NULL;
+  if (mndAcquireUser(pMnode, authid, &pUser) != 0 || pUser == NULL) return GSASL_NO_AUTHID;
+  if (pUser->scram.algo != TSDB_SCRAM_ALGO_SHA256) {
+    mndReleaseUser(pMnode, pUser);
+    return GSASL_NO_PASSWORD;  // user has no SCRAM credentials -> client falls back to legacy auth
+  }
+
+  int rc = GSASL_OK;
+  if (prop == GSASL_SCRAM_ITER) {
+    char iter[16] = {0};
+    (void)snprintf(iter, sizeof(iter), "%d", pUser->scram.iter);
+    (void)gsasl_property_set(sctx, GSASL_SCRAM_ITER, iter);
+  } else if (prop == GSASL_SCRAM_SALT) {
+    char  *b64 = NULL;
+    size_t b64len = 0;
+    if (gsasl_base64_to((const char *)pUser->scram.salt, pUser->scram.saltLen, &b64, &b64len) == GSASL_OK) {
+      (void)gsasl_property_set(sctx, GSASL_SCRAM_SALT, b64);
+      gsasl_free(b64);
+    } else {
+      rc = GSASL_MALLOC_ERROR;
+    }
+  } else {
+    // gsasl's SCRAM server base64-decodes GSASL_SCRAM_STOREDKEY / GSASL_SCRAM_SERVERKEY
+    // (lib/scram/server.c: extract_serverkey -> gsasl_base64_from), so they MUST be supplied
+    // base64-encoded -- not hex -- or the StoredKey comparison fails with an auth error.
+    const uint8_t *key = (prop == GSASL_SCRAM_STOREDKEY) ? pUser->scram.storedKey : pUser->scram.serverKey;
+    char          *b64 = NULL;
+    size_t         b64len = 0;
+    if (gsasl_base64_to((const char *)key, TSDB_SCRAM_KEY_LEN, &b64, &b64len) == GSASL_OK) {
+      (void)gsasl_property_set(sctx, prop, b64);
+      gsasl_free(b64);
+    } else {
+      rc = GSASL_MALLOC_ERROR;
+    }
+  }
+
+  mndReleaseUser(pMnode, pUser);
+  return rc;
+}
+
+static int32_t mndSaslInit(SMnode *pMnode) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  Gsasl        *ctx = NULL;
+  if (gsasl_init(&ctx) != GSASL_OK) {
+    mError("failed to init gsasl context");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  gsasl_callback_hook_set(ctx, pMnode);
+  gsasl_callback_set(ctx, mndSaslServerCb);
+  pMgmt->saslCtx = ctx;
+
+  int32_t ttl = MND_SASL_HANDSHAKE_TTL_MS;
+  pMgmt->saslSessCache =
+      taosCacheInit(TSDB_DATA_TYPE_BINARY, ttl, false, (__cache_free_fn_t)mndFreeSaslSession, "sasl-sess");
+  pMgmt->saslTokenCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, ttl, false, NULL, "sasl-token");
+  if (pMgmt->saslSessCache == NULL || pMgmt->saslTokenCache == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void mndSaslCleanup(SMnode *pMnode) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  if (pMgmt->saslSessCache != NULL) {
+    taosCacheCleanup(pMgmt->saslSessCache);
+    pMgmt->saslSessCache = NULL;
+  }
+  if (pMgmt->saslTokenCache != NULL) {
+    taosCacheCleanup(pMgmt->saslTokenCache);
+    pMgmt->saslTokenCache = NULL;
+  }
+  if (pMgmt->saslCtx != NULL) {
+    gsasl_done((Gsasl *)pMgmt->saslCtx);
+    pMgmt->saslCtx = NULL;
+  }
+}
+#endif  // USE_LIBGSASL
+
+// Validate (and consume, one-time) a SASL auth token previously issued to `user`. Returns 0 when the
+// token is valid for the user; an error code otherwise. Available regardless of USE_LIBGSASL so the
+// CONNECT path links cleanly; without gsasl the token cache is never populated so this always fails.
+static int32_t mndConsumeSaslToken(SMnode *pMnode, const char *user, const char *token) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  if (pMgmt->saslTokenCache == NULL || token == NULL || token[0] == 0) {
+    return TSDB_CODE_MND_AUTH_FAILURE;
+  }
+#ifdef USE_LIBGSASL
+  SSaslTokenCache *pTok = taosCacheAcquireByKey(pMgmt->saslTokenCache, token, strlen(token));
+  if (pTok == NULL) return TSDB_CODE_MND_SASL_SESSION_EXPIRED;
+  int32_t code = (strcmp(pTok->user, user) == 0) ? 0 : TSDB_CODE_MND_AUTH_FAILURE;
+  taosCacheRelease(pMgmt->saslTokenCache, (void **)&pTok, true);  // one-time use: drop on read
+  return code;
+#else
+  return TSDB_CODE_MND_AUTH_FAILURE;
+#endif
+}
+
+static int32_t mndProcessSaslStepReq(SRpcMsg *pReq) {
+#ifndef USE_LIBGSASL
+  mError("SASL handler called but USE_LIBGSASL is not defined");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
+  int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SSaslStepReq  stepReq = {0};
+  SSaslStepRsp  stepRsp = {0};
+  char         *out = NULL;
+  void         *rspBuf = NULL;
+
+  TAOS_CHECK_GOTO(tDeserializeSSaslStepReq(pReq->pCont, pReq->contLen, &stepReq), &lino, _OVER);
+
+  mDebug("SASL step req: user=%s authId=%s mech=%s dataLen=%d", stepReq.user, stepReq.authId, stepReq.mech, stepReq.dataLen);
+
+  SSaslSessionCache *pSess = NULL;
+  Gsasl_session     *sctx = NULL;
+  char               authId[TSDB_SASL_AUTH_ID_LEN] = {0};
+
+  if (stepReq.authId[0] == 0) {
+    // first round: if the user exists but has no SCRAM credentials, tell the client to fall back to
+    // legacy password auth (OPS_NOT_SUPPORT). Unknown users fall through and fail in the handshake.
+    // This pre-check re-acquires the user (the gsasl callback acquires it again to read the secrets):
+    // a benign TOCTOU -- if ALTER USER changes the creds in between, the handshake just fails and the
+    // client retries, with no risk of corruption or auth bypass.
+    SUserObj *pCheck = NULL;
+    if (mndAcquireUser(pMnode, stepReq.user, &pCheck) == 0 && pCheck != NULL) {
+      int8_t algo = pCheck->scram.algo;
+      mndReleaseUser(pMnode, pCheck);
+      if (algo != TSDB_SCRAM_ALGO_SHA256) {
+        mDebug("SASL: user %s has no SCRAM credentials (algo=%d), returning OPS_NOT_SUPPORT", stepReq.user, algo);
+        TAOS_CHECK_GOTO(TSDB_CODE_OPS_NOT_SUPPORT, &lino, _OVER);
+      }
+    }
+    // start a server session and assign a handshake id
+    if (gsasl_server_start((Gsasl *)pMgmt->saslCtx, stepReq.mech, &sctx) != GSASL_OK) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    char nonce[16] = {0};
+    if (gsasl_nonce(nonce, sizeof(nonce)) != GSASL_OK) {
+      gsasl_finish(sctx);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    mndBinToHex((uint8_t *)nonce, sizeof(nonce), authId);
+
+    SSaslSessionCache sess = {.sctx = sctx};
+    tstrncpy(sess.user, stepReq.user, sizeof(sess.user));
+    pSess = taosCachePut(pMgmt->saslSessCache, authId, strlen(authId), &sess, sizeof(sess), MND_SASL_HANDSHAKE_TTL_MS);
+    if (pSess == NULL) {
+      gsasl_finish(sctx);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+  } else {
+    tstrncpy(authId, stepReq.authId, sizeof(authId));
+    pSess = taosCacheAcquireByKey(pMgmt->saslSessCache, authId, strlen(authId));
+    if (pSess == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_SASL_SESSION_EXPIRED, &lino, _OVER);
+    }
+    sctx = pSess->sctx;
+  }
+
+  int rc = gsasl_step64(sctx, stepReq.data ? (const char *)stepReq.data : "", &out);
+  if (rc != GSASL_OK && rc != GSASL_NEEDS_MORE) {
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // failed -> drop session
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+  }
+
+  tstrncpy(stepRsp.authId, authId, sizeof(stepRsp.authId));
+  if (out != NULL) {
+    stepRsp.data = (uint8_t *)out;
+    stepRsp.dataLen = (int32_t)strlen(out) + 1;
+  }
+
+  if (rc == GSASL_OK) {
+    // handshake complete: mint a one-time auth token bound to the user
+    stepRsp.done = 1;
+    char tnonce[24] = {0};
+    // Fail closed: if we cannot mint a token (RNG failure), do NOT report done=1 with an empty token.
+    // An empty token would either drop the client to legacy auth or, under forceScram, lock out a user
+    // who actually completed SCRAM. Drop the session and surface an error so the client retries.
+    if (gsasl_nonce(tnonce, sizeof(tnonce)) != GSASL_OK) {
+      taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // failed -> drop session
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    mndBinToHex((uint8_t *)tnonce, sizeof(tnonce), stepRsp.authToken);
+    SSaslTokenCache tok = {0};
+    tstrncpy(tok.user, pSess->user, sizeof(tok.user));
+    void *p = taosCachePut(pMgmt->saslTokenCache, stepRsp.authToken, strlen(stepRsp.authToken), &tok, sizeof(tok),
+                           MND_SASL_HANDSHAKE_TTL_MS);
+    if (p != NULL) taosCacheRelease(pMgmt->saslTokenCache, &p, false);
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // done -> drop session
+  } else {
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, false);
+  }
+
+  int32_t rspLen = tSerializeSSaslStepRsp(NULL, 0, &stepRsp);
+  if (rspLen < 0) TAOS_CHECK_GOTO(rspLen, &lino, _OVER);
+  rspBuf = rpcMallocCont(rspLen);
+  if (rspBuf == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  if (tSerializeSSaslStepRsp(rspBuf, rspLen, &stepRsp) < 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  pReq->info.rsp = rspBuf;
+  pReq->info.rspLen = rspLen;
+
+_OVER:
+  if (out != NULL) gsasl_free(out);
+  tFreeSSaslStepReq(&stepReq);
+  if (code != 0) {
+    mError("failed to process sasl step req at line %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+#endif
+}
+
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
-  SMnode         *pMnode = pReq->info.node;
-  SUserObj       *pUser = NULL;
-  SDbObj         *pDb = NULL;
-  SConnObj       *pConn = NULL;
-  int32_t         code = 0;
-  SConnectReq     connReq = {0};
-  char            ip[TD_IP_LEN] = {0};
-  const STraceId *trace = &pReq->info.traceId;
+  int32_t          code = 0, lino = 0;
 
-  if ((code = tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq)) != 0) {
-    goto _OVER;
+  SMnode          *pMnode = pReq->info.node;
+  SConnectReq      connReq = {0};
+  SUserObj        *pUser = NULL;
+  SDbObj          *pDb = NULL;
+  SConnObj        *pConn = NULL;
+  const STraceId  *trace = &pReq->info.traceId;
+  char            *ip = IP_ADDR_STR(&pReq->info.conn.cliAddr);
+  uint16_t         port = pReq->info.conn.cliAddr.port;
+  SCachedTokenInfo ti = {0};
+  const char      *user = RPC_MSG_USER(pReq);
+  const char      *token = RPC_MSG_TOKEN(pReq);
+  int64_t          tss = taosGetTimestampMs();
+  int64_t          now = tss / 1000;
+
+  if (token != NULL && mndGetCachedTokenInfo(token, &ti) == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_TOKEN_NOT_EXIST, &lino, _OVER);
+  }
+  TAOS_CHECK_GOTO(tDeserializeSConnectReq(pReq->pCont, pReq->contLen, &connReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3), &lino, _OVER);
+  TAOS_CHECK_GOTO(tVerifyConnectReqSignature(&connReq), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, user, &pUser), &lino, _OVER);
+
+  SLoginInfo li = {0};
+  mndGetUserLoginInfo(user, &li);
+  TAOS_CHECK_GOTO(mndCheckConnectPrivilege(pMnode, pUser, token, &li), &lino, _OVER);
+  bool saslAuthed = false;
+  if (tsForceScram && connReq.saslToken[0] != 0) {
+    int32_t saslCode = mndConsumeSaslToken(pMnode, user, connReq.saslToken);
+    if (saslCode == 0) {
+      saslAuthed = true;
+    } else if (saslCode == TSDB_CODE_MND_SASL_SESSION_EXPIRED) {
+      // The token was minted on a former leader and lost in a leadership change between the SASL
+      // handshake and this CONNECT. Surface SESSION_EXPIRED so the client redoes the handshake against
+      // the current leader, instead of falling through to verifyPassword -- which fails with
+      // AUTH_FAILURE because the client cleared the password once it presented a token.
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_SASL_SESSION_EXPIRED, &lino, _OVER);
+    }
+    // any other failure (token/user mismatch) -> genuine auth failure handled by the chain below
   }
 
-  if ((code = taosCheckVersionCompatibleFromStr(connReq.sVer, td_version, 3)) != 0) {
-    mGError("version not compatible. client version: %s, server version: %s", connReq.sVer, td_version);
-    goto _OVER;
+  if (saslAuthed || token != NULL || tsMndSkipGrant) {
+    li.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(user, &li);
+    }
+  } else if (tsForceScram && pUser->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+    // Opt-in hardening (forceScram): a user provisioned with SCRAM creds may ONLY authenticate via a
+    // completed SCRAM handshake, so a captured password hash cannot be replayed over legacy CONNECT.
+    // Default off: SCRAM users fall through to verifyPassword so non-SCRAM clients (other platforms,
+    // third-party connectors, REST) keep working.
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+  } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_MND_AUTH_FAILURE) {
+    if (pUser->failedLoginAttempts >= 0) {
+      if (li.failedLoginCount >= pUser->failedLoginAttempts) {
+        // if we can get here, it means the lock time has passed, so reset the counter
+        li.failedLoginCount = 0;
+      }
+      li.failedLoginCount++;
+      li.lastFailedLoginTime = now;
+    }
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(user, &li);
+    }
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  } else if (code != TSDB_CODE_SUCCESS) {
+    TAOS_CHECK_GOTO(code, &lino, _OVER);
+  } else if (!verifyTotp(pUser, connReq.totpCode)) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_WRONG_TOTP_CODE, &lino, _OVER);
+  } else {
+    li.failedLoginCount = 0;
+    li.lastLoginTime= now;
+    if (connReq.connType != CONN_TYPE__AUTH_TEST) {
+      mndSetUserLoginInfo(user, &li);
+    }
   }
 
-  taosInetNtoa(ip, pReq->info.conn.clientIp);
-  if ((code = mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CONNECT)) != 0) {
-    mGError("user:%s, failed to login from %s since %s", pReq->info.conn.user, ip, tstrerror(code));
-    goto _OVER;
-  }
+  memset(connReq.passwd, 0, sizeof(connReq.passwd));
 
-  code = mndAcquireUser(pMnode, pReq->info.conn.user, &pUser);
-  if (pUser == NULL) {
-    mGError("user:%s, failed to login from %s while acquire user since %s", pReq->info.conn.user, ip, tstrerror(code));
-    goto _OVER;
-  }
-
-  if (strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1) != 0 && !tsMndSkipGrant) {
-    mGError("user:%s, failed to login from %s since invalid pass, input:%s", pReq->info.conn.user, ip, connReq.passwd);
-    code = TSDB_CODE_MND_AUTH_FAILURE;
-    goto _OVER;
-  }
-
-  if (connReq.db[0]) {
+  if (connReq.db[0] != 0) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     (void)snprintf(db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, db);
     if (pDb == NULL) {
-      if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) &&
-          (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
-        code = TSDB_CODE_MND_DB_NOT_EXIST;
-        mGError("user:%s, failed to login from %s while use db:%s since %s", pReq->info.conn.user, ip, connReq.db,
-                tstrerror(code));
-        goto _OVER;
+      if (0 != strcmp(connReq.db, TSDB_INFORMATION_SCHEMA_DB) && (0 != strcmp(connReq.db, TSDB_PERFORMANCE_SCHEMA_DB))) {
+        TAOS_CHECK_GOTO(TSDB_CODE_MND_DB_NOT_EXIST, &lino, _OVER);
       }
     }
-
-    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user,RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
   }
 
-  pConn = mndCreateConn(pMnode, pReq->info.conn.user, connReq.connType, pReq->info.conn.clientIp,
-                        pReq->info.conn.clientPort, connReq.pid, connReq.app, connReq.startTime);
-  if (pConn == NULL) {
-    code = terrno;
-    mGError("user:%s, failed to login from %s while create connection since %s", pReq->info.conn.user, ip,
-            tstrerror(code));
+  if (connReq.connType == CONN_TYPE__AUTH_TEST) {
+    code = 0;
     goto _OVER;
+  }
+
+  pConn = mndCreateConn(pMnode, user, ti.name, connReq.connType, &pReq->info.conn.cliAddr, connReq.pid, connReq.app,
+                        connReq.startTime, connReq.sVer);
+  if (pConn == NULL) {
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   SConnectRsp connectRsp = {0};
   connectRsp.acctId = pUser->acctId;
   connectRsp.superUser = pUser->superUser;
   connectRsp.sysInfo = pUser->sysInfo;
+  connectRsp.minSecLevel = pUser->minSecLevel;
+  connectRsp.maxSecLevel = pUser->maxSecLevel;
+  connectRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
+  connectRsp.macActive = (pMnode->macActive == MAC_MODE_MANDATORY ? 1 : 0);
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
@@ -314,45 +769,58 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   connectRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   connectRsp.monitorParas.tsSlowLogThreshold = tsSlowLogThreshold;
   connectRsp.enableAuditDelete = tsEnableAuditDelete;
+  connectRsp.enableAuditSelect = tsEnableAuditSelect;
+  connectRsp.enableAuditInsert = tsEnableAuditInsert;
+  connectRsp.auditLevel = tsAuditLevel;
   tstrncpy(connectRsp.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   connectRsp.whiteListVer = pUser->ipWhiteListVer;
+  connectRsp.timeWhiteListVer = pUser->timeWhiteListVer;
+  connectRsp.userId = pUser->uid;
+
 
   tstrncpy(connectRsp.sVer, td_version, sizeof(connectRsp.sVer));
+  tstrncpy(connectRsp.user, user, sizeof(connectRsp.user));
+  tstrncpy(connectRsp.tokenName, ti.name, sizeof(connectRsp.tokenName));
   (void)snprintf(connectRsp.sDetailVer, sizeof(connectRsp.sDetailVer), "ver:%s\nbuild:%s\ngitinfo:%s", td_version,
                  td_buildinfo, td_gitinfo);
   mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
   int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
   if (contLen < 0) {
-    TAOS_CHECK_GOTO(contLen, NULL, _OVER);
+    TAOS_CHECK_GOTO(contLen, &lino, _OVER);
   }
   void *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
-    TAOS_CHECK_GOTO(terrno, NULL, _OVER);
+    TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
   contLen = tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
   if (contLen < 0) {
     rpcFreeCont(pRsp);
-    TAOS_CHECK_GOTO(contLen, NULL, _OVER);
+    TAOS_CHECK_GOTO(contLen, &lino, _OVER);
   }
 
   pReq->info.rspLen = contLen;
   pReq->info.rsp = pRsp;
 
-  mGDebug("user:%s, login from %s:%d, conn:%u, app:%s", pReq->info.conn.user, ip, pConn->port, pConn->id, connReq.app);
-
+  mGDebug("user:%s, login from %s:%d, conn:%u, app:%s, db:%s", user, ip, port, pConn->id, connReq.app, connReq.db);
   code = 0;
 
-  char    detail[1000] = {0};
-  int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
-  if ((uint32_t)nBytes < sizeof(detail)) {
-    auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail));
-  } else {
-    mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+  if (tsAuditLevel >= AUDIT_LEVEL_CLUSTER) {
+    char    detail[1000] = {0};
+    int32_t nBytes = snprintf(detail, sizeof(detail), "app:%s", connReq.app);
+    if ((uint32_t)nBytes < sizeof(detail)) {
+      double duration = (taosGetTimestampMs() - tss) / 1000.0;
+      auditRecord(pReq, pMnode->clusterId, "login", "", "", detail, strlen(detail), duration, 0);
+    } else {
+      mError("failed to audit logic since %s", tstrerror(TSDB_CODE_OUT_OF_RANGE));
+    }
   }
 
 _OVER:
+  if (code != 0) {
+    mGError("user:%s, failed to login from %s since %s, line:%d, db:%s", user, ip, tstrerror(code), lino, connReq.db);
+  }
 
   mndReleaseUser(pMnode, pUser);
   mndReleaseDb(pMnode, pDb);
@@ -360,6 +828,8 @@ _OVER:
 
   TAOS_RETURN(code);
 }
+
+
 
 static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   taosWLockLatch(&pConn->queryLock);
@@ -377,12 +847,12 @@ static int32_t mndSaveQueryList(SConnObj *pConn, SQueryHbReqBasic *pBasic) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SAppObj *mndCreateApp(SMnode *pMnode, uint32_t clientIp, SAppHbReq *pReq) {
+static SAppObj *mndCreateApp(SMnode *pMnode, const SIpAddr *pAddr, const SAppHbReq *pReq) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SAppObj app;
   app.appId = pReq->appId;
-  app.ip = clientIp;
+  app.cliAddr = *pAddr;
   app.pid = pReq->pid;
   tstrncpy(app.name, pReq->name, sizeof(app.name));
   app.startTime = pReq->startTime;
@@ -451,12 +921,12 @@ static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
   return NULL;
 }
 
-static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, SRpcConnInfo *connInfo) {
+static int32_t mndUpdateAppInfo(SMnode *pMnode, SClientHbReq *pHbReq, const SRpcConnInfo *connInfo) {
   int32_t    code = 0;
   SAppHbReq *pReq = &pHbReq->app;
   SAppObj   *pApp = mndAcquireApp(pMnode, pReq->appId);
   if (pApp == NULL) {
-    pApp = mndCreateApp(pMnode, connInfo->clientIp, pReq);
+    pApp = mndCreateApp(pMnode, &connInfo->cliAddr, pReq);
     if (pApp == NULL) {
       mError("failed to create new app %" PRIx64 " since %s", pReq->appId, terrstr());
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
@@ -502,30 +972,32 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   int32_t       code = 0;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   SClientHbRsp  hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = NULL, .query = NULL};
-  SRpcConnInfo  connInfo = pMsg->info.conn;
 
   if (0 != pHbReq->app.appId) {
-    TAOS_CHECK_RETURN(mndUpdateAppInfo(pMnode, pHbReq, &connInfo));
+    TAOS_CHECK_RETURN(mndUpdateAppInfo(pMnode, pHbReq, &pMsg->info.conn));
   }
 
   if (pHbReq->query) {
     SQueryHbReqBasic *pBasic = pHbReq->query;
-
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
-      pConn = mndCreateConn(pMnode, connInfo.user, CONN_TYPE__QUERY, connInfo.clientIp, connInfo.clientPort,
-                            pHbReq->app.pid, pHbReq->app.name, 0);
+      SRpcConnInfo  connInfo = pMsg->info.conn;
+      const char* user = pHbReq->user;
+      pConn = mndCreateConn(pMnode, user, pHbReq->tokenName, pHbReq->connKey.connType, &connInfo.cliAddr, pHbReq->app.pid,
+                            pHbReq->app.name, 0, pHbReq->sVer);
       if (pConn == NULL) {
-        mError("user:%s, conn:%u is freed and failed to create new since %s", connInfo.user, pBasic->connId, terrstr());
+        mError("user:%s, conn:%u is freed and failed to create new since %s", user, pBasic->connId, terrstr());
         code = TSDB_CODE_MND_RETURN_VALUE_NULL;
         if (terrno != 0) code = terrno;
         TAOS_RETURN(code);
       } else {
-        mDebug("user:%s, conn:%u is freed, will create a new conn:%u", connInfo.user, pBasic->connId, pConn->id);
+        mDebug("user:%s, conn:%u is freed, will create a new conn:%u", user, pBasic->connId, pConn->id);
       }
     }
 
-    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp);
+    setUserInfo2Conn(pConn, pHbReq->userApp, pHbReq->userIp, pHbReq->cInfo);
+    setUserInfoIpToConn(pConn, &pHbReq->userDualIp);
+
     SQueryHbRspBasic *rspBasic = taosMemoryCalloc(1, sizeof(SQueryHbRspBasic));
     if (rspBasic == NULL) {
       mndReleaseConn(pMnode, pConn, true);
@@ -537,6 +1009,25 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     TAOS_CHECK_RETURN(mndSaveQueryList(pConn, pBasic));
     if (pConn->killed != 0) {
       rspBasic->killConnection = 1;
+    }
+
+    // kick stale clients: if the user's password changed after this client authenticated
+    // (client-reported passVer < current passVersion), force it to reconnect. Token
+    // connections use independent credentials, so they are not affected.
+    if (pHbReq->passVer >= 0 && pHbReq->tokenName[0] == 0) {
+      const char *hbUser = RPC_MSG_USER(pMsg);
+      if (hbUser != NULL && hbUser[0] != 0) {
+        SUserObj *pChkUser = NULL;
+        if (mndAcquireUser(pMnode, hbUser, &pChkUser) == 0 && pChkUser != NULL) {
+          if (pHbReq->passVer < pChkUser->passVersion) {
+            rspBasic->killConnection = HB_KILL_CONN_AUTH;
+            
+            mInfo("user:%s, conn:%u killed by hb, client passVer:%d < server passVer:%d", hbUser, pConn->id,
+                  pHbReq->passVer, pChkUser->passVersion);
+          }
+          mndReleaseUser(pMnode, pChkUser);
+        }
+      }
     }
 
     if (pConn->killId != 0) {
@@ -675,6 +1166,55 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
+      case HEARTBEAT_KEY_TXN_KEEPALIVE: {
+        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(txn_id_t)) {
+          txn_id_t txnId = *(txn_id_t *)kv->value;
+          if (txnId > 0) {
+            mndTxnRefreshKeepalive(pMnode, txnId);
+            // Notify the client if this txn was forcibly rolled back due to timeout.
+            // The client will transition to UTXN_STAGE_TIMEOUT_KILLED and stop keepalive.
+            if (mndTxnIsTimeoutKilled(pMnode, txnId)) {
+              txn_id_t *pKilledId = (txn_id_t *)taosMemoryMalloc(sizeof(txn_id_t));
+              if (pKilledId != NULL) {
+                *pKilledId = txnId;
+                SKv killedKv = {
+                    .key = HEARTBEAT_KEY_TXN_KILLED, .valueLen = (int32_t)sizeof(txn_id_t), .value = pKilledId};
+                if (taosArrayPush(hbRsp.info, &killedKv) == NULL) {
+                  taosMemoryFree(pKilledId);
+                  mWarn("txn:%" PRIi64 ", failed to push TXN_KILLED kv into hbRsp", txnId);
+                } else {
+                  mInfo("txn:%" PRIi64 ", notifying client of timeout rollback via HEARTBEAT_KEY_TXN_KILLED", txnId);
+                }
+              }
+            }
+          }
+        }
+        break;
+      }
+#ifdef TD_ENTERPRISE
+      case HEARTBEAT_KEY_EXTSOURCE: {
+        // The client reports its own ext-source global version, so the version
+        // comparison below already decides whether anything must be pushed.
+        // Gating this on the dynamic-view check would keep ext-source updates
+        // (including credential changes) from ever reaching clients whose view
+        // catalog happens to be up to date.
+        if (kv->valueLen != sizeof(int64_t)) {
+          mError("invalid HEARTBEAT_KEY_EXTSOURCE kv len:%d, expected 8", kv->valueLen);
+          break;
+        }
+        int64_t clientGlobalVer = (int64_t)be64toh(*(uint64_t *)kv->value);
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        (void)mndValidateExtSourceInfo(pMnode, clientGlobalVer, &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_EXTSOURCE, .valueLen = rspLen, .value = rspMsg};
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
+        }
+        break;
+      }
+#endif
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;
@@ -704,12 +1244,15 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   SConnPreparedObj obj = {0};
   obj.totalDnodes = mndGetDnodeSize(pMnode);
-  obj.ipWhiteListVer = batchReq.ipWhiteList;
+  obj.ipWhiteListVer = batchReq.ipWhiteListVer;
   TAOS_CHECK_RETURN(mndGetOnlineDnodeNum(pMnode, &obj.onlineDnodes));
   mndGetMnodeEpSet(pMnode, &obj.epSet);
   TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));
 
   SClientHbBatchRsp batchRsp = {0};
+  // Echo the client request id so the client can tell which heartbeat round a
+  // response belongs to (view metadata sweep bookkeeping).
+  batchRsp.reqId = batchReq.reqId;
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
   if (batchRsp.rsps == NULL) {
@@ -722,21 +1265,19 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   batchRsp.monitorParas.tsSlowLogMaxLen = tsSlowLogMaxLen;
   batchRsp.monitorParas.tsSlowLogScope = tsSlowLogScope;
   batchRsp.enableAuditDelete = tsEnableAuditDelete;
+  batchRsp.enableAuditSelect = tsEnableAuditSelect;
+  batchRsp.enableAuditInsert = tsEnableAuditInsert;
+  batchRsp.auditLevel = tsAuditLevel;
+  batchRsp.enableStrongPass = tsEnableStrongPassword;
+  batchRsp.sodInitial = (pMnode->sodPhase == TSDB_SOD_PHASE_INITIAL ? 1 : 0);
+  batchRsp.macActive = (pMnode->macActive == MAC_MODE_MANDATORY ? 1 : 0);
 
   int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
     SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
-    if (pHbReq->connKey.connType == CONN_TYPE__QUERY) {
+    if (pHbReq->connKey.connType == CONN_TYPE__QUERY || pHbReq->connKey.connType == CONN_TYPE__TMQ) {
       TAOS_CHECK_EXIT(mndProcessQueryHeartBeat(pMnode, pReq, pHbReq, &batchRsp, &obj));
-    } else if (pHbReq->connKey.connType == CONN_TYPE__TMQ) {
-      SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
-      if (pRsp != NULL) {
-        if (taosArrayPush(batchRsp.rsps, pRsp) == NULL) {
-          mError("failed to put kv into array, but continue at this heartbeat");
-        }
-        taosMemoryFree(pRsp);
-      }
-    }
+    } 
   }
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
@@ -772,13 +1313,12 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq));
 
   mInfo("kill query msg is received, queryId:%s", killReq.queryStrId);
-  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_QUERY));
-
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_QUERY));
   int32_t  connId = 0;
   uint64_t queryId = 0;
   char    *p = strchr(killReq.queryStrId, ':');
   if (NULL == p) {
-    mError("invalid query id %s", killReq.queryStrId);
+    mError("invalid QID:%s", killReq.queryStrId);
     code = TSDB_CODE_MND_INVALID_QUERY_ID;
     TAOS_RETURN(code);
   }
@@ -788,11 +1328,11 @@ static int32_t mndProcessKillQueryReq(SRpcMsg *pReq) {
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%x, failed to kill queryId:%" PRIx64 ", conn not exist", connId, queryId);
+    mError("connId:%x, failed to kill queryId:%" PRIx64 ", connection does not exist", connId, queryId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
-    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, pReq->info.conn.user);
+    mInfo("connId:%x, queryId:%" PRIx64 " is killed by user:%s", connId, queryId, RPC_MSG_USER(pReq));
     pConn->killId = queryId;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     TAOS_RETURN(code);
@@ -807,15 +1347,15 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
   SKillConnReq killReq = {0};
   TAOS_CHECK_RETURN(tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq));
 
-  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_KILL_CONN));
+  TAOS_CHECK_RETURN(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_KILL_CONN));
 
   SConnObj *pConn = taosCacheAcquireByKey(pMgmt->connCache, &killReq.connId, sizeof(uint32_t));
   if (pConn == NULL) {
-    mError("connId:%u, failed to kill connection, conn not exist", killReq.connId);
+    mError("connId:%u, failed to kill connection, connection does not exist", killReq.connId);
     code = TSDB_CODE_MND_INVALID_CONN_ID;
     TAOS_RETURN(code);
   } else {
-    mInfo("connId:%u, is killed by user:%s", killReq.connId, pReq->info.conn.user);
+    mInfo("connId:%u, is killed by user:%s", killReq.connId, RPC_MSG_USER(pReq));
     pConn->killed = 1;
     taosCacheRelease(pMgmt->connCache, (void **)&pConn, false);
     TAOS_RETURN(code);
@@ -909,11 +1449,16 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       return code;
     }
 
+    char addr[IP_RESERVE_CAP] = {0};
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
-              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
-    varDataLen(endpoint) = strlen(varDataVal(endpoint));
+    if (snprintf(addr, sizeof(addr), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port) >= sizeof(addr)) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+      mError("failed to set endpoint since %s", tstrerror(code));
+      return code;
+    }
+
+    STR_TO_VARSTR(endpoint, addr);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)endpoint, false);
     if (code != 0) {
@@ -945,14 +1490,48 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)userIp, false);
     if (code != 0) {
       mError("failed to set user ip since %s", tstrerror(code));
+      return code;
+    }
+
+    char ver[TSDB_VERSION_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(ver, pConn->sVer);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)ver, false);
+    if (code != 0) {
+      mError("failed to set ver since %s", tstrerror(code));
+      return code;
+    }
+
+    char cInfo[CONNECTOR_INFO_LEN + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(cInfo, pConn->cInfo);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)cInfo, false);
+    if (code != 0) {
+      mError("failed to set connector info since %s", tstrerror(code));
+      return code;
+    }
+
+    char type[16 + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(type, pConn->connType == CONN_TYPE__QUERY ? "QUERY" : (pConn->connType == CONN_TYPE__TMQ ? "TMQ" : "UNKNOWN"));
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)type, false);
+    if (code != 0) {
+      mError("failed to set type info since %s", tstrerror(code));
+      return code;
+    }
+
+    char tokenName[TSDB_TOKEN_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_TO_VARSTR(tokenName, pConn->tokenName);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)tokenName, false);
+    if (code != 0) {
+      mError("failed to set token name since %s", tstrerror(code));
       return code;
     }
 
@@ -988,8 +1567,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     cols = 0;
 
     char queryId[26 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
-              pQuery->reqRid);
+    (void)snprintf(&queryId[VARSTR_HEADER_SIZE], sizeof(queryId) - VARSTR_HEADER_SIZE, "%x:%" PRIx64, pConn->id,
+                   pQuery->reqRid);
     varDataLen(queryId) = strlen(&queryId[VARSTR_HEADER_SIZE]);
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)queryId, false);
@@ -1044,10 +1623,9 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char endpoint[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(endpoint), pConn->ip);
-    (void)tsnprintf(varDataVal(endpoint) + strlen(varDataVal(endpoint)),
-              sizeof(endpoint) - VARSTR_HEADER_SIZE - strlen(varDataVal(endpoint)), ":%d", pConn->port);
-    varDataLen(endpoint) = strlen(&endpoint[VARSTR_HEADER_SIZE]);
+    char buf[IP_RESERVE_CAP] = {0};
+    (void)snprintf(buf, sizeof(buf), "%s:%d", IP_ADDR_STR(&pConn->addr), pConn->addr.port);
+    STR_TO_VARSTR(endpoint, buf);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)endpoint, false);
     if (code != 0) {
@@ -1096,25 +1674,36 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
-    char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
-    int64_t reserve = 64;
-    int32_t strSize = sizeof(subStatus);
-    int32_t offset = VARSTR_HEADER_SIZE;
-    for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
-      if (i) {
-        offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
-      }
-      if (offset + reserve < strSize) {
-        SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-        offset +=
-            tsnprintf(subStatus + offset, sizeof(subStatus) - offset, "%" PRIu64 ":%s", pDesc->tid, pDesc->status);
-      } else {
-        break;
-      }
+    // sub_status has no schema-level length limit of its own: the only cap is
+    // the maximum VARCHAR payload. A cell is at most TSDB_MAX_FIELD_LEN bytes
+    // including the varstr header, so the payload limit is that minus the
+    // header. The formatter encodes every task whose actual encoded size fits
+    // and never splits an entry; a task list that cannot fit is reported
+    // instead of being silently truncated.
+    const int32_t maxPayload = TSDB_MAX_FIELD_LEN - (int32_t)VARSTR_HEADER_SIZE;
+    char         *subStatus = taosMemoryCalloc(1, TSDB_MAX_FIELD_LEN);
+    if (NULL == subStatus) {
+      mError("failed to alloc sub status buffer since %s", tstrerror(terrno));
+      taosRUnLockLatch(&pConn->queryLock);
+      return terrno;
     }
-    varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
+
+    int32_t built = 0;
+    int32_t len = tFormatQuerySubStatus(pQuery->subDesc, pQuery->subPlanNum, pQuery->stime,
+                                        subStatus + VARSTR_HEADER_SIZE, maxPayload, &built);
+    if (len < 0) {
+      mError("failed to format sub status for query %" PRIu64 " since %s", pQuery->queryId, tstrerror(len));
+      taosMemoryFree(subStatus);
+      taosRUnLockLatch(&pConn->queryLock);
+      return len;
+    }
+    if (built < pQuery->subPlanNum) {
+      mError("sub status omitted %d of %d sub tasks", pQuery->subPlanNum - built, pQuery->subPlanNum);
+    }
+    varDataLen(subStatus) = (VarDataLenT)len;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    taosMemoryFree(subStatus);
     if (code != 0) {
       mError("failed to set sub status since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
@@ -1142,14 +1731,31 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
     }
 
     char userIp[TD_IP_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    if (pConn->userIp != 0 && pConn->userIp != INADDR_NONE) {
-      taosInetNtoa(varDataVal(userIp), pConn->userIp);
-      varDataLen(userIp) = strlen(varDataVal(userIp));
-    }
+    getUserIpFromConnObj(pConn, userIp);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, (const char *)userIp, false);
     if (code != 0) {
       mError("failed to set user ip since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    const char* phaseStr = queryPhaseStr(pQuery->execPhase);
+    char        phaseVarStr[64 + VARSTR_HEADER_SIZE];
+    STR_TO_VARSTR(phaseVarStr, phaseStr);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)phaseVarStr, false);
+    if (code != 0) {
+      mError("failed to set current phase since %s", tstrerror(code));
+      taosRUnLockLatch(&pConn->queryLock);
+      return code;
+    }
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, curRowIndex, (const char *)&pQuery->phaseStartTime, false);
+    if (code != 0) {
+      mError("failed to set phase start time since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);
       return code;
     }
@@ -1229,8 +1835,10 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char ip[TD_IP_LEN + VARSTR_HEADER_SIZE] = {0};
-    taosInetNtoa(varDataVal(ip), pApp->ip);
-    varDataLen(ip) = strlen(varDataVal(ip));
+    char buf[IP_RESERVE_CAP] = {0};
+    snprintf(buf, sizeof(buf), "%s", IP_ADDR_STR(&pApp->cliAddr));
+    STR_TO_VARSTR(ip, buf);
+
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)ip, false);
     if (code != 0) {
@@ -1246,7 +1854,7 @@ static int32_t mndRetrieveApps(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
 
     char name[TSDB_APP_NAME_LEN + 6 + VARSTR_HEADER_SIZE] = {0};
-    (void)tsnprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
+    (void)snprintf(&name[VARSTR_HEADER_SIZE], sizeof(name) - VARSTR_HEADER_SIZE, "%s", pApp->name);
     varDataLen(name) = strlen(&name[VARSTR_HEADER_SIZE]);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)name, false);

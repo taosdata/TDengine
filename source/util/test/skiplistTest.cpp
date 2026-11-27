@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <limits.h>
 #include <taosdef.h>
@@ -144,9 +161,9 @@ void stringKeySkiplistTest() {
   SSkipListNode **pRes = NULL;
   int32_t ret = tSkipListGets(pSkipList, &key1, &pRes);
 
-  assert(ret == 1);
-  assert(strcmp(pRes[0]->key.pz, "beijing") == 0);
-  assert(pRes[0]->key.nType == TSDB_DATA_TYPE_BINARY);
+  TD_ALWAYS_ASSERT(ret == 1);
+  TD_ALWAYS_ASSERT(strcmp(pRes[0]->key.pz, "beijing") == 0);
+  TD_ALWAYS_ASSERT(pRes[0]->key.nType == TSDB_DATA_TYPE_BINARY);
 
   tSkipListDestroyKey(&key1);
   tSkipListDestroyKey(&key);
@@ -191,7 +208,7 @@ void stringKeySkiplistTest() {
     key = tSkipListCreateKey(TSDB_DATA_TYPE_BINARY, k, n);
 
     int32_t num = tSkipListGets(pSkipList, &key, &pres);
-    assert(num > 0);
+    TD_ALWAYS_ASSERT(num > 0);
 
     //    tSkipListRemove(pSkipList, &key);
     tSkipListRemoveNode(pSkipList, pres[0]);
@@ -248,7 +265,7 @@ void skiplistPerformanceTest() {
   printf("total:%" PRIu64 " ms, avg:%f\n", e - s, (e - s) / (double)size);
   printf("max level of skiplist:%d, actually level:%d\n ", pSkipList->maxLevel, pSkipList->level);
 
-  assert(SL_GET_SIZE(pSkipList) == size);
+  TD_ALWAYS_ASSERT(SL_GET_SIZE(pSkipList) == size);
 
   //  printf("the level of skiplist is:\n");
   //
@@ -274,7 +291,7 @@ void skiplistPerformanceTest() {
 
   int64_t et = taosGetTimestampMs();
   printf("delete %d data from skiplist, elapased time:%" PRIu64 "ms\n", 10000, et - st);
-  assert(SL_GET_SIZE(pSkipList) == size);
+  TD_ALWAYS_ASSERT(SL_GET_SIZE(pSkipList) == size);
 
   tSkipListDestroy(pSkipList);
   taosMemoryFreeClear(total);
@@ -299,34 +316,34 @@ void duplicatedKeyTest() {
   for (int32_t i = 0; i < 100; ++i) {
     SSkipListKey key;
     SArray*  nodes = tSkipListGet(pSkipList, (char*)(&i));
-    assert( taosArrayGetSize(nodes) == 5 );
+    TD_ALWAYS_ASSERT( taosArrayGetSize(nodes) == 5 );
     taosArrayDestroy(nodes);
   }
 
   int32_t key = 101;
   uint32_t num = tSkipListRemove(pSkipList, (char*)(&key));
-  assert(num == 5);
+  TD_ALWAYS_ASSERT(num == 5);
 
   SArray*  nodes = tSkipListGet(pSkipList, (char*)(&key));
-  assert( taosArrayGetSize(nodes) == 0 );
+  TD_ALWAYS_ASSERT( taosArrayGetSize(nodes) == 0 );
   taosArrayDestroy(nodes);
 
   key = 102;
   SSkipListIterator* iter = tSkipListCreateIterFromVal(pSkipList, (char*)(&key), TSDB_DATA_TYPE_INT, TSDB_ORDER_ASC);
   for(int i = 0; i < 6; i++) {
-    assert(tSkipListIterNext(iter) == true);
+    TD_ALWAYS_ASSERT(tSkipListIterNext(iter) == true);
     SSkipListNode* node = tSkipListIterGet(iter);
     int32_t* val = (int32_t*)SL_GET_NODE_KEY(pSkipList, node);
-    assert((i < 5) == ((*val) == key));
+    TD_ALWAYS_ASSERT((i < 5) == ((*val) == key));
   }
   tSkipListDestroyIter(iter);
 
   iter = tSkipListCreateIterFromVal(pSkipList, (char*)(&key), TSDB_DATA_TYPE_INT, TSDB_ORDER_DESC);
   for(int i = 0; i < 6; i++) {
-    assert(tSkipListIterNext(iter) == true);
+    TD_ALWAYS_ASSERT(tSkipListIterNext(iter) == true);
     SSkipListNode* node = tSkipListIterGet(iter);
     int32_t* val = (int32_t*)SL_GET_NODE_KEY(pSkipList, node);
-    assert((i < 5) == ((*val) == key));
+    TD_ALWAYS_ASSERT((i < 5) == ((*val) == key));
   }
   tSkipListDestroyIter(iter);
 
@@ -336,7 +353,7 @@ void duplicatedKeyTest() {
 }  // namespace
 
 TEST(testCase, skiplist_test) {
-  assert(sizeof(SSkipListKey) == 8);
+  TD_ALWAYS_ASSERT(sizeof(SSkipListKey) == 8);
   taosSeedRand(taosGetTimestampSec());
 
   stringKeySkiplistTest();

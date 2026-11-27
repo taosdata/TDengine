@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -44,11 +46,13 @@ int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
 int32_t taosGetCpuInstructions(char* sse42, char* avx, char* avx2, char* fma, char* avx512);
 int32_t taosGetTotalMemory(int64_t *totalKB);
 int32_t taosGetProcMemory(int64_t *usedKB);
-int32_t taosGetSysMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB, int64_t *freeKB, int64_t *cacheBufferKB);
 int32_t taosGetSysAvailMemory(int64_t *availSize);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
+int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
 int32_t taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
 void    taosSetDefaultProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
 int32_t taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 void    taosSetDefaultCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes);
 
@@ -58,7 +62,7 @@ int32_t taosGetSystemUUIDLen(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
-#if !defined(LINUX)
+#if !defined(LINUX) || defined(TD_ASTRA)
 
 #define _UTSNAME_LENGTH         65
 #define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
@@ -83,6 +87,41 @@ typedef struct {
 SysNameInfo taosGetSysNameInfo();
 bool        taosCheckCurrentInDll();
 int32_t     taosGetlocalhostname(char *hostname, size_t maxLen);
+
+// --- CPU Affinity Management ---
+
+#define TAOS_MAX_CPU_CORES 256
+
+typedef enum {
+  THREAD_CAT_MANAGEMENT = 0,
+  THREAD_CAT_WRITE = 1,
+  THREAD_CAT_READ = 2,
+  THREAD_CAT_COUNT = 3
+} EThreadCategory;
+
+typedef struct {
+  EThreadCategory category;
+#ifdef __linux__
+  cpu_set_t mask;
+#else
+  unsigned long mask;  // stub for non-Linux
+#endif
+  int32_t coreIds[TAOS_MAX_CPU_CORES];
+  int32_t count;
+} SCpuCoreSet;
+
+typedef struct {
+  bool        enabled;
+  SCpuCoreSet sets[THREAD_CAT_COUNT];  // mgmt, write, read
+  int32_t     totalCores;
+} SCpuAllocStatus;
+
+void taosSetCpuAffinity(EThreadCategory category);
+#ifdef __linux__
+int32_t taosGetAvailableCpuSet(cpu_set_t *cpuset);
+#endif
+int32_t                taosInitCpuAllocation(void);
+const SCpuAllocStatus *taosGetCpuAllocStatus(void);
 
 #ifdef __cplusplus
 }

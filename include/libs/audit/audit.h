@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -30,6 +32,8 @@ extern "C" {
 
 #define AUDIT_DETAIL_MAX 65472
 
+typedef SEpSet (*mndGetDnodeEpsetByIdFn)(void *pMnode, int32_t dnodeId);
+
 typedef struct {
   const char *server;
   uint16_t    port;
@@ -39,23 +43,25 @@ typedef struct {
 typedef struct {
   int64_t curTime;
   char    strClusterId[TSDB_CLUSTER_ID_LEN];
-  char    clientAddress[50];
+  char    clientAddress[AUDIT_CLIENT_ADD_LEN];
   char    user[TSDB_USER_LEN];
   char    operation[AUDIT_OPERATION_LEN];
   char    target1[TSDB_DB_NAME_LEN]; //put db name
   char    target2[TSDB_STREAM_NAME_LEN]; //put stb name, table name, topic name, user name, stream name, use max
-  char*   detail;
+  char   *detail;
+  double  duration;
+  int64_t affectedRows;
 } SAuditRecord;
 
 int32_t auditInit(const SAuditCfg *pCfg);
 void    auditSetDnodeId(int32_t dnodeId);
 void    auditCleanup();
-int32_t auditSend(SJson *pJson);
-void    auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                    char *detail, int32_t len);
-void    auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, 
-                    char *detail, int32_t len);
-void    auditSendRecordsInBatch();
+
+void auditRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
+                 int32_t len, double duration, int64_t affectedRows);
+void auditAddRecord(SRpcMsg *pReq, int64_t clusterId, char *operation, char *target1, char *target2, char *detail,
+                    int32_t len, double duration, int64_t affectedRows);
+void auditSendRecordsInBatch();
 
 #ifdef __cplusplus
 }

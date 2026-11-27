@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -40,7 +42,7 @@ extern char tsS3AccessKeyId[][TSDB_FQDN_LEN];
 extern char tsS3AccessKeySecret[][TSDB_FQDN_LEN];
 extern char tsS3BucketName[TSDB_FQDN_LEN];
 
-extern int8_t tsS3Enabled;
+extern int8_t tsSsEnabled;
 extern int8_t tsS3EpNum;
 
 static void checkPrint(const char *fmt, ...) {

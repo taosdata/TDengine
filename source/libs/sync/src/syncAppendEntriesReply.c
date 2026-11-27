@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -40,60 +42,114 @@
 //
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncAppendEntriesReply header before syncNodeInRaftGroup() reads pMsg->srcId.
+  // The bound is offsetof(..., appliedIndex) (the last fixed-header field), NOT
+  // sizeof: appliedIndex was added later and the code below explicitly keeps
+  // compatibility with old peers whose reply ends right before it (the 104-byte
+  // frame), so such a frame is still legitimate.
+  if (pRpcMsg->contLen < (int32_t)offsetof(SyncAppendEntriesReply, appliedIndex)) {
+    sError("vgId:%d, append entries reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, (size_t)offsetof(SyncAppendEntriesReply, appliedIndex));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t                 code = 0;
   SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
-  int32_t ret = 0;
-  const STraceId*         trace = &pRpcMsg->info.traceId;
-  char                    tbuf[40] = {0};
+  int32_t                 ret = 0;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
     return 0;
   }
 
   // drop stale response
   if (pMsg->term < raftStoreGetTerm(ths)) {
-    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response", &pRpcMsg->info.traceId);
     return 0;
   }
 
   if (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
     if (pMsg->term != raftStoreGetTerm(ths)) {
-      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
-      syncNodeStepDown(ths, pMsg->term, pMsg->srcId);
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term", &pRpcMsg->info.traceId);
+      syncNodeStepDown(ths, pMsg->term, pMsg->srcId, "appendEntryReply");
       return TSDB_CODE_SYN_WRONG_TERM;
     }
 
-    sGTrace("vgId:%d, received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+    sGDebug(&pRpcMsg->info.traceId, "vgId:%d, received append entries reply, src addr:0x%" PRIx64 ", term:%" PRId64 ", matchIndex:%" PRId64,
             pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
-    if (pMsg->success) {
-      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-      if (pMsg->matchIndex > oldMatchIndex) {
-        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
-      }
-
-      // commit if needed
-      SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
-      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
-      if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
-        if (commitIndex >= ths->assignedCommitIndex) {
-          syncNodeStepDown(ths, pMsg->term, pMsg->destId);
-        }
-      } else {
-        TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex));
-      }
-    }
-
-    // replicate log
+    // TD-SEC-2026-044 (item 184): fetch the per-peer replication manager up front.
+    // It holds the authoritative record (pMgr->endIndex - 1) of the highest log
+    // index this leader has actually transmitted to the acknowledging peer. We use
+    // it below to reject a forged reply that claims a matchIndex larger than what
+    // was really sent, which would otherwise let a single spoofed reply fabricate a
+    // raft quorum and commit entries no real follower stored (raft safety break).
     SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
     if (pMgr == NULL) {
       code = TSDB_CODE_MND_RETURN_VALUE_NULL;
       if (terrno != 0) code = terrno;
-      sError("vgId:%d, failed to get log repl mgr for src addr: 0x%016" PRIx64, ths->vgId, pMsg->srcId.addr);
+      sError("vgId:%d, failed to get log repl mgr for src addr:0x%" PRIx64, ths->vgId, pMsg->srcId.addr);
       TAOS_RETURN(code);
     }
+
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+
+      // TD-SEC-2026-044 (item 184): defense against a forged AppendEntriesReply.
+      // The leader's own matchIndex always counts toward quorum, so a single
+      // spoofed success reply with matchIndex = INT64_MAX is enough (3 replicas)
+      // to declare every entry in the leader's log committed. A genuine follower
+      // can only have matched log indexes the leader actually sent it; that upper
+      // bound is pMgr->endIndex - 1 (the last index the leader replicated to this
+      // peer). Any claim above it is impossible for a real follower and is treated
+      // as a spoofing attempt: we clamp it down and do not advance the recorded
+      // matchIndex / commit index beyond what was genuinely replicated.
+      SyncIndex validMatchIndex = pMsg->matchIndex;
+      SyncIndex maxSentIndex = (pMgr->endIndex > 0) ? (pMgr->endIndex - 1) : SYNC_INDEX_INVALID;
+      if (validMatchIndex > maxSentIndex) {
+        sWarn("vgId:%d, reject impossible matchIndex:%" PRId64 " claimed by dnode:%d, leader only sent up to %" PRId64
+              " to this peer, possible forged AppendEntriesReply (TD-SEC-2026-044 item 184)",
+              ths->vgId, pMsg->matchIndex, DID(&pMsg->srcId), maxSentIndex);
+        validMatchIndex = maxSentIndex;
+      }
+
+      if (validMatchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), validMatchIndex);
+      }
+
+      // commit if needed
+      SyncIndex indexLikely = TMIN(validMatchIndex, ths->pLogBuf->matchIndex);
+      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
+      if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
+        if (commitIndex >= ths->assignedCommitIndex) {
+          // Backward compatibility: old version messages don't include appliedIndex field.
+          // If message is from old version, default to commitIndex so gap=0, preserving old step-down behavior.
+          SyncIndex peerAppliedIndex = commitIndex;
+          if (pRpcMsg->contLen >= (int32_t)sizeof(SyncAppendEntriesReply)) {
+            peerAppliedIndex = pMsg->appliedIndex;
+          }
+          SyncIndex appliedGap = commitIndex - peerAppliedIndex;
+          if (tsSyncAssignedCheckAppliedGap == 0 || appliedGap <= tsSyncAssignedCheckAppliedGap) {
+            sInfo("vgId:%d, going to step down from assigned leader by append entries reply, commitIndex:%" PRId64
+                  ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64,
+                  ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap);
+            syncNodeStepDown(ths, pMsg->term, pMsg->destId, "appendEntryReply");
+          } else {
+            sDebug("vgId:%d, delay step down from assigned leader, commitIndex:%" PRId64
+                   ", assignedCommitIndex:%" PRId64 ", peerAppliedIndex:%" PRId64 ", appliedGap:%" PRId64
+                   ", threshold:%" PRId64,
+                   ths->vgId, commitIndex, ths->assignedCommitIndex, peerAppliedIndex, appliedGap,
+                   tsSyncAssignedCheckAppliedGap);
+          }
+        }
+      } else {
+        TAOS_CHECK_RETURN(syncLogBufferCommit(ths->pLogBuf, ths, commitIndex, &pRpcMsg->info.traceId, "sync-append-entries-reply"));
+      }
+    }
+
+    // replicate log (pMgr already fetched and validated above)
     TAOS_CHECK_RETURN(syncLogReplProcessReply(pMgr, ths, pMsg));
   }
   TAOS_RETURN(code);

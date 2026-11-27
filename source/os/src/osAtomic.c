@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -535,6 +537,16 @@ int64_t atomic_add_fetch_64(int64_t volatile* ptr, int64_t val) {
   return __sync_add_and_fetch((ptr), (val));
 #else
   return __atomic_add_fetch((ptr), (val), __ATOMIC_SEQ_CST);
+#endif
+}
+
+int64_t atomic_add_fetch_64_relax(int64_t volatile* ptr, int64_t val) {
+#ifdef WINDOWS
+  return interlocked_add_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
+#elif defined(_TD_NINGSI_60)
+  return __sync_add_and_fetch((ptr), (val));
+#else
+  return __atomic_add_fetch((ptr), (val), __ATOMIC_RELAXED);
 #endif
 }
 

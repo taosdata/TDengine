@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -28,6 +30,7 @@ struct STsdbSnapReader {
   int64_t sver;
   int64_t ever;
   int8_t  type;
+  int32_t destDnodeId;  // target follower dnodeId served by this reader, used to bucket progress per target; 0=unknown/RSMA
 
   SBuffer  buffers[10];
   SSkmInfo skmTb[1];
@@ -207,6 +210,10 @@ static int32_t tsdbSnapReadRangeBegin(STsdbSnapReader* reader) {
     reader->ctx->isDataDone = false;
     reader->ctx->isTombDone = false;
 
+    // Record the start-transfer time of the current fileset (bucketed per target; the helper holds the write lock and does bounds checking internally)
+    int32_t idx = reader->ctx->fsrArrIdx - 1;
+    tsdbSnapMarkFileSetStart(reader->tsdb, reader->destDnodeId, idx);
+
     code = tsdbSnapReadFileSetOpenReader(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -225,6 +232,11 @@ static int32_t tsdbSnapReadRangeEnd(STsdbSnapReader* reader) {
   tsdbSnapReadFileSetCloseIter(reader);
   tsdbSnapReadFileSetCloseReader(reader);
   reader->ctx->fsr = NULL;
+
+  // Mark the current fileset transfer as complete (bucketed per target; the helper holds the write lock internally)
+  int32_t idx = reader->ctx->fsrArrIdx - 1;
+  tsdbSnapMarkFileSetEnd(reader->tsdb, reader->destDnodeId, idx);
+
   return 0;
 }
 
@@ -267,8 +279,37 @@ _exit:
 
 static int64_t tBlockDataSize(SBlockData* pBlockData) {
   int64_t nData = 0;
+
+  // Key part
+  if (pBlockData->uid == 0) {
+    nData += (sizeof(int64_t) * pBlockData->nRow);  // uid
+  }
+  nData += (sizeof(int64_t) * pBlockData->nRow);  // version
+  nData += (sizeof(TSKEY) * pBlockData->nRow);    // primary keys
+
+  // General column part
   for (int32_t iCol = 0; iCol < pBlockData->nColData; iCol++) {
     SColData* pColData = tBlockDataGetColDataByIdx(pBlockData, iCol);
+    if (pColData->flag == HAS_NONE || pColData->flag == HAS_NULL) {
+      continue;
+    }
+
+    if (pColData->flag != HAS_VALUE) {
+      if (pColData->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+        nData += BIT2_SIZE(pColData->nVal);
+      } else {
+        nData += BIT1_SIZE(pColData->nVal);
+      }
+    }
+
+    if (pColData->flag == (HAS_NONE | HAS_NULL)) {
+      continue;
+    }
+
+    if (IS_VAR_DATA_TYPE(pColData->type)) {
+      nData += pColData->nVal * sizeof(int32_t);  // var data offset
+    }
+
     nData += pColData->nData;
   }
   return nData;
@@ -316,11 +357,9 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
     code = tsdbIterMergerNext(reader->dataIterMerger);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    if (!(reader->blockData->nRow % 16)) {
-      int64_t nData = tBlockDataSize(reader->blockData);
-      if (nData >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
-        break;
-      }
+    if (reader->blockData->nRow >= TSDB_SNAP_MAX_ROWS_PER_DATA ||
+        tBlockDataSize(reader->blockData) >= TSDB_SNAP_DATA_PAYLOAD_SIZE) {
+      break;
     }
   }
 
@@ -332,6 +371,9 @@ static int32_t tsdbSnapReadTimeSeriesData(STsdbSnapReader* reader, uint8_t** dat
 _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
+  } else {
+    tsdbDebug("vgId:%d, tsdb snapshot read time-series data done, data size:%" PRId64 "", TD_VID(reader->tsdb->pVnode),
+              data[0] ? ((SSnapDataHdr*)(data[0]))->size : 0);
   }
   return code;
 }
@@ -410,7 +452,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
+int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId, void* pRanges,
                            STsdbSnapReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -422,9 +464,36 @@ int32_t tsdbSnapReaderOpen(STsdb* tsdb, int64_t sver, int64_t ever, int8_t type,
   reader[0]->sver = sver;
   reader[0]->ever = ever;
   reader[0]->type = type;
+  reader[0]->destDnodeId = destDnodeId;  // record target dnodeId, used for per-bucket stats and bucket cleanup on close
 
   code = tsdbFSCreateRefRangedSnapshot(tsdb->pFS, sver, ever, (TFileSetRangeArray*)pRanges, &reader[0]->fsrArr);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // build snap stat
+  {
+    int32_t            nFileSets = (int32_t)TARRAY2_SIZE(reader[0]->fsrArr);
+    SSnapSendVnodeStat *pStat = (SSnapSendVnodeStat*)taosMemoryCalloc(1, sizeof(*pStat));
+    if (pStat != NULL) {
+      pStat->vgId        = TD_VID(tsdb->pVnode);
+      pStat->totalFileSets = nFileSets;
+      pStat->startTime   = taosGetTimestampMs();
+      if (nFileSets > 0) {
+        pStat->pFileSetStats = (SSnapSendFileSetStat*)taosMemoryCalloc(nFileSets, sizeof(*pStat->pFileSetStats));
+        if (pStat->pFileSetStats != NULL) {
+          pStat->fileSetCount = nFileSets;
+          for (int32_t i = 0; i < nFileSets; i++) {
+            STFileSetRange *pFsr = TARRAY2_GET(reader[0]->fsrArr, i);
+            pStat->pFileSetStats[i].fid         = pFsr->fid;
+            pStat->pFileSetStats[i].sver        = sver;
+            pStat->pFileSetStats[i].ever        = ever;
+            pStat->pFileSetStats[i].transferType = type;
+          }
+        }
+      }
+      // Hand off the built progress stats to the bucket of the corresponding destDnodeId (the helper holds the write lock internally and takes ownership of pStat)
+      tsdbSnapPutTargetStat(tsdb, reader[0]->destDnodeId, pStat);
+    }
+  }
 
 _exit:
   if (code) {
@@ -448,6 +517,7 @@ void tsdbSnapReaderClose(STsdbSnapReader** reader) {
   int32_t code = 0;
 
   STsdb* tsdb = reader[0]->tsdb;
+  int32_t destDnodeId = reader[0]->destDnodeId;  // capture target dnodeId early, because reader[0] is freed before the bucket cleanup
 
   tTombBlockDestroy(reader[0]->tombBlock);
   tBlockDataDestroy(reader[0]->blockData);
@@ -468,6 +538,9 @@ void tsdbSnapReaderClose(STsdbSnapReader** reader) {
 
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
+
+  // Clean up this target's progress bucket (the helper holds the write lock internally)
+  tsdbSnapRemoveTargetStat(tsdb, destDnodeId);
 
   return;
 }
@@ -516,12 +589,16 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   } else {
+    // Accumulate the current fileset's read bytes (bucketed per target; the helper holds the write lock and does bounds checking internally)
+    if (data[0] != NULL) {
+      SSnapDataHdr *hdr = (SSnapDataHdr *)data[0];
+      int32_t       idx = reader->ctx->fsrArrIdx - 1;
+      tsdbSnapAddReadSize(reader->tsdb, reader->destDnodeId, idx, hdr->size);
+    }
     tsdbDebug("vgId:%d %s done", TD_VID(reader->tsdb->pVnode), __func__);
   }
   return code;
 }
-
-// STsdbSnapWriter ========================================
 struct STsdbSnapWriter {
   STsdb*  tsdb;
   int64_t sver;
@@ -544,7 +621,7 @@ struct STsdbSnapWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
-    SDiskID    did;
+    int32_t    expLevel;
     bool       hasData;  // if have time series data
     bool       hasTomb;  // if have tomb data
 
@@ -800,7 +877,7 @@ static int32_t tsdbSnapWriteFileSetOpenWriter(STsdbSnapWriter* writer) {
       .cmprAlg = writer->cmprAlg,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
-      .did = writer->ctx->did,
+      .expLevel = writer->ctx->expLevel,
       .level = writer->ctx->toSttOnly ? 1 : 0,
   };
   // merge stt files to either data or a new stt file
@@ -837,14 +914,7 @@ static int32_t tsdbSnapWriteFileSetBegin(STsdbSnapWriter* writer, int32_t fid) {
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  if (tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did)) {
-    code = TSDB_CODE_NO_AVAIL_DISK;
-    TSDB_CHECK_CODE(code, lino, _exit);
-  }
-  if (tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did) != 0) {
-    tsdbError("vgId:%d failed to create directory %s", TD_VID(writer->tsdb->pVnode), writer->tsdb->path);
-  }
+  writer->ctx->expLevel = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   writer->ctx->hasData = true;
   writer->ctx->hasTomb = true;
@@ -991,6 +1061,12 @@ static int32_t tsdbSnapWriteTimeSeriesData(STsdbSnapWriter* writer, SSnapDataHdr
 
   code = tBlockDataDecompress(&br, blockData, &writer->buffers[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (blockData->uid == 0 && blockData->aUid == NULL) {
+    tsdbError("invalid snapshot block: no uid, nRow:%d", blockData->nRow);
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   int32_t fid = tsdbKeyFid(blockData->aTSKEY[0], writer->minutes, writer->precision);
   if (!writer->ctx->fsetWriteBegin || fid != writer->ctx->fid) {
@@ -1228,4 +1304,163 @@ _exit:
               hdr->type, hdr->index, hdr->size);
   }
   return code;
+}
+
+// ============ Snapshot-send progress bucket helpers (isolated per target dnodeId to avoid concurrent snapshots overwriting each other) ============
+
+// Linearly search for the target bucket by destDnodeId in pSnapBuckets.
+// [Calling convention] The caller must already hold snapStatLock (read or write lock). Replica count
+// is very small (2~3), so a linear scan is sufficient.
+// Returns the bucket pointer; returns NULL if not found.
+static SSnapSendTargetBucket* tsdbSnapFindBucketLocked(STsdb* tsdb, int32_t destDnodeId) {
+  if (tsdb->pSnapBuckets == NULL) return NULL;
+  int32_t n = (int32_t)taosArrayGetSize(tsdb->pSnapBuckets);
+  for (int32_t i = 0; i < n; i++) {
+    SSnapSendTargetBucket* b = (SSnapSendTargetBucket*)taosArrayGet(tsdb->pSnapBuckets, i);
+    if (b->destDnodeId == destDnodeId) return b;
+  }
+  return NULL;
+}
+
+// Put (or replace) a send-progress stat for the given destDnodeId. Called at reader open; holds the write lock internally.
+// If the target already has an old bucket, free the old pStat (including pFileSetStats) before replacing, to avoid leaking when the same target reopens a snapshot.
+// Ownership of pStat is transferred to the bucket. On allocation failure, free the passed-in pStat and log an error (progress stats are optional observability and do not block the snapshot).
+void tsdbSnapPutTargetStat(STsdb* tsdb, int32_t destDnodeId, SSnapSendVnodeStat* pStat) {
+  if (tsdb == NULL || pStat == NULL) return;
+  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
+  if (tsdb->pSnapBuckets == NULL) {
+    tsdb->pSnapBuckets = taosArrayInit(4, sizeof(SSnapSendTargetBucket));
+  }
+  if (tsdb->pSnapBuckets == NULL) {
+    (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+    taosMemoryFree(pStat->pFileSetStats);
+    taosMemoryFree(pStat);
+    tsdbError("vgId:%d, failed to alloc snap buckets, drop stat for destDnodeId:%d", TD_VID(tsdb->pVnode), destDnodeId);
+    return;
+  }
+  SSnapSendTargetBucket* b = tsdbSnapFindBucketLocked(tsdb, destDnodeId);
+  if (b != NULL) {
+    if (b->pStat != NULL) {
+      taosMemoryFree(b->pStat->pFileSetStats);
+      taosMemoryFree(b->pStat);
+    }
+    b->pStat = pStat;
+  } else {
+    SSnapSendTargetBucket nb = {.destDnodeId = destDnodeId, .pStat = pStat};
+    if (taosArrayPush(tsdb->pSnapBuckets, &nb) == NULL) {
+      (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+      taosMemoryFree(pStat->pFileSetStats);
+      taosMemoryFree(pStat);
+      tsdbError("vgId:%d, failed to push snap bucket for destDnodeId:%d", TD_VID(tsdb->pVnode), destDnodeId);
+      return;
+    }
+  }
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+  tsdbInfo("vgId:%d, put snap send stat for destDnodeId:%d, totalFileSets:%d", TD_VID(tsdb->pVnode), destDnodeId,
+           pStat->totalFileSets);
+}
+
+// Remove and free the progress bucket for the given destDnodeId. Called at reader close; holds the write lock internally.
+void tsdbSnapRemoveTargetStat(STsdb* tsdb, int32_t destDnodeId) {
+  if (tsdb == NULL) return;
+  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
+  if (tsdb->pSnapBuckets != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(tsdb->pSnapBuckets);
+    for (int32_t i = 0; i < n; i++) {
+      SSnapSendTargetBucket* b = (SSnapSendTargetBucket*)taosArrayGet(tsdb->pSnapBuckets, i);
+      if (b->destDnodeId == destDnodeId) {
+        if (b->pStat != NULL) {
+          taosMemoryFree(b->pStat->pFileSetStats);
+          taosMemoryFree(b->pStat);
+        }
+        taosArrayRemove(tsdb->pSnapBuckets, i);
+        break;
+      }
+    }
+  }
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+  tsdbInfo("vgId:%d, remove snap send stat for destDnodeId:%d", TD_VID(tsdb->pVnode), destDnodeId);
+}
+
+// Mark that the idx-th fileset of the given target starts transferring (records startTime). Called at readBegin; holds the write lock internally.
+void tsdbSnapMarkFileSetStart(STsdb* tsdb, int32_t destDnodeId, int32_t idx) {
+  if (tsdb == NULL) return;
+  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
+  SSnapSendTargetBucket* b = tsdbSnapFindBucketLocked(tsdb, destDnodeId);
+  if (b != NULL && b->pStat != NULL && idx >= 0 && idx < b->pStat->fileSetCount) {
+    b->pStat->pFileSetStats[idx].startTime = taosGetTimestampMs();
+  }
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+}
+
+// Accumulate read bytes for the idx-th fileset of the given target. Called after data is read out; holds the write lock internally.
+void tsdbSnapAddReadSize(STsdb* tsdb, int32_t destDnodeId, int32_t idx, int64_t size) {
+  if (tsdb == NULL) return;
+  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
+  SSnapSendTargetBucket* b = tsdbSnapFindBucketLocked(tsdb, destDnodeId);
+  if (b != NULL && b->pStat != NULL && idx >= 0 && idx < b->pStat->fileSetCount) {
+    b->pStat->pFileSetStats[idx].readSize += size;
+  }
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+}
+
+// Mark the idx-th fileset of the given target as complete (finishedFileSets++, finishedFileCount set to full). Called at readEnd; holds the write lock internally.
+void tsdbSnapMarkFileSetEnd(STsdb* tsdb, int32_t destDnodeId, int32_t idx) {
+  if (tsdb == NULL) return;
+  (void)taosThreadRwlockWrlock(&tsdb->snapStatLock);
+  SSnapSendTargetBucket* b = tsdbSnapFindBucketLocked(tsdb, destDnodeId);
+  if (b != NULL && b->pStat != NULL) {
+    b->pStat->finishedFileSets++;
+    if (idx >= 0 && idx < b->pStat->fileSetCount) {
+      SSnapSendFileSetStat* pFs = &b->pStat->pFileSetStats[idx];
+      pFs->finishedFileCount = pFs->fileCount;
+    }
+  }
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+}
+
+// Aggregate this tsdb's current snapshot-send total and transferred bytes per target, appending them grouped by destDnodeId to pGroups.
+// pGroups elements are of type STsdbSnapSendGroup; when no snapshot is in progress (pSnapBuckets is empty), no elements are appended.
+// Thread-safe: holds the snapStatLock read lock.
+void tsdbGetSnapSendSummary(STsdb *tsdb, SArray *pGroups) {
+  // Argument guard: return early if tsdb or pGroups is NULL to avoid a dereference crash
+  if (tsdb == NULL || pGroups == NULL) return;
+
+  (void)taosThreadRwlockRdlock(&tsdb->snapStatLock);
+
+  // Iterate all buckets; each bucket produces one STsdbSnapSendGroup
+  if (tsdb->pSnapBuckets != NULL) {
+    int32_t numBuckets = (int32_t)taosArrayGetSize(tsdb->pSnapBuckets);
+    for (int32_t b = 0; b < numBuckets; b++) {
+      SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(tsdb->pSnapBuckets, b);
+      if (pBucket == NULL || pBucket->pStat == NULL) continue;
+
+      int64_t total = 0, transferred = 0;
+      SSnapSendVnodeStat *pStat = pBucket->pStat;
+      // Iterate using fileSetCount (the actual array length) to prevent out-of-bounds access
+      if (pStat->pFileSetStats != NULL) {
+        for (int32_t i = 0; i < pStat->fileSetCount; i++) {
+          total += pStat->pFileSetStats[i].totalSize;
+          transferred += pStat->pFileSetStats[i].readSize;
+        }
+      }
+
+      // Only append when there is non-zero data (an empty bucket is meaningless)
+      if (total > 0 || transferred > 0) {
+        STsdbSnapSendGroup group = {.destDnodeId = pBucket->destDnodeId, .total = total, .transferred = transferred};
+        if (taosArrayPush(pGroups, &group) == NULL) {
+          tsdbWarn("vgId:%d, failed to push snap send group for destDnodeId:%d", TD_VID(tsdb->pVnode),
+                   pBucket->destDnodeId);
+        }
+      }
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&tsdb->snapStatLock);
+
+  // Log the summary result count at Debug level for troubleshooting
+  int32_t groupCount = (int32_t)taosArrayGetSize(pGroups);
+  if (groupCount > 0) {
+    tsdbDebug("vgId:%d, get snap send summary, groupCount:%d", TD_VID(tsdb->pVnode), groupCount);
+  }
 }

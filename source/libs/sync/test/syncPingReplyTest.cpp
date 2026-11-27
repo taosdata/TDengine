@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include "syncTest.h"
 
@@ -83,7 +100,7 @@ void test6() {
   char          *serialized = (char *)taosMemoryMalloc(bufLen);
   syncPingReplySerialize3(pMsg, serialized, bufLen);
   SyncPingReply *pMsg2 = syncPingReplyDeserialize3(serialized, bufLen);
-  assert(pMsg2 != NULL);
+  TD_ALWAYS_ASSERT(pMsg2 != NULL);
   syncPingReplyLog2((char *)"test6: syncPingReplySerialize3 -> syncPingReplyDeserialize3 ", pMsg2);
 
   taosMemoryFree(serialized);

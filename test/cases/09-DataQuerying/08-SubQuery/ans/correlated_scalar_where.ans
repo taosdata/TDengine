@@ -1,0 +1,831 @@
+
+taos> use correlated_scalar_positions;
+Database changed.
+
+taos> select r.device, r.v from readings r where r.v > (select max(t.lim) from thresholds t where t.device = r.device) order by r.ts;
+   device   |      v      |
+===========================
+ d1         |          20 |
+ d2         |          30 |
+
+taos> select r.v from readings r where r.v < (select max(t.lim) from thresholds t where t.device = r.device) or r.device = 'd3' order by r.ts;
+      v      |
+==============
+          10 |
+          40 |
+
+taos> select r.v from readings r where (select max(t.lim) from thresholds t where t.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select max(t.lim) from thresholds t where t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select max(t.lim) from thresholds t where t.ts <= r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select count(*) from thresholds t where t.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select count(*) from thresholds t where t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select count(*) from thresholds t where t.ts <= r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select min(t.lim) from thresholds t where t.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select min(t.lim) from thresholds t where t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select min(t.lim) from thresholds t where t.ts <= r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select sum(t.lim) from thresholds t where t.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select sum(t.lim) from thresholds t where t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select sum(t.lim) from thresholds t where t.ts <= r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select max(h.lim) from tagged_thresholds h where h.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select max(h.lim) from tagged_thresholds h where h.zone = r.zone ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select max(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select max(h.lim) from tagged_thresholds h where tbname = r.target ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select count(*) from tagged_thresholds h where h.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select count(*) from tagged_thresholds h where h.zone = r.zone ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select count(*) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select count(*) from tagged_thresholds h where tbname = r.target ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select min(h.lim) from tagged_thresholds h where h.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select min(h.lim) from tagged_thresholds h where h.zone = r.zone ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select min(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select min(h.lim) from tagged_thresholds h where tbname = r.target ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select sum(h.lim) from tagged_thresholds h where h.device = r.device ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select sum(h.lim) from tagged_thresholds h where tbname = r.target ) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select h.lim from tagged_thresholds h where h.device = r.device order by h.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select h.lim from tagged_thresholds h where h.zone = r.zone order by h.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select h.lim from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts order by h.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select h.lim from tagged_thresholds h where tbname = r.target order by h.ts desc limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select max(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select max(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select max(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select max(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select count(*) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select count(*) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select count(*) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select count(*) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select min(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select min(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select min(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select min(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select sum(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select sum(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select h.lim from tagged_thresholds h where h.device = r.device order by h.ts desc limit 1) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select h.lim from tagged_thresholds h where h.zone = r.zone order by h.ts desc limit 1) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select h.lim from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts order by h.ts desc limit 1) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select h.lim from tagged_thresholds h where tbname = r.target order by h.ts desc limit 1) from tagged_thresholds m limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select max(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select max(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select max(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select max(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select count(*) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select count(*) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select count(*) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select count(*) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select min(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select min(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select min(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select min(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select sum(t.lim) from thresholds t where t.device = r.device ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select sum(t.lim) from thresholds t where t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select sum(t.lim) from thresholds t where t.ts <= r.ts ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select sum(t.lim) from thresholds t where t.device = r.device and t.lim < r.v ) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select t.lim from thresholds t where t.device = r.device order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where (select (select (select t.lim from thresholds t where t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select t.lim from thresholds t where t.ts <= r.ts order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+          40 |
+
+taos> select r.v from readings r where (select (select (select t.lim from thresholds t where t.device = r.device and t.lim < r.v order by t.ts desc limit 1) from thresholds m limit 1) from thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select max(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select max(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select max(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select (select max(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select count(*) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select count(*) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select count(*) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select (select count(*) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select min(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select min(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select min(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select (select min(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select sum(h.lim) from tagged_thresholds h where h.device = r.device ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select sum(h.lim) from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select (select sum(h.lim) from tagged_thresholds h where tbname = r.target ) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select h.lim from tagged_thresholds h where h.device = r.device order by h.ts desc limit 1) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select h.lim from tagged_thresholds h where h.zone = r.zone order by h.ts desc limit 1) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from tagged_readings r where (select (select (select h.lim from tagged_thresholds h where h.zone = r.zone and h.ts < r.ts order by h.ts desc limit 1) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          20 |
+
+taos> select r.v from routed_readings r where (select (select (select h.lim from tagged_thresholds h where tbname = r.target order by h.ts desc limit 1) from tagged_thresholds m limit 1) from tagged_thresholds n limit 1) > 0 order by r.ts;
+      v      |
+==============
+          10 |
+          20 |
+          30 |
+
+taos> select r.v from readings r where r.v < (select min(t.lim) from thresholds t where t.device = (select x.device from readings x where x.ts = r.ts limit 1)) order by r.ts;
+      v      |
+==============
+          10 |
+

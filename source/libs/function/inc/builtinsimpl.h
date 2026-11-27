@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,12 @@ extern "C" {
 #include "functionResInfoInt.h"
 
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
+// Call only after a capacity failure. Physical schema-bound values exceeding
+// planned widths return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER; all other
+// cases return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER. NULL context is allowed for
+// merged states without column provenance and keeps the latter error.
+int32_t getFuncInputBufferError(SqlFunctionCtx* pCtx, int32_t valueBytes,
+                                int32_t pkBytes);
 int32_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i16VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i32VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
@@ -40,21 +48,87 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
+typedef enum EBitDurationFlag {
+  BIT_DURATION_FLAG_NONZERO = 0,
+  BIT_DURATION_FLAG_ZERO = 1,
+  BIT_DURATION_FLAG_TOTAL = 2,
+} EBitDurationFlag;
+
+// ---- shared DISTINCT dedup for aggregates that keep a result struct in their inter-buffer ----
+//
+// The set handle is appended after the function's own state, so that state keeps offset 0 and its
+// existing accessors are unaffected:
+//
+//   [ SSumRes | SAvgRes | ... ]  [ SDistinctValueSet ]
+//
+// Each result row owns its own set, so per-window and per-group dedup fall out naturally, and two
+// DISTINCT aggregates on different columns each keep their own set rather than contending over one
+// shared DistinctFilter key.
+//
+// Memory is bounded by SSpillDistinctSet, which spills to tsTempDir past a byte budget. That makes
+// accumulation two-phase:
+//
+//   * while resident, distinctValueSetCheckAdd() answers authoritatively and the caller accumulates
+//     inline as usual;
+//   * once spilled it can no longer answer, so it reports "do not accumulate" for every row and the
+//     values are recorded on disk instead. The caller must then zero its accumulator before
+//     folding the true distinct values in its finalize step via distinctValueSetReplay().
+//
+// distinctValueSetNeedsReplay() reports which phase applies.
+typedef struct SDistinctValueSet {
+  struct SSpillDistinctSet* pSet;
+} SDistinctValueSet;
+
+// Fold one distinct value into the aggregate's state. Called once per value from the replay, and
+// also directly from each aggregate's in-line accumulate loop.
+//
+// pData is borrowed for the duration of the call only: on the replay path it points into a page
+// buffer that is released once the page has been walked, and in-line it points into the input
+// column. Accumulate from it; do not retain it.
+//
+// No length is passed: the aggregates using this hook (SUM/AVG) accept numeric and decimal input
+// exclusively, so every value is fixed-width and the width is recoverable from pCtx->inputType.
+// Taking a length here would be actively unsafe -- the in-line accumulate loop has no stored length
+// to give, so it would have to pass a placeholder while the spilled replay passed the real one, and
+// an implementation that read it would then behave differently on the two paths. A var-width
+// aggregate must add the parameter and make BOTH call sites supply a truthful value.
+typedef int32_t (*FDistinctAccumFn)(SqlFunctionCtx* pCtx, const char* pData);
+
+// Extra bytes a DISTINCT variant adds to a function's calcMemSize (0 when not DISTINCT).
+int32_t distinctValueSetExtraSize(const struct SFunctionNode* pFunc);
+// Returns NULL when this ctx is not a DISTINCT variant, so it doubles as the "is distinct" test.
+// baseSize is the function's own state size, used only as a lower bound.
+SDistinctValueSet* distinctValueSetGet(SqlFunctionCtx* pCtx, int32_t baseSize);
+// Records the value at rowIdx and reports via *pAccumulate whether the caller should accumulate it
+// now: true only when the set is still resident and the value was absent. Always false once
+// spilled -- see distinctValueSetNeedsReplay().
+//
+// Returns a code so a failure cannot be mistaken for "duplicate". *pAccumulate is only meaningful
+// on TSDB_CODE_SUCCESS; on any error the value was not recorded and the whole accumulation must
+// abort.
+int32_t distinctValueSetCheckAdd(SDistinctValueSet* pSet, SColumnInfoData* pCol, int32_t rowIdx,
+                                 SqlFunctionCtx* pCtx, bool* pAccumulate);
+// True when the set spilled, so inline accumulation is incomplete and finalize must replay.
+bool    distinctValueSetNeedsReplay(const SDistinctValueSet* pSet);
+// Replays every distinct value through fn. Call from finalize when needsReplay() is true; the
+// caller is responsible for having zeroed its accumulator beforehand.
+int32_t distinctValueSetReplay(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet, FDistinctAccumFn fn);
+void    distinctValueSetCleanup(SqlFunctionCtx* pCtx, int32_t baseSize);
+
+
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t           countFunction(SqlFunctionCtx* pCtx);
-
-#ifdef BUILD_NO_CALL
-int32_t countInvertFunction(SqlFunctionCtx* pCtx);
-#endif
+void              countFunctionCleanup(SqlFunctionCtx* pCtx);
+int32_t           countDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired distinctStatisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool              getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+void              sumFunctionCleanup(SqlFunctionCtx* pCtx);
+void              avgFunctionCleanup(SqlFunctionCtx* pCtx);
 int32_t           sumFunction(SqlFunctionCtx* pCtx);
-
-#ifdef BUILD_NO_CALL
-int32_t sumInvertFunction(SqlFunctionCtx* pCtx);
-#endif
+int32_t           sumDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
@@ -71,14 +145,11 @@ int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t avgFunction(SqlFunctionCtx* pCtx);
 int32_t avgFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t avgDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
-#ifdef BUILD_NO_CALL
-int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
-#endif
-
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
-int32_t getAvgInfoSize();
+int32_t getAvgInfoSize(SFunctionNode* pFunc);
 
 bool    getStdFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t stdFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -86,14 +157,18 @@ int32_t stdFunction(SqlFunctionCtx* pCtx);
 int32_t stdFunctionMerge(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdvarFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stdvarsampFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stdPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
-
-#ifdef BUILD_NO_CALL
-int32_t stdInvertFunction(SqlFunctionCtx* pCtx);
-#endif
 
 int32_t stdCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t getStdInfoSize();
+
+bool    gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t gconcatFunction(SqlFunctionCtx* pCtx);
+int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    gconcatFunctionCleanup(SqlFunctionCtx* pCtx);
 
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -121,11 +196,46 @@ int32_t diffFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t diffFunction(SqlFunctionCtx* pCtx);
 int32_t diffFunctionByRow(SArray* pCtx);
 
-bool getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool    getLagFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t lagFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t lagFunction(SqlFunctionCtx* pCtx);
+int32_t lagFunctionByRow(SArray* pCtx);
+void    lagLeadFunctionCleanupExt(SqlFunctionCtx* pCtx);
+
+bool    getLeadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t leadFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t leadFunction(SqlFunctionCtx* pCtx);
+int32_t leadFunctionByRow(SArray* pCtx);
+
+bool    getFillforwardFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
+int32_t fillforwardFunctionByRow(SArray* pCtx);
+void    fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx);
+
+bool    getFillnextFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t fillnextFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t fillnextFunction(SqlFunctionCtx* pCtx);
+int32_t fillnextFunctionByRow(SArray* pCtx);
+void    fillnextFunctionCleanupExt(SqlFunctionCtx* pCtx);
+bool    fillnextHasPending(SqlFunctionCtx* pCtx);
+
+bool    getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
+bool    getCorrFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t corrFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t corrFunction(SqlFunctionCtx* pCtx);
+int32_t corrFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t corrScalarFunction(SScalarParam* pInput, int32_t inputNum, SScalarParam* pOutput);
+int32_t corrPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t getCorrInfoSize();
+int32_t corrFuncMerge(SqlFunctionCtx* pCtx);
+int32_t hasNullFunction(SqlFunctionCtx* pCtx);
 
 bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t derivativeFunction(SqlFunctionCtx* pCtx);
+int32_t derivativeFunctionByRow(SArray* pCtxArray);
+int32_t streamDerivativeFunctionByRow(SArray* pCtxArray);
 
 bool    getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
@@ -148,13 +258,20 @@ int32_t           firstLastPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pB
 int32_t           firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t           getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes);
+int32_t           getMaxValueBytes(int32_t type, int32_t bytes);
+EFuncDataRequired maxDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+// Equal-ts skipping without a PK requires lastScanCandidate proof.
+// Unknown metadata and virtual-column NULL ties conservatively require data.
+EFuncDataRequired lastRowDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 
 int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 
 bool    getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+EFuncDataRequired topDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+EFuncDataRequired bottomDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 int32_t topFunction(SqlFunctionCtx* pCtx);
 int32_t bottomFunction(SqlFunctionCtx* pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
@@ -218,6 +335,7 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 bool    getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t tailFunction(SqlFunctionCtx* pCtx);
+int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool    getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -234,7 +352,38 @@ int32_t twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t twaFunction(SqlFunctionCtx* pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+// Time-weighted aggregates: {avg, sum, var} x {linear, locf} interpolation.
+// twaFunction/twaFinalize above serve twavg_linear (== twa).
+int32_t twavgLocfFunction(SqlFunctionCtx* pCtx);
+
+bool    getTwsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t twsumFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twsumFunction(SqlFunctionCtx* pCtx);
+int32_t twsumFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    getTwvarFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t twvarFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twvarFunction(SqlFunctionCtx* pCtx);
+int32_t twvarFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+// value_changes(expr [, ignore_null]): count of adjacent value changes on the timeline.
+bool    getValueChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t valueChangesFunction(SqlFunctionCtx* pCtx);
+int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    getBitChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t bitChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t bitChangesFunction(SqlFunctionCtx* pCtx);
+int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    getBitDurationFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t bitDurationFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t bitDurationFunction(SqlFunctionCtx* pCtx);
+int32_t bitDurationFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 int32_t blockDistSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t blockDistFunction(SqlFunctionCtx* pCtx);

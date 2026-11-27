@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,6 +38,12 @@ extern "C" {
 #define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
 #define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
 
+#define DBL_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * DBL_EPSILON))
+#define DBL_GREATER(_x, _y)      (!DBL_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define DBL_LESS(_x, _y)         (!DBL_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define DBL_GREATEREQUAL(_x, _y) (DBL_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define DBL_LESSEQUAL(_x, _y)    (DBL_EQUAL((_x), (_y)) || ((_x) < (_y)))
+
 #define PATTERN_COMPARE_INFO_INITIALIZER { '%', '_', L'%', L'_' }
 
 typedef struct SPatternCompareInfo {
@@ -47,9 +55,42 @@ typedef struct SPatternCompareInfo {
 
 int32_t InitRegexCache();
 void    DestroyRegexCache();
+int32_t rawStrPatternMatch(const char *pattern, const char *str);
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
-int32_t checkRegexPattern(const char *pPattern);
+int32_t checkRegexPattern(const char *pPattern, void *charsetCxt);
+
+// Same as checkRegexPattern(), but compiles the pattern with the engine that
+// will execute it (PCRE2 on Windows, POSIX ERE elsewhere) and writes the engine
+// diagnostic into errBuf. Returns TSDB_CODE_SUCCESS when the pattern is usable.
+int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen, void *charsetCxt);
+int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 void    DestoryThreadLocalRegComp();
+
+// Query-aware POSIX matching. REG_EXTENDED is fixed. The locale and borrowed
+// pool slot are restored/released before returning, including on engine errors.
+// Applies to newly compiled pools only; existing pools retain their slot count.
+// Values below one select a single slot. Cache destruction requires all users to stop.
+void    taosRegexSetPoolSize(int32_t threads);
+// Resolve and cache the query's locale without compiling a pattern. Windows
+// uses PCRE2 and returns success without a POSIX locale lookup.
+// A missing POSIX locale returns TSDB_CODE_CHARSET_CONVERT_ERROR. Use the same
+// query charset for validation and execution; validation cannot rule out later
+// allocation or engine errors. NULL charsetCxt selects the process default.
+int32_t taosCheckRegexLocale(void *charsetCxt);
+// Matching returns 0 for a match, 1 for no match, or a TSDB error code.
+int32_t taosExecRegexMatchCharset(const char *string, const char *pattern, void *charsetCxt);
+// group < 0 skips capture extraction. Otherwise start and len must be non-NULL
+// and receive byte offsets/lengths; start=-1 and len=0 indicate no participating
+// capture. The return convention is the same as taosExecRegexMatchCharset.
+int32_t taosExecRegexGroupsCharset(const char *string, const char *pattern, int32_t group,
+                                  int32_t *start, int32_t *len, void *charsetCxt);
+int32_t taosExecRegexCapturesCharset(const char *string, const char *pattern, size_t count,
+                                    regmatch_t *matches, int32_t flags, void *charsetCxt);
+int32_t taosCheckRegexValue(const void *value, int32_t type, void *charsetCxt);
+int32_t taosCheckRegexCharset(const char *pattern, void *charsetCxt);
+// Returns a TSDB status; on success *result is 0 for a match or 1 for no match.
+int32_t taosCompareRegexCharset(const void *left, int32_t leftType, const void *right, int32_t rightType,
+                               void *charsetCxt, int32_t *result);
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo);
 
@@ -59,14 +100,18 @@ int32_t setChkInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t setChkNotInBytes1(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes2(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes4(const void *pLeft, const void *pRight);
 int32_t setChkNotInBytes8(const void *pLeft, const void *pRight);
+int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t compareChkInString(const void *pLeft, const void *pRight);
 int32_t compareChkNotInString(const void *pLeft, const void *pRight);
+int32_t compareChkInBlob(const void *pLeft, const void *pRight);
+int32_t compareChkNotInBlob(const void *pLeft, const void *pRight);
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight);
 int32_t compareInt16Val(const void *pLeft, const void *pRight);
@@ -84,12 +129,15 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
+int32_t compareBlobVal(const void *pLeft, const void *pRight);
 
-int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
-int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
+int32_t compareDecimal64(const void* pleft, const void* pright);
+int32_t compareDecimal128(const void* pleft, const void* pright);
 
-int32_t comparewcsRegexMatch(const void *pLeft, const void *pRight);
-int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight);
+int32_t compareDecimal64SameScale(const void* pleft, const void* pright);
+int32_t compareDecimal128SameScale(const void* pleft, const void* pright);
+
+
 
 int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt16ValDesc(const void *pLeft, const void *pRight);
@@ -107,9 +155,12 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight);
+int32_t compareBlobValDesc(const void *pLeft, const void *pRight);
 
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight);
 int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobPatternMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobPatternNMatch(const void *pLeft, const void *pRight);
 
 int32_t comparewcsPatternMatch(const void *pLeft, const void *pRight);
 int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight);
@@ -205,8 +256,10 @@ int32_t compareUint64Uint8(const void *pLeft, const void *pRight);
 int32_t compareUint64Uint16(const void *pLeft, const void *pRight);
 int32_t compareUint64Uint32(const void *pLeft, const void *pRight);
 
+// For string MATCH/NMATCH, this returns NULL. Use taosCompareRegexCharset with the connection charset.
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+__compar_fn_t getWindowKeyComparFunc(int32_t keyType, int32_t order);
 
 #ifdef __cplusplus
 }

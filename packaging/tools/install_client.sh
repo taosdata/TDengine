@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install TDengine client on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -17,7 +29,6 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 
 osType=Linux
 pagMode=full
@@ -32,6 +43,8 @@ benchmarkName2="${clientName2}Benchmark"
 dumpName2="${clientName2}dump"
 demoName2="${clientName2}demo"
 uninstallScript2="rm${clientName2}"
+inspect_name="${clientName2}inspect"
+taosgen_name="${clientName2}taosgen"
 
 if [ "$osType" != "Darwin" ]; then
     script_dir=$(dirname $(readlink -f "$0"))
@@ -75,17 +88,16 @@ GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
 csudo=""
-if command -v sudo > /dev/null; then
+if [ "$(id -u)" -ne 0 ] && command -v sudo > /dev/null; then
     csudo="sudo "
 fi
 
 update_flag=0
 
 function kill_client() {
-  pid=$(ps -ef | grep "${clientName}" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid   || :
-  fi
+  pgrep -x "${clientName}" | while read p; do
+    ${csudo}kill -9 "$p" 2>/dev/null || :
+  done || true
 }
 
 function install_main_path() {
@@ -95,7 +107,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/cfg
   ${csudo}mkdir -p ${install_main_dir}/bin
   ${csudo}mkdir -p ${install_main_dir}/driver
-  if [ "$productName2" == "TDengine" ]; then
+  if [[ "$productName2" == "TDengine"* ]]; then
     ${csudo}mkdir -p ${install_main_dir}/examples
   fi
   ${csudo}mkdir -p ${install_main_dir}/include
@@ -106,12 +118,16 @@ function install_main_path() {
 
 function install_bin() {
   # Remove links
-  ${csudo}rm -f ${bin_link_dir}/${clientName}         || :
+  ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   if [ "$osType" != "Darwin" ]; then
       ${csudo}rm -f ${bin_link_dir}/taosdemo || :
+      ${csudo}rm -f ${bin_link_dir}/${inspect_name} || :
+      ${csudo}rm -f ${bin_link_dir}/${taosgen_name} || :    
   fi
-  ${csudo}rm -f ${bin_link_dir}/${uninstallScript}       || :
-  ${csudo}rm -f ${bin_link_dir}/set_core     || :
+  ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
+  ${csudo}rm -f ${bin_link_dir}/set_core || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName2} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName2} || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -119,6 +135,8 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName2} ${bin_link_dir}/${clientName2} || :
   if [ "$osType" != "Darwin" ]; then
       [ -x ${install_main_dir}/bin/${demoName2} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName2} ${bin_link_dir}/${demoName2}  || :
+      [ -x ${install_main_dir}/bin/${inspect_name} ] && ${csudo}ln -s ${install_main_dir}/bin/${inspect_name} ${bin_link_dir}/${inspect_name} || :
+      [ -x ${install_main_dir}/bin/${taosgen_name} ] && ${csudo}ln -s ${install_main_dir}/bin/${taosgen_name} ${bin_link_dir}/${taosgen_name} || :
   fi
   [ -x ${install_main_dir}/bin/remove_client.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove_client.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :  
@@ -128,51 +146,85 @@ function install_bin() {
 
 function clean_lib() {
     sudo rm -f /usr/lib/libtaos.* || :
+    sudo rm -f /usr/lib/libtaosnative.* || :
     [ -f /usr/lib/libtaosws.so ] && sudo rm -f /usr/lib/libtaosws.so || :
     [ -f /usr/lib64/libtaosws.so ] && sudo rm -f /usr/lib64/libtaosws.so || :
     sudo rm -rf ${lib_dir} || :
+}
+
+function link_versioned_driver_library() {
+    local library_name="$1"
+    local destination_dir="$2"
+    local candidates=("${install_main_dir}/driver/${library_name}.so."*)
+
+    if [ "${#candidates[@]}" -ne 1 ] || [ ! -f "${candidates[0]}" ]; then
+        echo "Expected exactly one versioned ${library_name} library in ${install_main_dir}/driver" >&2
+        return 1
+    fi
+    ${csudo}ln -s "${candidates[0]}" "${destination_dir}/${library_name}.so.1"
 }
 
 function install_lib() {
     # Remove links
     ${csudo}rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos.*       || :
+    ${csudo}rm -f ${lib_link_dir}/libtaosnative.*   || :
+    ${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
 
     [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so         || :
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so         || :
-
     #${csudo}rm -rf ${v15_java_app_dir}              || :
 
-    ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+    ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 0755 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+        link_versioned_driver_library libtaos "${lib_link_dir}"
         ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+        link_versioned_driver_library libtaosnative "${lib_link_dir}"
+        ${csudo}ln -s ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
-        [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so ||:
+        # Check if libtaosws.so.* files exist using ls instead of -f with glob
+        if ls ${install_main_dir}/driver/libtaosws.so.* > /dev/null 2>&1; then
+            ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib_link_dir}/libtaosws.so
+        fi
 
         if [ -d "${lib64_link_dir}" ]; then
-            ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+            link_versioned_driver_library libtaos "${lib64_link_dir}" || :
             ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
+            link_versioned_driver_library libtaosnative "${lib64_link_dir}" || :
+            ${csudo}ln -s ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so               || :
 
-            [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib64_link_dir}/libtaosws.so       || :
+            # Check if libtaosws.so.* files exist using ls instead of -f with glob
+            if ls ${install_main_dir}/driver/libtaosws.so.* > /dev/null 2>&1; then
+                ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so.* ${lib64_link_dir}/libtaosws.so
+            fi
         fi
+
+        ${csudo}ldconfig
     else
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
+        # Preserve the loader-relative dependency inside the installed driver directory.
+        for native_lib in "${install_main_dir}/driver"/libtaosnative.[0-9]*.dylib; do
+            [ -f "$native_lib" ] || continue
+            ${csudo}ln -sf "$(basename "$native_lib")" "${install_main_dir}/driver/libtaosnative.dylib"
+        done
+        ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.1.dylib
+        ${csudo}ln -s ${lib_link_dir}/libtaosnative.1.dylib ${lib_link_dir}/libtaosnative.dylib
 
-        [ -f ${install_main_dir}/driver/libtaosws.dylib ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.dylib ${lib_link_dir}/libtaosws.dylib ||:
+        # Check if libtaosws.dylib.* files exist using ls instead of -f with glob
+        if ls ${install_main_dir}/driver/libtaosws.dylib.* > /dev/null 2>&1; then
+            ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.dylib.* ${lib_link_dir}/libtaosws.dylib
+        fi
     fi
 
-    if [ "$osType" != "Darwin" ]; then
-        ${csudo}ldconfig
-    else
+    if [ "$osType" = "Darwin" ]; then
         ${csudo}update_dyld_shared_cache
     fi
 }
 
 function install_header() {
-    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taoserror.h  ${inc_link_dir}/taosudf.h  || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosws.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taoserror.h  ${inc_link_dir}/taosudf.h  || :
     ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
     ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
     ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
@@ -237,16 +289,34 @@ function install_jemalloc() {
 }
 
 function install_config() {
-    if [ ! -f ${cfg_install_dir}/${configFile} ]; then
+    file_name=${cfg_install_dir}/${configFile}
+    if [ -f ${file_name} ]; then
+        echo "The configuration file ${file_name} already exists"
+        ${csudo}cp ${file_name} ${cfg_install_dir}/${configFile}.new
+    else
         ${csudo}mkdir -p ${cfg_install_dir}
         [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
         ${csudo}chmod 644 ${cfg_install_dir}/*
+     ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
     fi
 
-    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${install_main_dir}/cfg/${configFile}.org
-    ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
+   
 }
 
+function install_taosinspect_config() {
+  file_name="${script_dir}/cfg/inspect.cfg"
+  if [ -f ${file_name} ]; then
+    if [ -f "${cfg_install_dir}/inspect.cfg" ]; then
+      ${csudo}cp ${file_name} ${cfg_install_dir}/inspect.cfg.new
+    else
+      ${csudo}mkdir -p ${cfg_install_dir}
+      ${csudo}cp ${file_name} ${cfg_install_dir}/inspect.cfg
+    fi
+    ${csudo}ln -sf ${cfg_install_dir}/inspect.cfg ${install_main_dir}/cfg
+  fi
+
+  
+}
 
 function install_log() {
     ${csudo}rm -rf ${log_dir}  || :
@@ -273,11 +343,6 @@ function install_examples() {
 
 function update_TDengine() {
     # Start to update
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
     echo -e "${GREEN}Start to update ${productName2} client...${NC}"
     # Stop the client shell if running
     if ps aux | grep -v grep | grep ${clientName2} &> /dev/null; then
@@ -293,6 +358,7 @@ function update_TDengine() {
     install_jemalloc
     if [ "$verMode" == "cluster" ]; then
         install_connector
+        install_taosinspect_config
     fi
     install_examples
     install_bin
@@ -301,16 +367,10 @@ function update_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is updated successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function install_TDengine() {
     # Start to install
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
     echo -e "${GREEN}Start to install ${productName2} client...${NC}"
 
     install_main_path
@@ -320,6 +380,7 @@ function install_TDengine() {
     install_jemalloc
     if [ "$verMode" == "cluster" ]; then
         install_connector
+        install_taosinspect_config
     fi
     install_examples
     install_bin
@@ -328,7 +389,6 @@ function install_TDengine() {
     echo
     echo -e "\033[44;32;1m${productName2} client is installed successfully!${NC}"
 
-    rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 
@@ -336,7 +396,7 @@ function install_TDengine() {
 # Install or updata client and client
 # if server is already install, don't install client
 if [ -e ${bin_dir}/${serverName} ]; then
-    echo -e "\033[44;32;1mThere are already installed ${productName2} server, so don't need install client!${NC}"
+    echo -e "\033[44;32;1m${productName2} server is already installed, so the client does not need to be installed!${NC}"
     exit 0
 fi
 

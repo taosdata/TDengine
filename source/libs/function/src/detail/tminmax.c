@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,11 +21,12 @@
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
+#include "decimal.h"
 
 #define __COMPARE_ACQUIRED_MAX(i, end, bm, _data, ctx, val, pos) \
   int32_t code = TSDB_CODE_SUCCESS;                              \
   for (; i < (end); ++i) {                                       \
-    if (colDataIsNull_f(bm, i)) {                                \
+    if (BMIsNull(bm, i)) {                                \
       continue;                                                  \
     }                                                            \
                                                                  \
@@ -41,7 +44,7 @@
 #define __COMPARE_ACQUIRED_MIN(i, end, bm, _data, ctx, val, pos) \
   int32_t code = TSDB_CODE_SUCCESS;                              \
   for (; i < (end); ++i) {                                       \
-    if (colDataIsNull_f(bm, i)) {                                \
+    if (BMIsNull(bm, i)) {                                \
       continue;                                                  \
     }                                                            \
                                                                  \
@@ -75,7 +78,7 @@
 static int32_t findFirstValPosition(const SColumnInfoData* pCol, int32_t start, int32_t numOfRows, bool isStr) {
   int32_t i = start;
 
-  while (i < (start + numOfRows) && (isStr ? colDataIsNull_s(pCol, i) : colDataIsNull_f(pCol->nullbitmap, i) == true)) {
+  while (i < (start + numOfRows) && (isStr ? colDataIsNull_s(pCol, i) : colDataIsNull_f(pCol, i) == true)) {
     i += 1;
   }
 
@@ -308,7 +311,8 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         break;
       }
 
-      case TSDB_DATA_TYPE_BIGINT: {
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP: {
         const int64_t* pData = (const int64_t*)pCol->pData;
         __COMPARE_ACQUIRED_MIN(i, end, pCol->nullbitmap, pData, pCtx, (pBuf->v), &pBuf->tuplePos)
         break;
@@ -362,6 +366,16 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenBinaryVal(pLeft, pRight);
           if (ret < 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -384,6 +398,16 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
           if (ret < 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -395,6 +419,40 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         }
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        const Decimal64*   pData = (const Decimal64*)pCol->pData;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+        int32_t            code = 0;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol, i)) {
+            continue;
+          }
+          if (pOps->gt(&pBuf->v, &pData[i], DECIMAL_WORD_NUM(Decimal64))) {
+            pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int32_t            code = 0;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+        const Decimal128*  pData = (const Decimal128*)pCol->pData;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol, i)) {
+            continue;
+          }
+          if (pOps->gt(pBuf->dec, &pData[i], DECIMAL_WORD_NUM(Decimal128))) {
+            memcpy(pBuf->dec, pData + i, pCol->info.bytes);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
     }
   } else {
     switch (pCol->info.type) {
@@ -417,7 +475,8 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         break;
       }
 
-      case TSDB_DATA_TYPE_BIGINT: {
+      case TSDB_DATA_TYPE_BIGINT: 
+      case TSDB_DATA_TYPE_TIMESTAMP: {
         const int64_t* pData = (const int64_t*)pCol->pData;
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, (pBuf->v), &pBuf->tuplePos)
         break;
@@ -458,6 +517,40 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
         __COMPARE_ACQUIRED_MAX(i, end, pCol->nullbitmap, pData, pCtx, *(double*)&(pBuf->v), &pBuf->tuplePos)
         break;
       }
+      case TSDB_DATA_TYPE_DECIMAL64: {
+        const Decimal64* pData = (const Decimal64*)pCol->pData;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL64);
+        int32_t code = 0;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol, i)) {
+            continue;
+          }
+          if (pOps->lt(&pBuf->v, &pData[i], DECIMAL_WORD_NUM(Decimal64))) {
+            pBuf->v = DECIMAL64_GET_VALUE(&pData[i]);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int32_t            code = 0;
+        const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);
+        const Decimal128*  pData = (const Decimal128*)pCol->pData;
+        for (; i < end; ++i) {
+          if (colDataIsNull_f(pCol, i)) {
+            continue;
+          }
+          if (pOps->lt(pBuf->dec, &pData[i], DECIMAL_WORD_NUM(Decimal128))) {
+            memcpy(pBuf->dec, pData + i, pCol->info.bytes);
+            if (pCtx->subsidiaries.num > 0) {
+              code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
+              if (TSDB_CODE_SUCCESS != code) return code;
+            }
+          }
+        }
+      } break;
 
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
@@ -471,6 +564,16 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenBinaryVal(pLeft, pRight);
           if (ret > 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -494,6 +597,16 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
 
           int32_t ret = compareLenPrefixedWStr(pLeft, pRight);
           if (ret > 0) {
+            // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
+            // value wider than declared (full source value by design) -- refuse to overrun.
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
+            }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
               code = updateTupleData(pCtx, i, pCtx->pSrcBlock, &pBuf->tuplePos);
@@ -532,6 +645,9 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
   SColumnInfoData* pCol = pInput->pData[0];
   int32_t          type = pCol->info.type;
+  if (type < TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SMinmaxResInfo*      pBuf = GET_ROWCELL_INTERBUF(pResInfo);
@@ -543,26 +659,33 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
   // data in current data block are qualified to the query
   if (pInput->colDataSMAIsSet && !IS_STR_DATA_TYPE(type)) {
-    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    numOfElems = pInput->smaSourceRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _over;
     }
 
     int16_t index = 0;
-    void*   tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;
+    void*   tval = NULL;
+    if (IS_DECIMAL_TYPE(type)) {
+      tval = isMinFunc ? pInput->pColumnDataAgg[0]->decimal128Min : pInput->pColumnDataAgg[0]->decimal128Max;
+    } else {
+      tval = (isMinFunc) ? &pInput->pColumnDataAgg[0]->min : &pInput->pColumnDataAgg[0]->max;
+    }
 
     if (!pBuf->assign) {
       if (type == TSDB_DATA_TYPE_FLOAT) {
         GET_FLOAT_VAL(&pBuf->v) = GET_DOUBLE_VAL(tval);
+      } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+        memcpy(pBuf->dec, tval, pCol->info.bytes);
       } else {
         pBuf->v = GET_INT64_VAL(tval);
       }
 
       code = saveRelatedTupleTag(pCtx, pInput, tval);
     } else {
-      if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      if (IS_SIGNED_NUMERIC_TYPE(type) || TSDB_DATA_TYPE_BOOL == type || TSDB_DATA_TYPE_TIMESTAMP == type) {
         int64_t prev = 0;
-        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v, 0);
 
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -571,7 +694,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
         uint64_t prev = 0;
-        GET_TYPED_DATA(prev, uint64_t, type, &pBuf->v);
+        GET_TYPED_DATA(prev, uint64_t, type, &pBuf->v, 0);
 
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -580,7 +703,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_DOUBLE) {
         double prev = 0;
-        GET_TYPED_DATA(prev, double, type, &pBuf->v);
+        GET_TYPED_DATA(prev, double, type, &pBuf->v, 0);
 
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
@@ -589,12 +712,24 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
         float prev = 0;
-        GET_TYPED_DATA(prev, float, type, &pBuf->v);
+        GET_TYPED_DATA(prev, float, type, &pBuf->v, 0);
 
         float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           GET_FLOAT_VAL(&pBuf->v) = val;
           code = saveRelatedTupleTag(pCtx, pInput, tval);
+        }
+      } else if (type == TSDB_DATA_TYPE_DECIMAL64) {
+        const SDecimalOps* pOps = getDecimalOps(type);
+        if (pOps->lt(&pBuf->v, tval, DECIMAL_WORD_NUM(Decimal64)) ^ isMinFunc) {
+          DECIMAL64_SET_VALUE((Decimal64*)&pBuf->v, *(int64_t*)tval);
+          code =saveRelatedTupleTag(pCtx, pInput, tval);
+        }
+      } else if (type == TSDB_DATA_TYPE_DECIMAL) {
+        const SDecimalOps* pOps = getDecimalOps(type);
+        if (pOps->lt(pBuf->dec, tval, DECIMAL_WORD_NUM(Decimal128)) ^ isMinFunc) {
+          DECIMAL128_CLONE((Decimal128*)pBuf->dec, (Decimal128*)tval);
+          code =saveRelatedTupleTag(pCtx, pInput, tval);
         }
       }
     }
@@ -611,9 +746,9 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
   // clang-format off
   int32_t threshold[] = {
       //NULL,    BOOL,      TINYINT, SMALLINT, INT, BIGINT, FLOAT, DOUBLE, VARCHAR,   TIMESTAMP, NCHAR,
-      INT32_MAX, INT32_MAX, 32,      16,       8,   4,      8,     4,      INT32_MAX, INT32_MAX, INT32_MAX,
-      // UTINYINT,USMALLINT, UINT, UBIGINT,   JSON,      VARBINARY, DECIMAL,   BLOB,      MEDIUMBLOB, BINARY
-      32,         16,        8,    4,         INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,  INT32_MAX,
+      INT32_MAX, 32,        32,      16,       8,   4,      8,     4,      INT32_MAX, 4,         INT32_MAX,
+      // UTINYINT,USMALLINT, UINT, UBIGINT,   JSON,      VARBINARY, DECIMAL,   BLOB,      MEDIUMBLOB, BINARY,   Decimal64
+      32,         16,        8,    4,         INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX, INT32_MAX,  INT32_MAX, INT32_MAX,
   };
   // clang-format on
 
@@ -627,6 +762,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         case TSDB_DATA_TYPE_DOUBLE:
         case TSDB_DATA_TYPE_UBIGINT:
         case TSDB_DATA_TYPE_BIGINT:
+        case TSDB_DATA_TYPE_TIMESTAMP:
           pBuf->v = *(int64_t*)p;
           break;
         case TSDB_DATA_TYPE_UINT:
@@ -649,13 +785,30 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         case TSDB_DATA_TYPE_VARCHAR:
         case TSDB_DATA_TYPE_VARBINARY:
         case TSDB_DATA_TYPE_NCHAR: {
+          // The buffer is sized by the declared column width; a virtual table column may
+          // carry a value wider than declared (full source value by design) -- refuse to
+          // overrun it.
+          int32_t dataLen = calcStrBytesByType(pCol->info.type, colDataGetData(pCol, i));
+          if (dataLen > pCol->info.bytes) {
+            int32_t code = getFuncInputBufferError(pCtx, dataLen, 0);
+            uError("min/max value needs %d bytes, buffer width is %d, "
+                   "code:0x%x(%s)", dataLen, pCol->info.bytes,
+                   (uint32_t)code, tstrerror(code));
+            return code;
+          }
           pBuf->str = taosMemoryMalloc(pCol->info.bytes);
           if (pBuf->str == NULL) {
             return terrno;
           }
-          (void)memcpy(pBuf->str, colDataGetData(pCol, i), varDataTLen(colDataGetData(pCol, i)));
+          (void)memcpy(pBuf->str, colDataGetData(pCol, i), dataLen);
           break;
         }
+        case TSDB_DATA_TYPE_DECIMAL64:
+          *(int64_t*)&pBuf->v = *(int64_t*)p;
+          break;
+        case TSDB_DATA_TYPE_DECIMAL:
+          (void)memcpy(pBuf->dec, p, pCol->info.bytes);
+          break;
         default:
           (void)memcpy(&pBuf->v, p, pCol->info.bytes);
           break;
@@ -693,7 +846,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
         handleInt32Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, true);
         break;
       }
-      case TSDB_DATA_TYPE_BIGINT: {
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP: {
         handleInt64Col(pCol->pData, start, numOfRows, pBuf, isMinFunc, true);
         break;
       }

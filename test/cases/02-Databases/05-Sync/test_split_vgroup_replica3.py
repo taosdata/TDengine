@@ -1,0 +1,64 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import time
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
+
+
+class TestSplitVgroupReplica3:
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def test_split_vgroup_replica3(self):
+        """Split: replica-3
+
+        1. Start a 4-node cluster with dnode1 configured as supportVnodes=0
+        2. Create database d1 (1 vgroup, 3 replicas) and insert data
+        3. Execute SPLIT VGROUP to split the vnode
+
+        Catalog:
+            - Database:Sync
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+        Jira: None
+
+        History:
+            - 2025-5-6 Simon Guan Migrated from tsim/dnode/split_vgroup_replica3.sim
+
+        """
+
+        clusterComCheck.checkDnodes(4)
+        tdSql.execute(f"alter dnode 1 'supportVnodes' '0'")
+        clusterComCheck.checkDnodeSupportVnodes(1, 0)
+
+        tdSql.execute(f"create user u1 pass 'AAbb1122'")
+
+        tdLog.info(f"=============== step1 create dnode2")
+        tdSql.query(f"select * from information_schema.ins_dnodes")
+        tdSql.checkRows(4)
+        tdSql.checkKeyData(1, 4, "ready")
+        tdSql.checkKeyData(2, 4, "ready")
+        tdSql.checkKeyData(3, 4, "ready")
+        tdSql.checkKeyData(4, 4, "ready")
+
+        tdLog.info(f"=============== step2: create db")
+        tdSql.execute(f"create database d1 vgroups 1 replica 3")
+
+        tdLog.info(f"=============== step3: split")
+        tdLog.info(f"split vgroup 2")
+        tdSql.execute("split vgroup 2")

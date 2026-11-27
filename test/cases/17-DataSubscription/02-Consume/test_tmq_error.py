@@ -1,0 +1,310 @@
+
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import taos
+import time
+import socket
+import threading
+from enum import Enum
+import platform
+
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tmqCom, tdCom
+import sys
+import os
+import shutil
+from pathlib import Path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+class actionType(Enum):
+    CREATE_DATABASE = 0
+    CREATE_STABLE   = 1
+    CREATE_CTABLE   = 2
+    INSERT_DATA     = 3
+
+class TestCase:
+    hostname = socket.gethostname()
+    #rpcDebugFlagVal = '143'
+    #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
+    #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
+    #updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
+    #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
+    #print ("===================: ", updatecfgDict)
+
+    def setup_class(cls):
+        tdLog.debug(f"start to excute {__file__}")
+
+
+    def newcur(self,cfg,host,port):
+        user = "root"
+        password = "taosdata"
+        con=taos.connect(host=host, user=user, password=password, config=cfg ,port=port)
+        cur=con.cursor()
+        print(cur)
+        return cur
+
+    def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
+        if dropFlag == 1:
+            tsql.execute("drop database if exists %s"%(dbName))
+
+        tsql.execute("create database if not exists %s vgroups %d replica %d wal_retention_period 3600"%(dbName, vgroups, replica))
+        tdLog.debug("complete to create database %s"%(dbName))
+        return
+
+    def create_stable(self,tsql, dbName,stbName):
+        tsql.execute("create table if not exists %s.%s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%(dbName, stbName))
+        tdLog.debug("complete to create %s.%s" %(dbName, stbName))
+        return
+
+    def create_ctables(self,tsql, dbName,stbName,ctbNum):
+        tsql.execute("use %s" %dbName)
+        pre_create = "create table"
+        sql = pre_create
+        #tdLog.debug("doing create one  stable %s and %d  child table in %s  ..." %(stbname, count ,dbname))
+        for i in range(ctbNum):
+            sql += " %s_%d using %s tags(%d)"%(stbName,i,stbName,i+1)
+            if (i > 0) and (i%100 == 0):
+                tsql.execute(sql)
+                sql = pre_create
+        if sql != pre_create:
+            tsql.execute(sql)
+
+        tdLog.debug("complete to create %d child tables in %s.%s" %(ctbNum, dbName, stbName))
+        return
+
+    def insert_data(self,tsql,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs=0):
+        tdLog.debug("start to insert data ............")
+        tsql.execute("use %s" %dbName)
+        pre_insert = "insert into "
+        sql = pre_insert
+
+        if startTs == 0:
+            t = time.time()
+            startTs = int(round(t * 1000))
+
+        #tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbName, allRows))
+        rowsOfSql = 0
+        for i in range(ctbNum):
+            sql += " %s_%d values "%(stbName,i)
+            for j in range(rowsPerTbl):
+                sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
+                rowsOfSql += 1
+                if (j > 0) and ((rowsOfSql == batchNum) or (j == rowsPerTbl - 1)):
+                    tsql.execute(sql)
+                    rowsOfSql = 0
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s_%d values " %(stbName,i)
+                    else:
+                        sql = "insert into "
+        #end sql
+        if sql != pre_insert:
+            #print("insert sql:%s"%sql)
+            tsql.execute(sql)
+        tdLog.debug("insert data ............ [OK]")
+        return
+
+    def prepareEnv(self, **parameterDict):
+        # create new connector for my thread
+        tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
+
+        if parameterDict["actionType"] == actionType.CREATE_DATABASE:
+            self.create_database(tsql, parameterDict["dbName"])
+        elif parameterDict["actionType"] == actionType.CREATE_STABLE:
+            self.create_stable(tsql, parameterDict["dbName"], parameterDict["stbName"])
+        elif parameterDict["actionType"] == actionType.CREATE_CTABLE:
+            self.create_ctables(tsql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
+        elif parameterDict["actionType"] == actionType.INSERT_DATA:
+            self.insert_data(tsql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"],\
+                            parameterDict["rowsPerTbl"],parameterDict["batchNum"])
+        else:
+            tdLog.exit("not support's action: ", parameterDict["actionType"])
+
+        return
+
+    def tmqCase1(self, cfgPath, buildPath):
+        '''
+        Leave a TMQ process. Stop taosd, delete the data directory, restart taosd,
+        and restart a consumption process to complete a consumption
+        '''
+        tdLog.printNoPrefix("======== test case 1: ")
+        tmqCom.initConsumerTable(includeNotifyInfo=True)
+
+        #tmqCom.initConsumerTable(includeNotifyInfo=False)
+
+        # create and start thread        
+        paraDict = {'dbName':     'dbt',
+                    'dropFlag':   1,
+                    'event':      '',
+                    'vgroups':    4,
+                    'stbName':    'stb',
+                    'colPrefix':  'c',
+                    'tagPrefix':  't',
+                    'colSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
+                    'tagSchema':   [{'type': 'INT', 'count':1},{'type': 'BIGINT', 'count':1},{'type': 'DOUBLE', 'count':1},{'type': 'BINARY', 'len':32, 'count':1},{'type': 'NCHAR', 'len':32, 'count':1}],
+                    'ctbPrefix':  'ctb',
+                    'ctbStartIdx': 0,
+                    'ctbNum':     10,
+                    'rowsPerTbl': 20000,
+                    'batchNum':   1000,
+                    'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
+                    'pollDelay':  30,
+                    'showMsg':    1,
+                    'showRow':    1,
+                    'snapshot':   0}
+        paraDict['cfg'] = cfgPath
+
+        self.create_database(tdSql, paraDict["dbName"])
+        self.create_stable(tdSql, paraDict["dbName"], paraDict["stbName"])
+        self.create_ctables(tdSql, paraDict["dbName"], paraDict["stbName"], paraDict["ctbNum"])
+        self.insert_data(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'
+
+        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, paraDict['dbName'], paraDict['stbName']))
+        consumerId     = 0
+        # expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
+        expectrowcnt   = 90000000000
+        topicList      = topicFromStb1
+        ifcheckdata    = 0
+        ifManualCommit = 0
+        keyList        = 'group.id:cgrp1,\
+                        enable.auto.commit:false,\
+                        auto.commit.interval.ms:6000,\
+                        auto.offset.reset:earliest'
+        #tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
+
+        tdLog.info("start consume processor")
+        paraDict['pollDelay'] = 5   # Forever loop
+        showMsg   = 1
+        showRow   = 1
+        #tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+
+        #time.sleep(3)
+        tmqCom.getStartConsumeNotifyFromTmqsim()
+        tmqCom.stopTmqSimProcess("tmq_sim")
+        time.sleep(15)
+
+        tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
+        tdDnodes.stop(1)
+        
+        time.sleep(5)
+        if os.name == 'nt':
+            data_path = Path(tdCom.work_dir) / 'dnode1' / 'data'
+            if not data_path.is_dir():
+                tdLog.exit(f'Dnode data directory not found: {data_path}')
+            tdLog.info(f'Removing dnode data: {data_path}')
+            for entry in data_path.iterdir():
+                if entry.is_dir():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+        else:
+            dataPath = buildPath + "/../sim/dnode1/data/*"
+            shellCmd = 'rm -rf ' + dataPath
+            tdLog.info(shellCmd)
+            os.system(shellCmd)
+        #tdDnodes.start(1)
+        tdDnodes.starttaosd(1)
+        time.sleep(5)
+
+        ######### redo to consume
+        tmqCom.initConsumerTable(includeNotifyInfo=False)
+
+        self.create_database(tdSql, paraDict["dbName"])
+        self.create_stable(tdSql, paraDict["dbName"], paraDict["stbName"])
+        self.create_ctables(tdSql, paraDict["dbName"], paraDict["stbName"], paraDict["ctbNum"])
+        self.insert_data(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+
+        tdLog.info("create topics from stb1")
+        topicFromStb1 = 'topic_stb1'
+
+        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, paraDict['dbName'], paraDict['stbName']))
+        consumerId     = 0
+        expectrowcnt   = paraDict["rowsPerTbl"] * paraDict["ctbNum"]
+        topicList      = topicFromStb1
+        ifcheckdata    = 0
+        ifManualCommit = 0
+        keyList        = 'group.id:cgrp1,\
+                        enable.auto.commit:false,\
+                        auto.commit.interval.ms:6000,\
+                        auto.offset.reset:earliest'
+        #tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
+        tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
+
+        tdLog.info("start consume processor")
+        pollDelay = 20
+        showMsg   = 1
+        showRow   = 1
+        paraDict['pollDelay'] = 20
+        #tmqCom.startTmqSimProcess(pollDelay,paraDict["dbName"],showMsg, showRow)
+        tdLog.info("start consume processor")
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+
+        expectRows = 1
+        resultList = tmqCom.selectConsumeResult(expectRows, pollInterval=5)
+        totalConsumeRows = 0
+        for i in range(expectRows):
+            totalConsumeRows += resultList[i]
+
+        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
+        if not (totalConsumeRows == expectrowcnt):
+            tdLog.exit("tmq consume rows error!")
+
+        tdSql.query("drop topic %s"%topicFromStb1)
+        if (platform.system().lower() == 'windows'):
+            os.system("TASKKILL /F /IM tmq_sim.exe")
+        else:
+            os.system('unset LD_PRELOAD; pkill tmq_sim')
+
+        tdLog.printNoPrefix("======== test case 1 end ...... ")
+
+    def test_tmq_error(self):
+        """Basic: error handling
+        
+        1. Test invalid topic name
+        2. Test invalid consumer group.id
+        3. Test subscribe non-existent topic
+        4. Test invalid consumer parameters
+        5. Verify appropriate error messages
+        
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-12-23 Alex Duan Migrated from uncatalog/system-test/7-tmq/test_tmqError.py
+
+        """
+        tdSql.prepare()
+
+        buildPath = tdCom.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg")
+        tdLog.info("cfgPath: %s" % cfgPath)
+
+        self.tmqCase1(cfgPath, buildPath)
+
+
+
+event = threading.Event()

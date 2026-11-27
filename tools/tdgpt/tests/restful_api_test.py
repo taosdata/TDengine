@@ -1,0 +1,1625 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+"""flask restful api test module"""
+
+import math
+import os.path
+import sys
+from unittest.mock import patch
+
+import numpy as np
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
+
+from flask_testing import TestCase
+
+from lib.app import app
+from lib.log import setup_log_info
+
+
+class RestfulTest(TestCase):
+    """restful api test class"""
+
+    def create_app(self):
+        app.testing = True
+        setup_log_info("restfull_test.log")
+        return app
+
+    def test_access_main_page(self):
+        """test asscess default main page"""
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.content_length,
+            len(
+                "TDgpt - TDengine TSDB© Time-Series Data Analytics Platform (ver 3.3.7.1)"
+            )
+            + 1,
+        )
+
+    def test_load_status(self):
+        """test load the server status"""
+        response = self.client.get("/status")
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+
+        self.assertEqual(res["protocol"], 1.0)
+        self.assertEqual(res["status"], "ready")
+
+    def test_load_algos(self):
+        """test load provided algos"""
+        response = self.client.get("/list")
+        self.assertEqual(response.status_code, 200)
+
+        res = response.json
+        self.assertEqual(res["version"], 0.1)
+        self.assertEqual(res["protocol"], 1.0)
+
+        d = res["details"]
+        self.assertEqual(len(d), 8)
+
+    def test_clustering_all_noise(self):
+        """test clustering api returns an empty centers list for all noise"""
+        response = self.client.post(
+            "/clustering",
+            json={
+                "algo": "dbscan",
+                "data": [[0], [10], [20]],
+                "params": {"eps": 0.1, "min_samples": 2},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json
+        self.assertEqual(result["rows"], 3)
+        self.assertEqual(result["labels"], [-1, -1, -1])
+        self.assertEqual(result["n_clusters"], 0)
+        self.assertEqual(result["n_noise"], 3)
+        self.assertEqual(result["centers"], [])
+
+    def test_forecast(self):
+        """test forecast api"""
+        response = self.client.post(
+            "/forecast",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                        1577808010000,
+                        1577808011000,
+                        1577808012000,
+                        1577808013000,
+                        1577808014000,
+                        1577808015000,
+                        1577808016000,
+                        1577808017000,
+                        1577808018000,
+                        1577808019000,
+                        1577808020000,
+                        1577808021000,
+                        1577808022000,
+                        1577808023000,
+                        1577808024000,
+                        1577808025000,
+                        1577808026000,
+                        1577808027000,
+                        1577808028000,
+                        1577808029000,
+                        1577808030000,
+                        1577808031000,
+                        1577808032000,
+                        1577808033000,
+                        1577808034000,
+                        1577808035000,
+                        1577808036000,
+                        1577808037000,
+                        1577808038000,
+                        1577808039000,
+                        1577808040000,
+                        1577808041000,
+                        1577808042000,
+                        1577808043000,
+                        1577808044000,
+                        1577808045000,
+                        1577808046000,
+                        1577808047000,
+                        1577808048000,
+                        1577808049000,
+                        1577808050000,
+                        1577808051000,
+                        1577808052000,
+                        1577808053000,
+                        1577808054000,
+                        1577808055000,
+                        1577808056000,
+                        1577808057000,
+                        1577808058000,
+                        1577808059000,
+                        1577808060000,
+                        1577808061000,
+                        1577808062000,
+                        1577808063000,
+                        1577808064000,
+                        1577808065000,
+                        1577808066000,
+                        1577808067000,
+                        1577808068000,
+                        1577808069000,
+                        1577808070000,
+                        1577808071000,
+                        1577808072000,
+                        1577808073000,
+                        1577808074000,
+                        1577808075000,
+                        1577808076000,
+                        1577808077000,
+                        1577808078000,
+                        1577808079000,
+                        1577808080000,
+                        1577808081000,
+                        1577808082000,
+                        1577808083000,
+                        1577808084000,
+                        1577808085000,
+                        1577808086000,
+                        1577808087000,
+                        1577808088000,
+                        1577808089000,
+                        1577808090000,
+                        1577808091000,
+                        1577808092000,
+                        1577808093000,
+                        1577808094000,
+                        1577808095000,
+                    ],
+                    [
+                        13,
+                        14,
+                        8,
+                        10,
+                        16,
+                        26,
+                        32,
+                        27,
+                        18,
+                        32,
+                        36,
+                        24,
+                        22,
+                        23,
+                        22,
+                        18,
+                        25,
+                        21,
+                        21,
+                        14,
+                        8,
+                        11,
+                        14,
+                        23,
+                        18,
+                        17,
+                        19,
+                        20,
+                        22,
+                        19,
+                        13,
+                        26,
+                        13,
+                        14,
+                        22,
+                        24,
+                        21,
+                        22,
+                        26,
+                        21,
+                        23,
+                        24,
+                        27,
+                        41,
+                        31,
+                        27,
+                        35,
+                        26,
+                        28,
+                        36,
+                        39,
+                        21,
+                        17,
+                        22,
+                        17,
+                        19,
+                        15,
+                        34,
+                        10,
+                        15,
+                        22,
+                        18,
+                        15,
+                        20,
+                        15,
+                        22,
+                        19,
+                        16,
+                        30,
+                        27,
+                        29,
+                        23,
+                        20,
+                        16,
+                        21,
+                        21,
+                        25,
+                        16,
+                        18,
+                        15,
+                        18,
+                        14,
+                        10,
+                        15,
+                        8,
+                        15,
+                        6,
+                        11,
+                        8,
+                        7,
+                        13,
+                        10,
+                        23,
+                        16,
+                        15,
+                        25,
+                    ],
+                ],
+                "option": "algo=holtwinters",
+                "algo": "holtwinters",
+                "prec": "ms",
+                "wncheck": 1,
+                "return_conf": 1,
+                "forecast_rows": 10,
+                "conf": 0.95,
+                "start": 1577808096000,
+                "every": 1000,
+                "rows": 96,
+                "protocol": 1.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["algo"], "holtwinters")
+        self.assertEqual(response.json["rows"], 10)
+        self.assertEqual(response.json["period"], 0)
+        self.assertEqual(response.json["res"][0][0], 1577808096000)
+        self.assertEqual(response.json["res"][0][-1], 1577808105000)
+        self.assertEqual(len(response.json["res"][0]), response.json["rows"])
+        self.assertEqual(len(response.json["res"]), 4)
+
+    def test_prophet_forecast_model(self):
+        """test forecast api for prophet model"""
+        response = self.client.post(
+            "/forecast",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                        1577808010000,
+                        1577808011000,
+                        1577808012000,
+                        1577808013000,
+                        1577808014000,
+                        1577808015000,
+                        1577808016000,
+                        1577808017000,
+                        1577808018000,
+                        1577808019000,
+                        1577808020000,
+                        1577808021000,
+                        1577808022000,
+                        1577808023000,
+                        1577808024000,
+                        1577808025000,
+                        1577808026000,
+                        1577808027000,
+                        1577808028000,
+                        1577808029000,
+                        1577808030000,
+                        1577808031000,
+                        1577808032000,
+                        1577808033000,
+                        1577808034000,
+                        1577808035000,
+                        1577808036000,
+                        1577808037000,
+                        1577808038000,
+                        1577808039000,
+                        1577808040000,
+                        1577808041000,
+                        1577808042000,
+                        1577808043000,
+                        1577808044000,
+                        1577808045000,
+                        1577808046000,
+                        1577808047000,
+                        1577808048000,
+                        1577808049000,
+                        1577808050000,
+                        1577808051000,
+                        1577808052000,
+                        1577808053000,
+                        1577808054000,
+                        1577808055000,
+                        1577808056000,
+                        1577808057000,
+                        1577808058000,
+                        1577808059000,
+                        1577808060000,
+                        1577808061000,
+                        1577808062000,
+                        1577808063000,
+                        1577808064000,
+                        1577808065000,
+                        1577808066000,
+                        1577808067000,
+                        1577808068000,
+                        1577808069000,
+                        1577808070000,
+                        1577808071000,
+                        1577808072000,
+                        1577808073000,
+                        1577808074000,
+                        1577808075000,
+                        1577808076000,
+                        1577808077000,
+                        1577808078000,
+                        1577808079000,
+                        1577808080000,
+                        1577808081000,
+                        1577808082000,
+                        1577808083000,
+                        1577808084000,
+                        1577808085000,
+                        1577808086000,
+                        1577808087000,
+                        1577808088000,
+                        1577808089000,
+                        1577808090000,
+                        1577808091000,
+                        1577808092000,
+                        1577808093000,
+                        1577808094000,
+                        1577808095000,
+                    ],
+                    [
+                        13,
+                        14,
+                        8,
+                        10,
+                        16,
+                        26,
+                        32,
+                        27,
+                        18,
+                        32,
+                        36,
+                        24,
+                        22,
+                        23,
+                        22,
+                        18,
+                        25,
+                        21,
+                        21,
+                        14,
+                        8,
+                        11,
+                        14,
+                        23,
+                        18,
+                        17,
+                        19,
+                        20,
+                        22,
+                        19,
+                        13,
+                        26,
+                        13,
+                        14,
+                        22,
+                        24,
+                        21,
+                        22,
+                        26,
+                        21,
+                        23,
+                        24,
+                        27,
+                        41,
+                        31,
+                        27,
+                        35,
+                        26,
+                        28,
+                        36,
+                        39,
+                        21,
+                        17,
+                        22,
+                        17,
+                        19,
+                        15,
+                        34,
+                        10,
+                        15,
+                        22,
+                        18,
+                        15,
+                        20,
+                        15,
+                        22,
+                        19,
+                        16,
+                        30,
+                        27,
+                        29,
+                        23,
+                        20,
+                        16,
+                        21,
+                        21,
+                        25,
+                        16,
+                        18,
+                        15,
+                        18,
+                        14,
+                        10,
+                        15,
+                        8,
+                        15,
+                        6,
+                        11,
+                        8,
+                        7,
+                        13,
+                        10,
+                        23,
+                        16,
+                        15,
+                        25,
+                    ],
+                ],
+                "option": "algo=prophet",
+                "algo": "prophet",
+                "prec": "ms",
+                "wncheck": 1,
+                "return_conf": 1,
+                "forecast_rows": 10,
+                "conf": 0.95,
+                "start": 1577808096000,
+                "every": 1000,
+                "rows": 96,
+                "protocol": 1.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["algo"], "prophet")
+        self.assertEqual(response.json["rows"], 10)
+        self.assertEqual(response.json["period"], 0)
+        self.assertEqual(response.json["res"][0][0], 1577808096000)
+        self.assertEqual(response.json["res"][0][-1], 1577808105000)
+        self.assertEqual(len(response.json["res"][0]), response.json["rows"])
+        self.assertEqual(len(response.json["res"]), 4)
+
+    def test_ad(self):
+        """test anomaly detect api"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                        1577808010000,
+                        1577808011000,
+                        1577808012000,
+                        1577808013000,
+                        1577808014000,
+                        1577808015000,
+                        1577808016000,
+                    ],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 22, 8, 21, 28, 11, 9, 29, 40],
+                ],
+                "rows": 17,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1)
+        self.assertEqual(response.json["algo"], "iqr")
+
+    def test_classification(self):
+        """test classification api"""
+        class FakeClassifier:
+            def set_input_data(self, input_data, schema=None):
+                self.input_data = input_data
+
+            def set_params(self, params):
+                self.params = params
+
+            def execute(self):
+                return [1 if row[0] >= 2.0 else 0 for row in self.input_data]
+
+        with patch(
+            "lib.taosanalytics.handlers.classification.loader.get_service",
+            return_value=FakeClassifier(),
+        ):
+            response = self.client.post(
+                "/classification",
+                json={
+                    "algo": "user_classification",
+                    "schema": [["feature", "DOUBLE", 8]],
+                    "data": [[1.0, 2.0, 3.0]],
+                    "option": "threshold=2",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["algo"], "user_classification")
+        self.assertEqual(response.json["rows"], 3)
+        self.assertEqual(response.json["res"], [0, 1, 1])
+
+    def test_ad_error_get(self):
+        """1. invalid http method"""
+        response = self.client.get(
+            "/anomaly-detect",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                        1577808010000,
+                        1577808011000,
+                        1577808012000,
+                        1577808013000,
+                        1577808014000,
+                        1577808015000,
+                        1577808016000,
+                    ],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 22, 8, 21, 28, 11, 9, 29, 40],
+                ],
+                "rows": 17,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_ad_error_empty_payload(self):
+        """2. list that is going to apply anomaly detection is empty or less value than the threshold
+        , which is [10, 100000]"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                    ],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20],
+                ],
+                "rows": 9,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_ad_error_single_col(self):
+        """3. only one column"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                    ]
+                ],
+                "rows": 9,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_ad_multiple_input_cols(self):
+        """4. there are three input columns"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [
+                    ["ts", "TIMESTAMP", 8],
+                    ["val", "INT", 4],
+                    ["val1", "INT", 4],
+                ],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                    ],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                ],
+                "rows": 10,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 2)
+
+    def test_ad_multiple_invalid_cols(self):
+        """4. there are three input columns"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [
+                    ["ts", "TIMESTAMP", 8],
+                    ["val", "INT", 4],
+                    ["val1", "INT", 4],
+                ],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                    ],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20],
+                ],
+                "rows": 10,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_ad_disorder_cols(self):
+        """5. disorder two columns"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [["val", "INT", 4], ["ts", "TIMESTAMP", 8]],
+                "data": [
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                    ],
+                ],
+                "rows": 10,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 2)
+
+    def test_missing_schema(self):
+        """6. missing schema info"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "data": [
+                    [5, 14, 15, 15, 14, 19, 17, 16, 20, 44],
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                    ],
+                ],
+                "rows": 10,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_invalid_schema_info(self):
+        """7. invalid schema info"""
+        response = self.client.post(
+            "/anomaly-detect",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                    ],
+                ],
+                "rows": 10,
+                "algo": "iqr",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_gpt_restful_service(self):
+        response = self.client.post(
+            "/forecast",
+            json={
+                "schema": [["ts", "TIMESTAMP", 8], ["val", "INT", 4]],
+                "data": [
+                    [
+                        1577808000000,
+                        1577808001000,
+                        1577808002000,
+                        1577808003000,
+                        1577808004000,
+                        1577808005000,
+                        1577808006000,
+                        1577808007000,
+                        1577808008000,
+                        1577808009000,
+                        1577808010000,
+                        1577808011000,
+                        1577808012000,
+                        1577808013000,
+                        1577808014000,
+                        1577808015000,
+                        1577808016000,
+                        1577808017000,
+                        1577808018000,
+                        1577808019000,
+                        1577808020000,
+                        1577808021000,
+                        1577808022000,
+                        1577808023000,
+                        1577808024000,
+                        1577808025000,
+                        1577808026000,
+                        1577808027000,
+                        1577808028000,
+                        1577808029000,
+                        1577808030000,
+                        1577808031000,
+                        1577808032000,
+                        1577808033000,
+                        1577808034000,
+                        1577808035000,
+                        1577808036000,
+                        1577808037000,
+                        1577808038000,
+                        1577808039000,
+                        1577808040000,
+                        1577808041000,
+                        1577808042000,
+                        1577808043000,
+                        1577808044000,
+                        1577808045000,
+                        1577808046000,
+                        1577808047000,
+                        1577808048000,
+                        1577808049000,
+                        1577808050000,
+                        1577808051000,
+                        1577808052000,
+                        1577808053000,
+                        1577808054000,
+                        1577808055000,
+                        1577808056000,
+                        1577808057000,
+                        1577808058000,
+                        1577808059000,
+                        1577808060000,
+                        1577808061000,
+                        1577808062000,
+                        1577808063000,
+                        1577808064000,
+                        1577808065000,
+                        1577808066000,
+                        1577808067000,
+                        1577808068000,
+                        1577808069000,
+                        1577808070000,
+                        1577808071000,
+                        1577808072000,
+                        1577808073000,
+                        1577808074000,
+                        1577808075000,
+                        1577808076000,
+                        1577808077000,
+                        1577808078000,
+                        1577808079000,
+                        1577808080000,
+                        1577808081000,
+                        1577808082000,
+                        1577808083000,
+                        1577808084000,
+                        1577808085000,
+                        1577808086000,
+                        1577808087000,
+                        1577808088000,
+                        1577808089000,
+                        1577808090000,
+                        1577808091000,
+                        1577808092000,
+                        1577808093000,
+                        1577808094000,
+                        1577808095000,
+                    ],
+                    [
+                        13,
+                        14,
+                        8,
+                        10,
+                        16,
+                        26,
+                        32,
+                        27,
+                        18,
+                        32,
+                        36,
+                        24,
+                        22,
+                        23,
+                        22,
+                        18,
+                        25,
+                        21,
+                        21,
+                        14,
+                        8,
+                        11,
+                        14,
+                        23,
+                        18,
+                        17,
+                        19,
+                        20,
+                        22,
+                        19,
+                        13,
+                        26,
+                        13,
+                        14,
+                        22,
+                        24,
+                        21,
+                        22,
+                        26,
+                        21,
+                        23,
+                        24,
+                        27,
+                        41,
+                        31,
+                        27,
+                        35,
+                        26,
+                        28,
+                        36,
+                        39,
+                        21,
+                        17,
+                        22,
+                        17,
+                        19,
+                        15,
+                        34,
+                        10,
+                        15,
+                        22,
+                        18,
+                        15,
+                        20,
+                        15,
+                        22,
+                        19,
+                        16,
+                        30,
+                        27,
+                        29,
+                        23,
+                        20,
+                        16,
+                        21,
+                        21,
+                        25,
+                        16,
+                        18,
+                        15,
+                        18,
+                        14,
+                        10,
+                        15,
+                        8,
+                        15,
+                        6,
+                        11,
+                        8,
+                        7,
+                        13,
+                        10,
+                        23,
+                        16,
+                        15,
+                        25,
+                    ],
+                ],
+                "option": "algo=td_gpt_fc",
+                "algo": "td_gpt_fc",
+                "prec": "ms",
+                "wncheck": 0,
+                "return_conf": 0,
+                "forecast_rows": 10,
+                "conf": 95,
+                "start": 1577808096000,
+                "every": 1000,
+                "rows": 21,
+                "protocol": 1.0,
+            },
+        )
+
+    def test_dtw_service(self):
+        response = self.client.post(
+            "/correlation",
+            json={
+                "schema": [["val", "INT", 4], ["val1", "INT", 4]],
+                "data": [[1, 1.1, 1.0, 1.2, 1.1], [1, 1.5, 1.3, 1.8, 1.6]],
+                "option": "algo=dtw,radius=2",
+                "algo": "dtw",
+                "prec": "ms",
+                "wncheck": 0,
+                "protocol": 1.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 7)
+        self.assertTrue(math.isclose(response.json["distance"], 1.6))
+
+    def test_tlcc_service(self):
+        req = {
+            "schema": [["val", "INT", 4], ["val1", "INT", 4]],
+            "data": [],
+            "option": "algo=tlcc,lag_start=-20,lag_end=20",
+            "algo": "tlcc",
+            "prec": "ms",
+            "wncheck": 0,
+            "protocol": 1.0,
+        }
+
+        np.random.seed(42)
+        n = 100
+
+        # x_t:
+        x = np.sin(np.linspace(0, 10, n)) + np.random.normal(0, 0.2, n)
+
+        # y_t: delay 3 steps
+        y = np.roll(x, 3) + np.random.normal(0, 0.2, n)
+
+        req["data"].append(x.tolist())
+        req["data"].append(y.tolist())
+
+        response = self.client.post("/correlation", json=req)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 41)
+        self.assertEqual(np.argmax(response.json["ccf_vals"]), 23)
+
+    def test_batch_process(self):
+        req = {
+            "data": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16,
+                17,
+                18,
+                19,
+                20,
+                21,
+                22,
+                23,
+            ],
+            "ts": [
+                100,
+                200,
+                300,
+                400,
+                500,
+                600,
+                700,
+                800,
+                900,
+                1000,
+                1100,
+                1200,
+                1300,
+                1400,
+                1500,
+                1600,
+                1700,
+                1800,
+                1900,
+                2000,
+                2100,
+                2200,
+                2300,
+            ],
+            "config": {
+                "hampel": {
+                    "window_size": 7,
+                    "sigma": 3,
+                    "active": True,
+                }
+            },
+            "window": [(100, 1100), (1200, 2300)],
+            "prec": "ms",
+            "protocol": 1.0,
+        }
+
+        response = self.client.post("/tool/batch", json=req)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1000)
+
+    @staticmethod
+    def _batch_request(data, ts):
+        return {
+            "data": data,
+            "ts": ts,
+            "window": [(100, 200)],
+            "prec": "ms",
+            "protocol": 1.0,
+        }
+
+    def test_batch_process_rejects_mismatched_ts_and_data(self):
+        """`ts` masks `data`, so a length difference must not reach NumPy."""
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1, 2, 3], [100, 200])
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("same length", response.json["msg"])
+
+    def test_batch_process_rejects_non_numeric_data_entry(self):
+        data = [1.0] * 10
+        data[1] = "2"
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(10))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("str", response.json["msg"])
+
+    def test_batch_process_rejects_bool_data_entry(self):
+        """bool is an int subclass and would silently become 0/1."""
+        data = [1.0] * 10
+        data[1] = True
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(10))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("bool", response.json["msg"])
+
+    def test_batch_process_rejects_too_few_points(self):
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 3, list(range(3)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("[10, 40000]", response.json["msg"])
+
+    def test_batch_process_rejects_int_too_wide_for_float(self):
+        """Must be refused here: np.array would widen the column to object dtype."""
+        data = [1.0] * 10
+        data[1] = 2**1024
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("too large", response.json["msg"])
+
+    def test_batch_process_accepts_int_beyond_int64(self):
+        """2**63 exceeds int64 but is a fine float, so it must not be refused."""
+        data = [1.0] * 10
+        data[1] = 2**63
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(100, 110))),
+        )
+
+        self.assertGreater(response.json["rows"], 0)
+        self.assertNotIn("msg", response.json)
+
+    def test_batch_process_rejects_nan(self):
+        data = [1.0] * 10
+        data[1] = float("nan")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_infinity(self):
+        data = [1.0] * 10
+        data[1] = float("inf")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_non_numeric_timestamp(self):
+        """One bad `ts` entry widens the column to object dtype downstream."""
+        ts = list(range(10))
+        ts[1] = "200"
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+
+    def test_batch_process_rejects_bool_timestamp(self):
+        ts = list(range(10))
+        ts[1] = True
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+        self.assertIn("bool", response.json["msg"])
+
+    def test_batch_process_rejects_timestamp_beyond_int64(self):
+        """Timestamps stay integers, so they must fit the 64-bit column."""
+        ts = list(range(10))
+        ts[1] = 2**63
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("64-bit timestamp", response.json["msg"])
+
+    def test_batch_process_rejects_nan_timestamp(self):
+        ts = list(range(10))
+        ts[1] = float("nan")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_unsorted_timestamps(self):
+        """`[0, 3, 1, 2]` must be refused, not silently shortened to `[0, 3]`."""
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request([1.0] * 10, [100, 300, 200, 400] + list(range(500, 506))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("ascending order", response.json["msg"])
+        self.assertIn("index 2", response.json["msg"])
+
+    def test_batch_process_rejects_empty_input(self):
+        response = self.client.post("/tool/batch", json=self._batch_request([], []))
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("must not be empty", response.json["msg"])
+
+    def test_batch_process_rejects_missing_data(self):
+        req = self._batch_request([1, 2, 3], [100, 200, 300])
+        del req["data"]
+
+        response = self.client.post("/tool/batch", json=req)
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("required", response.json["msg"])
+
+    @patch("lib.app.do_deploy_dynamic_model")
+    def test_deploy_model(self, mock_deploy):
+        mock_deploy.return_value = (
+            {
+                "status": "success",
+                "message": "Model sample_model deployed successfully",
+            },
+            200,
+        )
+
+        response = self.client.post(
+            "/deploy",
+            json={
+                "model_name": "sample_model",
+                "config": {"algo": "arima", "best_params": {"p": 3, "d": 1, "q": 1}},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    # --- /api/v1/analysis/pearsonr tests ---
+
+    def test_pearsonr_happy_path(self):
+        """happy path: two correlated columns"""
+        response = self.client.post(
+            "/api/v1/analysis/pearsonr",
+            json={
+                "schema": [["val", "DOUBLE", 8], ["val1", "DOUBLE", 8]],
+                "data": [
+                    [
+                        1.0,
+                        2.0,
+                        3.0,
+                        4.0,
+                        5.0,
+                        6.0,
+                        7.0,
+                        8.0,
+                        9.0,
+                        10.0,
+                        11.0,
+                        12.0,
+                        13.0,
+                        14.0,
+                        15.0,
+                        16.0,
+                        17.0,
+                        18.0,
+                        19.0,
+                        20.0,
+                    ],
+                    [
+                        2.0,
+                        4.0,
+                        6.0,
+                        8.0,
+                        10.0,
+                        12.0,
+                        14.0,
+                        16.0,
+                        18.0,
+                        20.0,
+                        22.0,
+                        24.0,
+                        26.0,
+                        28.0,
+                        30.0,
+                        32.0,
+                        34.0,
+                        36.0,
+                        38.0,
+                        40.0,
+                    ],
+                ],
+                "wncheck": 0,
+                "protocol": 1.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], 1)
+        self.assertAlmostEqual(response.json["correlation_coefficient"], 1.0, places=5)
+
+    def test_pearsonr_get_method_not_allowed(self):
+        """GET on pearsonr endpoint should return 405"""
+        response = self.client.get("/api/v1/analysis/pearsonr")
+        self.assertEqual(response.status_code, 405)
+
+    def test_pearsonr_missing_second_column(self):
+        """pearsonr with only one data column should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/pearsonr",
+            json={
+                "schema": [["val", "DOUBLE", 8]],
+                "data": [
+                    [
+                        1.0,
+                        2.0,
+                        3.0,
+                        4.0,
+                        5.0,
+                        6.0,
+                        7.0,
+                        8.0,
+                        9.0,
+                        10.0,
+                        11.0,
+                        12.0,
+                        13.0,
+                        14.0,
+                        15.0,
+                        16.0,
+                        17.0,
+                        18.0,
+                        19.0,
+                        20.0,
+                    ]
+                ],
+                "wncheck": 0,
+                "protocol": 1.0,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("second data column", response.json["msg"])
+
+    def test_pearsonr_non_json_request_body(self):
+        """pearsonr with non-JSON request body should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/pearsonr", data="not-json", content_type="text/plain"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    # --- /api/v1/analysis/profile-search tests ---
+
+    def test_profile_search_happy_path_dtw(self):
+        """happy path: DTW profile search with top-N results"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "dtw", "params": {"radius": 1}},
+                "result": {"num": 2},
+                "source_data": [1, 2, 3, 4, 5],
+                "target_data": {
+                    "ts": [[1, 5], [2, 6], [3, 7]],
+                    "data": [[1, 2, 3, 4, 5], [2, 3, 4, 5, 6], [5, 4, 3, 2, 1]],
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 2)
+        self.assertEqual(res["metric_type"], "dtw_distance")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
+        self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
+
+    @patch("lib.app.do_undeploy_dynamic_model")
+    def test_undeploy_model(self, mock_undeploy):
+        mock_undeploy.return_value = (
+            {
+                "status": "success",
+                "message": "Model sample_model undeployed successfully",
+            },
+            200,
+        )
+
+        response = self.client.post("/undeploy", json={"model_name": "sample_model"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "success")
+        self.assertIn("undeployed successfully", response.json["message"])
+        mock_undeploy.assert_called_once()
+
+    def test_profile_search_happy_path_cosine(self):
+        """happy path: cosine similarity profile search"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "cosine", "params": {}},
+                "result": {"threshold": 0.9},
+                "source_data": [1, 0, -1],
+                "target_data": {
+                    "ts": [[10, 12], [20, 22], [30, 32]],
+                    "data": [[2, 0, -2], [-1, 0, 1], [1, 1, 1]],
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        res = response.json
+        self.assertEqual(res["rows"], 1)
+        self.assertEqual(res["metric_type"], "cosine_similarity")
+        self.assertAlmostEqual(res["matches"][0]["criteria"], 1.0)
+
+    def test_profile_search_get_method_not_allowed(self):
+        """GET on profile-search endpoint should return 405"""
+        response = self.client.get("/api/v1/analysis/profile-search")
+        self.assertEqual(response.status_code, 405)
+
+    def test_profile_search_missing_source_data(self):
+        """missing source_data should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "dtw", "params": {"radius": 1}},
+                "result": {"num": 1},
+                "target_data": {"ts": [[1, 5]], "data": [[1, 2, 3, 4, 5]]},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_num_and_threshold_conflict(self):
+        """both num and threshold set should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "dtw", "params": {"radius": 1}},
+                "result": {"num": 1, "threshold": 0.5},
+                "source_data": [1, 2, 3],
+                "target_data": {"ts": [[1, 3]], "data": [[1, 2, 3]]},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_missing_result_field(self):
+        """neither num nor threshold provided should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "dtw", "params": {"radius": 1}},
+                "result": {},
+                "source_data": [1, 2, 3],
+                "target_data": {"ts": [[1, 3]], "data": [[1, 2, 3]]},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)
+
+    def test_profile_search_source_data_too_large(self):
+        """source_data exceeding max length should return error"""
+        response = self.client.post(
+            "/api/v1/analysis/profile-search",
+            json={
+                "normalization": "none",
+                "algo": {"type": "dtw", "params": {"radius": 1}},
+                "result": {"num": 1},
+                "source_data": list(range(10001)),
+                "target_data": {"ts": [[1, 3]], "data": [[1, 2, 3]]},
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["rows"], -1)

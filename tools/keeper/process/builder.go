@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package process
 
 import (
@@ -12,7 +27,7 @@ import (
 
 var builderLogger = log.GetLogger("BLD")
 
-func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.MetricsConfig) (tables map[string]struct{}, err error) {
+func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *config.Metrics) (tables map[string]struct{}, err error) {
 	tables = make(map[string]struct{})
 	for _, name := range cfg.Tables {
 		builderLogger.Debug("normal table: ", name)
@@ -26,7 +41,7 @@ func ExpandMetricsFromConfig(ctx context.Context, conn *db.Connector, cfg *confi
 	}
 
 	sql := fmt.Sprintf(GetStableNameListSql(), cfg.Database.Name)
-	data, err := conn.Query(ctx, sql, util.GetQidOwn())
+	data, err := conn.QueryWithRetryForever(ctx, sql, util.GetQidOwn(config.Conf.InstanceID))
 	if err != nil {
 		return nil, err
 	}

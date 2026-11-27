@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,6 +24,7 @@ extern "C" {
 
 #include "catalog.h"
 #include "planner.h"
+#include "tmsg.h"
 
 typedef struct SQueryProfileSummary {
   int64_t startTs;  // Object created and added into the message queue
@@ -53,21 +56,32 @@ typedef bool (*schedulerChkKillFp)(void* param);
 typedef struct SSchedulerReq {
   bool               syncReq;
   bool               localReq;
+  bool               inlineTaskLaunch;
   SRequestConnInfo*  pConn;
   SArray*            pNodeList;
   SQueryPlan*        pDag;
   int64_t            allocatorRefId;
   const char*        sql;
   int64_t            startTs;
+  int64_t            txnId;  // batch meta txn ID for same-txn visibility
   schedulerExecFp    execFp;
   schedulerFetchFp   fetchFp;
   void*              cbParam;
+  void (*cbParamFreeFp)(void*);
   schedulerChkKillFp chkKillFp;
   void*              chkKillParam;
   SExecResult*       pExecRes;
   void**             pFetchRes;
   int8_t             source;
+  int8_t             secureDelete;
   void*              pWorkerCb;
+  int8_t             firstDayOfWeek; /* 0-6, resolved by client before dispatch */
+  SCorrelationExecution correlation;
+  const SArray*      pCorrelationParamDefs;       // Borrowed; scheduler duplicates the array.
+  const SArray*      pCorrelationParamValues;     // Borrowed; scheduler deep-copies value payloads.
+  const SNodeList*   pCorrelationTimeRangeInit;   // Borrowed; scheduler serializes the node list.
+  const SArray*      pExternalSubquerySources;  // Borrowed producer endpoints from the parent job.
+  bool*              pPlanTaken;  // Optional out; true means scheduler owns or has freed pDag.
 } SSchedulerReq;
 
 int32_t schedulerInit(void);
@@ -77,6 +91,8 @@ int32_t schedulerExecJob(SSchedulerReq* pReq, int64_t* pJob);
 int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq* pReq);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray* pSub);
+
+int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStartTime);
 
 void schedulerStopQueryHb(void* pTrans);
 

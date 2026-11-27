@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -13,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_GEOS
 #include <geos_c.h>
 #include "geosWrapper.h"
 #include "geomFunc.h"
@@ -25,9 +28,9 @@ typedef int32_t (*_geomDoRelationFunc_t)(const GEOSGeometry *geom1, const GEOSPr
                                          const GEOSGeometry *geom2, bool swapped, char *res);
 
 typedef int32_t (*_geomInitCtxFunc_t)();
-typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData);
+typedef int32_t (*_geomExecuteOneParamFunc_t)(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData, void *charsetCxt);
 typedef int32_t (*_geomExecuteTwoParamsFunc_t)(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
-                                               SColumnInfoData *pOutputData);
+                                               SColumnInfoData *pOutputData, void *charsetCxt);
 
 // output is with VARSTR format
 // need to call taosMemoryFree(*output) later
@@ -129,7 +132,7 @@ _exit:
 }
 
 int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32_t iRight,
-                             SColumnInfoData *pOutputData) {
+                             SColumnInfoData *pOutputData, void *charsetCxt) {
   int32_t code = TSDB_CODE_FAILED;
   unsigned char *output = NULL;
 
@@ -140,8 +143,8 @@ int32_t executeMakePointFunc(SColumnInfoData *pInputData[], int32_t iLeft, int32
   double         leftRes = 0;
   double         rightRes = 0;
 
-  TAOS_CHECK_GOTO(getDoubleValueFn[0](pInputData[0]->pData, iLeft, &leftRes), NULL, _exit);
-  TAOS_CHECK_GOTO(getDoubleValueFn[1](pInputData[1]->pData, iRight, &rightRes), NULL, _exit);
+  TAOS_CHECK_GOTO(getDoubleValueFn[0](pInputData[0]->pData, iLeft, &leftRes, charsetCxt), NULL, _exit);
+  TAOS_CHECK_GOTO(getDoubleValueFn[1](pInputData[1]->pData, iRight, &rightRes, charsetCxt), NULL, _exit);
   TAOS_CHECK_GOTO(doMakePointFunc(leftRes, rightRes, &output), NULL, _exit);
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, TMAX(iLeft, iRight), output, (output == NULL)), NULL, _exit);
 
@@ -153,28 +156,55 @@ _exit:
   return code;
 }
 
-int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeGeomFromTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData, void *charsetCxt) {
   int32_t code = TSDB_CODE_FAILED;
 
   if (!IS_VAR_DATA_TYPE((pInputData)->info.type)) {
     return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
   }
 
-  char          *input = colDataGetData(pInputData, i);
+  char          *rawInput = colDataGetData(pInputData, i);
+  char          *input = rawInput;
+  char          *ncharBuf = NULL;
   unsigned char *output = NULL;
 
+  // NCHAR data is UCS-4 encoded; convert to a VARSTR-format ASCII/UTF-8 buffer
+  // so that the GEOS WKT parser receives a proper string.
+  if (pInputData->info.type == TSDB_DATA_TYPE_NCHAR) {
+    int32_t ucs4Bytes = varDataLen(rawInput);
+    ncharBuf = taosMemoryCalloc(1, ucs4Bytes + VARSTR_HEADER_SIZE + 1);
+    if (ncharBuf == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    int32_t mbsLen =
+        taosUcs4ToMbs((TdUcs4 *)varDataVal(rawInput),
+                                        ucs4Bytes, varDataVal(ncharBuf), charsetCxt);
+    if (mbsLen < 0) {
+      code = TSDB_CODE_FAILED;
+      goto _exit;
+    }
+    varDataSetLen(ncharBuf, mbsLen);
+    input = ncharBuf;
+  }
+
   TAOS_CHECK_GOTO(doGeomFromTextFunc(input, &output), NULL, _exit);
+  if (output) {
+    // reset binary str length after parsing
+    pOutputData->info.bytes = varDataLen(output) + VARSTR_HEADER_SIZE;
+  }
   TAOS_CHECK_GOTO(colDataSetVal(pOutputData, i, output, (output == NULL)), NULL, _exit);
 
 _exit:
   if (output) {
     taosMemoryFree(output);
   }
+  taosMemoryFree(ncharBuf);
 
   return code;
 }
 
-int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData) {
+int32_t executeAsTextFunc(SColumnInfoData *pInputData, int32_t i, SColumnInfoData *pOutputData, void *charsetCxt) {
   int32_t code = TSDB_CODE_FAILED;
 
   unsigned char *input = colDataGetData(pInputData, i);
@@ -222,7 +252,7 @@ int32_t geomOneParamFunction(SScalarParam *pInput, SScalarParam *pOutput, _geomI
         continue;
       }
 
-      TAOS_CHECK_RETURN(executeOneParamFn(pInputData, i, pOutputData));
+      TAOS_CHECK_RETURN(executeOneParamFn(pInputData, i, pOutputData, pInput->charsetCxt));
     }
   }
 
@@ -261,7 +291,7 @@ int32_t geomTwoParamsFunction(SScalarParam *pInput, SScalarParam *pOutput, _geom
         continue;
       }
 
-      TAOS_CHECK_RETURN(executeTwoParamsFn(pInputData, iLeft, iRight, pOutputData));
+      TAOS_CHECK_RETURN(executeTwoParamsFn(pInputData, iLeft, iRight, pOutputData, pInput[0].charsetCxt));
     }
   }
 
@@ -385,3 +415,4 @@ int32_t containsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 int32_t containsProperlyFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   return geomRelationFunction(pInput, pOutput, false, doContainsProperly);
 }
+#endif

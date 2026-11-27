@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,12 +33,12 @@
 #define GET_HASH_NODE_DATA(_n) ((char *)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n)     ((SHashNode *)((char *)(_n) - sizeof(SHashNode)))
 
-#define FREE_HASH_NODE(_fp, _n)      \
-  do {                               \
-    if (_fp != NULL) {               \
-      (_fp)(GET_HASH_NODE_DATA(_n)); \
-    }                                \
-    taosMemoryFreeClear(_n);         \
+#define FREE_HASH_NODE(_fp, _n)                              \
+  do {                                                       \
+    if (_fp != NULL && (((SHashNode *)(_n))->dataLen > 0)) { \
+      (_fp)(GET_HASH_NODE_DATA(_n));                         \
+    }                                                        \
+    taosMemoryFreeClear(_n);                                 \
   } while (0);
 
 struct SHashNode {
@@ -46,7 +48,10 @@ struct SHashNode {
   uint32_t   keyLen;    // length of the key
   uint16_t   refCount;  // reference count
   int8_t     removed;   // flag to indicate removed
-  char       data[];
+#ifdef TD_ASTRA_32
+  uint32_t paddingAligned;
+#endif
+  char data[];
 };
 
 typedef struct SHashEntry {
@@ -56,9 +61,9 @@ typedef struct SHashEntry {
 } SHashEntry;
 
 struct SHashObj {
-  SHashEntry      **hashList;
-  size_t            capacity;      // number of slots
   int64_t           size;          // number of elements in hash table
+  size_t            capacity;      // number of slots
+  SHashEntry      **hashList;
   _hash_fn_t        hashFp;        // hash function
   _equal_fn_t       equalFp;       // equal function
   _hash_free_fn_t   freeFp;        // hash node free callback function
@@ -398,6 +403,7 @@ int32_t taosHashGetDup_m(SHashObj *pHashObj, const void *key, size_t keyLen, voi
 
 void *taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void **d, int32_t *size, bool addRef) {
   if (pHashObj == NULL || keyLen == 0 || key == NULL) {
+    terrno = TSDB_CODE_INVALID_PTR;
     return NULL;
   }
 
@@ -673,7 +679,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 #ifdef _TD_LOONGARCH_64
   SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #else
-  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize + 1);
+  SHashNode *pNewNode = taosMemoryCalloc(1, sizeof(SHashNode) + keyLen + dsize + 1);
 #endif
 
   if (pNewNode == NULL) {

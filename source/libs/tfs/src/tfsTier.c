@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,18 +20,45 @@
 
 extern int64_t tsMinDiskFreeSize;
 
+typedef struct {
+  int32_t nextid;
+} SDiskCursor;
+
+static SDiskCursor *tfsDiskCursorNew(int32_t nextid) {
+  SDiskCursor *pCursor = (SDiskCursor *)taosMemoryMalloc(sizeof(SDiskCursor));
+  if (pCursor == NULL) {
+    return NULL;
+  }
+  pCursor->nextid = nextid;
+  return pCursor;
+}
+
+static void tfsDiskCursorFree(void *p) {
+  if (p) {
+    SDiskCursor *pCursor = *(SDiskCursor **)p;
+    taosMemoryFree(pCursor);
+  }
+}
+
 int32_t tfsInitTier(STfsTier *pTier, int32_t level) {
   (void)memset(pTier, 0, sizeof(STfsTier));
 
   if (taosThreadSpinInit(&pTier->lock, 0) != 0) {
-    TAOS_RETURN(TAOS_SYSTEM_ERROR(errno));
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }
 
   pTier->level = level;
+  pTier->hash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (pTier->hash == NULL) {
+    TAOS_RETURN(terrno);
+  }
+  taosHashSetFreeFp(pTier->hash, tfsDiskCursorFree);
   return 0;
 }
 
 void tfsDestroyTier(STfsTier *pTier) {
+  taosHashCleanup(pTier->hash);
+  pTier->hash = NULL;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; id++) {
     pTier->disks[id] = tfsFreeDisk(pTier->disks[id]);
   }
@@ -108,7 +137,11 @@ void tfsUpdateTierSize(STfsTier *pTier) {
 }
 
 // Round-Robin to allocate disk on a tier
-int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
+int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label) {
+  return tfsAllocDiskOnTierWithStrategy(pTier, label, TFS_DISK_ALLOC_ROUND_ROBIN);
+}
+
+int32_t tfsAllocDiskOnTierWithStrategy(STfsTier *pTier, const char *label, int32_t strategy) {
   TAOS_UNUSED(tfsLockTier(pTier));
 
   if (pTier->ndisk <= 0 || pTier->nAvailDisks <= 0) {
@@ -116,11 +149,31 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
   }
 
+  // get the existing cursor or create a new one
+  SDiskCursor *pCursor = NULL;
+  void        *p = taosHashGet(pTier->hash, label, strlen(label));
+
+  if (p) {
+    pCursor = *(SDiskCursor **)p;
+  } else {
+    pCursor = tfsDiskCursorNew(pTier->nextid);
+    if (pCursor == NULL) {
+      TAOS_UNUSED(tfsUnLockTier(pTier));
+      TAOS_RETURN(terrno);
+    }
+
+    int32_t code = taosHashPut(pTier->hash, label, strlen(label), &pCursor, sizeof(pCursor));
+    if (code != 0) {
+      TAOS_UNUSED(tfsUnLockTier(pTier));
+      TAOS_RETURN(code);
+    }
+  }
+
+  // do allocation
   int32_t retId = -1;
-  int64_t avail = 0;
+  double minUsedRatio = 0;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; ++id) {
-#if 1  // round-robin
-    int32_t   diskId = (pTier->nextid + id) % pTier->ndisk;
+    int32_t   diskId = (pCursor->nextid + id) % pTier->ndisk;
     STfsDisk *pDisk = pTier->disks[diskId];
 
     if (pDisk == NULL) continue;
@@ -137,22 +190,19 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier) {
       continue;
     }
 
-    retId = diskId;
-    terrno = 0;
-    pTier->nextid = (diskId + 1) % pTier->ndisk;
-    break;
-#else  // select the disk with the most available space
-    STfsDisk *pDisk = pTier->disks[id];
-    if (pDisk == NULL) continue;
-
-    if (pDisk->size.avail < tsMinDiskFreeSize) continue;
-
-    if (pDisk->size.avail > avail) {
-      avail = pDisk->size.avail;
-      retId = id;
-      terrno = 0;
+    if (strategy == TFS_DISK_ALLOC_LEAST_USED) {
+      if (pDisk->size.total <= 0) continue;
+      double usedRatio = (double)pDisk->size.used / (double)pDisk->size.total;
+      if (retId >= 0 && usedRatio >= minUsedRatio) continue;
+      minUsedRatio = usedRatio;
     }
-#endif
+    retId = diskId;
+    if (strategy != TFS_DISK_ALLOC_LEAST_USED) break;
+  }
+
+  if (retId >= 0) {
+    terrno = 0;
+    pCursor->nextid = (retId + 1) % pTier->ndisk;
   }
 
   TAOS_UNUSED(tfsUnLockTier(pTier));

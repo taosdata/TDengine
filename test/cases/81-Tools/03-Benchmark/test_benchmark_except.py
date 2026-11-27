@@ -1,0 +1,206 @@
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+
+from new_test_framework.utils import tdLog, tdSql, etool, sc
+import os
+import time
+_ASAN_BUILD = os.environ.get("CI_ASAN_BUILD") == "1"
+import threading
+import signal
+import psutil
+
+class TestBenchmarkExcept:
+    updatecfgDict = {
+        'slowLogScope' : "others"
+    }
+
+    def setup_class(cls):
+        tdLog.info(f"start to init {__file__}")
+        cls._rlist = None
+
+    #
+    # ------------------- common helpers ----------------
+    #
+    def get_pids_by_name(self, process_name):
+        pids = []
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] == process_name:
+                pids.append(proc.pid)
+        return pids
+
+    def wait_for_benchmark(self, timeout=30, interval=0.5):
+        """Poll until taosBenchmark process appears, return pids."""
+        elapsed = 0
+        while elapsed < timeout:
+            pids = self.get_pids_by_name("taosBenchmark")
+            if pids:
+                tdLog.info(f"Found taosBenchmark with PID: {pids}")
+                return pids
+            time.sleep(interval)
+            elapsed += interval
+        tdLog.exit("Timeout waiting for taosBenchmark process to start.")
+        return []
+
+    def stop_leftover_benchmark(self, pids):
+        """Prevent a stuck benchmark from extending the CI case timeout."""
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                tdLog.info(f"Killed leftover taosBenchmark process: {pid}")
+            except ProcessLookupError:
+                pass
+
+    #
+    # ------------------- test_insert_cancel ----------------
+    #
+    def stopThread(self, isForceExit):
+        tdLog.info(f"stopThread start, force={isForceExit}")
+        pids = self.wait_for_benchmark()
+        if not pids:
+            tdLog.exit("No process named taosBenchmark was found.")
+
+        # Wait for benchmark to enter active insert phase
+        time.sleep(3)
+
+        os.kill(pids[0], signal.SIGINT)
+        if isForceExit:
+            # Standard signals are not queued. Give the first handler a full
+            # scheduler time slice before delivering the forced-stop signal.
+            time.sleep(1)
+            os.kill(pids[0], signal.SIGINT)
+
+        # Wait for benchmark to finish and write output.
+        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
+        _max_wait = 90 if _ASAN_BUILD else 15
+        for _ in range(_max_wait):
+            if self._rlist is not None:
+                break
+            time.sleep(1)
+
+        if self._rlist:
+            tdLog.info(self._rlist)
+            if isForceExit:
+                self.checkListString(self._rlist, "Benchmark process forced exit!")
+            else:
+                self.checkListString(self._rlist, "Receive SIGINT or other signal, quit benchmark")
+        else:
+            self.stop_leftover_benchmark(pids)
+            tdLog.exit("The benchmark process has not stopped!")
+
+    def dbInsertThread(self, cmd):
+        tdLog.info(f"dbInsertThread start, cmd: {cmd}")
+        self._rlist = self.benchmark(cmd, checkRun=False)
+
+    # run
+    def do_insert_cancel(self):
+        tdLog.info(f"start to execute {__file__} - insert cancel")
+
+        # Use enough tables so benchmark is still running when SIGINT arrives
+        cmd = "-d db -t 10000 -n 10000 -T 8 -I stmt -y"
+
+        # Test 1: graceful cancel (single SIGINT)
+        self._rlist = None
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.stopThread, args=(False,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        # Test 2: forced exit (double SIGINT)
+        self._rlist = None
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.stopThread, args=(True,))
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        tdLog.info("do insert canceled .................... [passed]")
+
+    #
+    # ------------------- test_insert_error_exit ----------------
+    #
+    def dnodeNodeStopThread(self):
+        tdLog.info("dnodeNodeStopThread start")
+        pids = self.wait_for_benchmark()
+        if not pids:
+            tdLog.exit("No process named taosBenchmark was found.")
+
+        # Wait for benchmark to enter active insert phase
+        time.sleep(3)
+        tdLog.info("stopping dnode 1 ...")
+        sc.dnodeStop(1)
+
+        # Wait for benchmark to detect error and exit.
+        # Under ASAN taosBenchmark exits much slower; poll instead of sleeping a fixed amount.
+        _max_wait = 90 if _ASAN_BUILD else 15
+        for _ in range(_max_wait):
+            if self._rlist is not None:
+                break
+            time.sleep(1)
+
+        if self._rlist:
+            tdLog.info(self._rlist)
+            self.checkListString(self._rlist, "failed to execute insert statement. reason: Vnode stopped")
+        else:
+            self.stop_leftover_benchmark(pids)
+            tdLog.exit("The benchmark process has not stopped!")
+
+    # run
+    def do_insert_error_exit(self):
+        self._rlist = None
+        tdLog.info(f"start to execute {__file__} - insert error exit")
+
+        # Use enough tables so benchmark is still running when dnode stops
+        cmd = "-d db -t 10000 -n 10000 -T 4 -I stmt -y"
+        t1 = threading.Thread(target=self.dbInsertThread, args=(cmd,))
+        t2 = threading.Thread(target=self.dnodeNodeStopThread)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        tdLog.info("do insert error exit .................. [passed]")
+
+
+    #
+    # ------------------- main ----------------
+    #
+    def test_benchmark_except(self):
+        """taosBenchmark exception
+
+        1. Insert operator be canceled check expect
+        2. Insert operator be forced exit check expect
+        3. Insert operator meet dnode exit check expect
+
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_insert_cancle.py
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_insert_error_exit.py
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/
+            - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/
+
+        """
+        self.do_insert_cancel()
+        self.do_insert_error_exit()

@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "syncTest.h"
 
 void logTest() {
@@ -41,14 +58,14 @@ int main(int argc, char** argv) {
   }
 
   SSyncNode* pSyncNode = syncNodeInit();
-  assert(pSyncNode != NULL);
+  TD_ALWAYS_ASSERT(pSyncNode != NULL);
 
   printf("---------------------------------------\n");
   SSyncIndexMgr* pSyncIndexMgr = syncIndexMgrCreate(pSyncNode);
-  assert(pSyncIndexMgr != NULL);
+  TD_ALWAYS_ASSERT(pSyncIndexMgr != NULL);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -63,7 +80,7 @@ int main(int argc, char** argv) {
   // syncIndexMgrSetTerm(pSyncIndexMgr, &ids[2], 900);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }
@@ -81,7 +98,7 @@ int main(int argc, char** argv) {
   syncIndexMgrClear(pSyncIndexMgr);
   {
     char* serialized = syncIndexMgr2Str(pSyncIndexMgr);
-    assert(serialized != NULL);
+    TD_ALWAYS_ASSERT(serialized != NULL);
     printf("%s\n", serialized);
     taosMemoryFree(serialized);
   }

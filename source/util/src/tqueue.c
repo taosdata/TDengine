@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,12 +34,13 @@ struct STaosQueue {
   void         *ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
-  TdThreadMutex mutex;
-  int64_t       memOfItems;
+  FFreeItem     freeFp;
   int32_t       numOfItems;
+  int64_t       memOfItems;
   int64_t       threadId;
   int64_t       memLimit;
   int64_t       itemLimit;
+  TdThreadMutex mutex;
 };
 
 struct STaosQset {
@@ -83,6 +86,10 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
   queue->itemsFp = itemsFp;
 }
 
+void taosQueueSetFreeFp(STaosQueue *queue, FFreeItem fp) {
+  if (queue) queue->freeFp = fp;
+}
+
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
@@ -101,6 +108,9 @@ void taosCloseQueue(STaosQueue *queue) {
   while (pNode) {
     pTemp = pNode;
     pNode = pNode->next;
+    if (queue->freeFp) {
+      queue->freeFp((void *)((char *)pTemp + sizeof(STaosQnode)));
+    }
     taosMemoryFree(pTemp);
   }
 
@@ -205,6 +215,14 @@ void taosFreeQitem(void *pItem) {
   taosMemoryFree(pNode);
 }
 
+void taosFreeQueueItem(STaosQueue *queue, void *pItem) {
+  if (pItem == NULL) return;
+  if (queue != NULL && queue->freeFp != NULL) {
+    queue->freeFp(pItem);
+  }
+  taosFreeQitem(pItem);
+}
+
 int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   int32_t     code = 0;
   STaosQnode *pNode = (STaosQnode *)(((char *)pItem) - sizeof(STaosQnode));
@@ -214,14 +232,14 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
   (void)taosThreadMutexLock(&queue->mutex);
   if (queue->memLimit > 0 && (queue->memOfItems + pNode->size + pNode->dataSize) > queue->memLimit) {
     code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
-    uError("item:%p failed to put into queue:%p, queue mem limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
+    uError("item:%p, failed to put into queue:%p, queue mem limit:%" PRId64 ", reason:%s" PRId64, pItem, queue,
            queue->memLimit, tstrerror(code));
 
     (void)taosThreadMutexUnlock(&queue->mutex);
     return code;
   } else if (queue->itemLimit > 0 && queue->numOfItems + 1 > queue->itemLimit) {
     code = TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
-    uError("item:%p failed to put into queue:%p, queue size limit: %" PRId64 ", reason: %s" PRId64, pItem, queue,
+    uError("item:%p, failed to put into queue:%p, queue size limit:%" PRId64 ", reason:%s" PRId64, pItem, queue,
            queue->itemLimit, tstrerror(code));
     (void)taosThreadMutexUnlock(&queue->mutex);
     return code;
@@ -240,14 +258,18 @@ int32_t taosWriteQitem(STaosQueue *queue, void *pItem) {
     (void)atomic_add_fetch_32(&queue->qset->numOfItems, 1);
   }
 
-  uTrace("item:%p is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
+  uTrace("item:%p, is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
 
   (void)taosThreadMutexUnlock(&queue->mutex);
 
   if (queue->qset) {
     if (tsem_post(&queue->qset->sem) != 0) {
       uError("failed to post semaphore for queue set:%p", queue->qset);
+    } else {
+      uDebug("sem_post Qset %p, sem:%p", queue->qset, &queue->qset->sem);
     }
+  } else {
+    uDebug("empty qset");
   }
   return code;
 }
@@ -269,7 +291,7 @@ void taosReadQitem(STaosQueue *queue, void **ppItem) {
     if (queue->qset) {
       (void)atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
     }
-    uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
+    uTrace("item:%p, is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
            queue->memOfItems);
   }
 
@@ -341,7 +363,7 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
     qall->unAccessedNumOfItems -= 1;
     qall->unAccessMemOfItems -= pNode->dataSize;
 
-    uTrace("item:%p is fetched", *ppItem);
+    uTrace("item:%p, is fetched", *ppItem);
   } else {
     *ppItem = NULL;
   }
@@ -361,7 +383,7 @@ int32_t taosOpenQset(STaosQset **qset) {
     return terrno;
   }
 
-  uDebug("qset:%p is opened", qset);
+  uDebug("qset:%p, is opened", qset);
   return 0;
 }
 
@@ -384,7 +406,7 @@ void taosCloseQset(STaosQset *qset) {
     uError("failed to destroy semaphore for qset:%p", qset);
   }
   taosMemoryFree(qset);
-  uDebug("qset:%p is closed", qset);
+  uDebug("qset:%p, is closed", qset);
 }
 
 // tsem_post 'qset->sem', so that reader threads waiting for it
@@ -414,7 +436,7 @@ int32_t taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle) {
 
   (void)taosThreadMutexUnlock(&qset->mutex);
 
-  uTrace("queue:%p is added into qset:%p", queue, qset);
+  uTrace("queue:%p, is added into qset:%p", queue, qset);
   return 0;
 }
 
@@ -455,16 +477,18 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
 
   (void)taosThreadMutexUnlock(&qset->mutex);
 
-  uDebug("queue:%p is removed from qset:%p", queue, qset);
+  uDebug("queue:%p, is removed from qset:%p", queue, qset);
 }
 
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo) {
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
 
+  uDebug("start to waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
   if (tsem_wait(&qset->sem) != 0) {
     uError("failed to wait semaphore for qset:%p", qset);
   }
+  uDebug("end waitfromQset %p, sem:%p, idx:%d", qset, &qset->sem, qinfo->workerId);
 
   (void)taosThreadMutexLock(&qset->mutex);
 
@@ -491,8 +515,8 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo)
       queue->memOfItems -= (pNode->size + pNode->dataSize);
       (void)atomic_sub_fetch_32(&qset->numOfItems, 1);
       code = 1;
-      uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems - 1,
-             queue->memOfItems);
+      uTrace("item:%p, is read out from queue:%p, timeInQueue:%" PRId64 "us , items:%d mem:%" PRId64, 
+          *ppItem, queue, taosGetTimestampUs() - pNode->timestamp, queue->numOfItems - 1, queue->memOfItems);
     }
 
     (void)taosThreadMutexUnlock(&queue->mutex);
@@ -543,10 +567,15 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
       uTrace("read %d items from queue:%p, items:0 mem:%" PRId64, code, queue, queue->memOfItems);
 
       (void)atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
-      for (int32_t j = 1; j < qall->numOfItems; ++j) {
+
+      STaosQnode *pNode = qall->start->next;
+      // skip the first node, tsem_wait has been called once at the beginning of this function
+      // queue->numOfItems is not entirely reliable and may be larger than the actual value due to concurrency issues.
+      while (pNode) {
         if (tsem_wait(&qset->sem) != 0) {
           uError("failed to wait semaphore for qset:%p", qset);
         }
+        pNode = pNode->next;
       }
     }
 

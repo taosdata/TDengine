@@ -1,17 +1,19 @@
 /*
-* Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-*
-* This program is free software: you can use, redistribute, and/or modify
-* it under the terms of the GNU Affero General Public License, version 3
-* or later ("AGPL"), as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful, but WITHOUT
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-* FITNESS FOR A PARTICULAR PURPOSE.
-*
-* You should have received a copy of the GNU Affero General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #ifndef TDENGINE_FUNCTIONRESINFOINT_H
 #define TDENGINE_FUNCTIONRESINFOINT_H
@@ -20,10 +22,12 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "thistogram.h"
-#include "tdigest.h"
+#include "decimal.h"
+#include "fillPrev.h"
 #include "functionResInfo.h"
+#include "os.h"
+#include "tdigest.h"
+#include "thistogram.h"
 #include "tpercentile.h"
 
 #define USE_ARRAYLIST
@@ -43,19 +47,121 @@ typedef struct SSumRes {
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
-  bool    overflow;  // if overflow is true, dsum to be used for any type;
+  bool    overflow;  // floating-point accumulation became inf/NaN and must be output as NULL;
+  bool    hasResult;  // at least one non-NULL value has been accumulated
 } SSumRes;
 
+typedef struct SDecimalSumRes {
+  Decimal128 sum;
+  int16_t    type;
+  int64_t    prevTs;
+  bool       isPrevTsSet;
+  bool       overflow;
+  uint32_t   flag;  // currently not used
+} SDecimalSumRes;
+
+#define SUM_RES_GET_RES(pSumRes)         ((SSumRes*)pSumRes)
+#define SUM_RES_GET_DECIMAL_RES(pSumRes) ((SDecimalSumRes*)pSumRes)
+
+#define SUM_RES_GET_SIZE(type) IS_DECIMAL_TYPE(type) ? sizeof(SDecimalSumRes) : sizeof(SSumRes)
+
+#define SUM_RES_SET_TYPE(pSumRes, inputType, _type)   \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      SUM_RES_GET_DECIMAL_RES(pSumRes)->type = _type; \
+    else                                              \
+      SUM_RES_GET_RES(pSumRes)->type = _type;         \
+  } while (0)
+
+#define SUM_RES_GET_TYPE(pSumRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->type : SUM_RES_GET_RES(pSumRes)->type)
+#define SUM_RES_GET_PREV_TS(pSumRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->prevTs : SUM_RES_GET_RES(pSumRes)->prevTs)
+#define SUM_RES_GET_OVERFLOW(pSumRes, checkInputType, inputType)                             \
+  (checkInputType && IS_DECIMAL_TYPE(inputType) ? SUM_RES_GET_DECIMAL_RES(pSumRes)->overflow \
+                                                : SUM_RES_GET_RES(pSumRes)->overflow)
+
+#define SUM_RES_GET_ISUM(pSumRes)      (((SSumRes*)(pSumRes))->isum)
+#define SUM_RES_GET_USUM(pSumRes)      (((SSumRes*)(pSumRes))->usum)
+#define SUM_RES_GET_DSUM(pSumRes)      (((SSumRes*)(pSumRes))->dsum)
+#define SUM_RES_INC_ISUM(pSumRes, val) ((SSumRes*)(pSumRes))->isum += val
+#define SUM_RES_INC_USUM(pSumRes, val) ((SSumRes*)(pSumRes))->usum += val
+#define SUM_RES_INC_DSUM(pSumRes, val) ((SSumRes*)(pSumRes))->dsum += val
+
+#define SUM_RES_GET_DECIMAL_SUM(pSumRes) ((SDecimalSumRes*)(pSumRes))->sum
+#define SUM_RES_INC_DECIMAL_SUM(pSumRes, pVal, type)                                           \
+  do {                                                                                         \
+    const SDecimalOps* pOps = getDecimalOps(TSDB_DATA_TYPE_DECIMAL);                           \
+    int32_t            wordNum = 0;                                                            \
+    if (type == TSDB_DATA_TYPE_DECIMAL64) {                                                    \
+      wordNum = DECIMAL_WORD_NUM(Decimal64);                                                   \
+      overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
+    } else {                                                                                   \
+      wordNum = DECIMAL_WORD_NUM(Decimal);                                                     \
+      overflow = decimal128AddCheckOverflow(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum); \
+    }                                                                                          \
+    pOps->add(&SUM_RES_GET_DECIMAL_SUM(pSumRes), pVal, wordNum);                               \
+    if (overflow) break;                                                                       \
+  } while (0)
+
 typedef struct SMinmaxResInfo {
-  bool      assign;  // assign the first value or not
-  int64_t   v;
-  char      *str;
+  bool assign;  // assign the first value or not
+  union {
+    struct {
+      int64_t v;
+      char*   str;
+    };
+    int64_t dec[2];  // for decimal types
+  };
   STuplePos tuplePos;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
   int16_t   type;
 } SMinmaxResInfo;
+
+// TIME_ALIGN optional time-range parameter state.  Fixed units are converted
+// to ticks of the input time axis precision with getDuration(); calendar units
+// (n/y) keep the period count and advance timestamps with taosTimeAdd().
+typedef struct SFillSpanInfo {
+  SFillPrevRange range;
+  bool           spanReady;
+  bool           mono;
+  bool           desc;
+} SFillSpanInfo;
+
+typedef struct SFillforwardInfo {
+  SFillPrevValue value;
+  SFillSpanInfo  span;
+} SFillforwardInfo;
+
+// One output position whose successor value is not known yet, together with
+// the row timestamp used by the optional time-range parameter.
+typedef struct SFillNextPending {
+  int32_t pos;    // absolute output position in the host result block
+  int64_t rowTs;  // timestamp of the pending row
+} SFillNextPending;
+
+// NEXT keeps the output positions whose successor is not known yet.  The
+// positions are absolute row indexes in the host result block (the block that
+// accumulates rows across input blocks, see projectApplyFunctions), so a value
+// found in a later input block can be written back in place.
+typedef struct SFillNextInfo {
+  SArray* pPending;     // SArray<SFillNextPending>, ascending output positions
+  int32_t pendingHead;  // first unresolved entry (monotonic inputs only)
+  SFillSpanInfo span;
+} SFillNextInfo;
+
+typedef struct SOldMinMaxResInfo {
+  bool      assign;  // assign the first value or not
+  int64_t   v;
+  char*     str;
+  STuplePos tuplePos;
+
+  STuplePos nullTuplePos;
+  bool      nullTupleSaved;
+  int16_t   type;
+} SOldMinMaxResInfo;
 
 typedef struct SStdRes {
   double  result;
@@ -72,6 +178,23 @@ typedef struct SStdRes {
   };
   int16_t type;
 } SStdRes;
+
+typedef struct SGconcatRes {
+  char*    result;
+  char*    separator;
+  uint32_t type;
+  bool     nchar;
+} SGconcatRes;
+
+typedef struct SCorrRes {
+  double  result;
+  double  sumLeft;
+  double  sumRight;
+  double  quadLeft;
+  double  quadRight;
+  double  productVal;
+  int64_t count;
+} SCorrRes;
 
 typedef struct SHistBin {
   double  val;
@@ -133,10 +256,59 @@ typedef struct SAvgRes {
   int16_t type;  // store the original input type, used in merge function
 } SAvgRes;
 
+typedef struct SDecimalAvgRes {
+  Decimal128     avg;
+  SDecimalSumRes sum;
+  int64_t        count;
+  int16_t        type;  // store the original input type and scale, used in merge function
+  uint8_t        scale;
+} SDecimalAvgRes;
+
+#define AVG_RES_GET_RES(pAvgRes)         ((SAvgRes*)pAvgRes)
+#define AVG_RES_GET_DECIMAL_RES(pAvgRes) ((SDecimalAvgRes*)pAvgRes)
+#define AVG_RES_SET_TYPE(pAvgRes, inputType, _type)   \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      AVG_RES_GET_DECIMAL_RES(pAvgRes)->type = _type; \
+    else                                              \
+      AVG_RES_GET_RES(pAvgRes)->type = _type;         \
+  } while (0)
+
+#define AVG_RES_SET_INPUT_SCALE(pAvgRes, _scale)      \
+  do {                                                \
+    AVG_RES_GET_DECIMAL_RES(pAvgRes)->scale = _scale; \
+  } while (0)
+
+#define AVG_RES_GET_INPUT_SCALE(pAvgRes) (AVG_RES_GET_DECIMAL_RES(pAvgRes)->scale)
+
+#define AVG_RES_GET_TYPE(pAvgRes, inputType) \
+  (IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->type : AVG_RES_GET_RES(pAvgRes)->type)
+
+#define AVG_RES_GET_SIZE(inputType) (IS_DECIMAL_TYPE(inputType) ? sizeof(SDecimalAvgRes) : sizeof(SAvgRes))
+#define AVG_RES_GET_AVG(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->result)
+#define AVG_RES_GET_SUM(pAvgRes)    (AVG_RES_GET_RES(pAvgRes)->sum)
+#define AVG_RES_GET_COUNT(pAvgRes, checkInputType, inputType)                             \
+  (checkInputType && IS_DECIMAL_TYPE(inputType) ? AVG_RES_GET_DECIMAL_RES(pAvgRes)->count \
+                                                : AVG_RES_GET_RES(pAvgRes)->count)
+#define AVG_RES_INC_COUNT(pAvgRes, inputType, val)    \
+  do {                                                \
+    if (IS_DECIMAL_TYPE(inputType))                   \
+      AVG_RES_GET_DECIMAL_RES(pAvgRes)->count += val; \
+    else                                              \
+      AVG_RES_GET_RES(pAvgRes)->count += val;         \
+  } while (0)
+
+#define AVG_RES_GET_DECIMAL_AVG(pAvgRes) (((SDecimalAvgRes*)(pAvgRes))->avg)
+#define AVG_RES_GET_DECIMAL_SUM(pAvgRes) (((SDecimalAvgRes*)(pAvgRes))->sum)
+
+#define AVG_RES_GET_SUM_OVERFLOW(pAvgRes, checkInputType, inputType)             \
+  checkInputType&& IS_DECIMAL_TYPE(inputType)                                    \
+      ? SUM_RES_GET_OVERFLOW(&AVG_RES_GET_DECIMAL_SUM(pAvgRes), true, inputType) \
+      : SUM_RES_GET_OVERFLOW(&AVG_RES_GET_SUM(pAvgRes), false, inputType)
 
 // structs above are used in stream
 
-#define HISTOGRAM_MAX_BINS_NUM 1000
+#define HISTOGRAM_MAX_BINS_NUM 1000  // N bins accept at most N + 1 user boundaries
 #define MAVG_MAX_POINTS_NUM    1000
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
@@ -180,7 +352,7 @@ typedef struct MinMaxEntry {
 typedef struct {
   int32_t    size;
   int32_t    pageId;
-  SFilePage *data;
+  SFilePage* data;
 } SSlotInfo;
 
 typedef struct tMemBucketSlot {
@@ -189,12 +361,13 @@ typedef struct tMemBucketSlot {
 } tMemBucketSlot;
 
 struct tMemBucket;
-typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value, int32_t *index);
+typedef int32_t (*__perc_hash_func_t)(struct tMemBucket* pBucket, const void* value, int32_t* index);
 
 typedef struct tMemBucket {
   int16_t            numOfSlots;
   int16_t            type;
   int32_t            bytes;
+  STypeMod           typeMod;
   int32_t            total;
   int32_t            elemPerPage;  // number of elements for each object
   int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
@@ -202,10 +375,10 @@ typedef struct tMemBucket {
   MinMaxEntry        range;        // value range
   int32_t            times;        // count that has been checked for deciding the correct data value buckets.
   __compar_fn_t      comparFn;
-  tMemBucketSlot    *pSlots;
-  SDiskbasedBuf     *pBuffer;
+  tMemBucketSlot*    pSlots;
+  SDiskbasedBuf*     pBuffer;
   __perc_hash_func_t hashFunc;
-  SHashObj          *groupPagesMap;  // disk page map for different groups;
+  SHashObj*          groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
 typedef struct SPercentileInfo {
@@ -225,8 +398,6 @@ typedef struct SDiffInfo {
     int64_t i64;
     double  d64;
   } prev;
-
-  int64_t prevTs;
 } SDiffInfo;
 
 typedef struct SElapsedInfo {
@@ -242,7 +413,88 @@ typedef struct STwaInfo {
   int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
+  int8_t      tsOrder;
 } STwaInfo;
+
+// value_changes: count of adjacent value changes on the timeline. `count` is the
+// finalize output slot (must be first). Equality is delegated to a per-type comparator
+// (getComparFunc with OP_TYPE_EQUAL); NaN==NaN and epsilon float equality come for free.
+// prevData is a flexible buffer holding the previous compared cell (varData incl. length
+// prefix for var types), sized by getValueChangesFuncEnv from the input column bytes.
+typedef struct SValueChangesInfo {
+  int64_t       count;       // output slot (BIGINT), must be first
+  int64_t       numOfElems;  // rows seen (incl. NULL) - distinguishes empty table from all-equal
+  bool          hasPrev;     // a previous compared value exists
+  bool          prevIsNull;  // the previous compared value is NULL (ignore_null=0 path)
+  int8_t        ignoreNull;  // 1 (default): skip NULL transparently; 0: NULL participates
+  int8_t        inputType;   // resolved input column type (0 = not yet resolved)
+  STypeMod      typeMod;     // DECIMAL precision/scale; FS mandates decimal compared as DOUBLE
+  __compar_fn_t comparFn;    // resolved equality comparator (DOUBLE comparator for decimal input)
+  TSKEY         prevTs;      // for DUP_TIMESTAMP detection
+  bool          hasPrevTs;
+  int32_t       prevBytes;   // valid bytes currently stored in prevData
+  char          prevData[];  // previous compared value (fixed value or varData)
+} SValueChangesInfo;
+
+typedef struct SBitChangesInfo {
+  int64_t  count;       // finalized change-count output slot (BIGINT), must be first
+  int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
+  uint64_t mask;
+  int8_t   flag;
+  int8_t   inputType;
+  bool     hasPrev;
+  uint64_t prevMasked;
+  TSKEY    prevTs;
+  bool     hasPrevTs;
+} SBitChangesInfo;
+
+typedef struct SBitDurationInfo {
+  // functionFinalize reads the first field as the BIGINT output. TOTAL derives it from
+  // firstTs/totalLastTs; other modes copy duration here before finalization.
+  int64_t  result;      // finalized duration output slot, must remain first
+  int64_t  duration;    // NONZERO/ZERO accumulated duration in native timestamp ticks
+  int64_t  numOfRows;  // rows seen, including NULL rows; distinguishes empty input
+  uint64_t mask;
+  int8_t   mode;
+  int8_t   inputType;          // resolved TSDB_DATA_TYPE_* value
+  bool     inputTypeResolved;  // inputType was established by a non-NULL typed column
+  bool     hasPrev;     // valid value state exists
+  bool     hasPrevTs;   // prevTs is set for duplicate/order checks
+  bool     seedPending;      // segmentStartTs still comes from the interpolation seed
+  bool     startSeedApplied; // external-window predecessor was accounted for
+  bool     hasFirstTs;  // firstTs is set; seeding can set only hasPrev
+  // ASC PK iterator state is reusable only by the next block in the same group.
+  bool     hasPendingPkTs;
+  bool     prevNonZero;
+  TSKEY    prevTs;
+  TSKEY    pendingPkTs;
+  uint64_t pendingPkGroupId;  // owner group; a different group discards pendingPkTs
+  TSKEY    firstTs;
+  TSKEY    totalLastTs;    // TOTAL mode: timestamp of the last valid row
+  TSKEY    segmentStartTs; // NONZERO/ZERO: pending segment start, or one tick past a settled end
+} SBitDurationInfo;
+
+// Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
+// unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
+typedef struct STwsumInfo {
+  double      dTwsumRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated integral (value * ticks)
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwsumInfo;
+
+// Time-weighted population variance: (1/T)*INT v^2 dt - mu^2, mu = twa.
+typedef struct STwvarInfo {
+  double      dTwvarRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated INT v dt
+  double      d2Output;   // accumulated INT v^2 dt
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwvarInfo;
 
 typedef struct SHistoFuncBin {
   double  lower;
@@ -265,6 +517,7 @@ typedef struct SStateInfo {
   };
   int64_t prevTs;
   bool    isPrevTsSet;
+  int8_t  tsOrder;
 } SStateInfo;
 
 typedef struct SMavgInfo {
@@ -279,10 +532,10 @@ typedef struct SMavgInfo {
 
 typedef struct SSampleInfo {
   int32_t  samples;
-  int32_t  totalPoints;
+  int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
-  uint16_t colBytes;
+  int32_t  colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;
@@ -292,9 +545,10 @@ typedef struct SSampleInfo {
 } SSampleInfo;
 
 typedef struct STailItem {
-  int64_t timestamp;
-  bool    isNull;
-  char    data[];
+  int64_t   timestamp;
+  bool      isNull;
+  STuplePos tuplePos;
+  char      data[];
 } STailItem;
 
 typedef struct STailInfo {
@@ -303,6 +557,8 @@ typedef struct STailInfo {
   int32_t     offset;
   uint8_t     colType;
   uint16_t    colBytes;
+  STuplePos   nullTuplePos;
+  bool        nullTupleSaved;
   STailItem** pItems;
 } STailInfo;
 
@@ -344,6 +600,7 @@ typedef struct SDerivInfo {
   bool    ignoreNegative;  // ignore the negative value
   int64_t tsWindow;        // time window for derivative
   bool    valueSet;        // the value has been set already
+  int8_t  tsOrder;
 } SDerivInfo;
 
 typedef struct SRateInfo {
@@ -353,11 +610,11 @@ typedef struct SRateInfo {
   TSKEY  lastKey;
   int8_t hasResult;  // flag to denote has value
 
-  char* firstPk;
-  char* lastPk;
-  int8_t pkType;
+  char*   firstPk;
+  char*   lastPk;
+  int8_t  pkType;
   int32_t pkBytes;
-  char pkData[];
+  char    pkData[];
 } SRateInfo;
 
 #ifdef __cplusplus

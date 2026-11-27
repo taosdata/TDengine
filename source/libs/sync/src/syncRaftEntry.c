@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -33,16 +35,18 @@ SSyncRaftEntry* syncEntryBuild(int32_t dataLen) {
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
+SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, const STraceId *traceId) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   if (pEntry == NULL) return NULL;
 
   pEntry->msgType = pMsg->msgType;
   pEntry->originalRpcType = pMsg->originalRpcType;
+  pEntry->originRpcTraceId = *traceId;
   pEntry->seqNum = pMsg->seqNum;
   pEntry->isWeak = pMsg->isWeak;
   pEntry->term = term;
   pEntry->index = index;
+  pEntry->txnId = pMsg->txnId;  // propagate transaction ID for WAL body prefix (multi-replica path)
   memcpy(pEntry->data, pMsg->data, pMsg->dataLen);
 
   return pEntry;
@@ -54,10 +58,12 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
 
   pEntry->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pEntry->originalRpcType = pMsg->msgType;
+  pEntry->originRpcTraceId = pMsg->info.traceId;
   pEntry->seqNum = 0;
   pEntry->isWeak = 0;
   pEntry->term = term;
   pEntry->index = index;
+  pEntry->txnId = pMsg->info.txnId;  // propagate transaction ID for WAL body prefix
   memcpy(pEntry->data, pMsg->pCont, pMsg->contLen);
 
   return pEntry;
@@ -110,6 +116,7 @@ int32_t syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
     return terrno;
   }
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
+  pRpcMsg->info.txnId = pEntry->txnId;  // restore txnId so apply-side can fast-filter
 
   return 0;
 }

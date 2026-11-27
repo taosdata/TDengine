@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -51,7 +53,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
 
 int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex);
-int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely);
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely, const STraceId *trace);
 
 int64_t syncNodeUpdateAssignedCommitIndex(SSyncNode* ths, SyncIndex assignedCommitIndex);
 

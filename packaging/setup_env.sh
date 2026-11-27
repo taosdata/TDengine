@@ -1,6 +1,20 @@
 #!/bin/bash
 
-# Run cleanup function on exit
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 trap cleanup EXIT
 
 # define default timezone
@@ -47,11 +61,21 @@ REPOPATH="$HOME/repos"
 # Define the path to the script directory
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 
+# Locate repo root and builder config directory
+REPO_ROOT=$(cd "$SCRIPT_DIR/../../.." && pwd)
+BUILDER_DIR="$REPO_ROOT/tools/tsdb-builder"
+
 # Define the path to the .bashrc file
 BASH_RC=$HOME/.bashrc
 
 # Define the path to the Cargo configuration file
 CARGO_CONFIG_FILE=$HOME/.cargo/config.toml
+
+# Read mirror settings from builder config (single source of truth)
+if [ -f "$BUILDER_DIR/.build-args" ]; then
+    DEFAULT_GOPROXY=$(grep '^GO_PROXY=' "$BUILDER_DIR/.build-args" | cut -d= -f2-)
+fi
+DEFAULT_GOPROXY="${DEFAULT_GOPROXY:-https://nexus.tdengine.net/repository/goproxy/}"
 
 # Define jmeter version to be installed
 JMETER_VERSION="5.6.3"
@@ -99,26 +123,21 @@ parse_git_branch() {
 export PS1="\u@\h \[\e[32m\]\w \[\e[91m\]\$(parse_git_branch)\[\e[00m\]$ "
 EOF
 
-read -r -d '' CARGO_CONFIG <<'EOF'
+# Read Cargo config from builder (single source of truth)
+if [ -f "$BUILDER_DIR/.cargo/config.toml" ]; then
+    CARGO_CONFIG=$(cat "$BUILDER_DIR/.cargo/config.toml")
+else
+    read -r -d '' CARGO_CONFIG <<'EOF'
 [source.crates-io]
-replace-with = 'rsproxy-sparse'
-[source.rsproxy]
-registry = "https://rsproxy.cn/crates.io-index"
-[source.rsproxy-sparse]
-registry = "sparse+https://rsproxy.cn/index/"
-[registries.rsproxy]
-index = "https://rsproxy.cn/crates.io-index"
+replace-with = 'internal'
+[source.internal]
+registry = "sparse+https://nora.tdengine.net/cargo/index/"
+[registries.internal]
+index = "sparse+https://nora.tdengine.net/cargo/index/"
 [net]
 git-fetch-with-cli = true
-[source.tuna]
-registry = "https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index.git"
-[source.ustc]
-registry = "git://mirrors.ustc.edu.cn/crates.io-index"
-[source.sjtu]
-registry = "https://mirrors.sjtug.sjtu.edu.cn/git/crates.io-index"
-[source.rustcc]
-registry = "git://crates.rustcc.cn/crates.io-index"
 EOF
+fi
 
 # Help function to display usage information
 help() {
@@ -175,6 +194,7 @@ help() {
     echo "  deploy_docker               - Deploy Docker"
     echo "  deploy_docker_compose       - Deploy Docker Compose"
     echo "  install_trivy               - Install Trivy"
+    echo "  install_uv                  - Install uv"
     echo "  clone_enterprise            - Clone the enterprise repository"
     echo "  clone_community             - Clone the community repository"
     echo "  clone_taosx                 - Clone TaosX repository"
@@ -408,11 +428,17 @@ install_package() {
 # Install package via apt
 install_via_apt() {
     echo -e "${YELLOW}Installing packages: $*...${NO_COLOR}"
-    if DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
-        echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
-    else
-        echo -e "${RED}Failed to install packages.${NO_COLOR}"
-        return 1
+    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+            echo "Attempting to update and install $package..."
+            apt update -y
+            if DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" "$@"; then
+                    echo -e "${GREEN}Installed packages successfully.${NO_COLOR}"
+            else
+                    echo -e "${RED}Failed to install packages.${NO_COLOR}"
+                    return 1
+            fi
+        fi
     fi
 }
 
@@ -756,7 +782,7 @@ install_python() {
     if echo "$INSTALLED_VERSION" | grep -q "$MAJOR_MINOR_VERSION"; then
         echo -e "${GREEN}Python $MAJOR_MINOR_VERSION installed successfully.${NO_COLOR}"
     else
-        echo -e "${YELLOW}Python version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Python version does not match.${NO_COLOR}"
         exit 1
     fi
 }
@@ -941,13 +967,13 @@ install_java() {
     add_config_if_not_exist "export PATH=\$PATH:\$JAVA_HOME/bin" "$BASH_RC"
     # shellcheck source=/dev/null
     export JAVA_HOME=/usr/local/jdk-${JDK_VERSION_NUM}
-    export PATH=$PATH:$JAVA_HOME/bin
+    export PATH=$JAVA_HOME/bin:$PATH
     INSTALLED_VERSION=$("$JAVA_HOME"/bin/java --version 2>&1)
     if echo "$INSTALLED_VERSION" | grep -q "openjdk $DEFAULT_JDK_VERSION"; then
         echo -e "${GREEN}Java installed successfully.${NO_COLOR}"
         SOURCE_RESULTS+="source /root/.bashrc  # For openjdk\n"
     else
-        echo -e "${YELLOW}Java version not match.${NO_COLOR}"
+        echo -e "${YELLOW}Java version does not match.${NO_COLOR}"
         exit 1
     fi
 }
@@ -976,7 +1002,7 @@ install_gvm() {
         gvm version
         check_status "Failed to install GVM" "GVM installed successfully." $?
         add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
-        add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+        add_config_if_not_exist "export GOPROXY=${DEFAULT_GOPROXY},direct" "$BASH_RC"
         add_config_if_not_exist "export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/" "$BASH_RC"
         add_config_if_not_exist "export GOROOT_BOOTSTRAP=$GOROOT" "$BASH_RC"
     fi
@@ -1022,7 +1048,7 @@ install_python_via_pyenv() {
     if [ -n "$1" ]; then
         DEFAULT_PYTHON_VERSION="$1"
     else
-        DEFAULT_PYTHON_VERSION="3.10.12"
+        DEFAULT_PYTHON_VERSION="3.12.16"
     fi
     install_pyenv
     enable_pyenv
@@ -1096,7 +1122,7 @@ deploy_go() {
     add_config_if_not_exist "export GOPATH=$GOPATH_DIR" "$BASH_RC"
     add_config_if_not_exist "export PATH=\$PATH:\$GOROOT/bin" "$BASH_RC"
     add_config_if_not_exist "export GO111MODULE=on" "$BASH_RC"
-    add_config_if_not_exist "export GOPROXY=https://goproxy.cn,direct" "$BASH_RC"
+    add_config_if_not_exist "export GOPROXY=${DEFAULT_GOPROXY},direct" "$BASH_RC"
 
     # Apply the environment variables
     $GO_INSTALL_DIR/bin/go version
@@ -1115,7 +1141,7 @@ install_go_via_gvm() {
     install_gvm
     source $HOME/.gvm/scripts/gvm
     export GO111MODULE=on
-    export GOPROXY=https://goproxy.cn,direct
+    export GOPROXY=${DEFAULT_GOPROXY},direct
     export GO_BINARY_BASE_URL=https://mirrors.aliyun.com/golang/
     export GOROOT_BOOTSTRAP=$GOROOT
 
@@ -1534,12 +1560,13 @@ EOF
 
 # Install Grafana using a downloaded .deb package
 deploy_grafana() {
+    LATEST_VERSION=$(curl --retry 10 --retry-delay 5 --retry-max-time 120 -s https://api.github.com/repos/grafana/grafana/releases/latest | grep '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')
     if [ -f /etc/debian_version ]; then
         # Debian or Ubuntu
-        deploy_debian_grafana
+        deploy_debian_grafana "$LATEST_VERSION"
     elif [ -f /etc/redhat-release ]; then
         # Red Hat or CentOS
-        deploy_redhat_grafana
+        deploy_redhat_grafana "$LATEST_VERSION"
     else
         echo "Unsupported Linux distribution."
         exit 1
@@ -1549,12 +1576,13 @@ deploy_grafana() {
 # Install Grafana for ubuntu/debian
 deploy_debian_grafana() {
     # Check if Grafana is already installed
-    if ! dpkg -s "grafana" &> /dev/null; then
+    if ! dpkg -s "grafana" && ! dpkg -s "grafana-enterprise" &> /dev/null; then
         echo "Downloading the latest Grafana .deb package..."
         # Download the latest Grafana .deb package
-        wget https://dl.grafana.com/oss/release/grafana_latest_amd64.deb -O grafana.deb
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana_${grafana_latest_version}_amd64.deb -O grafana.deb
         # install the required fontconfig package
-        install_package libfontconfig1
+        install_package adduser libfontconfig1 musl
         echo "Installing Grafana..."
         # Install the .deb package
         dpkg -i grafana.deb
@@ -1583,7 +1611,8 @@ deploy_redhat_grafana() {
     if ! rpm -q grafana &> /dev/null; then
         echo "Downloading the latest Grafana .rpm package..."
         # Download the latest Grafana .rpm package
-        wget https://dl.grafana.com/oss/release/grafana-8.5.2-1.x86_64.rpm -O grafana.rpm
+        grafana_latest_version=$1
+        wget https://dl.grafana.com/oss/release/grafana-${grafana_latest_version}-1.x86_64.rpm -O grafana.rpm
 
         # Install the required fontconfig package
         yum install -y fontconfig
@@ -1784,6 +1813,32 @@ install_trivy() {
     rm -rf trivy_"${LATEST_VERSION#v}"_Linux-64bit.deb trivy_"${LATEST_VERSION#v}"_Linux-64bit.rpm
 }
 
+# Install uv
+install_uv() {
+    local uv_url="https://astral.sh/uv/install.sh"
+    local uv_path="$HOME/.local/bin/uv"
+
+    echo -e "${YELLOW}Checking for uv installation...${NO_COLOR}"
+
+    if [ -f "$uv_path" ]; then
+        echo -e "${GREEN}uv is already installed.${NO_COLOR}"
+    else
+        echo -e "${YELLOW}Installing uv...${NO_COLOR}"
+        if ! command -v curl &> /dev/null; then
+            echo -e "${RED}Error: curl is not installed. Please install curl first.${NO_COLOR}"
+            install_package curl
+        fi
+
+        if curl --retry 10 --retry-delay 5 --retry-max-time 120 -LsSf "$uv_url" | sh; then
+            echo -e "${GREEN}uv has been installed successfully.${NO_COLOR}"
+            SOURCE_RESULTS+="# For uv\nsource $HOME/.local/bin/env (sh, bash, zsh)\nsource $HOME/.local/bin/env.fish (fish)\n"
+        else
+            echo -e "${RED}Error: Failed to install uv.${NO_COLOR}"
+            return 1
+        fi
+    fi
+}
+
 # Reconfigure cloud-init
 reconfig_cloud_init() {
     echo "Reconfiguring cloud-init..."
@@ -1941,7 +1996,7 @@ clone_repos() {
 
 new_funcs() {
     echo "Adding test..."
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.16
     install_java_via_sdkman 21.0.2
     install_node 16.20.2
     install_maven_via_sdkman 3.2.5
@@ -1964,7 +2019,7 @@ TDinternal() {
     install_java_via_sdkman 17
     install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.16
     install_via_pip pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml taospy taos-ws-py
 }
 
@@ -2058,6 +2113,7 @@ deploy_dev() {
     deploy_docker
     deploy_docker_compose
     install_trivy
+    install_uv
     check_status "Failed to deploy some tools" "Deploy all tools successfully" $?
 }
 
@@ -2215,6 +2271,9 @@ main() {
                 ;;
             install_trivy)
                 install_trivy
+                ;;
+            install_uv)
+                install_uv
                 ;;
             clone_enterprise)
                 clone_enterprise

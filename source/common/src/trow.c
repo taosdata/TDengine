@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -412,7 +414,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
   void     *varBuf = NULL;
   bool      isAlloc = false;
 
-  if(nColVal <= 1) {
+  if (nColVal <= 1) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -434,23 +436,24 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
       }
     } else {
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+        int32_t extraBytes = !IS_STR_DATA_BLOB(pTColumn->type) ? sizeof(VarDataLenT) : sizeof(BlobDataLenT);
         if (pColVal && COL_VAL_IS_VALUE(pColVal)) {
-          varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
-          if (maxVarDataLen < (pColVal->value.nData + sizeof(VarDataLenT))) {
-            maxVarDataLen = pColVal->value.nData + sizeof(VarDataLenT);
+          varDataLen += (pColVal->value.nData + extraBytes);
+          if (maxVarDataLen < (pColVal->value.nData + extraBytes)) {
+            maxVarDataLen = pColVal->value.nData + extraBytes;
           }
         } else {
-          varDataLen += sizeof(VarDataLenT);
+          varDataLen += extraBytes;
           if (pTColumn->type == TSDB_DATA_TYPE_VARCHAR || pTColumn->type == TSDB_DATA_TYPE_VARBINARY ||
               pTColumn->type == TSDB_DATA_TYPE_GEOMETRY) {
             varDataLen += CHAR_BYTES;
-            if (maxVarDataLen < CHAR_BYTES + sizeof(VarDataLenT)) {
-              maxVarDataLen = CHAR_BYTES + sizeof(VarDataLenT);
+            if (maxVarDataLen < CHAR_BYTES + extraBytes) {
+              maxVarDataLen = CHAR_BYTES + extraBytes;
             }
           } else {
             varDataLen += INT_BYTES;
-            if (maxVarDataLen < INT_BYTES + sizeof(VarDataLenT)) {
-              maxVarDataLen = INT_BYTES + sizeof(VarDataLenT);
+            if (maxVarDataLen < INT_BYTES + extraBytes) {
+              maxVarDataLen = INT_BYTES + extraBytes;
             }
           }
         }
@@ -517,7 +520,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow, int8_t r
         val = varBuf;
         ++iBound;
       } else {
-        val = (const void *)&pColVal->value.val;
+        val = VALUE_GET_DATUM(&pColVal->value, pTColumn->type);
         ++iBound;
       }
     } else {
@@ -784,7 +787,7 @@ int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
   TD_ROW_SET_INFO(pBuilder->pBuf, 0);
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
-  if(!(pBuilder->nBitmaps > 0 && pBuilder->flen > 0)) {
+  if (!(pBuilder->nBitmaps > 0 && pBuilder->flen > 0)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -825,7 +828,7 @@ int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if(!(pBuilder->nBitmaps > 0 && pBuilder->flen > 0)) {
+  if (!(pBuilder->nBitmaps > 0 && pBuilder->flen > 0)) {
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
@@ -972,7 +975,7 @@ int32_t tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pC
       pColVal->value.nData = varDataLen(cv.val);
       pColVal->value.pData = varDataVal(cv.val);
     } else {
-      (void)memcpy(&pColVal->value.val, cv.val, tDataTypes[pTColumn->type].bytes);
+      valueSetDatum(&pColVal->value, pTColumn->type, cv.val, tDataTypes[pTColumn->type].bytes);
     }
   }
   return 0;

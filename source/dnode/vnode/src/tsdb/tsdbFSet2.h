@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,7 +45,11 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 void    tsdbTFileSetClear(STFileSet **fset);
+// shared-storage migration helpers (tsdbMigrate.c), exposed for unit tests
+int32_t     tsdbValidateRemoteFset(const STFileSet *pFset, int32_t fid);
+const char *tsdbSsKeyBasename(const char *key);
 void    tsdbTFileSetRemove(STFileSet *fset);
+int64_t tsdbTFileSetGetDataSize(const STFileSet *fset);
 
 int32_t tsdbTFileSetFilteredInitDup(STsdb *pTsdb, const STFileSet *fset1, int64_t ever, STFileSet **fset,
                                     TFileOpArray *fopArr);
@@ -94,15 +100,21 @@ struct STFileSet {
   TSttLvlArray lvlArr[1];             // level array
   TSKEY        lastCompact;
   TSKEY        lastCommit;
+  TSKEY        lastMigrate;
+  TSKEY        lastRollup;  // rollup only if lastRollup > lastCommit or expLevel increased
 
   SVATaskID mergeTask;
   SVATaskID compactTask;
   SVATaskID retentionTask;
+  SVATaskID migrateTask;
 
   // block commit variables
   TdThreadCond canCommit;
   int32_t      numWaitCommit;
   bool         blockCommit;
+
+  // rollup
+  int8_t lastRollupLevel;  // 1 or 2
 
   // conditions
   struct STFileSetCond conds[2];

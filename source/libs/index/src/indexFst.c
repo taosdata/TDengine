@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -37,7 +39,10 @@ FstUnFinishedNodes* fstUnFinishedNodesCreate() {
   }
 
   nodes->stack = (SArray*)taosArrayInit(64, sizeof(FstBuilderNodeUnfinished));
-  fstUnFinishedNodesPushEmpty(nodes, false);
+  if (nodes->stack == NULL || fstUnFinishedNodesPushEmpty(nodes, false) != 0) {
+    fstUnFinishedNodesDestroy(nodes);
+    return NULL;
+  }
   return nodes;
 }
 static void FORCE_INLINE unFinishedNodeDestroyElem(void* elem) {
@@ -55,10 +60,10 @@ void fstUnFinishedNodesDestroy(FstUnFinishedNodes* nodes) {
   taosMemoryFree(nodes);
 }
 
-void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
+int32_t fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   FstBuilderNode* node = taosMemoryMalloc(sizeof(FstBuilderNode));
   if (node == NULL) {
-    return;
+    return terrno;
   }
 
   node->isFinal = isFinal;
@@ -66,13 +71,15 @@ void fstUnFinishedNodesPushEmpty(FstUnFinishedNodes* nodes, bool isFinal) {
   node->trans = taosArrayInit(16, sizeof(FstTransition));
   if (node->trans == NULL) {
     taosMemoryFree(node);
-    return;
+    return terrno;
   }
 
   FstBuilderNodeUnfinished un = {.node = node, .last = NULL};
   if (taosArrayPush(nodes->stack, &un) == NULL) {
     fstBuilderNodeDestroy(node);
+    return terrno;
   }
+  return 0;
 }
 FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
   FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
@@ -80,10 +87,9 @@ FstBuilderNode* fstUnFinishedNodesPopRoot(FstUnFinishedNodes* nodes) {
 }
 
 FstBuilderNode* fstUnFinishedNodesPopFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
-  FstBuilderNodeUnfinished* un = taosArrayPop(nodes->stack);
-  fstBuilderNodeUnfinishedLastCompiled(un, addr);
-  // taosMemoryFree(un->last); // TODO add func FstLastTransitionFree()
-  // un->last = NULL;
+  FstBuilderNodeUnfinished* un = taosArrayGetLast(nodes->stack);
+  if (fstBuilderNodeUnfinishedLastCompiled(un, addr) != 0) return NULL;
+  TAOS_UNUSED(taosArrayPop(nodes->stack));
   return un->node;
 }
 
@@ -97,46 +103,25 @@ void fstUnFinishedNodesSetRootOutput(FstUnFinishedNodes* nodes, Output out) {
   un->node->finalOutput = out;
   // un->node->trans       = NULL;
 }
-void fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
+int32_t fstUnFinishedNodesTopLastFreeze(FstUnFinishedNodes* nodes, CompiledAddr addr) {
   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, taosArrayGetSize(nodes->stack) - 1);
-  fstBuilderNodeUnfinishedLastCompiled(un, addr);
+  return fstBuilderNodeUnfinishedLastCompiled(un, addr);
 }
-void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output out) {
-  FstSlice* s = &bs;
-  if (fstSliceIsEmpty(s)) {
-    return;
-  }
-  int32_t                   sz = taosArrayGetSize(nodes->stack) - 1;
-  FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, sz);
-
-  if (un->last != NULL) return;
-
+int32_t fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output out) {
+  if (fstSliceIsEmpty(&bs)) return 0;
   int32_t  len = 0;
-  uint8_t* data = fstSliceData(s, &len);
-  un->last = fstLastTransitionCreate(data[0], out);
+  uint8_t* data = fstSliceData(&bs, &len);
+  for (int32_t i = 0; i < len; ++i) {
+    FstBuilderNodeUnfinished* parent = taosArrayGetLast(nodes->stack);
+    if (parent->last != NULL) return TSDB_CODE_INVALID_PARA;
+    parent->last = fstLastTransitionCreate(data[i], out);
+    if (parent->last == NULL) return TSDB_CODE_OUT_OF_MEMORY;
 
-  for (uint64_t i = 1; i < len; i++) {
-    FstBuilderNode* n = taosMemoryMalloc(sizeof(FstBuilderNode));
-    if (n == NULL) {
-      return;
-    }
-    n->isFinal = false;
-    n->finalOutput = 0;
-    n->trans = taosArrayInit(16, sizeof(FstTransition));
-    if (n->trans == NULL) {
-      taosMemoryFree(n);
-      return;
-    }
-
-    FstLastTransition* trn = fstLastTransitionCreate(data[i], 0);
-
-    FstBuilderNodeUnfinished un = {.node = n, .last = trn};
-    if (taosArrayPush(nodes->stack, &un) == NULL) {
-      fstBuilderNodeDestroy(n);
-      taosMemoryFree(trn);
-    }
+    int32_t code = fstUnFinishedNodesPushEmpty(nodes, i == len - 1);
+    if (code != 0) return code;
+    out = 0;
   }
-  fstUnFinishedNodesPushEmpty(nodes, true);
+  return 0;
 }
 
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes* node, FstSlice bs) {
@@ -733,8 +718,12 @@ FstBuilder* fstBuilderCreate(void* w, FstType ty) {
     return b;
   }
 
-  b->wrt = idxFileCreate(w);
   b->unfinished = fstUnFinishedNodesCreate();
+  if (b->unfinished == NULL) {
+    taosMemoryFree(b);
+    return NULL;
+  }
+  b->wrt = idxFileCreate(w);
   b->registry = fstRegistryCreate(10000, 2);
   b->last = fstSliceCreate(NULL, 0);
   b->lastAddr = NONE_ADDRESS;
@@ -756,7 +745,6 @@ void fstBuilderDestroy(FstBuilder* b) {
   if (b == NULL) {
     return;
   }
-  fstBuilderFinish(b);
 
   idxFileDestroy(b->wrt);
   fstUnFinishedNodesDestroy(b->unfinished);
@@ -769,34 +757,38 @@ bool fstBuilderInsert(FstBuilder* b, FstSlice bs, Output in) {
   FstOrderType t = fstBuilderCheckLastKey(b, bs, true);
   if (t == Ordered) {
     // add log info
-    fstBuilderInsertOutput(b, bs, in);
-    return true;
+    int32_t code = fstBuilderInsertOutput(b, bs, in);
+    if (code == 0) return true;
+    terrno = code;
+    return false;
   }
+  terrno = TSDB_CODE_INVALID_PARA;
   indexInfo("fst write key must be ordered");
   return false;
 }
 
-void fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in) {
+int32_t fstBuilderInsertOutput(FstBuilder* b, FstSlice bs, Output in) {
   FstSlice* s = &bs;
   if (fstSliceIsEmpty(s)) {
     b->len = 1;
     fstUnFinishedNodesSetRootOutput(b->unfinished, in);
-    return;
+    return 0;
   }
   Output   out;
   uint64_t prefixLen = fstUnFinishedNodesFindCommPrefixAndSetOutput(b->unfinished, bs, in, &out);
 
   if (prefixLen == FST_SLICE_LEN(s)) {
-    return;
+    return 0;
   }
 
   b->len += 1;
-  fstBuilderCompileFrom(b, prefixLen);
+  int32_t code = fstBuilderCompileFrom(b, prefixLen);
+  if (code != 0) return code;
 
   FstSlice sub = fstSliceCopy(s, prefixLen, s->end);
-  fstUnFinishedNodesAddSuffix(b->unfinished, sub, out);
+  code = fstUnFinishedNodesAddSuffix(b->unfinished, sub, out);
   fstSliceDestroy(&sub);
-  return;
+  return code;
 }
 
 FstOrderType fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup) {
@@ -818,7 +810,7 @@ FstOrderType fstBuilderCheckLastKey(FstBuilder* b, FstSlice bs, bool ckDup) {
   }
   return Ordered;
 }
-void fstBuilderCompileFrom(FstBuilder* b, uint64_t istate) {
+int32_t fstBuilderCompileFrom(FstBuilder* b, uint64_t istate) {
   CompiledAddr addr = NONE_ADDRESS;
   while (istate + 1 < FST_UNFINISHED_NODES_LEN(b->unfinished)) {
     FstBuilderNode* bn = NULL;
@@ -826,13 +818,13 @@ void fstBuilderCompileFrom(FstBuilder* b, uint64_t istate) {
       bn = fstUnFinishedNodesPopEmpty(b->unfinished);
     } else {
       bn = fstUnFinishedNodesPopFreeze(b->unfinished, addr);
+      if (bn == NULL) return terrno;
     }
     addr = fstBuilderCompile(b, bn);
 
     fstBuilderNodeDestroy(bn);
   }
-  fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
-  return;
+  return fstUnFinishedNodesTopLastFreeze(b->unfinished, addr);
 }
 
 CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn) {
@@ -857,8 +849,9 @@ CompiledAddr fstBuilderCompile(FstBuilder* b, FstBuilderNode* bn) {
   return b->lastAddr;
 }
 
-void* fstBuilderInsertInner(FstBuilder* b) {
-  fstBuilderCompileFrom(b, 0);
+int32_t fstBuilderFinish(FstBuilder* b) {
+  int32_t code = fstBuilderCompileFrom(b, 0);
+  if (code != 0) return code;
   FstBuilderNode* rootNode = fstUnFinishedNodesPopRoot(b->unfinished);
   CompiledAddr    rootAddr = fstBuilderCompile(b, rootNode);
   fstBuilderNodeDestroy(rootNode);
@@ -880,9 +873,8 @@ void* fstBuilderInsertInner(FstBuilder* b) {
   TAOS_UNUSED(idxFileWrite(b->wrt, buf32, sizeof(buf32)));
 
   TAOS_UNUSED(idxFileFlush(b->wrt));
-  return b->wrt;
+  return 0;
 }
-void fstBuilderFinish(FstBuilder* b) { TAOS_UNUSED(fstBuilderInsertInner(b)); }
 
 FstSlice fstNodeAsSlice(FstNode* node) {
   FstSlice* slice = &node->data;
@@ -903,18 +895,18 @@ FstLastTransition* fstLastTransitionCreate(uint8_t inp, Output out) {
 
 void fstLastTransitionDestroy(FstLastTransition* trn) { taosMemoryFree(trn); }
 
-void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, CompiledAddr addr) {
+int32_t fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, CompiledAddr addr) {
   FstLastTransition* trn = unNode->last;
   if (trn == NULL) {
-    return;
+    return 0;
   }
   FstTransition t = {.inp = trn->inp, .out = trn->out, .addr = addr};
   if (taosArrayPush(unNode->node->trans, &t) == NULL) {
-    return;
+    return terrno;
   }
   fstLastTransitionDestroy(trn);
   unNode->last = NULL;
-  return;
+  return 0;
 }
 
 void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished* unNode, Output out) {
@@ -936,6 +928,7 @@ Fst* fstCreate(FstSlice* slice) {
   int32_t slen;
   char*   buf = fstSliceData(slice, &slen);
   if (slen < 36) {
+    terrno = TSDB_CODE_INDEX_INVALID_FILE;
     return NULL;
   }
   uint64_t len = slen;
@@ -945,6 +938,7 @@ Fst* fstCreate(FstSlice* slice) {
   TAOS_UNUSED(taosDecodeFixedU64(buf, &version));
   skip += sizeof(version);
   if (version == 0 || version > VERSION) {
+    terrno = TSDB_CODE_INDEX_INVALID_FILE;
     return NULL;
   }
 
@@ -958,6 +952,7 @@ Fst* fstCreate(FstSlice* slice) {
   if (taosCheckChecksum(buf, len, checkSum)) {
     indexError("index file is corrupted");
     // verify fst
+    terrno = TSDB_CODE_INDEX_INVALID_FILE;
     return NULL;
   }
   CompiledAddr rootAddr;
@@ -967,7 +962,10 @@ Fst* fstCreate(FstSlice* slice) {
   uint64_t fstLen;
   len -= sizeof(fstLen);
   TAOS_UNUSED(taosDecodeFixedU64(buf + len, &fstLen));
-  // TODO(validate root addr)
+  if (rootAddr != 0 && (rootAddr < 16 || rootAddr >= len)) {
+    terrno = TSDB_CODE_INDEX_INVALID_FILE;
+    return NULL;
+  }
   Fst* fst = (Fst*)taosMemoryCalloc(1, sizeof(Fst));
   if (fst == NULL) {
     return NULL;
@@ -992,12 +990,18 @@ Fst* fstCreate(FstSlice* slice) {
   *s = fstSliceCopy(slice, 0, FST_SLICE_LEN(slice) - 1);
   fst->data = s;
 
-  if (taosThreadMutexInit(&fst->mtx, NULL) != 0) {
+  int32_t code = taosThreadMutexInit(&fst->mtx, NULL);
+  if (code != 0) {
+    terrno = code;
     goto FST_CREAT_FAILED;
   }
   return fst;
 
 FST_CREAT_FAILED:
+  if (fst->data != NULL) {
+    fstSliceDestroy(fst->data);
+    taosMemoryFree(fst->data);
+  }
   taosMemoryFree(fst->meta);
   taosMemoryFree(fst);
 
@@ -1190,14 +1194,20 @@ void stmStDestroy(FStmSt* sws) {
 bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
   FAutoCtx* aut = sws->aut;
   if (fstBoundWithDataIsEmpty(min)) {
-    if (fstBoundWithDataIsIncluded(min)) {
-      sws->emptyOutput.out = fstEmptyFinalOutput(sws->fst, &(sws->emptyOutput.null));
+    FstNode* root = fstGetRoot(sws->fst);
+    if (root == NULL) {
+      sws->error = TSDB_CODE_OUT_OF_MEMORY;
+      return false;
     }
-    FstStreamState s = {.node = fstGetRoot(sws->fst),
-                        .trans = 0,
-                        .out = {.null = false, .out = 0},
-                        .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
+    if (fstBoundWithDataIsIncluded(min) && FST_NODE_IS_FINAL(root)) {
+      sws->emptyOutput.null = false;
+      sws->emptyOutput.out = FST_NODE_FINAL_OUTPUT(root);
+    }
+    FstStreamState s = {.node = root, .trans = 0, .out = {.null = false, .out = 0},
+                        .autState = automFuncs[aut->type].start(aut)};
     if (taosArrayPush(sws->stack, &s) == NULL) {
+      fstNodeDestroy(root);
+      sws->error = TSDB_CODE_OUT_OF_MEMORY;
       return false;
     }
     return true;
@@ -1290,97 +1300,72 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
   return false;
 }
 FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
+  if (sws->error != 0) return NULL;
   FAutoCtx* aut = sws->aut;
   FstOutput output = sws->emptyOutput;
-  if (output.null == false) {
-    FstSlice emptySlice = fstSliceCreate(NULL, 0);
-    if (fstBoundWithDataExceededBy(sws->endAt, &emptySlice)) {
-      taosArrayDestroyEx(sws->stack, fstStreamStateDestroy);
-      sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
+  if (!output.null) {
+    sws->emptyOutput.null = true;
+    FstSlice empty = fstSliceCreate(NULL, 0);
+    if (empty.str == NULL) goto oom;
+    bool exceeded = fstBoundWithDataExceededBy(sws->endAt, &empty);
+    if (exceeded) {
+      fstSliceDestroy(&empty);
+      taosArrayClearEx(sws->stack, fstStreamStateDestroy);
       return NULL;
     }
     void* start = automFuncs[aut->type].start(aut);
     if (automFuncs[aut->type].isMatch(aut, start)) {
-      FstSlice s = fstSliceCreate(NULL, 0);
-      return swsResultCreate(&s, output, callback == NULL ? NULL : callback(start));
+      FStmStRslt* result = swsResultCreate(&empty, output, callback == NULL ? NULL : callback(start));
+      fstSliceDestroy(&empty);
+      if (result == NULL) goto oom;
+      return result;
     }
+    fstSliceDestroy(&empty);
   }
-  SArray* nodes = taosArrayInit(8, sizeof(FstNode*));
+
   while (taosArrayGetSize(sws->stack) > 0) {
-    FstStreamState* p = (FstStreamState*)taosArrayPop(sws->stack);
+    FstStreamState* p = taosArrayGetLast(sws->stack);
     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
-      if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
-        TAOS_UNUSED(taosArrayPop(sws->inp));
-      }
-      fstStreamStateDestroy(p);
+      if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) TAOS_UNUSED(taosArrayPop(sws->inp));
+      fstStreamStateDestroy(taosArrayPop(sws->stack));
       continue;
     }
     FstTransition trn;
     TAOS_UNUSED(fstNodeGetTransitionAt(p->node, p->trans, &trn));
-
+    ++p->trans;
     Output out = p->out.out + trn.out;
-    void*  nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
-    void*  tState = (callback == NULL) ? NULL : callback(nextState);
-    bool   isMatch = automFuncs[aut->type].isMatch(aut, nextState);
-
+    void* nextState = automFuncs[aut->type].accept(aut, p->autState, trn.inp);
+    if (taosArrayPush(sws->inp, &trn.inp) == NULL) goto oom;
     FstNode* nextNode = fstGetNode(sws->fst, trn.addr);
-    if (taosArrayPush(nodes, &nextNode) == NULL) {
-      taosArrayDestroy(nodes);
-      return NULL;
-    }
-    if (taosArrayPush(sws->inp, &(trn.inp)) == NULL) {
-      taosArrayDestroy(nodes);
-      return NULL;
+    if (nextNode == NULL) goto oom;
+    FstStreamState child = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
+    if (taosArrayPush(sws->stack, &child) == NULL) {
+      fstNodeDestroy(nextNode);
+      goto oom;
     }
 
+    FstSlice slice = fstSliceCreate(taosArrayGet(sws->inp, 0), taosArrayGetSize(sws->inp));
+    if (slice.str == NULL) goto oom;
+    if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
+      fstSliceDestroy(&slice);
+      taosArrayClearEx(sws->stack, fstStreamStateDestroy);
+      return NULL;
+    }
     if (FST_NODE_IS_FINAL(nextNode)) {
       void* eofState = automFuncs[aut->type].acceptEof(aut, nextState);
-      if (eofState != NULL) {
-        isMatch = automFuncs[aut->type].isMatch(aut, eofState);
+      if (automFuncs[aut->type].isMatch(aut, eofState != NULL ? eofState : nextState)) {
+        FstOutput fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
+        FStmStRslt* result = swsResultCreate(&slice, fOutput, callback == NULL ? NULL : callback(nextState));
+        fstSliceDestroy(&slice);
+        if (result == NULL) goto oom;
+        return result;
       }
     }
-    FstStreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
-    if (taosArrayPush(sws->stack, &s1) == NULL) {
-      taosArrayDestroy(nodes);
-      return NULL;
-    }
-
-    FstStreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
-    if (taosArrayPush(sws->stack, &s2) == NULL) {
-      taosArrayDestroy(nodes);
-      return NULL;
-    }
-
-    int32_t  isz = taosArrayGetSize(sws->inp);
-    uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
-    if (buf == NULL) {
-      return NULL;
-    }
-    for (uint32_t i = 0; i < isz; i++) {
-      buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);
-    }
-    FstSlice slice = fstSliceCreate(buf, isz);
-    if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
-      taosArrayDestroyEx(sws->stack, fstStreamStateDestroy);
-      sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
-      taosMemoryFreeClear(buf);
-      fstSliceDestroy(&slice);
-      taosArrayDestroy(nodes);
-      return NULL;
-    }
-    if (FST_NODE_IS_FINAL(nextNode) && isMatch) {
-      FstOutput   fOutput = {.null = false, .out = out + FST_NODE_FINAL_OUTPUT(nextNode)};
-      FStmStRslt* result = swsResultCreate(&slice, fOutput, tState);
-      taosMemoryFreeClear(buf);
-      fstSliceDestroy(&slice);
-      taosArrayDestroy(nodes);
-      nodes = NULL;
-      return result;
-    }
-    taosMemoryFreeClear(buf);
     fstSliceDestroy(&slice);
-  };
-  taosArrayDestroy(nodes);
+  }
+  return NULL;
+oom:
+  sws->error = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
 }
 

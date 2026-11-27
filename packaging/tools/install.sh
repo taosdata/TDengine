@@ -1,35 +1,49 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
 
+# cluster(enterprise)/ edge(community)/
+# entMode lite(enterprise lite)
+# pkgMode lite(community lite, only taosd and taos)
 verMode=edge
-pagMode=full
+pkgMode=full
+entMode=full
+packageRole=full
+packageRoleExplicit=0
 
 iplist=""
 serverFqdn=""
+ostype=$(uname)
 
-# -----------------------Variables definition---------------------
+# -----------------------Variables definition--------------------- 
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
 
 PREFIX="taos"
 clientName="${PREFIX}"
 serverName="${PREFIX}d"
-udfdName="udfd"
+udfdName="${PREFIX}udf"
 configFile="${PREFIX}.cfg"
-productName="TDengine"
+productName="TDengine TSDB"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
-dataDir="/var/lib/${PREFIX}"
-logDir="/var/log/${PREFIX}"
-configDir="/etc/${PREFIX}"
-installDir="/usr/local/${PREFIX}"
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
 dumpName="${PREFIX}dump"
@@ -37,36 +51,53 @@ demoName="${PREFIX}demo"
 xname="${PREFIX}x"
 explorerName="${PREFIX}-explorer"
 keeperName="${PREFIX}keeper"
-
-bin_link_dir="/usr/bin"
-lib_link_dir="/usr/lib"
-lib64_link_dir="/usr/lib64"
-inc_link_dir="/usr/include"
-
-#install main path
-install_main_dir=${installDir}
-# old bin dir
-bin_dir="${installDir}/bin"
-
-service_config_dir="/etc/systemd/system"
+inspect_name="${PREFIX}inspect"
+set_malloc_bin="set_taos_malloc.sh"
+mqtt_name="${PREFIX}mqtt"
+taosgen_name="${PREFIX}gen"
+taosk_name="${PREFIX}k"
+xnode_name="xnoded"
 
 # Color setting
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
 NC='\033[0m'
 
-csudo=""
-if command -v sudo >/dev/null; then
-  csudo="sudo "
-fi
 
+# Installation mode variables
 update_flag=0
 prompt_force=0
-
+taos_dir_set=0
 initd_mod=0
 service_mod=2
+silent_mode=0
+# Oracle dependency-package selection (extension role only): the server
+# version family (11g/12c/18c/19c/21c/23ai/26ai) and, optionally, an explicit
+# client (19c/23ai) for 19c-and-later servers.
+oracleServerVersion=""
+oracleClient=""
+
+# User mode variables (will be initialized in setup_env)
+user_mode=0
+default_dir=""
+mode_desc=""
+sysctl_cmd=""
+
+# Directory variables (will be initialized in setup_env)
+bin_link_dir=""
+lib_link_dir=""
+lib64_link_dir=""
+inc_link_dir=""
+service_config_dir=""
+installDir=""
+dataDir=""
+logDir=""
+configDir=""
+
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
@@ -124,184 +155,1130 @@ else
   os_type=1
 fi
 
+function log() {
+  local level="$1"; shift
+  local msg="$*"
+  case "$level" in
+    info)    echo -e "$msg" ;;
+    info_color) echo -e "${GREEN_DARK}$msg${NC}" ;;
+    success) echo -e "${GREEN_DARK}$msg${NC}" ;;
+    warn|warning) echo -e "${YELLOW}$msg${NC}" ;;
+    warn_bold) echo -e "${YELLOW}${BOLD}$msg${NC}" ;;
+    error)
+      echo -e "${RED}$msg${NC}" >&2
+      echo -e "${RED}${product_name} has not been installed successfully${NC}" >&2
+      exit 1
+      ;;
+    error_no_exit) echo -e "${RED}$msg${NC}" >&2 ;;
+    debug)
+      if [[ "$DEBUG" == 1 ]]; then
+        echo -e "${GREEN_DARK}$msg ${NC}"
+      fi
+      ;;
+    *) echo -e "$msg" ;;
+  esac
+}
+
 # =============================  get input parameters =================================================
 
-# install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
-
 # set parameters by default value
+imageBuild=0       # Preserve packaged address defaults when building an image
+cleanInstall=0     # Preserve optional extension payloads by default
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
 
-while getopts "hv:e:" arg; do
+function show_help() {
+  cat << EOF
+${productName} Installer.
+
+Usage: $(basename $0) [OPTIONS]
+
+Options:
+  -h                        Show help
+  -v [server | client]      Install type (server or client)
+  -e [yes | no]             Interactive FQDN setting
+  -d [install dir]          Custom installation directory
+  -s                        Silent mode installation
+  --clean-install           FULL/CORE only: remove previous package files (preserves cfg/data/log)
+  --image-build             Image installation without host address rewrites or service/process operations
+EOF
+}
+
+while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
+  -)
+    case "$OPTARG" in
+      clean-install)
+        cleanInstall=1
+        ;;
+      image-build)
+        imageBuild=1
+        ;;
+      oracle-server-version=*)
+        oracleServerVersion="${OPTARG#*=}"
+        if [ -z "$oracleServerVersion" ]; then
+          echo "Oracle server version family must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      oracle-client=*)
+        oracleClient="${OPTARG#*=}"
+        if [ -z "$oracleClient" ]; then
+          echo "Oracle client must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      *)
+        echo "Unknown option: --$OPTARG"
+        exit 1
+        ;;
+    esac
+    ;;
   e)
-    #echo "interactiveFqdn=$OPTARG"
     interactiveFqdn=$(echo $OPTARG)
+    silent_mode=1
     ;;
   v)
-    #echo "verType=$OPTARG"
     verType=$(echo $OPTARG)
     ;;
+  d)
+    taos_dir="${OPTARG%/}/${PREFIX}"
+    taos_dir=$(eval echo "${taos_dir}")
+    # user define install dir
+    taos_dir_set=1
+    ;;
+  s)
+    silent_mode=1
+    interactiveFqdn="no"
+    ;;
+  m)
+    packageRole=$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')
+    packageRoleExplicit=1
+    if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+      echo "Invalid package role: $OPTARG (expected full, core or extension)"
+      exit 1
+    fi
+    ;;
   h)
-    echo "Usage: $(basename $0) -v [server | client]  -e [yes | no]"
+    show_help
     exit 0
     ;;
-  ?) #unknow option
-    echo "unkonw argument"
+  ?) #unknown option
+    echo "unknown argument"
+    show_help
     exit 1
     ;;
   esac
 done
 
-#echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
-
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh udfd set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
-if [ "${verMode}" == "cluster" ]; then
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
-elif [ "${verMode}" == "edge" ]; then
-  if [ "${pagMode}" == "full" ]; then
-    services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-  else
-    services=(${serverName})
-    tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
-  fi
-else
-  services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
+# Image assembly must never prompt for or persist the build host identity.
+if [ "$imageBuild" -eq 1 ]; then
+  silent_mode=1
+  interactiveFqdn=no
 fi
 
+# Package archives carry their role so core and extension can use the same
+# entry point. An explicit -m argument always takes precedence.
+if [ "$packageRoleExplicit" -eq 0 ]; then
+  if [ -f "${script_dir}/.package-role" ]; then
+    packageRole=$(tr '[:upper:]' '[:lower:]' < "${script_dir}/.package-role")
+  elif [ -f "${script_dir}/.extension-files" ]; then
+    packageRole=extension
+  fi
+fi
+if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+  echo "Invalid package role marker: $packageRole"
+  exit 1
+fi
+
+# Reject unsupported option combinations before environment setup or file writes.
+if [ "$packageRole" = "extension" ] && [ "$cleanInstall" -eq 1 ]; then
+  echo "--clean-install is supported only for full/core packages, not extension packages" >&2
+  exit 1
+fi
+
+# ----------------------- Environment setup -----------------------
+function setup_env() {
+  # 1. Check service type (skip on macOS)
+  if [ "$osType" != "Darwin" ]; then
+    if ps aux | grep -v grep | grep systemd &>/dev/null; then
+      service_mod=0
+    elif $(which service &>/dev/null); then
+      service_mod=1
+      service_config_dir="/etc/init.d"
+      if $(which chkconfig &>/dev/null); then
+        initd_mod=1
+      elif $(which insserv &>/dev/null); then
+        initd_mod=2
+      elif $(which update-rc.d &>/dev/null); then
+        initd_mod=3
+      else
+        service_mod=2
+      fi
+    else
+      service_mod=2
+    fi
+  else
+    service_mod=2
+  fi
+
+  # 2. User mode detection
+  if [[ "$(id -u)" -ne 0 ]]; then
+    # Check systemd version >= 232 for user service support
+    local sd_ver
+    sd_ver=$(systemctl --version 2>/dev/null | head -1 | awk '{print $2}')
+    if [ -z "$sd_ver" ] || [ "$sd_ver" -lt 232 ] 2>/dev/null; then
+      echo -e "${RED}Non-root install requires systemd >= 232, current version: ${sd_ver:-unknown}${NC}"
+      echo -e "Supported: CentOS/RHEL 8+, Ubuntu 18.04+, Debian 9+, SUSE 15+"
+      echo -e "CentOS/RHEL 7 (systemd 219) does not support non-root installation."
+      exit 1
+    fi
+    if ! systemctl --user show-environment &>/dev/null; then
+      echo -e "${RED}Current user is not root and no systemd user session (user bus) is available.${NC}"
+      echo -e "Please use ssh to log in as this user and then run the installer, for example:"
+      echo -e "${BOLD}ssh <username>@<host>${NC}"
+      echo -e "If the problem persists, ask root to run: loginctl enable-linger $(whoami)"
+      exit 1
+    fi
+    user_mode=1
+    default_dir="$HOME/${PREFIX}"
+    user="$(whoami)"
+    mode_desc="user ($user)"
+  else
+    user_mode=0
+    default_dir="/usr/local/${PREFIX}"
+    mode_desc="root (system-wide)"
+  fi
+
+  # 3. check existing server installation
+  taosd_bin=$(command -v "${serverName}" 2>/dev/null || true)
+  if [ -n "${taosd_bin}" ]; then
+      # mac will skip this check
+      echo "Welcome to ${productName} Update ..."
+      echo
+      real_taosd_bin=$(readlink -f "${taosd_bin}")
+      taosd_bin_dir=$(dirname "${real_taosd_bin}")
+      taosd_parent_dir=$(readlink -f "${taosd_bin_dir}/..")
+      taosd_ver=$(${real_taosd_bin} -V 2>/dev/null | grep version | awk '{print $3}' || echo "unknown")
+      log warn_bold "${productName} ${taosd_ver} was detected at ${taosd_parent_dir}"
+      # Silent mode handling
+      if [ "$silent_mode" = "1" ]; then
+          # echo "Continue to installation TDengine."
+          confirm="Y"
+      else
+          read -p "Do you want to continue the installation? [Y/n]: " confirm
+          confirm=${confirm:-Y}
+      fi
+      if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+          echo "Installation cancelled."
+          exit 0
+      fi
+  else
+      echo "Welcome to ${productName} Installation ..."
+      echo
+  fi
+  
+  # 3.5 Read previous install path from .install_path if not explicitly set via -d
+  if [[ $taos_dir_set -eq 0 ]]; then
+    local candidate_path=""
+    if [ -n "${taosd_parent_dir:-}" ] && [ -f "${taosd_parent_dir}/.install_path" ]; then
+      candidate_path=$(cat "${taosd_parent_dir}/.install_path")
+    elif [ -f "/usr/local/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "/usr/local/${PREFIX}/.install_path")
+    elif [ -f "$HOME/${PREFIX}/.install_path" ]; then
+      candidate_path=$(cat "$HOME/${PREFIX}/.install_path")
+    fi
+
+    if [ -n "$candidate_path" ] && [ -d "$candidate_path" ] && \
+       [[ "$candidate_path" == */"${PREFIX}" ]]; then
+      taos_dir="$candidate_path"
+      taos_dir_set=1
+      log info "Detected previous installation path: ${taos_dir}"
+    fi
+  fi
+
+  # 4. Install directory setting
+  log info "Detected install mode: $mode_desc"
+  if [[ $silent_mode -eq 0 && $taos_dir_set -eq 0 ]]; then
+    while true; do
+      echo -ne "${GREEN_DARK}Do you want to install ${productName} to the default directory?${NC}" \
+               "${default_dir}" \
+               "${GREEN_DARK}[Y/n]${NC}"
+
+      read -e -r -p " : " use_default_dir
+      if [[ -z "$use_default_dir" || "$use_default_dir" =~ ^[Yy]$ ]]; then
+        taos_dir="$default_dir"
+        break
+      elif [[ "$use_default_dir" =~ ^[Nn]$ ]]; then
+        echo -en "${GREEN_DARK}Please input new install directory ${NC}"
+        read  -e -r -p " : " new_dir
+        if [ -n "$new_dir" ]; then
+          taos_dir="${new_dir%/}/${PREFIX}"
+        else
+          taos_dir="$default_dir"
+        fi
+        break
+      else
+        echo -e "${YELLOW}Please enter y, n, or press Enter (default y).${NC}"
+      fi
+    done
+  else
+    if [[ $taos_dir_set -eq 0 ]]; then
+      taos_dir="$default_dir"
+    fi
+  fi
+
+  # 5. Set directories based on user mode and OS type
+  if [[ $user_mode -eq 0 ]]; then
+    # Root user directories
+    installDir="${taos_dir}"
+    dataDir="/var/lib/${PREFIX}"
+    logDir="/var/log/${PREFIX}"
+    configDir="/etc/${PREFIX}"
+    if [ "$osType" != "Darwin" ]; then
+      bin_link_dir="/usr/bin"
+      lib_link_dir="/usr/lib"
+      lib64_link_dir="/usr/lib64"
+      inc_link_dir="/usr/include"
+      service_config_dir="/etc/systemd/system"
+      sysctl_cmd="systemctl"
+      # only for root user, create data/log/config dir links
+      cfg_link_dir="${installDir}/cfg"
+      data_link_dir="${installDir}/data"
+      log_link_dir="${installDir}/log"
+    else
+      bin_link_dir="/usr/local/bin"
+      lib_link_dir="/usr/local/lib"
+      lib64_link_dir=""
+      inc_link_dir="/usr/local/include"
+      service_config_dir=""
+      sysctl_cmd=""
+      cfg_link_dir=""
+      data_link_dir=""
+      log_link_dir=""
+    fi
+  else
+    # Non-root user directories
+    installDir="${taos_dir}"
+    dataDir="${installDir}/data"
+    logDir="${installDir}/log"
+    configDir="${installDir}/cfg"
+    cfg_link_dir=""
+    data_link_dir=""
+    log_link_dir=""
+    if [ "$osType" != "Darwin" ]; then
+      bin_link_dir="$HOME/.local/bin"
+      lib_link_dir="$HOME/.local/lib"
+      lib64_link_dir="$HOME/.local/lib64"
+      inc_link_dir="$HOME/.local/include"
+      service_config_dir="$HOME/.config/systemd/user"
+      sysctl_cmd="systemctl --user"
+    else
+      bin_link_dir="$HOME/.local/bin"
+      lib_link_dir="$HOME/.local/lib"
+      lib64_link_dir=""
+      inc_link_dir="$HOME/.local/include"
+      service_config_dir=""
+      sysctl_cmd=""
+    fi
+    
+    # Create necessary directories for non-root user
+    mkdir -p "$bin_link_dir" "$lib_link_dir" "$inc_link_dir" 2>/dev/null
+    if [ "$osType" != "Darwin" ]; then
+      mkdir -p "$lib64_link_dir" "$service_config_dir" 2>/dev/null
+    fi
+  fi
+  bin_dir="${installDir}/bin"
+  driver_dir=${installDir}/driver
+  install_main_dir=${installDir}
+  
+  #  tools/services/config_files files setting
+  if [ "$verType" == "client" ]; then
+    # Only client tools, no services included
+    remove_name="remove_client.sh"
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${taosgen_name}" "${remove_name}")
+    services=()
+  else
+    # server/默认，按 verMode/pkgMode/entMode 细分
+    # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
+    remove_name="remove.sh"
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
+    if [ "${verMode}" == "cluster" ]; then
+      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+    elif [ "${verMode}" == "edge" ]; then
+      if [ "${pkgMode}" == "full" ]; then
+        services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
+        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh "${taosgen_name}")
+      else
+        services=("${serverName}")
+        tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh)
+      fi
+    else
+      services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
+    fi
+  fi
+}
+
+# Oracle dependency-package selection (FS 7.1).  The installer accepts only
+# the fixed server-version families; it never parses arbitrary version
+# strings.  The default client is 19c; newer servers may explicitly use 23ai.
+function oracle_client_for_version() {
+  local ver client
+  ver=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  client=$(echo "$2" | tr '[:upper:]' '[:lower:]')
+  case "$ver" in
+    11g|12c|18c)
+      if [ -n "$client" ] && [ "$client" != "19c" ]; then
+        echo "Oracle client $client does not support server family $ver" >&2
+        return 1
+      fi
+      echo 19c
+      ;;
+    19c|21c|23ai|26ai)
+      if [ -z "$client" ]; then client=19c; fi
+      case "$client" in
+        19c|23ai) echo "$client" ;;
+        *) echo "Invalid Oracle client: $client (expected 19c or 23ai)" >&2; return 1 ;;
+      esac
+      ;;
+    *)
+      echo "Unsupported Oracle server version family: $1" >&2
+      return 1
+      ;;
+  esac
+}
+
+function oracle_prompt_server_version() {
+  local answer
+  cat >&2 <<'EOF'
+请选择目标 Oracle 服务端版本族：
+  11g   11g Release 2（11.2.0.3 / 11.2.0.4）
+  12c   12c（12.1 / 12.2）
+  18c   18c
+  19c   19c
+  21c   21c
+  23ai  23ai
+  26ai  26ai
+  none  不使用 Oracle（回车或输入 none，自动选择最新客户端）
+EOF
+  read -r answer || return 1
+  echo "$answer"
+}
+
+oracleResolvedClient=""
+oracleSkipRequested=0
+
+# The newest Instant Client generation the package carries.  "Not using
+# Oracle" selects it, so the tree is left in the same state a default install
+# produces; the choice only matters once an Oracle source is created.
+function oracle_default_client() {
+  local pkg_dir="$1"
+  if [ -d "$pkg_dir/19c" ]; then
+    echo 19c
+  elif [ -d "$pkg_dir/23ai" ]; then
+    echo 23ai
+  fi
+}
+
+# Resolve and validate the selection against the *package* tree before any
+# file is copied, so an invalid input leaves the installation untouched.
+function oracle_resolve_selection() {
+  local pkg_dir="${script_dir}/driver/oracle"
+  local attempt answer client default_client
+  [ -d "$pkg_dir" ] || return 0
+  [ -d "$pkg_dir/19c" ] || [ -d "$pkg_dir/23ai" ] || return 0
+  default_client=$(oracle_default_client "$pkg_dir")
+  # An explicit "not using Oracle" may arrive non-interactively as well;
+  # normalise it before the family validation below.
+  case "$(echo "$oracleServerVersion" | tr '[:upper:]' '[:lower:]')" in
+    none|skip)
+      oracleServerVersion=""
+      oracleSkipRequested=1
+      ;;
+  esac
+  if [ -z "$oracleServerVersion" ] && [ -z "$oracleClient" ]; then
+    # Preserve the existing installation flow: Oracle is opt-in via explicit
+    # parameters, not an extra prompt for every TDengine installation. Reuse
+    # the installed choice during upgrades when this package still carries it.
+    client=""
+    if [ "$oracleSkipRequested" -ne 1 ] && [ -f "${installDir}/driver/oracle/active" ]; then
+      client=$(cat "${installDir}/driver/oracle/active")
+    fi
+    case "$client" in 19c|23ai) ;; *) client="$default_client" ;; esac
+    [ -d "$pkg_dir/$client" ] || client="$default_client"
+    [ "$oracleSkipRequested" -eq 1 ] && client="$default_client"
+    oracleResolvedClient="$client"
+  elif [ -z "$oracleServerVersion" ]; then
+    # Only a client was requested (or a "none" family with a client): use it.
+    oracleResolvedClient=$(oracle_client_for_version "${oracleClient}" "$oracleClient") || return 1
+  else
+    oracleResolvedClient=$(oracle_client_for_version "${oracleServerVersion:-26ai}" "$oracleClient") || return 1
+  fi
+  [ -d "$pkg_dir/$oracleResolvedClient" ] || {
+    echo "Oracle client directory is missing from the package: $oracleResolvedClient" >&2
+    return 1
+  }
+  return 0
+}
+
+function oracle_write_active_client() {
+  local oracle_dir="${installDir}/driver/oracle"
+  [ -d "$oracle_dir" ] || return 0
+  [ -d "$oracle_dir/19c" ] || [ -d "$oracle_dir/23ai" ] || return 0
+  [ -n "$oracleResolvedClient" ] || return 0
+  if [ -f "${script_dir}/bin/taos-fq-client" ] || [ -f "${installDir}/bin/taos-fq-client" ]; then
+    return 0
+  fi
+  printf '%s\n' "$oracleResolvedClient" > "${oracle_dir}/active"
+  echo "Oracle: active Instant Client: $oracleResolvedClient"
+}
+
+# Replace only incoming payload files, leaving package-external files intact.
+# Unlink Linux destinations before copying so running executables and mapped
+# libraries keep their old inode rather than being overwritten in place.
+# GNU --remove-destination is not available in the macOS system cp.
+function copy_package_files() {
+  local copy_status=0
+  if [ "${ostype:-$(uname -s)}" = "Linux" ]; then
+    cp --remove-destination "$@" || copy_status=$?
+  else
+    cp "$@" || copy_status=$?
+  fi
+  if [ "$copy_status" -ne 0 ]; then
+    printf 'Failed to copy package files (exit %s):' "$copy_status" >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+  fi
+  return "$copy_status"
+}
+
+function install_extension_package() {
+  local manifest="${script_dir}/.extension-files"
+  local extension_info="${script_dir}/.package-info"
+  local installed_info="${installDir}/.package-info"
+  local key extension_value installed_value
+  if [ ! -f "$manifest" ]; then
+    echo "Extension package manifest not found: $manifest"
+    exit 1
+  fi
+  if [ ! -f "$extension_info" ] || [ ! -f "$installed_info" ]; then
+    echo "Package metadata is required to validate extension compatibility." >&2
+    exit 1
+  fi
+  if [ ! -d "$installDir" ] || [ ! -x "${installDir}/bin/taosd" ] ||
+     [ ! -f "${installDir}/uninstall.sh" ]; then
+    echo "A core or full TDengine installation is required before installing the extension package: ${installDir}" >&2
+    exit 1
+  fi
+  if [ -f "${installDir}/.package-role" ]; then
+    local installed_role
+    installed_role=$(tr '[:upper:]' '[:lower:]' < "${installDir}/.package-role")
+    if [ "$installed_role" != "core" ] && [ "$installed_role" != "full" ]; then
+      echo "Extension package requires a core or full installation, found: ${installed_role}" >&2
+      exit 1
+    fi
+  fi
+
+  for key in version platform arch edition; do
+    extension_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$extension_info")
+    installed_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$installed_info")
+    if [ -z "$extension_value" ] || [ -z "$installed_value" ] || [ "$extension_value" != "$installed_value" ]; then
+      echo "Extension package ${key} does not match the installed core/full package (extension=${extension_value:-missing}, installed=${installed_value:-missing})." >&2
+      exit 1
+    fi
+  done
+  local installed_version package_version
+  package_version=$(awk -F= '$1 == "version" {print $2; exit}' "$extension_info")
+  installed_version=$("${installDir}/bin/taosd" -V 2>/dev/null | awk '/version:/ {print $3; exit}')
+  installed_version=${installed_version%.enterprise}
+  if [ "$installed_version" != "$package_version" ]; then
+    echo "Extension package version does not match installed taosd (extension=${package_version}, taosd=${installed_version:-unknown})." >&2
+    exit 1
+  fi
+  if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "$(awk -F= '$1 == "platform" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package platform does not match this host." >&2
+    exit 1
+  fi
+  local host_arch
+  case "$(uname -m)" in
+    x86_64|amd64) host_arch=x64 ;;
+    aarch64|arm64) host_arch=arm64 ;;
+    *) host_arch=$(uname -m) ;;
+  esac
+  if [ "$host_arch" != "$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package architecture does not match this host (extension=$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info"), host=${host_arch})." >&2
+    exit 1
+  fi
+  if [ "$(awk -F= '$1 == "edition" {print $2; exit}' "$extension_info")" != "enterprise" ]; then
+    echo "Only enterprise extension packages are supported." >&2
+    exit 1
+  fi
+
+  # Validate the complete payload before changing the installed tree. Paths in
+  # the manifest are package-relative and must never escape the installation.
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
+    if [[ "$path" == /* || "/$path/" == *"/../"* ]]; then
+      echo "Invalid path in extension package manifest: ${path}" >&2
+      exit 1
+    fi
+    if [ ! -f "${script_dir}/${path}" ]; then
+      echo "Extension package file is missing: ${path}"
+      exit 1
+    fi
+  done < "$manifest"
+  oracle_resolve_selection || exit 1
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
+    mkdir -p "${installDir}/$(dirname "$path")"
+    case "$path" in
+      cfg/*) cp -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+      *) copy_package_files -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+    esac
+  done < "$manifest"
+  oracle_write_active_client || exit 1
+  if [ "$osType" != "Darwin" ]; then
+    install_fq_runtime_links "${installDir}/driver"
+  fi
+  if [ -x "${installDir}/bin/taos-fq-client" ]; then
+    ln -sfn "${installDir}/bin/taos-fq-client" "${bin_link_dir}/taos-fq-client"
+  fi
+  cp "$manifest" "${installDir}/.extension-files"
+  if [ -f "${script_dir}/.package-role" ]; then
+    cp "${script_dir}/.package-role" "${installDir}/.package-role.extension"
+  fi
+  echo "TDengine extension package has been installed successfully."
+}
+
+# Preserve general-purpose system library links: legacy installs may have
+# overwritten their original targets. Remove only dedicated FQ exports. Resolve every link
+# before deleting any, so aliases and dangling versioned targets are handled.
+function cleanup_legacy_fq_runtime() {
+  local driver_dir="$1" conf_file="$2" cleanup_sudo="$3"
+  shift 3
+  local canonical_driver dir link target
+  local changed=0
+  local managed_links=()
+  local ownership
+  canonical_driver=$(readlink -m -- "$driver_dir")
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for link in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so* \
+                "$dir"/libltdl.so* "$dir"/libgssapi_krb5.so* "$dir"/libkrb5.so* \
+                "$dir"/libk5crypto.so* "$dir"/libcom_err.so* "$dir"/libkrb5support.so* \
+                "$dir"/libkeyutils.so*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m -- "$link" 2>/dev/null) || continue
+      case "$target" in
+        "$canonical_driver/"*)
+          # Shared runtime SONAMEs may have replaced package-owned links.
+          # Remove them only when a package manager confirms the link path is
+          # unowned; ambiguous query failures preserve the link.
+          case "${link##*/}" in
+            libssl.so*|libcrypto.so*|libz.so*|libltdl.so*|libgssapi_krb5.so*|libkrb5.so*|\
+            libk5crypto.so*|libcom_err.so*|libkrb5support.so*|libkeyutils.so*)
+              ownership=unknown
+              if command -v dpkg-query >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(dpkg-query -S -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"no path found matching pattern"* ]]; then
+                  ownership=unowned
+                fi
+              elif command -v rpm >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(rpm -qf -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"is not owned by any package"* ]]; then
+                  ownership=unowned
+                fi
+              fi
+              if [ "$ownership" = owned ] && command -v rpm >/dev/null 2>&1; then
+                local package rpm_target restored_target
+                package=$(rpm -qf --qf '%{NAME}\n' -- "$link" 2>/dev/null) || package=""
+                rpm_target=""
+                if [ -n "$package" ]; then
+                  rpm_target=$(rpm -q --dump "$package" 2>/dev/null | awk -v path="$link" '$1 == path && $5 ~ /^012/ { print $NF; found=1; exit } END { if (!found) exit 1 }') || rpm_target=""
+                fi
+                if [ -n "$rpm_target" ] && [ -e "$(dirname "$link")/$rpm_target" ]; then
+                  restored_target=$(readlink -m -- "$(dirname "$link")/$rpm_target" 2>/dev/null) || restored_target=""
+                  case "$restored_target" in
+                    "$canonical_driver/"*) restored_target="" ;;
+                  esac
+                  if [ -n "$restored_target" ]; then
+                    ${cleanup_sudo}ln -sfn -- "$rpm_target" "$link"
+                    changed=1
+                    echo "Restored package-owned symlink $link -> $rpm_target"
+                    continue
+                  fi
+                fi
+                echo "Warning: preserving $link; RPM target could not be safely restored" >&2
+                continue
+              fi
+              if [ "$ownership" != unowned ]; then
+                echo "Warning: preserving $link; package ownership is $ownership" >&2
+                continue
+              fi
+              ;;
+          esac
+          managed_links+=("$link")
+          ;;
+      esac
+    done
+  done
+  for link in "${managed_links[@]-}"; do
+    [ -n "$link" ] || continue
+    ${cleanup_sudo}rm -f -- "$link"
+    changed=1
+  done
+  # The old installer wrote exactly one driver path. Leave symlinks and any
+  # customized configuration untouched, even when the filename is the same.
+  if [ -n "$conf_file" ] && [ -f "$conf_file" ] && [ ! -L "$conf_file" ] &&
+     [ "$(cat -- "$conf_file")" = "$driver_dir" ]; then
+    ${cleanup_sudo}rm -f -- "$conf_file"
+    changed=1
+  elif [ -n "$conf_file" ] && { [ -e "$conf_file" ] || [ -L "$conf_file" ]; }; then
+    echo "Warning: customized loader configuration preserved: $conf_file; review FQ driver exports manually" >&2
+  fi
+  if [ "$changed" -eq 1 ] && { [ "$(id -u)" -eq 0 ] || [ -n "$cleanup_sudo" ]; } &&
+     command -v ldconfig >/dev/null 2>&1; then
+    ${cleanup_sudo}ldconfig || echo "Warning: failed to update library cache (ldconfig)" >&2
+  fi
+}
+
+function install_fq_runtime_links() {
+  if [ "$osType" != "Darwin" ]; then
+    local legacy_conf=""
+    if [ "$user_mode" -eq 0 ]; then
+      legacy_conf="/etc/ld.so.conf.d/tdengine-connector.conf"
+    fi
+    cleanup_legacy_fq_runtime "${installDir}/driver" "$legacy_conf" "" \
+      "$lib_link_dir" "$lib64_link_dir"
+  fi
+  # Keep Microsoft driver resources relative to the private driver directory.
+  if [ -d "${script_dir}/share/resources" ]; then
+    mkdir -p "${installDir}/share/resources"
+    copy_package_files -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
+  fi
+  local runtime_dir="${1:-${installDir}/driver}"
+  local link_name target_name
+  [ -d "$runtime_dir" ] || return 0
+  while read -r link_name target_name; do
+    if [ -f "${runtime_dir}/${target_name}" ] &&
+       { [ ! -e "${runtime_dir}/${link_name}" ] || [ -L "${runtime_dir}/${link_name}" ]; }; then
+      ln -sfn "$target_name" "${runtime_dir}/${link_name}"
+    fi
+  done <<'LINKS'
+libarrow.so libarrow.so.1900
+libarrow_flight.so libarrow_flight.so.1900
+libarrow_flight_sql.so libarrow_flight_sql.so.1900
+libparquet.so libparquet.so.1900
+libmariadb.so libmariadb.so.3
+libpq.so.5 libpq.so.5.16
+libpq.so libpq.so.5
+libodbc.so libodbc.so.2
+# Oracle Instant Client: make_package ships the real library only, so the
+# aliases the driver and the preloader look up by bare soname are recreated
+# here.  libclntshcore is a different library from libclntsh whose name shares
+# a prefix; both are needed and neither alias may point at the other.
+libclntsh.so libclntsh.so.23.1
+libclntshcore.so libclntshcore.so.23.1
+libssl.so libssl.so.3
+libcrypto.so libcrypto.so.3
+libz.so libz.so.1
+LINKS
+
+  # Versioned Instant Client directories: recreate the bare-soname aliases
+  # from the real file in each directory.  The version is discovered, never
+  # hardcoded, so the 19c and 23ai trees keep their own libclntsh/libclntshcore.
+  local ver_dir stem target
+  for ver_dir in "${runtime_dir}/oracle/19c" "${runtime_dir}/oracle/23ai"; do
+    [ -d "${ver_dir}" ] || continue
+    for stem in libclntsh libclntshcore; do
+      target=$(find "${ver_dir}" -maxdepth 1 -type f -name "${stem}.so.*" 2>/dev/null | sort -V | tail -1)
+      [ -n "${target}" ] || continue
+      ln -sfn "$(basename "${target}")" "${ver_dir}/${stem}.so"
+    done
+  done
+
+  if [ -n "${oracleResolvedClient:-}" ] && [ -d "${runtime_dir}/oracle/${oracleResolvedClient}" ]; then
+    local client_manager="${script_dir}/bin/taos-fq-client"
+    [ -f "$client_manager" ] || client_manager="${installDir}/bin/taos-fq-client"
+    if [ -f "$client_manager" ]; then
+      bash "$client_manager" --install-dir "$installDir" oracle use "$oracleResolvedClient" || exit 1
+    else
+      echo "Oracle client management tool is missing from this package" >&2
+      exit 1
+    fi
+  fi
+}
+
+function get_config_file() {
+    case "$1" in
+      "${serverName}") echo "${configFile}" ;;
+      "${adapterName}") echo "${adapterName}.toml" ;;
+      "${xname}") echo "${xname}.toml" ;;
+      "${keeperName}") echo "${keeperName}.toml" ;;
+      "${explorerName}") echo "explorer.toml" ;;
+      *) echo "" ;;
+    esac
+}
+
 function install_services() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   for service in "${services[@]}"; do
     install_service ${service}
   done
 }
 
 function kill_process() {
-  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
   fi
+    # use pkill if available, otherwise fallback to pgrep + while-read
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -x -9 "$1" 2>/dev/null || true
+    else
+        pgrep -x "$1" | while read p; do kill -9 "$p" 2>/dev/null || :; done || :
+    fi
+}
+
+# Remove the previous package payload only for an explicitly clean install.
+# Keep this separate from directory setup so overlay installs preserve optional
+# resources while explicit cleanup continues to use the existing safety checks.
+function remove_previous_package_files() {
+  if [ -f "${install_main_dir}/.extension-files" ]; then
+    local extension_path
+    local extension_paths=()
+    while IFS= read -r extension_path || [ -n "$extension_path" ]; do
+      [ -z "$extension_path" ] && continue
+      if [[ "$extension_path" == /* || "$extension_path" == .. || "$extension_path" == ../* || \
+            "$extension_path" == */../* || "$extension_path" == */.. ]]; then
+        echo "Invalid path in installed extension manifest: ${extension_path}" >&2
+        exit 1
+      fi
+      extension_paths+=("$extension_path")
+    done < "${install_main_dir}/.extension-files"
+    # Validate the complete manifest before removing anything. Configuration
+    # files may live below cfg -> /etc/taos and must follow config policy.
+    for extension_path in "${extension_paths[@]}"; do
+      case "$extension_path" in
+        cfg|cfg/*) continue ;;
+      esac
+      rm -f -- "${install_main_dir}/${extension_path}"
+    done
+  fi
+  rm -rf "${bin_dir}" || :
+  rm -rf "${driver_dir}" || :
+  # A full/core package owns the installation tree. Remove optional payloads
+  # left by an earlier full or extension install before laying down this role.
+  rm -rf "${install_main_dir}/connector" \
+         "${install_main_dir}/plugins" \
+         "${install_main_dir}/taosx/plugins" || :
+  rmdir "${install_main_dir}/taosx" 2>/dev/null || :
+  rm -rf "${install_main_dir}/examples" || :
+  rm -rf "${install_main_dir}/include" || :
+  rm -rf "${install_main_dir}/share" || :
+  # Remove package-role metadata left by a previous extension install. The
+  # full/core installer owns the tree and must not inherit extension mode.
+  rm -f "${install_main_dir}/.extension-files" \
+        "${install_main_dir}/.package-info" \
+        "${install_main_dir}/.package-role" \
+        "${install_main_dir}/.package-role.extension" || :
 }
 
 function install_main_path() {
   #create install main dir and all sub dir
-  ${csudo}rm -rf ${install_main_dir}/cfg || :
-  ${csudo}rm -rf ${install_main_dir}/bin || :
-  ${csudo}rm -rf ${install_main_dir}/driver || :
-  ${csudo}rm -rf ${install_main_dir}/examples || :
-  ${csudo}rm -rf ${install_main_dir}/include || :
-  ${csudo}rm -rf ${install_main_dir}/share || :
-  ${csudo}rm -rf ${install_main_dir}/log || :
+  # Note: do NOT rm data/log/cfg link dirs here.
+  # - Real directories from old versions must be preserved (data loss risk)
+  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
+  # - data_link_dir is not recreated during upgrade (install_data not called)
+  # Preserve installed optional resources by default. Keep the previous cleanup
+  # policy available for an explicitly requested clean installation.
+  if [ "${cleanInstall:-0}" -eq 1 ]; then
+    remove_previous_package_files
+  fi
 
-  ${csudo}mkdir -p ${install_main_dir}
-  ${csudo}mkdir -p ${install_main_dir}/cfg
-  ${csudo}mkdir -p ${install_main_dir}/bin
-  #  ${csudo}mkdir -p ${install_main_dir}/connector
-  ${csudo}mkdir -p ${install_main_dir}/driver
-  ${csudo}mkdir -p ${install_main_dir}/examples
-  ${csudo}mkdir -p ${install_main_dir}/include
-  ${csudo}mkdir -p ${configDir}
-  #  ${csudo}mkdir -p ${install_main_dir}/init.d
+  #  mkdir -p ${install_main_dir}/connector
+  mkdir -p ${install_main_dir}
+  mkdir -p "${bin_dir}" 
+  mkdir -p "${driver_dir}"
+  mkdir -p "${install_main_dir}/examples"
+  mkdir -p "${install_main_dir}/include"
+  mkdir -p "${configDir}"
+  #  mkdir -p "${install_main_dir}/init.d"
   if [ "$verMode" == "cluster" ]; then
-    ${csudo}mkdir -p ${install_main_dir}/share
+    mkdir -p "${install_main_dir}/share"
+  fi
+  if [ -d "${script_dir}/share" ]; then
+    mkdir -p "${install_main_dir}/share"
+    copy_package_files -a "${script_dir}/share/." "${install_main_dir}/share/"
+  fi
+  if [ -f "${script_dir}/.package-info" ]; then
+    cp -f "${script_dir}/.package-info" "${install_main_dir}/.package-info"
   fi
 
   if [[ -e ${script_dir}/email ]]; then
-    ${csudo}cp ${script_dir}/email ${install_main_dir}/ || :
+    cp ${script_dir}/email ${install_main_dir}/ || :
   fi
 }
 
 function install_bin() {
+  if [ "$verType" != client ] && [ -f "${script_dir}/bin/taos-fq-client" ]; then
+    tools+=(taos-fq-client)
+  fi
   # Remove links
   for tool in "${tools[@]}"; do
-    ${csudo}rm -f ${bin_link_dir}/${tool} || :
+    rm -f ${bin_link_dir}/${tool} || :
   done
-
   for service in "${services[@]}"; do
-    ${csudo}rm -f ${bin_link_dir}/${service} || :
+    rm -f ${bin_link_dir}/${service} || :
   done
 
   if [ "${verType}" == "client" ]; then
-    ${csudo}cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/bin/remove.sh ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/${clientName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${benchmarkName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${dumpName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${inspect_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${taosgen_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${remove_name}" "${install_main_dir}/bin"
   else
-    ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
-    ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
-    ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/"* "${install_main_dir}/bin"
+    if [ "${pkgMode}" != "lite" ]; then
+      copy_package_files "${script_dir}/start-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/reconcile-tsdb-nodes.sh" "${install_main_dir}/bin"
+      sed -i.bak \
+        -e "s|/etc/${PREFIX}|${configDir}|g" \
+        "${install_main_dir}/bin/start-all.sh"
+      rm -f "${install_main_dir}/bin/start-all.sh.bak"
+      copy_package_files "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
+    fi
   fi
-
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
-    if [ -d ${script_dir}/${xname}/bin ]; then
-      ${csudo}cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+    if [ -d "${script_dir}/${xname}/bin" ]; then
+      copy_package_files -r "${script_dir}/${xname}/bin/"* "${install_main_dir}/bin"
     fi
-    if [ -e ${script_dir}/${xname}/uninstall_${xname}.sh ]; then
-      ${csudo}cp -r ${script_dir}/${xname}/uninstall_${xname}.sh ${install_main_dir}/uninstall_${xname}.sh
-    fi
-  fi
-  
-  if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
-    ${csudo}cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
   fi
 
-  ${csudo}chmod 0555 ${install_main_dir}/bin/*
-  [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}mv ${install_main_dir}/bin/remove.sh ${install_main_dir}/uninstall.sh || :
+  if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
+    copy_package_files -r "${script_dir}/bin/quick_deploy.sh" "${install_main_dir}/bin"
+  fi
+
+  # set taos_malloc.sh as bin script
+  if [ "${pkgMode}" != "lite" ]; then
+    if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
+      copy_package_files -r "${script_dir}/bin/${set_malloc_bin}" "${install_main_dir}/bin"
+    else
+      echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
+    fi
+  fi
+
+
+  chmod 0555 ${install_main_dir}/bin/*
+  rm -f ${install_main_dir}/uninstall.sh || :
+  [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
+  if [ "${packageRole}" = "full" ] || [ "${packageRole}" = "core" ]; then
+    printf '%s\n' "${packageRole}" > "${install_main_dir}/.package-role"
+  fi
 
   #Make link
   for tool in "${tools[@]}"; do
-    if [ "${tool}" == "remove.sh" ]; then
-      [ -x ${install_main_dir}/uninstall.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
+    if [ "${tool}" == "${remove_name}" ]; then
+      [ -x ${install_main_dir}/uninstall.sh ] && ln -sf ${install_main_dir}/uninstall.sh ${bin_link_dir}/${uninstallScript} || :
     else
-      [ -x ${install_main_dir}/bin/${tool} ] && ${csudo}ln -sf ${install_main_dir}/bin/${tool} ${bin_link_dir}/${tool} || :
+      if [ "${tool}" == "startPre.sh" ]; then
+        sed -i "s|/var/log/${PREFIX}|${logDir}|g" ${install_main_dir}/bin/${tool} 
+      fi
+      [ -x ${install_main_dir}/bin/${tool} ] && ln -sf ${install_main_dir}/bin/${tool} ${bin_link_dir}/${tool} || :
     fi
   done
 
   for service in "${services[@]}"; do
-    [ -x ${install_main_dir}/bin/${service} ] && ${csudo}ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
+    [ -x ${install_main_dir}/bin/${service} ] && ln -sf ${install_main_dir}/bin/${service} ${bin_link_dir}/${service} || :
   done
 
-  [ -x ${install_main_dir}/uninstall_${xname}.sh ] && ${csudo}ln -sf ${install_main_dir}/uninstall_${xname}.sh ${bin_link_dir}/uninstall_${xname}.sh || :
+  # Add TDengine bin to PATH and LD_LIBRARY_PATH for non-root users
+  if [[ $user_mode -eq 1 ]]; then
+    local env_file=""
+    if [[ -n "$ZSH_VERSION" ]]; then
+      env_file="${HOME}/.zshrc"
+    else
+      env_file="${HOME}/.bashrc"
+    fi
+
+    # Add PATH
+    if ! grep -q "${bin_link_dir}" "$env_file" 2>/dev/null; then
+      echo -e "\n# ${productName} install path" >> "$env_file"
+      echo "export PATH=\"${bin_link_dir}:\$PATH\"" >> "$env_file"
+      log info "Added ${productName} bin to PATH (${env_file})"
+    fi
+
+    # Add LD_LIBRARY_PATH
+    if ! grep -q "${lib_link_dir}" "$env_file" 2>/dev/null; then
+      echo "export LD_LIBRARY_PATH=\"${lib_link_dir}:\$LD_LIBRARY_PATH\"" >> "$env_file"
+      log info "Added ${productName} lib to LD_LIBRARY_PATH (${env_file})"
+    fi
+
+  fi
+  if [ "$verType" != "client" ]; then
+    cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
+  fi
 }
 
 function install_lib() {
   # Remove links
-  ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
-  ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  #${csudo}rm -rf ${v15_java_app_dir}              || :
-  ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
+  rm -f ${lib_link_dir}/libtaos.* || :
+  rm -f ${lib_link_dir}/libtaosnative.* || :
+  rm -f ${lib_link_dir}/libtaosws.* || :
+  rm -f ${lib_link_dir}/libtaospyudf.* || :
+  if [ "$osType" != "Darwin" ]; then
+    rm -f ${lib64_link_dir}/libtaos.* || :
+    rm -f ${lib64_link_dir}/libtaosnative.* || :
+    rm -f ${lib64_link_dir}/libtaosws.* || :
+    rm -f ${lib64_link_dir}/libtaospyudf.* || :
+  fi
+  #rm -rf ${v15_java_app_dir}              || :
+  copy_package_files -rf "${script_dir}/driver/"* "${driver_dir}/"
+  chmod 755 "${driver_dir}/"*
 
-  ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
-  ${csudo}ln -sf ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+  # Core libraries are replaced across versions; optional extension libraries
+  # sharing driver/ are retained. Only clean a family supplied by this package,
+  # after the payload copy succeeds. Never use a broad libtaos* removal here.
+  local core_stem core_pattern incoming old_library library_name
+  local has_incoming
+  for core_stem in libtaos libtaosnative libtaosws libtaospyudf; do
+    if [ "$osType" = "Darwin" ]; then
+      core_pattern="${core_stem}.*.dylib"
+    else
+      core_pattern="${core_stem}.so.*"
+    fi
+    has_incoming=0
+    for incoming in "${script_dir}/driver"/${core_pattern}; do
+      if [ -f "$incoming" ] && [[ "$incoming" != *.debug ]]; then
+        has_incoming=1
+        break
+      fi
+    done
+    [ "$has_incoming" -eq 1 ] || continue
+    for old_library in "${driver_dir}"/${core_pattern} "${driver_dir}"/${core_pattern}.debug; do
+      [ -f "$old_library" ] || [ -L "$old_library" ] || continue
+      library_name=${old_library##*/}
+      # Keep current-version extension debug symbols even when CORE omits them.
+      if [ ! -e "${script_dir}/driver/${library_name%.debug}" ] &&
+         [ ! -L "${script_dir}/driver/${library_name%.debug}" ]; then
+        rm -f -- "$old_library"
+      fi
+    done
+  done
 
-  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+  # A package may contain more than one matching driver artifact during an
+  # upgrade (for example, an existing unversioned alias and a versioned ELF).
+  # Passing an unexpanded glob list to ln makes it interpret the destination
+  # as a directory and abort. Link only the first real versioned library.
+  link_driver_library() {
+    local pattern="$1"
+    local link_name="$2"
+    local link_dir="${3:-${lib_link_dir}}"
+    local source
+    # Select the incoming core payload, independently of retained extensions.
+    for source in "${script_dir}/driver"/${pattern}; do
+      [ -f "$source" ] || continue
+      source="${driver_dir}/$(basename "$source")"
+      ln -sf "$source" "${link_dir}/${link_name}"
+      return 0
+    done
+    return 0
+  }
 
-  if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-    ${csudo}ln -sf ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
-    ${csudo}ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
-
-    [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
+  mkdir -p "${lib_link_dir}"
+  if [ -n "${lib64_link_dir}" ]; then
+    mkdir -p "${lib64_link_dir}"
   fi
 
-  ${csudo}ldconfig
+  # Link libraries based on OS type
+  if [ "$osType" != "Darwin" ]; then
+    oracle_write_active_client || exit 1
+    install_fq_runtime_links "${driver_dir}"
+    # Linux specific linking
+    link_driver_library 'libtaos.so.*' 'libtaos.so.3'
+    ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
+    link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3'
+    ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
+
+    link_driver_library 'libtaosws.so.*' 'libtaosws.so.3'
+    ln -sf ${lib_link_dir}/libtaosws.so.3 ${lib_link_dir}/libtaosws.so
+    link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3'
+    ln -sf ${lib_link_dir}/libtaospyudf.so.3 ${lib_link_dir}/libtaospyudf.so
+
+    # Link lib64 if it exists
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
+      link_driver_library 'libtaos.so.*' 'libtaos.so.3' "${lib64_link_dir}"
+      ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
+      link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3' "${lib64_link_dir}"
+      ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
+
+      link_driver_library 'libtaosws.so.*' 'libtaosws.so.3' "${lib64_link_dir}"
+      ln -sf ${lib64_link_dir}/libtaosws.so.3 ${lib64_link_dir}/libtaosws.so || :
+      link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3' "${lib64_link_dir}"
+      ln -sf ${lib64_link_dir}/libtaospyudf.so.3 ${lib64_link_dir}/libtaospyudf.so || :
+    fi
+
+    if [[ $user_mode -eq 0 ]]; then
+      ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
+    fi
+  else
+    # Build aliases from this package's core library versions.
+    link_driver_library 'libtaos.[0-9]*.dylib' 'libtaos.3.dylib'
+    ln -sf "${lib_link_dir}/libtaos.3.dylib" "${lib_link_dir}/libtaos.dylib"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.dylib' "${driver_dir}"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.3.dylib'
+    ln -sf "${lib_link_dir}/libtaosnative.3.dylib" "${lib_link_dir}/libtaosnative.dylib"
+    link_driver_library 'libtaosws.dylib.*' 'libtaosws.dylib'
+    link_driver_library 'libtaospyudf.dylib.*' 'libtaospyudf.dylib'
+    # Update dyld shared cache
+    if [[ $user_mode -eq 0 ]]; then
+      update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"
+    fi
+  fi
+
+  # Link jemalloc.so and tcmalloc.so (Linux only)
+  if [ "$osType" != "Darwin" ]; then
+    jemalloc_file="${driver_dir}/libjemalloc.so.2"
+    tcmalloc_file="${driver_dir}/libtcmalloc.so.4.5.18"
+    [ -f "${jemalloc_file}" ] && ln -sf "${jemalloc_file}" "${driver_dir}/libjemalloc.so" || echo "jemalloc file not found: ${jemalloc_file}"
+    [ -f "${tcmalloc_file}" ] && ln -sf "${tcmalloc_file}" "${driver_dir}/libtcmalloc.so" || echo "tcmalloc file not found: ${tcmalloc_file}"
+  fi
+  
 }
 
 function install_avro() {
-  if [ "$osType" != "Darwin" ]; then
+  if [ "$ostype" != "Darwin" ]; then
     avro_dir=${script_dir}/avro
     if [ -f "${avro_dir}/lib/libavro.so.23.0.0" ] && [ -d /usr/local/$1 ]; then
-      ${csudo}/usr/bin/install -c -d /usr/local/$1
-      ${csudo}/usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.so.23.0.0 /usr/local/$1
-      ${csudo}ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
-      ${csudo}ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
+      /usr/bin/install -c -d /usr/local/$1
+      /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.so.23.0.0 /usr/local/$1
+      ln -sf /usr/local/$1/libavro.so.23.0.0 /usr/local/$1/libavro.so.23
+      ln -sf /usr/local/$1/libavro.so.23 /usr/local/$1/libavro.so
 
-      ${csudo}/usr/bin/install -c -d /usr/local/$1
+      /usr/bin/install -c -d /usr/local/$1
       [ -f ${avro_dir}/lib/libavro.a ] &&
-        ${csudo}/usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.a /usr/local/$1
+        /usr/bin/install -c -m 755 ${avro_dir}/lib/libavro.a /usr/local/$1
 
       if [ -d /etc/ld.so.conf.d ]; then
-        echo "/usr/local/$1" | ${csudo}tee /etc/ld.so.conf.d/libavro.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
-        ${csudo}ldconfig
+        echo "/usr/local/$1" | tee /etc/ld.so.conf.d/libavro.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/libavro.conf"
+        ldconfig
       else
         echo "/etc/ld.so.conf.d not found!"
       fi
@@ -313,71 +1290,82 @@ function install_jemalloc() {
   jemalloc_dir=${script_dir}/jemalloc
 
   if [ -d ${jemalloc_dir} ]; then
-    ${csudo}/usr/bin/install -c -d /usr/local/bin
+    /usr/bin/install -c -d /usr/local/bin
 
     if [ -f ${jemalloc_dir}/bin/jemalloc-config ]; then
-      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
+      /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc-config /usr/local/bin
     fi
     if [ -f ${jemalloc_dir}/bin/jemalloc.sh ]; then
-      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
+      /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jemalloc.sh /usr/local/bin
     fi
     if [ -f ${jemalloc_dir}/bin/jeprof ]; then
-      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
+      /usr/bin/install -c -m 755 ${jemalloc_dir}/bin/jeprof /usr/local/bin
     fi
     if [ -f ${jemalloc_dir}/include/jemalloc/jemalloc.h ]; then
-      ${csudo}/usr/bin/install -c -d /usr/local/include/jemalloc
-      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
+      /usr/bin/install -c -d /usr/local/include/jemalloc
+      /usr/bin/install -c -m 644 ${jemalloc_dir}/include/jemalloc/jemalloc.h /usr/local/include/jemalloc
     fi
     if [ -f ${jemalloc_dir}/lib/libjemalloc.so.2 ]; then
-      ${csudo}/usr/bin/install -c -d /usr/local/lib
-      ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
-      ${csudo}ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
-      ${csudo}/usr/bin/install -c -d /usr/local/lib
+      /usr/bin/install -c -d /usr/local/lib
+      /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.so.2 /usr/local/lib
+      ln -sf libjemalloc.so.2 /usr/local/lib/libjemalloc.so
+      /usr/bin/install -c -d /usr/local/lib
       # if [ -f ${jemalloc_dir}/lib/libjemalloc.a ]; then
-      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
+      #   /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc.a /usr/local/lib
       # fi
       # if [ -f ${jemalloc_dir}/lib/libjemalloc_pic.a ]; then
-      #   ${csudo}/usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
+      #   /usr/bin/install -c -m 755 ${jemalloc_dir}/lib/libjemalloc_pic.a /usr/local/lib
       # fi
       if [ -f ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc ]; then
-        ${csudo}/usr/bin/install -c -d /usr/local/lib/pkgconfig
-        ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
+        /usr/bin/install -c -d /usr/local/lib/pkgconfig
+        /usr/bin/install -c -m 644 ${jemalloc_dir}/lib/pkgconfig/jemalloc.pc /usr/local/lib/pkgconfig
       fi
     fi
     if [ -f ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html ]; then
-      ${csudo}/usr/bin/install -c -d /usr/local/share/doc/jemalloc
-      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
+      /usr/bin/install -c -d /usr/local/share/doc/jemalloc
+      /usr/bin/install -c -m 644 ${jemalloc_dir}/share/doc/jemalloc/jemalloc.html /usr/local/share/doc/jemalloc
     fi
     if [ -f ${jemalloc_dir}/share/man/man3/jemalloc.3 ]; then
-      ${csudo}/usr/bin/install -c -d /usr/local/share/man/man3
-      ${csudo}/usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
+      /usr/bin/install -c -d /usr/local/share/man/man3
+      /usr/bin/install -c -m 644 ${jemalloc_dir}/share/man/man3/jemalloc.3 /usr/local/share/man/man3
     fi
 
-    if [ -d /etc/ld.so.conf.d ]; then
-      echo "/usr/local/lib" | ${csudo}tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
-      ${csudo}ldconfig
-    else
-      echo "/etc/ld.so.conf.d not found!"
+    if [ "$osType" != "Darwin" ]; then
+      if [ -d /etc/ld.so.conf.d ]; then
+        echo "/usr/local/lib" | tee /etc/ld.so.conf.d/jemalloc.conf >/dev/null || echo -e "failed to write /etc/ld.so.conf.d/jemalloc.conf"
+        ldconfig
+      else
+        echo "/etc/ld.so.conf.d not found!"
+      fi
     fi
   fi
 }
 
 function install_header() {
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
+  rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
+  if [ -f "${inc_link_dir}/taosws.h" ]; then
+    rm -f "${inc_link_dir}/taosws.h"
+  fi
 
-  ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
-  ${csudo}ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
-  ${csudo}ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
-  ${csudo}ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
-  ${csudo}ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
-  ${csudo}ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
+  copy_package_files -f "${script_dir}/inc/"* "${install_main_dir}/include"
+  chmod 644 ${install_main_dir}/include/*
+  ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+  ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
+  ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+  ln -sf ${install_main_dir}/include/tdef.h ${inc_link_dir}/tdef.h
+  ln -sf ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h
 
-  [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
+  if [ -f "${install_main_dir}/include/taosws.h" ]; then
+    ln -sf "${install_main_dir}/include/taosws.h" "${inc_link_dir}/taosws.h"
+  fi
 }
 
 function add_newHostname_to_hosts() {
+  if [ "$user_mode" -eq 1 ]; then
+    echo "Warning: non-root install, skipping /etc/hosts modification"
+    return
+  fi
   localIp="127.0.0.1"
   OLD_IFS="$IFS"
   IFS=" "
@@ -392,9 +1380,10 @@ function add_newHostname_to_hosts() {
 
   if grep -q "127.0.0.1  $1" /etc/hosts; then
     return
+  elif [ -w /etc/hosts ]; then
+    echo "127.0.0.1  $1" >>/etc/hosts
   else
-    ${csudo}chmod 666 /etc/hosts
-    ${csudo}echo "127.0.0.1  $1" >>/etc/hosts
+    echo "Warning: /etc/hosts is not writable, skipping hostname addition"
   fi
 }
 
@@ -413,7 +1402,7 @@ function set_hostname() {
     fi
   done
 
-  # ${csudo}hostname $newHostname || :
+  # hostname $newHostname
   # retval=$(echo $?)
   # if [[ $retval != 0 ]]; then
   #   echo
@@ -423,18 +1412,18 @@ function set_hostname() {
 
   # #ubuntu/centos /etc/hostname
   # if [[ -e /etc/hostname ]]; then
-  #   ${csudo}echo $newHostname >/etc/hostname || :
+  #   echo $newHostname >/etc/hostname
   # fi
 
   # #debian: #HOSTNAME=yourname
   # if [[ -e /etc/sysconfig/network ]]; then
-  #   ${csudo}sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network || :
+  #   sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network
   # fi
 
   if [ -f ${configDir}/${configFile} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${configDir}/${configFile}
+    sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${configDir}/${configFile}
   else
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${script_dir}/cfg/${configFile}
+    sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${script_dir}/cfg/${configFile}
   fi
   serverFqdn=$newHostname
 
@@ -471,9 +1460,9 @@ function set_ipAsFqdn() {
     # Write the local FQDN to configuration file
 
     if [ -f ${configDir}/${configFile} ]; then
-      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
+      sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
     else
-      ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
+      sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
     fi
     serverFqdn=$localFqdn
     echo
@@ -485,7 +1474,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
   while true; do
     if [ ! -z "$localFqdn" ]; then
@@ -497,9 +1486,9 @@ function set_ipAsFqdn() {
       else
         # Write the local FQDN to configuration file
         if [ -f ${configDir}/${configFile} ]; then
-          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
+          sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${configDir}/${configFile}
         else
-          ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
+          sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${script_dir}/cfg/${configFile}
         fi
         serverFqdn=$localFqdn
         break
@@ -519,96 +1508,163 @@ function local_fqdn_check() {
 }
 
 function install_taosx_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" ${fileName}
-    
+  file_name="${script_dir}/${xname}/etc/${PREFIX}/${xname}.toml"
+  if [ $taos_dir_set -eq 1 ]; then
+    mkdir -p "${dataDir}/${xname}"
+  fi
+  if [ -f "${file_name}" ]; then
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
+    fi
+
+    # replace data_dir
+    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/${xname}\"|" "${file_name}"
+
+    # replace log path
+    sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
+
+
     if [ -f "${configDir}/${xname}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml.new
+      cp ${file_name} ${configDir}/${xname}.toml.new
     else
-      ${csudo}cp ${fileName} ${configDir}/${xname}.toml
+      cp ${file_name} ${configDir}/${xname}.toml
     fi
   fi
 }
 
-
 function install_explorer_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
+  local explorer_config_file
+  explorer_config_file=$(get_config_file "${explorerName}")
 
-  if [ "$verMode" == "cluster" ]; then
-    fileName="${script_dir}/${xname}/etc/${PREFIX}/explorer.toml"
+  if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+    file_name="${script_dir}/${xname}/etc/${PREFIX}/${explorer_config_file}"
   else
-    fileName="${script_dir}/cfg/explorer.toml"
+    file_name="${script_dir}/cfg/${explorer_config_file}"
   fi
+  if [ $taos_dir_set -eq 1 ]; then
+    mkdir -p "${dataDir}/explorer"
+  fi
+  if [ -f "${file_name}" ]; then
+    # replace fqdn
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
 
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i "s/localhost/${serverFqdn}/g" ${fileName}
-    
-    if [ -f "${configDir}/explorer.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml.new
+    # replace data_dir
+    sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" "${file_name}"
+
+    # replace log path
+    sed -i -r "0,/path\s*=\s*/s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
+
+    if [ -f "${configDir}/${explorer_config_file}" ]; then
+      cp "${file_name}" "${configDir}/${explorer_config_file}.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/explorer.toml
+      cp "${file_name}" "${configDir}/${explorer_config_file}"
     fi
   fi
 }
 
 function install_adapter_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/cfg/${adapterName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/localhost/${serverFqdn}/g" ${fileName}
+  file_name="${script_dir}/cfg/${adapterName}.toml"
+  if [ -f "${file_name}" ]; then
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
+
+    # replace log path
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
     
-    if [ -f "${configDir}/${adapterName}.toml" ]; then      
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml.new
+    # replace cfg path
+    sed -i -r "s|#*\s*(taosConfigDir\s*=\s*).*|\1\"${configDir}\"|" "${file_name}"
+
+    if [ -f "${configDir}/${adapterName}.toml" ]; then
+      cp "${file_name}" "${configDir}/${adapterName}.toml.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/${adapterName}.toml      
+      cp "${file_name}" "${configDir}/${adapterName}.toml"
     fi
   fi
 }
 
 function install_keeper_config() {
-  [ ! -z $1 ] && return 0 || : # only install client
+  local only_client=${1:-}
+  [ -n "${only_client}" ] && return 0
 
-  fileName="${script_dir}/cfg/${keeperName}.toml"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/127.0.0.1/${serverFqdn}/g" ${fileName}
+  file_name="${script_dir}/cfg/${keeperName}.toml"
+  if [ -f "${file_name}" ]; then
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    fi
+    sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml.new
+      cp "${file_name}" "${configDir}/${keeperName}.toml.new"
     else
-      ${csudo}cp ${fileName} ${configDir}/${keeperName}.toml
+      cp "${file_name}" "${configDir}/${keeperName}.toml"
     fi
   fi
 }
 
 function install_taosd_config() {
-  fileName="${script_dir}/cfg/${configFile}"
-  if [ -f ${fileName} ]; then
-    ${csudo}sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
-    ${csudo}echo "monitor 1" >>${script_dir}/cfg/${configFile}
-    ${csudo}echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
-    if [ "$verMode" == "cluster" ]; then
-      ${csudo}echo "audit 1" >>${script_dir}/cfg/${configFile}  
+  file_name="${script_dir}/cfg/${configFile}"
+  if [ -f ${file_name} ]; then
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
     fi
-    
-    if [ -f "${configDir}/${configFile}" ]; then
-      ${csudo}cp ${fileName} ${configDir}/${configFile}.new
+    echo "monitor 1" >>${script_dir}/cfg/${configFile}
+    if [ "$imageBuild" -eq 0 ]; then
+      echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
     else
-      ${csudo}cp ${fileName} ${configDir}/${configFile}
+      echo "monitorFQDN localhost" >>${script_dir}/cfg/${configFile}
+    fi
+
+    if grep -q "^dataDir " "${script_dir}/cfg/${configFile}"; then
+      sed -i "s|^dataDir .*|dataDir ${dataDir}|" "${script_dir}/cfg/${configFile}"
+    else
+      echo "dataDir ${dataDir}" >>"${script_dir}/cfg/${configFile}"
+    fi
+
+    if grep -q "^logDir " "${script_dir}/cfg/${configFile}"; then
+      sed -i "s|^logDir .*|logDir ${logDir}|" "${script_dir}/cfg/${configFile}"
+    else
+      echo "logDir ${logDir}" >>"${script_dir}/cfg/${configFile}"
+    fi
+
+    if [ "$verMode" == "cluster" ]; then
+      echo "audit 1" >>${script_dir}/cfg/${configFile}
+    fi
+
+    if [ -f "${configDir}/${configFile}" ]; then
+      cp ${file_name} ${configDir}/${configFile}.new
+    else
+      cp ${file_name} ${configDir}/${configFile}
     fi
   fi
-
-  ${csudo}ln -sf ${configDir}/${configFile} ${install_main_dir}/cfg
+  if [ $user_mode -eq 0 ]; then
+    ln -sf "${configDir}" "${install_main_dir}/cfg"
+  fi
 }
-  
+
+function install_taosinspect_config() {
+  file_name="${script_dir}/cfg/inspect.cfg"
+  if [ -f ${file_name} ]; then
+    if [ -f "${configDir}/inspect.cfg" ]; then
+      cp ${file_name} ${configDir}/inspect.cfg.new
+    else
+      cp ${file_name} ${configDir}/inspect.cfg
+    fi
+  fi
+}
 
 function install_config() {
-  
-  [ ! -z $1 ] && return 0 || : # only install client
-
+  local only_client=${1:-}
   if ((${update_flag} == 1)); then
     install_taosd_config
     return 0
@@ -630,9 +1686,9 @@ function install_config() {
   while true; do
     if [ ! -z "$firstEp" ]; then
       if [ -f ${configDir}/${configFile} ]; then
-        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${configDir}/${configFile}
+        sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${configDir}/${configFile}
       else
-        ${csudo}sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${script_dir}/cfg/${configFile}
+        sed -i -r "s/#*\s*(firstEp\s*).*/\1$firstEp/" ${script_dir}/cfg/${configFile}
       fi
       break
     else
@@ -646,7 +1702,14 @@ function install_config() {
   while true; do
     if [ ! -z "$emailAddr" ]; then
       email_file="${install_main_dir}/email"
-      ${csudo}bash -c "echo $emailAddr > ${email_file}"
+      printf '%s\n' "$emailAddr" > "$email_file" || {
+        echo "Failed to write email address to ${email_file}" >&2
+        exit 1
+      }
+      chmod 0600 "$email_file" || {
+        echo "Failed to set permissions for ${email_file}" >&2
+        exit 1
+      }
       break
     else
       break
@@ -654,60 +1717,69 @@ function install_config() {
   done
 }
 
-function install_log() {
-  ${csudo}mkdir -p ${logDir} && ${csudo}chmod 777 ${logDir}
-
-  ${csudo}ln -sf ${logDir} ${install_main_dir}/log
+function install_log() {    
+    # Keep the system-wide log directory writable so non-root users can run
+    # client tools after a root installation. Use a dedicated service user
+    # and group before tightening this permission in a follow-up change.
+    if [ "$osType" != "Darwin" ]; then
+        mkdir -p ${logDir} && mkdir -p ${logDir}/tcmalloc && mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
+    else
+        mkdir -p ${logDir} && chmod 777 ${logDir}
+    fi
+    
+    if [ $user_mode -eq 0 ]; then
+      ln -sf ${logDir} ${log_link_dir}
+    fi
 }
 
 function install_data() {
-  ${csudo}mkdir -p ${dataDir}
-
-  ${csudo}ln -sf ${dataDir} ${install_main_dir}/data
+  mkdir -p ${dataDir}
+  if [ $user_mode -eq 0 ]; then
+    ln -sf ${dataDir} ${data_link_dir}
+  fi
 }
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"    
-    ${csudo}cp ${script_dir}/README.md ${install_main_dir}/ || echo "failed to copy README.md"
+    copy_package_files -rf "${script_dir}/connector" "${install_main_dir}/"
   fi
 }
 
 function install_examples() {
-  if [ -d ${script_dir}/examples ]; then
-    ${csudo}cp -rf ${script_dir}/examples ${install_main_dir}/ || echo "failed to copy examples"
+  if [ -d "${script_dir}/examples" ]; then
+    copy_package_files -rf "${script_dir}/examples" "${install_main_dir}/"
   fi
 }
 
 function install_plugins() {
-  if [ -d ${script_dir}/${xname}/plugins ]; then
-    ${csudo}cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy ${PREFIX}x plugins"
+  if [ -d "${script_dir}/${xname}/plugins" ]; then
+    copy_package_files -rf "${script_dir}/${xname}/plugins" "${install_main_dir}/"
   fi
 }
 
 function clean_service_on_sysvinit() {
   if ps aux | grep -v grep | grep $1 &>/dev/null; then
-    ${csudo}service $1 stop || :
+    service $1 stop || :
   fi
 
   if ((${initd_mod} == 1)); then
     if [ -e ${service_config_dir}/$1 ]; then
-      ${csudo}chkconfig --del $1 || :
+      chkconfig --del $1 || :
     fi
   elif ((${initd_mod} == 2)); then
     if [ -e ${service_config_dir}/$1 ]; then
-      ${csudo}insserv -r $1 || :
+      insserv -r $1 || :
     fi
   elif ((${initd_mod} == 3)); then
     if [ -e ${service_config_dir}/$1 ]; then
-      ${csudo}update-rc.d -f $1 remove || :
+      update-rc.d -f $1 remove || :
     fi
   fi
 
-  ${csudo}rm -f ${service_config_dir}/$1 || :
+  rm -f ${service_config_dir}/$1 || :
 
   if $(which init &>/dev/null); then
-    ${csudo}init q || :
+    init q || :
   fi
 }
 
@@ -720,54 +1792,101 @@ function install_service_on_sysvinit() {
   sleep 1
 
   if ((${os_type} == 1)); then
-    ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
+    cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && chmod a+x ${service_config_dir}/${serverName}
   elif ((${os_type} == 2)); then
-    ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
+    cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && chmod a+x ${service_config_dir}/${serverName}
   fi
 
   if ((${initd_mod} == 1)); then
-    ${csudo}chkconfig --add $1 || :
-    ${csudo}chkconfig --level 2345 $1 on || :
+    chkconfig --add $1 || :
+    chkconfig --level 2345 $1 on || :
   elif ((${initd_mod} == 2)); then
-    ${csudo}insserv $1} || :
-    ${csudo}insserv -d $1 || :
+    insserv $1 || :
+    insserv -d $1 || :
   elif ((${initd_mod} == 3)); then
-    ${csudo}update-rc.d $1 defaults || :
+    update-rc.d $1 defaults || :
   fi
 }
 
 function clean_service_on_systemd() {
   service_config="${service_config_dir}/$1.service"
 
-  if systemctl is-active --quiet $1; then
+  if ${sysctl_cmd} is-active --quiet $1; then
     echo "$1 is running, stopping it..."
-    ${csudo}systemctl stop $1 &>/dev/null || echo &>/dev/null
+    ${sysctl_cmd} stop $1 &>/dev/null || echo &>/dev/null
   fi
-  ${csudo}systemctl disable $1 &>/dev/null || echo &>/dev/null
-  ${csudo}rm -f ${service_config}
+  ${sysctl_cmd} disable $1 &>/dev/null || echo &>/dev/null
+  rm -f ${service_config}
 }
 
 function install_service_on_systemd() {
   clean_service_on_systemd $1
-
+  service_config="${service_config_dir}/$1.service"
   cfg_source_dir=${script_dir}/cfg
   if [[ "$1" == "${xname}" || "$1" == "${explorerName}" ]]; then
-    if [ "$verMode" == "cluster" ]; then
+    if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
       cfg_source_dir=${script_dir}/${xname}/etc/systemd/system
     else
       cfg_source_dir=${script_dir}/cfg
     fi
   fi
 
-  if [ -f ${cfg_source_dir}/$1.service ]; then
-    ${csudo}cp ${cfg_source_dir}/$1.service ${service_config_dir}/ || :
+  if [ -f "${cfg_source_dir}/$1.service" ]; then
+    tmp_service_file=$(mktemp /tmp/taos-service.XXXXXX) || {
+      echo "Failed to create temporary service file"
+      exit 1
+    }
+    trap 'rm -f "$tmp_service_file" "${tmp_service_file}.bak"' EXIT
+    service_config="${service_config_dir}/$1.service"
+    
+    # Ensure service config directory exists
+    mkdir -p "${service_config_dir}" || { echo "Failed to create directory ${service_config_dir}"; exit 1; }
+    
+    cp "${cfg_source_dir}/$1.service" "$tmp_service_file"
+    
+    if [ ${user_mode} -eq 1 ]; then
+      sed -i.bak \
+        -e "/^EnvironmentFile=/d" \
+        -e '/^ExecStartPre=/d' \
+        -e "s|^LimitNOFILE=.*|LimitNOFILE=1048576|g" \
+        -e '/^LimitCORE=/d' \
+        -e '/^LimitNPROC=/d' \
+        -e 's|^WantedBy=.*|WantedBy=default.target|g' \
+        -e "/^\[Service\]/a Environment=\"LD_LIBRARY_PATH=${lib_link_dir}\"" \
+        "$tmp_service_file"
+      rm -f "${tmp_service_file}.bak"
+    fi
+    cfg_file=$(get_config_file "$1")
+    sed -i \
+      -e "s|/usr/local/${PREFIX}/bin|${bin_dir}|g" \
+      -e "s|^ExecStart=.*|ExecStart=${bin_dir}/$1 -c ${configDir}/${cfg_file}|g" \
+      "$tmp_service_file"
+
+    cp "$tmp_service_file" "${service_config}" || { echo "Failed to copy $tmp_service_file to ${service_config}"; exit 1; }
+    chmod 644 "${service_config}" || { echo "Failed to set permissions for ${service_config}"; exit 1; }
+    
+    rm -f "$tmp_service_file"
+    trap - EXIT
+    ${sysctl_cmd} daemon-reload
+    ${sysctl_cmd} enable $1
   fi
 
-  ${csudo}systemctl enable $1
-  ${csudo}systemctl daemon-reload
+  # # set default malloc config for cluster(enterprise) and edge(community)
+  # if [ "$verMode" == "cluster" ] && [ "$ostype" == "Linux" ]; then
+  #   if [ "$1" = "taosd" ] || [ "$1" = "taosadapter" ]; then
+  #     echo "set $1 malloc config"
+  #      ${install_main_dir}/bin/${set_malloc_bin} -m 0 -q
+  #   fi
+  # fi
+
+
 }
 
 function install_service() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   if ((${service_mod} == 0)); then
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
@@ -831,13 +1950,13 @@ function is_version_compatible() {
   esac
 }
 
-deb_erase() {
+function deb_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine deb is detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing ${productName} deb is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
-      ${csudo}dpkg --remove tdengine || :
+      dpkg --remove tdengine || :
       break
     elif [ "no" == "$confirm" ]; then
       break
@@ -845,21 +1964,147 @@ deb_erase() {
   done
 }
 
-rpm_erase() {
+function rpm_erase() {
   confirm=""
   while [ "" == "${confirm}" ]; do
-    echo -e -n "${RED}Existing TDengine rpm is detected, do you want to remove it? [yes|no] ${NC}:"
+    echo -e -n "${RED}Existing ${productName} rpm is detected, do you want to remove it? [yes|no] ${NC}:"
     read confirm
     if [ "yes" == "$confirm" ]; then
-      ${csudo}rpm -e tdengine || :
+      rpm -e tdengine || :
       break
     elif [ "no" == "$confirm" ]; then
       break
     fi
   done
+}
+
+function finished_install_info(){
+    if [ "$imageBuild" -eq 1 ]; then
+      echo
+      log info_color "${productName} image installation completed."
+      echo "Services will be started by the container entrypoint."
+      return 0
+    fi
+
+    local entries=()
+    local explorer_config_file
+    explorer_config_file=$(get_config_file "${explorerName}")
+    # header
+    echo
+    log info_color "${productName} has been installed successfully!"
+
+    if [ "$user_mode" -eq 1 ]; then
+      if ! loginctl show-user "$(whoami)" 2>/dev/null | grep -q "Linger=yes"; then
+        echo
+        echo -e "${RED}IMPORTANT: To ensure services auto-start after reboot, ask root to run:${NC}"
+        echo -e "  loginctl enable-linger $(whoami)"
+      fi
+    fi
+
+    echo
+
+    # collect pairs "label|value"
+    if [ "${pkgMode}" != "lite" ]; then
+      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
+      if [[ -f "${configDir}/${adapterName}.toml" && -f "${installDir}/bin/${adapterName}" ]]; then
+        entries+=("To configure ${adapterName}:|edit ${configDir}/${adapterName}.toml")
+      fi
+      
+      entries+=("To configure ${keeperName}:|edit ${configDir}/${keeperName}.toml")
+      entries+=("To configure ${xname}:|edit ${configDir}/${xname}.toml")
+      entries+=("To configure ${explorerName}:|edit ${configDir}/${explorer_config_file}")
+
+      # insert a blank line between config and start
+      entries+=("|")
+      
+      if ((service_mod == 0)); then
+        entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
+        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
+          entries+=("To start ${adapterName}:|${sysctl_cmd} start ${adapterName}")
+        fi
+      elif ((service_mod == 1)); then
+        entries+=("To start ${productName} server:|service ${serverName} start")
+        if [[ -f "${service_config_dir}/${adapterName}.service" && -f "${installDir}/bin/${adapterName}" ]]; then
+          entries+=("To start ${adapterName}:|service ${adapterName} start")
+        fi
+      else
+        entries+=("To start ${productName} server:|${serverName}")
+        if [ -f "${installDir}/bin/${adapterName}" ]; then
+          entries+=("To start ${adapterName}:|${adapterName}")
+        fi
+      fi
+
+      entries+=("To start ${keeperName}:|${sysctl_cmd} start ${keeperName}")
+
+      if [ "$verMode" == "cluster" ] && [ "${entMode}" != "lite" ]; then
+        entries+=("To start ${xname}:|${sysctl_cmd} start ${xname}")
+      fi
+      entries+=("To start ${explorerName}:|${sysctl_cmd} start ${explorerName}")
+      entries+=("To start all the components:|start-all.sh")
+      entries+=("|")
+      if [[ ${user_mode} -eq 1 ]]; then
+        entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn -c ${configDir}")
+      else
+        entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      fi
+      entries+=("To access ${productName} GUI:|http://$serverFqdn:6060")
+      entries+=("|")
+
+      entries+=("To view ${productName} data directory:|ls -la ${dataDir}")
+      entries+=("To view ${productName} log directory:|ls -la ${logDir}")
+      entries+=("|")
+
+      if [ "${PREFIX}" == "taos" ]; then
+        entries+=("To read the Chinese user manual:|https://docs.taosdata.com/")
+        entries+=("To read the English user manual:|https://docs.tdengine.com/")
+        entries+=("To manage, analyze and visualize data:|https://tdengine.com/idmp/")
+        entries+=("|")
+      fi
+    else
+      entries+=("To configure ${serverName}:|edit ${configDir}/${configFile}")
+      entries+=("To start ${serverName}:|${sysctl_cmd} start ${serverName}")
+      entries+=("To access ${productName} CLI:|${clientName} -h $serverFqdn")
+      entries+=("To read the user manual:|https://docs.tdengine.com")
+      entries+=("|")
+    fi
+
+    # compute max label length
+    local max=0
+    local label value len
+    for pair in "${entries[@]}"; do
+      label="${pair%%|*}"
+      len=${#label}
+      if (( len > max )); then max=$len; fi
+    done
+
+    # set fixed max width: at least 40
+    local min_width=40
+    if (( max < min_width )); then
+      max=$min_width
+    else
+      max=$((max))
+    fi
+
+    # print aligned lines
+    for pair in "${entries[@]}"; do
+      label="${pair%%|*}"
+      value="${pair#*|}"
+      log info_color "$(printf "%-${max}s %s" "$label" "$value")"
+    done
+    if [ "$(id -u)" -ne 0 ]; then
+      log info_color "Environment variables for ${productName} have been added to $HOME/.bashrc."
+      log info_color "To make them effective, please run: source \$HOME/.bashrc"
+      log info_color "Or simply open a new terminal window."
+      echo
+    fi
+    
 }
 
 function updateProduct() {
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
+  fi
   # Check if version compatible
   if ! is_version_compatible; then
     echo -e "${RED}Version incompatible${NC}"
@@ -867,27 +2112,22 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
+
+  # Package-manager uninstall hooks may stop services as well.
+  if [ "$imageBuild" -eq 0 ]; then
+    if echo $osinfo | grep -qwi "centos"; then
+      rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
+    elif echo $osinfo | grep -qwi "ubuntu"; then
+      dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
+    fi
   fi
 
-  if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
-  elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
-  fi
-
-  tar -zxf ${tarName}
-  install_jemalloc
-
-  echo "Start to update ${productName}..."
   # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
+  if [ "$imageBuild" -eq 0 ] && ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
-      ${csudo}systemctl stop ${serverName} || :
+      ${sysctl_cmd} stop ${serverName} || :
     elif ((${service_mod} == 1)); then
-      ${csudo}service ${serverName} stop || :
+      service ${serverName} stop || :
     else
       kill_process ${serverName}
     fi
@@ -907,76 +2147,40 @@ function updateProduct() {
   fi
 
   install_examples
-  if [ -z $1 ]; then
+  if [ -z "$1" ]; then
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
     fi
-
-    openresty_work=false
-
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
-    [ -f ${configDir}/${adapterName}.toml ] && [ -f ${installDir}/bin/${adapterName} ] &&
-      echo -e "${GREEN_DARK}To configure ${adapterName} ${NC}\t: edit ${configDir}/${adapterName}.toml"    
-    echo -e "${GREEN_DARK}To configure ${explorerName} ${NC}\t: edit ${configDir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ./${serverName}${NC}"
-      [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
-    fi
-
-    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"      
-    fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
-
-    echo
-    echo "${productName} is updated successfully!"
-    echo
-    
-    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs${NC}"
-    fi
+    finished_install_info
   else
     install_bin
 
     echo
-    echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
+    echo -e "\033[44;32;1m${productName} client has been installed successfully!${NC}"
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-  tar -zxf ${tarName}
 
-  echo "Start to install ${productName}..."
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
+  fi
 
   install_main_path
 
@@ -987,7 +2191,6 @@ function installProduct() {
   install_log
   install_header
   install_lib
-  install_jemalloc
   #install_avro lib
   #install_avro lib64
   install_config
@@ -1003,116 +2206,106 @@ function installProduct() {
     install_bin
     install_services
 
-    if [ "${pagMode}" != "lite" ]; then      
+    if [ "${pkgMode}" != "lite" ]; then
       install_adapter_config
       install_taosx_config
       install_explorer_config
+
+      if [ "${verMode}" == "cluster" ]; then
+        install_taosinspect_config
+      fi
+
       if [ "${verMode}" != "cloud" ]; then
         install_keeper_config
       fi
     fi
 
-    openresty_work=false
+    finished_install_info
 
-    # Ask if to start the service
-    echo
-    echo -e "${GREEN_DARK}To configure ${productName} ${NC}\t\t: edit ${configDir}/${configFile}"
-    [ -f ${configDir}/${clientName}adapter.toml ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-      echo -e "${GREEN_DARK}To configure ${clientName}Adapter ${NC}\t: edit ${configDir}/${clientName}adapter.toml"
-    echo -e "${GREEN_DARK}To configure ${clientName}-explorer ${NC}\t: edit ${configDir}/explorer.toml"
-    if ((${service_mod} == 0)); then
-      echo -e "${GREEN_DARK}To start ${productName} server    ${NC}\t: ${csudo}systemctl start ${serverName}${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}systemctl start ${clientName}adapter ${NC}"
-    elif ((${service_mod} == 1)); then
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${csudo}service ${serverName} start${NC}"
-      [ -f ${service_config_dir}/${clientName}adapter.service ] && [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${csudo}service ${clientName}adapter start${NC}"
-    else
-      echo -e "${GREEN_DARK}To start ${productName} server     ${NC}\t: ${serverName}${NC}"
-      [ -f ${installDir}/bin/${clientName}adapter ] &&
-        echo -e "${GREEN_DARK}To start ${clientName}Adapter ${NC}\t\t: ${clientName}adapter ${NC}"
-    fi
-
-    echo -e "${GREEN_DARK}To start ${clientName}keeper ${NC}\t\t: sudo systemctl start ${clientName}keeper ${NC}"
-
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "${GREEN_DARK}To start ${clientName}x ${NC}\t\t\t: sudo systemctl start ${clientName}x ${NC}"
-    fi
-    echo -e "${GREEN_DARK}To start ${clientName}-explorer ${NC}\t\t: sudo systemctl start ${clientName}-explorer ${NC}"
-
-    echo
-    echo "${productName} is installed successfully!"
-    echo
-    
-    echo -e "\033[44;32;1mTo start all the components                 : sudo start-all.sh${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Commnd Line Interface    : ${clientName} -h $serverFqdn${NC}"
-    echo -e "\033[44;32;1mTo access ${productName} Graphic User Interface   : http://$serverFqdn:6060${NC}"
-    if [ "$verMode" == "cluster" ]; then
-      echo -e "\033[44;32;1mTo read the user manual           : http://$serverFqdn:6060/docs-en${NC}"
-    fi
-    echo
   else # Only install client
     install_bin
 
     echo
-    echo -e "\033[44;32;1m${productName} client is installed successfully!${NC}"
+    log info_color "${productName} client has been installed successfully!"
   fi
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName} | grep -Ev "^\./$|^\/")
 }
 
 check_java_env() {
-    if ! command -v java &> /dev/null
-    then
-        echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
-        return
-    fi
+  if ! command -v java &>/dev/null; then
+    echo -e "\033[31mWarning: Java command not found. Version 17+ is required.\033[0m"
+    return
+  fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_major=$(echo "$java_version" | cut -d"." -f1 | tr -cd '0-9')
   java_version_ok=false
-  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
-    java_version_ok=true
-  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+  if [ -n "$java_major" ] && [ "$java_major" -ge 17 ]; then
     java_version_ok=true
   fi
 
   if $java_version_ok; then
+    echo
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
-    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+    echo
+    echo -e "\033[31mWarning: Java Version 17+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 
 ## ==============================Main program starts from here============================
+# Call setup_env to initialize all directories and user mode settings
+setup_env
+
+# Extension packages share this installer, but do not run the regular
+# service installation path.  setup_env must run first so installDir is set.
+if [ "$packageRole" == "extension" ]; then
+  install_extension_package
+  install_fq_runtime_links
+  exit 0
+fi
+
+# Validate the Oracle client selection against the package before replacing
+# any installed file; the active marker is written after install_lib copies
+# the driver tree.
+oracle_resolve_selection || exit 1
+
+# Determine installation type: server or client
+if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then
+  echo -e "\033[44;32;1mThere is already an installed ${productName} server, so client installation is not needed!${NC}"
+  exit 0
+fi
+# 
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
-  if [ -x ${script_dir}/${xname}/bin/${xname} ]; then
+  if [ -x "${script_dir}/${xname}/bin/${xname}" ]; then
     check_java_env
   fi
   # Check default 2.x data file.
-  if [ -x ${dataDir}/dnode/dnodeCfg.json ]; then
+  if [ -x "${dataDir}/dnode/dnodeCfg.json" ]; then
     echo -e "\033[44;31;5mThe default data directory ${dataDir} contains old data of ${productName} 2.x, please clear it before installing!\033[0m"
   else
     # Install server and client
-    if [ -x ${bin_dir}/${serverName} ]; then
+    if [ -x "${bin_dir}/${serverName}" ]; then
       update_flag=1
       updateProduct
     else
       installProduct
     fi
   fi
+  echo "${install_main_dir}" > "${install_main_dir}/.install_path"
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no
   # Only install client
-  if [ -x ${bin_dir}/${clientName} ]; then
+  if [ -x "${bin_dir}/${clientName}" ]; then
     update_flag=1
     updateProduct client
   else
     installProduct client
   fi
+  echo "${install_main_dir}" > "${install_main_dir}/.install_path"
 else
   echo "please input correct verType"
 fi

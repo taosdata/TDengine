@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,7 +36,9 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 
+// #include "clientSession.h"
 #include "tconfig.h"
+#include "clientWlr.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -45,22 +49,58 @@ enum {
   RES_TYPE__TMQ_META,
   RES_TYPE__TMQ_METADATA,
   RES_TYPE__TMQ_BATCH_META,
+  RES_TYPE__TMQ_RAWDATA,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       5
+#define SHOW_VARIABLES_RESULT_COLS       6
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD6_LEN (TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
+#define TD_RES_TMQ_RAW(res)        (*(int8_t*)(res) == RES_TYPE__TMQ_RAWDATA)
 #define TD_RES_TMQ(res)            (*(int8_t*)(res) == RES_TYPE__TMQ)
 #define TD_RES_TMQ_META(res)       (*(int8_t*)(res) == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res)   (*(int8_t*)(res) == RES_TYPE__TMQ_METADATA)
 #define TD_RES_TMQ_BATCH_META(res) (*(int8_t*)(res) == RES_TYPE__TMQ_BATCH_META)
 
 #define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
+
+// Client request phase tracking. All writers publish the (phase, startTime)
+// pair through these helpers, which serialize on phaseWriteLock and use a
+// seqlock sequence (phaseSeq odd while updating). The heartbeat reads the pair
+// through clientGetRequestPhaseSnapshot() so it never reports a new phase with
+// the previous stage's start time.
+#define CLIENT_PHASE_READ_RETRY_TIMES 16
+// Writer-lock waits beyond this many attempts are reported and back off from
+// 1ms to 10ms sleeps: the critical section only performs atomics, so a longer
+// wait means the holder was preempted rather than blocked.
+#define CLIENT_PHASE_LOCK_SPIN_TIMES 1000
+
+#define CLIENT_SET_REQUEST_PHASE(_req, _phase) clientSetRequestPhase((_req), (_phase))
+
+#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase) \
+  clientUpdateRequestPhaseIfChanged((_req), (_newPhase))
+
+/* Enter the fetch stage without restarting it: a query fetches one data block
+ * at a time, so re-entering FETCH_IN_PROGRESS on every block would refresh
+ * phaseStartTime while the reported phase stays in the fetch stage. Returning
+ * to in_progress from FETCH_RETURNED keeps the same stage timer. The update is
+ * serialized with the other phase writers, so a concurrent fetch callback
+ * cannot resurrect a stage that already returned. */
+#define CLIENT_ENTER_REQUEST_FETCH_PHASE(_req) clientEnterRequestFetchPhase((_req))
+
+/* Close the fetch stage when the request already entered it (mid-fetch error,
+ * kill, or the final empty response). Requests that never entered the fetch
+ * stage (INSERT, failed or field-less results, empty-result requests) keep
+ * their current phase: a fetch stage is only created by entering it. */
+#define CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(_req) clientCloseRequestFetchIfEntered((_req))
+
+#define CLIENT_GET_REQUEST_PHASE(_req)            atomic_load_32(&(_req)->execPhase)
+#define CLIENT_GET_REQUEST_PHASE_START_TIME(_req) atomic_load_64(&(_req)->phaseStartTime)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -73,6 +113,8 @@ typedef struct {
   int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
+  int64_t curRspReqId;      // request id of the batch response currently being processed
+  bool    viewDynVerSeen;   // current batch response carried HEARTBEAT_KEY_DYN_VIEW
   // ctl
   SRWLatch      lock;  // lock is used in serialization
   SAppInstInfo* pAppInstInfo;
@@ -113,20 +155,32 @@ typedef struct SQueryExecMetric {
 typedef struct {
   SMonitorParas monitorParas;
   int8_t        enableAuditDelete;
+  int8_t        enableAuditSelect;
+  int8_t        enableAuditInsert;
+  int8_t        auditLevel;
+  int8_t        enableStrongPass;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t sodInitial : 1;
+      uint32_t macActive : 1;  // 1 = MAC explicitly activated cluster-wide (from SConnectRsp or hb resp)
+      uint32_t reserved : 30;
+    };
+  };
 } SAppInstServerCFG;
 struct SAppInstInfo {
   int64_t            numOfConns;
-  SCorEpSet          mgmtEp;
   int32_t            totalDnodes;
   int32_t            onlineDnodes;
-  TdThreadMutex      qnodeMutex;
-  SArray*            pQnodeList;
-  SAppClusterSummary summary;
-  SList*             pConnList;  // STscObj linked list
   int64_t            clusterId;
+  SAppClusterSummary summary;
+  SArray*            pQnodeList;
+  SList*             pConnList;  // STscObj linked list
   void*              pTransporter;
   SAppHbMgr*         pAppHbMgr;
   char*              instKey;
+  TdThreadMutex      qnodeMutex;
+  SCorEpSet          mgmtEp;
   SAppInstServerCFG  serverCfg;
 };
 
@@ -152,18 +206,47 @@ typedef struct {
   int64_t            ver;
   void*              param;
   __taos_notify_fn_t fp;
+} STokenNotifyInfo;
+
+typedef struct {
+  int64_t            ver;
+  void*              param;
+  __taos_notify_fn_t fp;
 } SWhiteListInfo;
 
 typedef struct {
+  timezone_t timezone;
+  char       timezoneName[TD_TIMEZONE_LEN];
+  bool       timezoneExplicit;
+} SPreparedTimezone;
+
+typedef struct {
   timezone_t    timezone;
+  /* Validated name; fixed offsets retain the accepted input format. */
+  char          timezoneName[TD_TIMEZONE_LEN];
+  bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
+  char          cInfo[CONNECTOR_INFO_LEN];
+  int16_t       userAppId;
   uint32_t      userIp;
+  SIpRange      userDualIp;  // user ip range
+  int8_t        firstDayOfWeek;  // 0-6, snapshotted from tsFirstDayOfWeek at connection creation
 }SOptionInfo;
+
+typedef struct {
+  int64_t startTime;
+  int64_t lastAccessTime;
+} SConnAccessInfo;
+
+// STscObj.txnFlags bits: per-txn options fixed at BEGIN, cleared on reset.
+#define TSC_TXN_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL: skip stmt-type check
 
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
+  char           tokenName[TSDB_TOKEN_NAME_LEN];
   char           pass[TSDB_PASSWORD_LEN];
+  char           token[TSDB_TOKEN_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   char           sVer[TSDB_VERSION_LEN];
   char           sDetailVer[128];
@@ -171,20 +254,73 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  int8_t         txnState;
+  uint8_t        txnFlags;  // TSC_TXN_FLAG_*, written under mutex. Kept out of the bitfield word below: the heartbeat
+                            // thread updates those bitfields without the lock, and a bitfield write is a whole-word RMW.
+  txn_id_t       txnId;
+  int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table"  ->  STableMeta* for tables created in this txn
+  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t)  ->  stbFullName (char[TSDB_TABLE_FNAME_LEN])
+  // Batch meta txn: rid of the user request that is executing a statement of the active txn, 0 = none. The
+  // statements of a txn run one at a time (see tscTxnAcquireStmtSlot). Written under mutex.
+  int64_t        txnStmtOwner;
+  union {
+    uint32_t flags;
+    struct {
+      uint32_t minSecLevel : 3;
+      uint32_t maxSecLevel : 3;
+      uint32_t enable : 1;
+      uint32_t reserved : 25;
+    };
+  };
   int32_t        acctId;
   uint32_t       connId;
   int32_t        appHbMgrIdx;
+  int32_t        tokenExpireTime;
+  int64_t        userId;
   int64_t        id;         // ref ID returned by taosAddRef
   TdThreadMutex  mutex;      // used to protect the operation on db
   int32_t        numOfReqs;  // number of sqlObj bound to this connection
   int32_t        authVer;
+  int32_t        loginPassVer;  // password version at login; immutable, used for hb stale-conn kick
+  int8_t         passKilled;    // set by hb when password changed after login; requests then fail with auth error
+  int8_t         passSelfChanged;  // set when this conn changed its OWN password; hb adopts the new passVer instead of kicking
   SAppInstInfo*  pAppInfo;
   SHashObj*      pRequests;
   SPassInfo      passInfo;
-  SWhiteListInfo whiteListInfo;
+  SWhiteListInfo whiteListInfo;          // ip white list info
+  SWhiteListInfo dateTimeWhiteListInfo;  // date time white list info
   STscNotifyInfo userDroppedInfo;
+  STokenNotifyInfo tokenNotifyInfo;
   SOptionInfo    optionInfo;
+
+  SConnAccessInfo sessInfo;
+  void*           pSessMetric;
+  // External source session context (set by USE source[.ns1[.ns2]] command)
+  char  extSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name; empty = none
+  char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
+  char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
+
+  // Workload recorder: stable per-connection identity for the recording file.
+  // The recorded events must not reference a heap address or the server-assigned
+  // connId, because replay creates brand-new connections and needs to map them
+  // back by a value that is unique within the session (DS 6.5). Zero when
+  // recording is off.
+  uint64_t wlrConnId;
 } STscObj;
+
+// Remaining DDL object budget in the current txn, clamped at 0. Returns 0 both when no txn
+// is active (nothing to budget) and when the txn's budget is already exhausted - use txnId,
+// not this return value, to tell whether a txn is active. Passed into the parse context so the WHERE-based bulk tag
+// update can divide it across the target db's vgroups; see SParseContext::txnDdlRemaining.
+static FORCE_INLINE int32_t txnDdlRemainingOps(const STscObj* pTscObj) {
+  if (pTscObj == NULL || pTscObj->txnId == 0) {
+    return 0;
+  }
+  int32_t remaining = TSDB_TXN_MAX_DDL_OPS_PER_TXN - pTscObj->txnDdlCount;
+  return remaining > 0 ? remaining : 0;
+}
 
 typedef struct STscDbg {
   bool memEnable;
@@ -202,7 +338,7 @@ typedef struct SReqResultInfo {
   SExecResult    execRes;
   const char*    pRspMsg;
   const char*    pData;
-  TAOS_FIELD*    fields;      // todo, column names are not needed.
+  TAOS_FIELD_E*  fields;      // todo, column names are not needed.
   TAOS_FIELD*    userFields;  // the fields info that return to user
   uint32_t       numOfCols;
   int32_t*       length;
@@ -221,6 +357,7 @@ typedef struct SReqResultInfo {
   int32_t        payloadLen;
   char*          convertJson;
   void*          charsetCxt;
+  void*          timezone;
 } SReqResultInfo;
 
 typedef struct SRequestSendRecvBody {
@@ -240,7 +377,6 @@ typedef struct {
   char           topic[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
   int32_t        vgId;
-  SSchemaWrapper schema;
   int32_t        resIter;
   SReqResultInfo resInfo;
   union{
@@ -262,8 +398,33 @@ typedef struct SReqRelInfo {
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
-  uint64_t             requestId;
   int32_t              type;  // request type
+  uint64_t             requestId;
+  // Workload recorder: logical result identity, minted when the result is handed
+  // to the user and referenced by later fetch/free events. Not the address and not
+  // requestId, since replay assigns its own (DS 6.11). Zero when not recording.
+  uint64_t             wlrResultId;
+  // Workload recorder: the folded fetch session for this result. Every fetch call
+  // on the result is accounted here and recorded as ONE BEGIN/RETURN pair instead
+  // of one pair per row; zeroed (closed) for a request that is never fetched. Kept
+  // on the request rather than in thread-local storage so results consumed
+  // alternately on one thread keep independent sessions.
+  SWlrFetchFold        wlrFetchFold;
+  // Call ID of the async API that created this request, so the completion callback
+  // can name it as the parent of anything the user issues from inside the callback
+  // (DS 6.8). Zero for synchronous requests.
+  uint64_t             wlrAsyncCallId;
+  // The rest of the originating call's token, carried so the REQUEST_DONE event can
+  // be emitted at completion (DS 6.8). The token itself was a stack object in the
+  // public async wrapper and is long gone by then, and the active-call table cannot
+  // stand in: it is erased at API_RETURN and never held beginMonoNs. Only meaningful
+  // when wlrAsyncCallId != 0.
+  int64_t              wlrAsyncBeginMonoNs;
+  uint16_t             wlrAsyncApiType;
+  uint64_t             wlrStmtExecCallId;
+  int64_t              wlrStmtExecBeginMonoNs;
+  uint16_t             wlrStmtExecApiType;
+  SQuery*              pQuery;
   STscObj*             pTscObj;
   char*                pDb;     // current database string
   char*                sqlstr;  // sql string
@@ -278,6 +439,7 @@ typedef struct SRequestObj {
   SQueryExecMetric     metric;
   SRequestSendRecvBody body;
   int32_t              stmtType;
+  bool                 passAlterSelf;  // this request is "ALTER USER <self> PASS ..."
   bool                 syncQuery;     // todo refactor: async query object
   bool                 stableQuery;   // todo refactor
   bool                 validateOnly;  // todo refactor
@@ -286,19 +448,57 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
-  bool                 isStmtBind;  // is statement bind parameter
+  bool                 txnChecked;  // txn check done for this statement: launchAsyncQuery skips it, a retry does not charge again
+  bool                 txnIdFixed;  // txnId below is fixed (see tscReqFixTxnId)
+  uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  uint8_t              stmtTbNameFlag;   // insert tbname kind reported by the parser, see SParseContext
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
   int64_t              allocatorRefId;
-  SQuery*              pQuery;
   void*                pPostPlan;
   SReqRelInfo          relation;
   void*                pWrapper;
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  // Request phase pair and its seqlock guard. These fields are one logical
+  // snapshot: (execPhase, phaseStartTime) is published under phaseWriteLock,
+  // while phaseSeq is odd when a writer updates the pair and even when it is
+  // stable. The heartbeat reads it through clientGetRequestPhaseSnapshot().
+  //
+  // Do NOT write execPhase/phaseStartTime directly: every update must go
+  // through clientSetRequestPhase(), clientUpdateRequestPhaseIfChanged(),
+  // clientEnterRequestFetchPhase() or clientCloseRequestFetchIfEntered() in
+  // clientEnv.c, otherwise the seqlock snapshot is broken.
+  // Plain int32_t is intentional (same as the other atomic lock words in this
+  // codebase, e.g. gConvLock): the atomic API takes int32_t volatile *, and
+  // qualifier addition on the way in is a valid conversion, so no cast or
+  // volatile field is needed.
+  int32_t              execPhase;       // EQueryExecPhase
+  int64_t              phaseStartTime;  // when current phase started, ms
+  int32_t              phaseWriteLock;
+  int32_t              phaseSeq;        // odd while a phase writer updates the pair
+  bool                 execDispatched;  // Retained across internal stmt retries.
+  int8_t               secureDelete;
+  // Batch meta txn: the txn this statement belongs to (0 = none), fixed once when the statement starts and read by
+  // every later stage (txn check, plan, schedule, response handling) instead of the connection's current txnId. A
+  // statement issued before BEGIN completed therefore stays a plain statement from start to end.
+  txn_id_t             txnId;
+  TAOS_STMT2          *literal_by_stmt2; // reference only
+  char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  int32_t              extPushdownAttemptCount;
+  SExtCapSessionOverlay extSessionOverlay;
+  uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
+
+/* Request phase writers and the consistent snapshot reader used by the
+ * heartbeat. Defined in clientEnv.c; see the macro block above. */
+void clientSetRequestPhase(SRequestObj* pReq, int32_t phase);
+void clientUpdateRequestPhaseIfChanged(SRequestObj* pReq, int32_t newPhase);
+void clientEnterRequestFetchPhase(SRequestObj* pReq);
+void clientCloseRequestFetchIfEntered(SRequestObj* pReq);
+void clientGetRequestPhaseSnapshot(SRequestObj* pReq, int32_t* pPhase, int64_t* pStartTime);
 
 typedef struct SSyncQueryParam {
   tsem_t       sem;
@@ -311,9 +511,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4);
 
 void    doSetOneRowPtr(SReqResultInfo* pResultInfo);
 void    setResPrecision(SReqResultInfo* pResInfo, int32_t precision);
-int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4);
-int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4);
-int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
+int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4, bool isStmt);
+int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt);
+int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols, const SExtSchema* pExtSchema, bool isStmt);
 void    doFreeReqResultInfo(SReqResultInfo* pResInfo);
 int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, SArray** pReq);
 void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
@@ -321,11 +521,13 @@ void    syncCatalogFn(SMetaData* pResult, void* param, int32_t code);
 TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t source);
 TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid);
 
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt);
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                        int8_t source);
-void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                                 int64_t reqid);
-void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
+                        int8_t source, bool fromAsyncWrapper);
+void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+                                 int64_t reqid, bool fromAsyncWrapper);
+int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
                        SParseSqlRes* pRes);
 void    syncQueryFn(void* param, void* res, int32_t code);
@@ -338,6 +540,7 @@ static FORCE_INLINE SReqResultInfo* tmqGetCurResInfo(TAOS_RES* res) {
 }
 
 int32_t                             tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pResInfo);
+
 static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
   if (TD_RES_QUERY(res)) return &(((SRequestObj*)res)->body.resInfo);
   return tmqGetCurResInfo(res);
@@ -345,8 +548,7 @@ static FORCE_INLINE SReqResultInfo* tscGetCurResInfo(TAOS_RES* res) {
 
 extern SAppInfo appInfo;
 extern int32_t  clientReqRefPool;
-extern int32_t  clientConnRefPool;
-extern int32_t  timestampDeltaLimit;
+extern int32_t   clientConnRefPool;
 extern int64_t  lastClusterId;
 extern SHashObj* pTimezoneMap;
 
@@ -357,6 +559,11 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_t connType, SAppInstInfo* pAppInfo,
                       STscObj** p);
 void     destroyTscObj(void* pObj);
+int32_t  tscInitSessionTimezone(STscObj *pObj);
+int32_t  tscPrepareSessionTimezone(const char* timezoneName, bool explicitTimezone,
+                                   SPreparedTimezone* pPrepared);
+void     tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared);
+int32_t  tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool explicitTimezone);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);
@@ -368,14 +575,25 @@ void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
+bool         chkRequestKilled(void* param);
 void         doDestroyRequest(void* p);
 int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
+void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
-
-int taos_options_imp(TSDB_OPTION option, const char* str);
+int32_t tscTxnEnsureLocalMetaHashes(STscObj* pTscObj);  // caller holds pTscObj->mutex
+int32_t tscTxnAcquireStmtSlot(SRequestObj* pRequest, txn_id_t txnId, bool* pAcquired);  // caller holds pTscObj->mutex
+void    tscReqFixTxnId(SRequestObj* pRequest);
+void    tscReqStartStatement(SRequestObj* pRequest);
+void    tscTxnReleaseStmtSlot(SRequestObj* pRequest);
+int32_t tscTxnClaimStmtSlot(SRequestObj* pRequest);  // bypass paths (SML / rawBlock / STMT / STMT2), takes the mutex
+void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
+// Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
+void    tscResetTxnState(STscObj* pTscObj);
+int32_t isTxnAllowedStmtType(SNode* pRoot);
+int     taos_options_imp(TSDB_OPTION option, const char* str);
 
 int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void** pDnodeConn);
 void    tscStopCrashReport();
@@ -389,15 +607,23 @@ typedef struct AsyncArg {
 bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType);
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet);
 
-int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
+int32_t taos_connect_internal(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
+                              uint16_t port, int connType, STscObj** pObj);
+                              
+int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth, const char* totp, const char* db, 
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
+void    stmtRestoreCurrentQueryContext(SQuery* pQuery, STscObj* pTscObj, SReqResultInfo* pResInfo);
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
+int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int32_t sqlLen);
+int32_t sqlSecurityCheckASTLevel(SRequestObj* pRequest, SQuery* pQuery);
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
                      SRequestObj** pRequest, int64_t reqid);
+
+void markPassAlterSelf(SRequestObj* pRequest, SQuery* pQuery);
 
 void taos_close_internal(void* taos);
 
@@ -416,7 +642,7 @@ void    stopAllRequests(SHashObj* pRequests);
 // SAppInstInfo* getAppInstInfo(const char* clusterKey);
 
 // conn level
-int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, int64_t clusterId, int8_t connType);
+int32_t hbRegisterConn(SAppHbMgr* pAppHbMgr, int64_t tscRefId, const char* user, const char* tokenName, int64_t clusterId, int8_t connType);
 void    hbDeregisterConn(STscObj* pTscObj, SClientHbKey connKey);
 
 typedef struct SSqlCallbackWrapper {
@@ -426,28 +652,47 @@ typedef struct SSqlCallbackWrapper {
   void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
+typedef enum EClientMetaRefreshScope {
+  CLIENT_META_REFRESH_NONE = 0,
+  CLIENT_META_REFRESH_TABLE,
+  CLIENT_META_REFRESH_FULL,
+} EClientMetaRefreshScope;
+
 void    setQueryRequest(int64_t rId);
+int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled);
 void    launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t code);
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
-void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+void    doAsyncQuery(SRequestObj* pRequest, EClientMetaRefreshScope refreshScope);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
+// Writers of the connection's txn-local state on behalf of a statement of txn `txnId` (pRequest->txnId). A write
+// for a txn that is no longer the connection's one (the response came back after COMMIT / ROLLBACK) is dropped.
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp, const char* opName);
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp);
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, txn_id_t txnId, const char* fullName, STableMeta* pTableMeta,
+                              const char* opName);
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, txn_id_t txnId, const SName* pStbName);
 int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper* pWrapper, SMetaData* pResultMeta, int32_t code);
+void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
+void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
-int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest, bool updateMetaForce);
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest,
+                                 EClientMetaRefreshScope refreshScope);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);
 void    freeQueryParam(SSyncQueryParam* param);
 
+void    updateConnAccessInfo(SConnAccessInfo* pInfo);
 int32_t tzInit();
 void    tzCleanup();
 
@@ -488,6 +733,16 @@ enum { MONITORSQLTYPESELECT = 0, MONITORSQLTYPEINSERT = 1, MONITORSQLTYPEDELETE 
 void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
+void writeRawCleanup(void);
+void writeRawCleanupConn(int64_t connId);
+
+/*
+ * taos_fetch_row without the recorder hook. Internal callers on driver completion
+ * threads must use this: TLS depth is 0 there, so the outermost-only rule cannot
+ * suppress a nested public call and it would be recorded as if the user made it
+ * (DS 6.6, TS RE014).
+ */
+TAOS_ROW taos_fetch_row_impl(TAOS_RES *res);
 
 #ifdef __cplusplus
 }

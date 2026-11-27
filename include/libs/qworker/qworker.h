@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,7 @@ extern "C" {
 #endif
 
 #include "executor.h"
+#include "tmsg.h"
 #include "tmsgcb.h"
 #include "trpc.h"
 
@@ -69,9 +72,27 @@ typedef struct SQWMsg {
   int32_t        code;
   int32_t        msgType;
   void          *msg;
+  void          *req;
   int32_t        msgLen;
+  int32_t        msgMask;
+  ESubQueryType  subQType;
+  // Borrowed from a stack-local decoded SSubQueryMsg and valid only during the
+  // current message-processing call chain. Do not store these pointers or hand
+  // them to another thread; long-lived users must copy the data.
+  const SCorrelationExecution* pCorrelation;
+  const SArray*                 pCorrelationParamDefs;
+  const SArray*                 pCorrelationParamValues;
+  const char*                   pCorrelationTemplates;
+  uint32_t                      correlationTemplatesLen;
+  const char*                   pCorrelationTimeInit;
+  uint32_t                      correlationTimeInitLen;
+  const SArray*                 pCorrelationNodeList;
+
+  int64_t txnId;
+  int8_t firstDayOfWeek;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;
+  SArray       **subEndPoints;
   void          *pWorkerCb;
 } SQWMsg;
 
@@ -79,7 +100,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const S
 
 int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 
-int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant);
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant, int32_t* qType);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
@@ -87,7 +108,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, in
 
 int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
-int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SEpSet *pEpSet, int64_t ts);
 
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts);
 
@@ -116,7 +137,6 @@ int32_t qWorkerDbgEnableDebug(char *option);
 void qWorkerRetireJob(uint64_t jobId, uint64_t clientId, int32_t errCode);
 
 void qWorkerRetireJobs(int64_t retireSize, int32_t errCode);
-
 
 #ifdef __cplusplus
 }

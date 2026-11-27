@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,38 +41,46 @@
 //
 
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncRequestVoteReply header before syncNodeInRaftGroup() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncRequestVoteReply)) {
+    sError("vgId:%d, request vote reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncRequestVoteReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t               ret = 0;
   SyncRequestVoteReply* pMsg = pRpcMsg->pCont;
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
+    syncLogRecvRequestVoteReply(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
 
-    TAOS_RETURN(TSDB_CODE_SYN_MISMATCHED_SIGNATURE);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
   }
   SyncTerm currentTerm = raftStoreGetTerm(ths);
   // drop stale response
   if (pMsg->term < currentTerm) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
+    syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response", &pRpcMsg->info.traceId);
 
     TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
   if (pMsg->term > currentTerm) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "error term");
-    syncNodeStepDown(ths, pMsg->term, pMsg->destId);
+    syncLogRecvRequestVoteReply(ths, pMsg, "error term", &pRpcMsg->info.traceId);
+    syncNodeStepDown(ths, pMsg->term, pMsg->destId, "requestVoteReply");
 
     TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);
   }
 
-  syncLogRecvRequestVoteReply(ths, pMsg, "");
+  syncLogRecvRequestVoteReply(ths, pMsg, "", &pRpcMsg->info.traceId);
   if (pMsg->term != currentTerm) return TSDB_CODE_SYN_INTERNAL_ERROR;
 
   // This tallies votes even when the current state is not Candidate,
   // but they won't be looked at, so it doesn't matter.
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     if (ths->pVotesRespond->term != pMsg->term) {
-      sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
+      sNError(ths, "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64,
               ths->pVotesRespond->term, pMsg->term);
 
       TAOS_RETURN(TSDB_CODE_SYN_WRONG_TERM);

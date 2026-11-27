@@ -1,0 +1,146 @@
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+
+from new_test_framework.utils import tdLog, tdSql, etool
+import os
+import time
+
+
+class TestOneStageComp:
+    updatecfgDict = {
+        "compressMsgSize" : "100",
+    }
+
+    def insertData(self):
+        tdLog.info(f"insert data.")
+        # taosBenchmark run
+        jfile = etool.curFile(__file__, "oneStageComp.json")
+        etool.benchMark(json=jfile, low_log=True)
+
+        tdSql.execute(f"use {self.db}")
+        # set insert data information
+        self.childtable_count = 10
+        self.insert_rows      = 100000
+        self.timestamp_step   = 1000
+    
+
+
+    def checkColValueCorrect(self):
+        tdLog.info(f"do action.")
+        self.flushDb()
+
+        # check all columns correct
+        cnt = self.insert_rows * self.childtable_count
+        sql = "select * from stb where bc!=1"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where fc=101"
+        tdSql.query(sql)
+        tdSql.checkRows(cnt)
+        sql = "select * from stb where dc!=102"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where ti!=103"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where si!=104"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where ic!=105"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where bi!=106"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where uti!=107"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where usi!=108"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where ui!=109"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where ubi!=110"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+    
+    def insertNull(self):
+        # insert 6 lines
+        sql = "insert into d0(ts) values(now) (now + 1s) (now + 2s) (now + 3s) (now + 4s) (now + 5s)"
+        tdSql.execute(sql)
+
+        self.flushDb()
+        self.trimDb()
+
+        # check all columns correct
+        cnt = self.insert_rows * self.childtable_count
+        sql = "select * from stb where bc!=1"
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+        sql = "select * from stb where bc is null"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+        sql = "select * from stb where bc=1"
+        tdSql.query(sql)
+        tdSql.checkRows(cnt)
+        sql = "select * from stb where usi is null"
+        tdSql.query(sql)
+        tdSql.checkRows(6)
+
+    # run
+    def test_one_stage_comp(self):
+        """Check compress data accuracy
+
+        1. taosBenchmark create 1 stb 10 ctb
+        2. Insert each child table 100000 rows with fixed column values
+        3. Check data accuracy with column value is not equal to fixed value
+        4. Check data accuracy with column value is equal to fixed value
+        5. Do snapshot aggregation
+        6. Check aggregation result correctness
+        7. Insert null values into all columns except timestamp column
+        8. Check null values correctness
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-10-24 Alex Duan Migrated from uncatalog/army/storage/test_one_stage_comp.py
+
+        """
+        tdLog.debug(f"start to excute {__file__}")
+
+        # insert data
+        self.insertData()
+        # check insert data correct
+        self.checkInsertCorrect()
+        # save
+        self.snapshotAgg()
+        # do action
+        self.checkColValueCorrect()
+        # check save agg result correct
+        self.checkAggCorrect()
+        # insert null 
+        self.insertNull()
+
+
+
+        
+

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -18,10 +20,13 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg) {
-  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) return 0;
+int32_t mndPreProcessQueryMsg(SRpcMsg *pMsg, int32_t* qType) {
   SMnode *pMnode = pMsg->info.node;
-  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false);
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
+    return 0;
+  }
+
+  return qWorkerPreprocessQueryMsg(pMnode->pQuery, pMsg, false, qType);
 }
 
 void mndPostProcessQueryMsg(SRpcMsg *pMsg) {
@@ -34,7 +39,8 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg, SQueueInfo *pInfo) {
   int32_t code = -1;
   SMnode *pMnode = pMsg->info.node;
 
-  SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb, .pWorkerCb = pInfo->workerCb};
+  SReadHandle handle = {0};
+  handle =  (SReadHandle){.mnd = pMnode, .pMsgCb = &pMnode->msgCb, .pWorkerCb = pInfo->workerCb};
 
   mTrace("msg:%p, in query queue is processing", pMsg);
   switch (pMsg->msgType) {
@@ -119,8 +125,19 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
       code = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp.pRsps);
-      return -1;
+      goto _exit;
+    }
+
+    // [Security fix for finding item 224] Reject nested TDMT_MND_BATCH_META to prevent
+    // uncontrolled recursion (CWE-674). mndProcessBatchMetaMsg is itself registered in
+    // msgFp for TDMT_MND_BATCH_META (see mndInitQuery), so an inner batch-meta message
+    // would make this handler call itself synchronously on the inner blob with no depth
+    // bound, eventually exhausting the mnode-read worker stack (8 MiB on Linux) / heap.
+    // No legitimate client ever nests a batch-meta message inside another batch-meta.
+    if (req->msgType == TDMT_MND_BATCH_META) {
+      mError("msg:%p, nested TDMT_MND_BATCH_META is not allowed, app:%p", pMsg, pMsg->info.ahandle);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
     }
 
     if ((*fp)(&reqMsg)) {

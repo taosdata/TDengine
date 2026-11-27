@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "syncRaftLog.h"
 #include "syncTest.h"
 
@@ -27,7 +44,7 @@ void test1() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   int64_t firstVer = walGetFirstVer(pWal);
   int64_t lastVer = walGetLastVer(pWal);
@@ -49,7 +66,7 @@ void test2() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   SWalSyncInfo syncMeta = {
       .isWeek = -1,
@@ -58,10 +75,10 @@ void test2() {
   };
 
   for (int i = 0; i < 5; ++i) {
-    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 0, 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
   }
 
@@ -85,7 +102,7 @@ void test3() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   walRestoreFromSnapshot(pWal, 5);
 
@@ -109,7 +126,7 @@ void test4() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   SWalSyncInfo syncMeta = {
       .isWeek = -1,
@@ -120,10 +137,10 @@ void test4() {
   walRestoreFromSnapshot(pWal, 5);
 
   for (int i = 6; i < 10; ++i) {
-    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 3);
+    int code = walAppendLog(pWal, i, 100, syncMeta, "aa", 0, 3);
     if (code != 0) {
       printf("code:%d terror:%d msg:%s i:%d \n", code, terrno, tstrerror(terrno), i);
-      assert(0);
+      TD_ALWAYS_ASSERT(0);
     }
   }
 
@@ -147,7 +164,7 @@ void test5() {
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
   SWal *pWal = walOpen(gWalPath, &walCfg);
-  assert(pWal != NULL);
+  TD_ALWAYS_ASSERT(pWal != NULL);
 
   walRestoreFromSnapshot(pWal, 5);
   walRestoreFromSnapshot(pWal, 7);

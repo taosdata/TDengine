@@ -1,0 +1,343 @@
+# Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# -*- coding: utf-8 -*-
+
+#
+# about system funciton extension
+#
+
+import atexit
+import sys
+import os
+import time
+import datetime
+import subprocess
+import shutil
+import tempfile
+import threading
+from contextlib import contextmanager, nullcontext
+from .epath import *
+from .eos import *
+from .log import *
+from .sql import tdSql
+
+TAOS = "taos"
+OLD_TAOSDUMP = "old_taosdump"
+TAOSDUMP = "taosdump"
+TAOSBENCHMARK = "taosBenchmark"
+TAOSADAPTER = "taosadapter"
+TAOSK = "taosk"
+
+_background_binaries = []
+
+
+def stop_background_binaries(fname=None):
+    for name, proc in list(_background_binaries):
+        if fname is not None and name != fname:
+            continue
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait(timeout=10)
+        _background_binaries.remove((name, proc))
+
+
+atexit.register(stop_background_binaries)
+
+
+# This changes cluster-wide logging. Overlapping scopes could restore it too early.
+_benchmark_log_lock = threading.Lock()
+_BENCHMARK_DEBUG_FLAGS = (
+    "debugFlag", "cDebugFlag", "dDebugFlag", "jniDebugFlag", "mDebugFlag",
+    "qDebugFlag", "rpcDebugFlag", "sDebugFlag", "smaDebugFlag", "stDebugFlag",
+    "tmrDebugFlag", "tqDebugFlag", "uDebugFlag", "vDebugFlag", "wDebugFlag",
+)
+
+# Keep unrelated server modules at their existing levels; c/jni are client-only.
+_BENCHMARK_SERVER_DEBUG_FLAGS = tuple(
+    name for name in _BENCHMARK_DEBUG_FLAGS
+    if name not in ("debugFlag", "cDebugFlag", "jniDebugFlag")
+)
+
+
+@contextmanager
+def data_write_log():
+    """Use 131 for server modules during data loading, then restore 135.
+
+    This affects the whole test cluster, so do not overlap logging scopes or
+    include operations whose DEBUG/TRACE output is asserted. The guard detects
+    overlap within this Python process. Python client logging stays unchanged.
+    """
+    if not _benchmark_log_lock.acquire(blocking=False):
+        raise RuntimeError("data write logging scopes must not overlap")
+    try:
+        try:
+            for name in _BENCHMARK_SERVER_DEBUG_FLAGS:
+                tdSql.execute(f"alter all dnodes '{name} 131'")
+            yield
+        finally:
+            failures = []
+            for name in _BENCHMARK_SERVER_DEBUG_FLAGS:
+                try:
+                    tdSql.execute(f"alter all dnodes '{name} 135'")
+                except BaseException as exc:
+                    failures.append(exc)
+            if failures:
+                raise RuntimeError("failed to restore data write logging to 135") from failures[0]
+    finally:
+        _benchmark_log_lock.release()
+
+
+@contextmanager
+def benchmark_write_log():
+    """Load data at 131 using a private benchmark client configuration.
+
+    Yields a directory for taosBenchmark's ``-c``. The test client's logging
+    stays unchanged. Wait for background writers (terminate them on failure)
+    before leaving this scope. Server logging is restored to 135 on exit.
+    """
+    from .srvCtl import sc
+
+    with tempfile.TemporaryDirectory(prefix="benchmark-log131-") as cfg_dir:
+        cfg_file = os.path.join(cfg_dir, "taos.cfg")
+        source_cfg = sc.dnodeCfgPath(1)
+        if os.path.isdir(source_cfg):
+            source_cfg = os.path.join(source_cfg, "taos.cfg")
+        shutil.copyfile(source_cfg, cfg_file)
+        # Remove existing entries rather than depending on duplicate-key order.
+        with open(cfg_file, encoding="utf-8") as f:
+            lines = f.readlines()
+        flags = {name.lower() for name in _BENCHMARK_DEBUG_FLAGS}
+        with open(cfg_file, "w", encoding="utf-8") as f:
+            f.writelines(line for line in lines
+                         if not line.split() or line.split()[0].lower() not in flags)
+            f.write("\n" + "\n".join(f"{name} 131" for name in _BENCHMARK_DEBUG_FLAGS) + "\n")
+        with data_write_log():
+            yield cfg_dir
+
+
+def benchmark_write(command):
+    """Run a synchronous shell benchmark command at 131; return os.system status."""
+    with benchmark_write_log() as cfg_dir:
+        return os.system(f'{command} -c "{cfg_dir}"')
+
+
+# taos
+def taosFile():
+    """Get the path to the `taos` binary file.
+
+    Returns:
+        str: The full path to the `taos` binary file, with `.exe` appended if on Windows.
+    """
+
+    bmFile = binFile(TAOS)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosdump
+def taosDumpFile():
+    """Get the path to the `taosdump` binary file.
+
+    Returns:
+        str: The full path to the `taosdump` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSDUMP)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosBenchmark
+def benchMarkFile():
+    """Get the path to the `taosBenchmark` binary file.
+    
+    Args:
+        None
+
+    Returns:
+        str: The full path to the `taosBenchmark` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSBENCHMARK)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosAdapter
+def taosAdapterFile():
+    """Get the path to the `taosAdapter` binary file.
+    
+    Args:
+        None
+
+    Returns:
+        str: The full path to the `taosAdapter` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSADAPTER)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# taosk
+def taoskFile():
+    """Get the path to the `taosk` binary file.
+
+    Returns:
+        str: The full path to the `taosk` binary file, with `.exe` appended if on Windows.
+    """
+    bmFile = binFile(TAOSK)
+    if isWin():
+        bmFile += ".exe"
+    return bmFile
+
+# run taosBenchmark with command or json file mode
+def benchMark(command = "", json = "", low_log=False) :
+    """Run the `taosBenchmark` binary with a command or JSON file.
+
+    Args:
+        command (str, optional): The command to execute. Defaults to an empty string.
+        json (str, optional): The path to a JSON file for execution. Defaults to an empty string.
+        low_log (bool): Use 131 only during this data load; restore server logs to 135.
+
+    Raises:
+        SystemExit: If the execution of the JSON file fails.
+    """
+    with benchmark_write_log() if low_log else nullcontext(None) as cfg_dir:
+        # get taosBenchmark path
+        bmFile = benchMarkFile()
+        if cfg_dir:
+            bmFile += f' -c "{cfg_dir}"'
+
+        # run
+        if command != "":
+            if "-a" in command or "--replica" in command:
+                exe(bmFile + " " + command + " -y")
+            else:
+                exe(bmFile + " " + command + f" -y -a {tdSql.replica}")
+        if json != "":
+            cmd = f"{bmFile} -f {json}"
+            print(cmd)
+            status = exe(cmd)
+            if status !=0:
+                tdLog.exit(f"run failed {cmd} status={status}")
+
+
+# get current directory file name
+def curFile(fullPath, filename):
+    """Get the full path to a file in the current directory.
+
+    Args:
+        fullPath (str): The full path to the current directory.
+        filename (str): The name of the file.
+
+    Returns:
+        str: The full path to the file in the current directory.
+    """
+    return os.path.join(os.path.dirname(fullPath), filename)
+
+
+# run build/bin file
+def runBinFile(fname, command, show = True, checkRun = False, retFail = False ):
+    """Run a binary file with the specified command.
+
+    Args:
+        fname (str): The name of the binary file.
+        command (str): The command to execute.
+        show (bool, optional): Whether to log the command. Defaults to True.
+
+    Returns:
+        list: The output of the command as a list of strings.
+    """
+    bin_file = binFile(fname)
+    if isWin():
+        bin_file += ".exe"
+
+    cmd = f"{bin_file} {command}"
+    if show:
+        tdLog.info(cmd)
+    return runRetList(cmd, checkRun=checkRun, retFail=retFail, show=show)
+
+# exe build/bin file
+def exeBinFile(fname, command, wait=True, show=True):
+    """Execute a binary file with the specified command.
+
+    This method uses `utils.army.frame.eos.exe` or `utils.army.frame.eos.exeNoWait` 
+    to execute the binary file. The `exe` function waits for the command to finish, 
+    while `exeNoWait` runs the command in the background and returns immediately.
+
+    Args:
+        fname (str): The name of the binary file.
+        command (str): The command to execute.
+        wait (bool, optional): Whether to wait for the command to finish. Defaults to True.
+            - If True, uses `utils.army.frame.eos.exe`.
+            - If False, uses `utils.army.frame.eos.exeNoWait`.
+        show (bool, optional): Whether to log the command. Defaults to True.
+
+    Returns:
+        int: The exit status of the command execution. A return value of `0` indicates success, 
+             while a non-zero value indicates failure.
+             - If `wait` is False, Windows returns 0 after launching an owned
+               process; POSIX returns the status of the background launcher.
+    """
+    bin_file = binFile(fname)
+    if isWin():
+        bin_file += ".exe"
+
+    cmd = f"{bin_file} {command}"
+    if wait:
+        if show:
+            tdLog.info("wait exe:" + cmd)
+        return exe(f"{bin_file} {command}")
+    else:
+        if show:
+            tdLog.info("no wait exe:" + cmd)
+        if isWin():
+            from .eutil import start_test_process
+            proc = start_test_process(
+                subprocess.list2cmdline([bin_file]) + " " + command,
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            _background_binaries.append((fname, proc))
+            return 0
+        return exeNoWait(cmd)
+
+#
+#  run bin file
+#
+
+# taos
+def taos(command, show = True, checkRun = False):
+    return runBinFile(TAOS, command, show, checkRun)
+
+def taosdump(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(TAOSDUMP, command, show, checkRun, retFail)
+
+def benchmark(command, show = True, checkRun = True, retFail = True):
+    return runBinFile(TAOSBENCHMARK, command, show, checkRun, retFail)        
+
+def getFilePath(base_dir, *parts):
+    """
+    Get the full path to a file, ensuring compatibility with Windows paths.
+    
+    Args:
+        *parts (str): The parts of the file path.
+        
+    Returns:
+        str: The full path to the file.
+    """
+    file_path = os.path.join(os.path.dirname(base_dir), *parts)
+    if platform.system().lower() == 'windows':
+        file_path = file_path.replace("\\", "\\\\")
+    return file_path

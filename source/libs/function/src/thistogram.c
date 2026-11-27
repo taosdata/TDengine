@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "os.h"
 
 #include "query.h"
@@ -110,8 +113,9 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
           return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
         }
       }
-    } else if ((*pHisto)->numOfElems > 0 && (*pHisto)->elems[(*pHisto)->numOfEntries].val > val) {
-      qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", (*pHisto)->numOfEntries, (*pHisto)->elems[idx].val, val);
+    } else if ((*pHisto)->numOfEntries > 0 && (*pHisto)->elems[(*pHisto)->numOfEntries - 1].val > val) {
+      qError("tHistogramAdd Error, elems[%d].val:%lf, val:%lf", (*pHisto)->numOfEntries - 1,
+             (*pHisto)->elems[(*pHisto)->numOfEntries - 1].val, val);
       return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
 
@@ -415,7 +419,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
 }
 
 /**
- * Estimated number of points in the interval (−inf,b].
+ * Estimated number of points in the interval (-inf,b].
  * @param pHisto
  * @param v
  * @param res

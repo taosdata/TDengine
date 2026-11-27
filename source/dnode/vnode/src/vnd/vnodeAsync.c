@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,7 @@
  */
 
 #include "vnd.h"
+#include "tdTestSeam.h"
 #include "vnodeHash.h"
 
 typedef struct SVAsync    SVAsync;
@@ -127,6 +130,7 @@ struct {
     [2] = {"vnode-merge", NULL},
     [3] = {"vnode-compact", NULL},
     [4] = {"vnode-retention", NULL},
+    [5] = {"vnode-scan", NULL},
 };
 
 #define MIN_ASYNC_ID 1
@@ -219,6 +223,7 @@ static void *vnodeAsyncLoop(void *arg) {
   }
 
   setThreadName(async->label);
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   for (;;) {
     (void)taosThreadMutexLock(&async->mutex);
@@ -438,6 +443,12 @@ static int32_t vnodeAsyncDestroy(SVAsync **async) {
 }
 
 static void vnodeAsyncLaunchWorker(SVAsync *async) {
+  TdThreadAttr thAttr;
+  (void)taosThreadAttrInit(&thAttr);
+  (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+#ifdef TD_COMPACT_OS
+  (void)taosThreadAttrSetStackSize(&thAttr, STACK_SIZE_SMALL);
+#endif
   for (int32_t i = 0; i < async->numWorkers; i++) {
     if (async->workers[i].state == EVA_WORKER_STATE_ACTIVE) {
       continue;
@@ -446,7 +457,7 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
       async->workers[i].state = EVA_WORKER_STATE_UINIT;
     }
 
-    int32_t ret = taosThreadCreate(&async->workers[i].thread, NULL, vnodeAsyncLoop, &async->workers[i]);
+    int32_t ret = taosThreadCreate(&async->workers[i].thread, &thAttr, vnodeAsyncLoop, &async->workers[i]);
     if (ret) {
       vError("failed to create worker thread since %s", tstrerror(ret));
     } else {
@@ -455,6 +466,9 @@ static void vnodeAsyncLaunchWorker(SVAsync *async) {
     }
     break;
   }
+#ifdef TD_ASTRA
+  (void)taosThreadAttrDestroy(&thAttr);
+#endif
 }
 
 int32_t vnodeAsyncOpen() {
@@ -467,6 +481,7 @@ int32_t vnodeAsyncOpen() {
       tsNumOfCommitThreads,     // vnode-merge
       tsNumOfCompactThreads,    // vnode-compact
       tsNumOfRetentionThreads,  // vnode-retention
+      2,                        // vnode-scan
   };
 
   for (int32_t i = 1; i < sizeof(GVnodeAsyncs) / sizeof(GVnodeAsyncs[0]); i++) {
@@ -489,6 +504,8 @@ void vnodeAsyncClose() {
 
 int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *), void *arg,
                    SVATaskID *taskID) {
+  TD_SEAM_RET(vnodeAsync, int32_t (*)(int64_t, EVAPriority, int32_t (*)(void *), void (*)(void *), void *, SVATaskID *),
+              (async, priority, execute, complete, arg, taskID));
   SVAChannelID channelID = {
       .async = async,
       .id = 0,
@@ -860,4 +877,21 @@ bool vnodeATaskValid(SVATaskID *taskID) {
   (void)taosThreadMutexUnlock(&async->mutex);
 
   return ret == 0 && task != NULL;
+}
+
+bool vnodeAsyncHasQueuedTask(int64_t asyncID) {
+  if (asyncID < MIN_ASYNC_ID || asyncID > MAX_ASYNC_ID) return false;
+
+  SVAsync *async = GVnodeAsyncs[asyncID].async;
+  if (async == NULL) return false;
+
+  bool hasQueued = false;
+  (void)taosThreadMutexLock(&async->mutex);
+  // Tasks in queue = total tasks minus running tasks.
+  // Running tasks = launched workers - idle workers.
+  int32_t runningWorkers = async->numLaunchWorkers - async->numIdleWorkers;
+  hasQueued = (async->numTasks > runningWorkers);
+  (void)taosThreadMutexUnlock(&async->mutex);
+
+  return hasQueued;
 }

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -265,7 +267,7 @@ void basic_consume_loop(tmq_t* tmq) {
   fprintf(stderr, "%d msg consumed, include %d rows\n", msgCnt, totalRows);
 }
 
-void consume_repeatly(tmq_t* tmq) {
+void consume_repeatedly(tmq_t* tmq) {
   int32_t               numOfAssignment = 0;
   tmq_topic_assignment* pAssign = NULL;
 
@@ -320,7 +322,7 @@ int main(int argc, char* argv[]) {
 
   basic_consume_loop(tmq);
 
-  consume_repeatly(tmq);
+  consume_repeatedly(tmq);
 
   code = tmq_consumer_close(tmq);
   if (code) {

@@ -1,4 +1,20 @@
-const { sleep } = require("@tdengine/websocket");
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 const taos = require("@tdengine/websocket");
 
 // ANCHOR: create_consumer
@@ -52,6 +68,12 @@ async function prepare() {
     await wsSql.close();
 }
 
+const delay = function(ms) {
+    return new Promise(function(resolve) {
+        setTimeout(resolve, ms);
+    });
+};
+
 async function insert() {
     let conf = new taos.WSConfig('ws://localhost:6041');
     conf.setUser('root');
@@ -60,7 +82,7 @@ async function insert() {
     let wsSql = await taos.sqlConnect(conf);
     for (let i = 0; i < 50; i++) {
         await wsSql.exec(`INSERT INTO d1001 USING ${stable} (location, groupId) TAGS ("California.SanFrancisco", 3) VALUES (NOW, ${10 + i}, ${200 + i}, ${0.32 + i})`);
-        await sleep(100);
+        await delay(100);
     }
     await wsSql.close();
 }

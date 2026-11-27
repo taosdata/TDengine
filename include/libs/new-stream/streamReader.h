@@ -1,0 +1,411 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef TDENGINE_STREAM_READER_H
+#define TDENGINE_STREAM_READER_H
+
+#include <stdint.h>
+#include "executor.h"
+#include "filter.h"
+#include "plannodes.h"
+#include "stream.h"
+#include "streamMsg.h"
+#include "tarray.h"
+#include "tdatablock.h"
+#include "thash.h"
+#include "tlockfree.h"
+#include "tsimplehash.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Resolved column reference terminal item.
+// kind=COL: chain ends at a physical table column.
+// kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
+typedef struct SColResolveItem {
+  bool    hasRef;
+  int8_t  refType;
+  char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    refDbName   [TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName  [TSDB_COL_NAME_LEN];
+  int32_t tagCondLen;
+  char   *tagCondJson;  // Owned by the resolve result and freed with the item.
+} SColResolveItem;
+
+typedef struct STagValue {
+  int8_t   type;
+  int32_t  nLen;
+  char*    pData;  // owned; NULL means SQL NULL, non-NULL with nLen=0 means empty string
+} STagValue;
+
+typedef struct SVTableResolveResult {
+  SSHashObj *colMap;    // key: virtual col cid (col_id_t), value: SColResolveItem*
+  SSHashObj *tagMap;    // key: virtual tag cid (col_id_t), value: STagValue*
+} SVTableResolveResult;
+
+// Per-table per-column resolved ref cache. Flat single-level hash keyed by
+// "dbName\0tableName\0colName"; value is the resolved SVTableRefResolveRspItem
+// (tagData deep-copied). Tags and columns cannot share a name within the same
+// physical table, so a single (db,table,col) key is unambiguous.
+typedef struct SStreamVTableInfoCache {
+  SRWLatch    lock;
+  SArray     *reqColCids;     // SArray<col_id_t>
+  SArray     *reqTagCids;     // SArray<col_id_t>
+  SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
+  SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  // Call-private resolve views only (streamResolveCacheInit). NULL on the reader
+  // cache: reference results are no longer shared across resolve calls, so the
+  // reader never allocates or writes this hash.
+  SHashObj   *tblRefCache;    // key: "dbName\0tableName\0colName", value: SVTableRefResolveRspItem
+  int64_t     lastCheckMs;
+  // Sliced recheck cursor: every throttle tick scans at most
+  // STREAM_VTB_RECHECK_SLICE_SIZE uids from uidSlice[sliceCursor..]; when the
+  // cursor wraps to 0, uidSlice is rebuilt from the current uid2Result keys
+  // so newly-added uids are picked up on the next round.
+  SArray     *uidSlice;       // SArray<int64_t>: snapshot of uids to scan
+  int32_t     sliceCursor;
+  bool        valid;
+} SStreamVTableInfoCache;
+
+int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
+void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
+void    streamVTableResolveResultDestroy(void *pRes);
+// Release one tblRefCache entry (tagData + nextRef.tagCondJson). Single
+// definition shared by the reader cache and the call-private resolver cache.
+void    streamTblRefCacheItemFree(void *param);
+
+// Cached full result of the ins_virtual_child_columns (vc_cols) sys scan for a
+// virtual-table stream reader. The scan walks the whole vnode meta B-tree, so
+// re-running it on every fetch saturates the page cache; instead the produced
+// blocks are deep-copied here and re-served until the vnode's virtual-table
+// metadata generation changes (see SMeta.vtableGen).
+//
+// The cache is keyed by (vgId, virtual super table suid, tag-filter map
+// fingerprint): readers that scan the same virtual super table on the same
+// vnode under the same WHERE tag condition reuse one copy, while different
+// tag conditions keep separate copies. Total memory is bounded by
+// tsStreamVcColsCacheSize. Transaction-scoped scans are not cached because
+// their metadata visibility depends on SReadHandle.txnId.
+typedef struct SStreamVcColsCache {
+  TdThreadMutex lock;
+  SArray       *pBlocks;    // SArray<SSDataBlock*>: owned deep copies of the scan result
+  bool          valid;
+  uint64_t      generation; // bumped by Clear(); in-flight scans commit only if unchanged
+  int32_t       refCount;   // total references: registry entry + in-flight serves
+  int64_t       vtableGen;  // vnode vtableGen at scan commit; stale when != current
+  int64_t       bytes;      // accounted bytes of pBlocks (against the global cap)
+} SStreamVcColsCache;
+
+void stStreamVcColsCacheInit(SStreamVcColsCache *pCache);
+void stStreamVcColsCacheClear(SStreamVcColsCache *pCache);
+// Evict every installed cache entry for a vgId (vnode close/remove), releasing
+// its blocks and budget and dropping the per-vgId generation index entry.
+void stStreamVcColsCacheCleanupVg(int32_t vgId);
+
+// Calc-side get-or-create: looks up the shared cache under
+// (vgId, suid, fingerprint[2]) and takes a reference. A cache whose vtableGen
+// does not match the current value is cleared first (stale), so the caller's
+// next ReadBlock() is a miss and it re-scans. The returned cache stays valid
+// until Unref(). fingerprint is a 128-bit tag-filter map fingerprint that keeps
+// scans under different WHERE tag conditions from sharing one entry.
+SStreamVcColsCache *stStreamVcColsCacheAcquire(int32_t vgId, int64_t suid, const uint64_t fingerprint[2],
+                                               int64_t vtableGen);
+// Drop a reference; the cache (mutex + blocks) is freed when the last one goes.
+// The registry itself keeps one permanent reference so an entry's empty shell
+// (no blocks) outlives individual scans and is reused by later ones.
+void                stStreamVcColsCacheUnref(SStreamVcColsCache *pCache);
+
+// Executor-facing serve/populate API. Callers hold a cache reference, not its lock.
+// Commit installs the first completed scan and drops later ones.
+bool        stStreamVcColsCacheIsValid(SStreamVcColsCache *pCache);
+// Validate schema/generation and copy a block under one lock. At idx == 0,
+// capture the generation; later calls must pass that same generation.
+// SUCCESS with finished == true means EOF for that valid generation only.
+// NOT_FOUND means a cache miss at round start; other errors abort the round.
+int32_t     stStreamVcColsCacheReadBlock(SStreamVcColsCache *pCache, int32_t idx, SSDataBlock *pDst,
+                                        uint64_t *pGeneration, bool *pFinished);
+uint64_t    stStreamVcColsCacheGetGeneration(SStreamVcColsCache *pCache);
+// Reserve `bytes` of the shared cache budget before building a block copy.
+// Returns false (and reserves nothing) when it would exceed the cap. Installed
+// blocks and in-flight accumulators share the same budget so the build phase
+// cannot blow past the limit either.
+bool        stStreamVcColsCacheTryReserve(int64_t bytes);
+// Release previously reserved bytes (an aborted accumulator or freed blocks).
+void        stStreamVcColsCacheRelease(int64_t bytes);
+// Total bytes currently charged against the shared cache budget (installed
+// blocks + in-flight accumulators), for observability.
+int64_t     stStreamVcColsCacheGetTotalBytes(void);
+// Install the accumulated blocks unless the cache is already valid or was
+// cleared since expectedGeneration was captured. `bytes` must equal what the
+// caller already reserved via TryReserve(); it is transferred, not re-added.
+void        stStreamVcColsCacheCommit(SStreamVcColsCache *pCache, SArray *pBlocks, uint64_t expectedGeneration,
+                                      int64_t bytes);
+
+typedef struct SStreamTableKeyInfo {
+  int64_t uid;
+  uint64_t groupId;
+  bool     markedDeleted;
+  struct SStreamTableKeyInfo* prev;
+  struct SStreamTableKeyInfo* next;
+} SStreamTableKeyInfo;
+
+typedef struct SStreamTableList {
+  SStreamTableKeyInfo* head;
+  SStreamTableKeyInfo* tail;
+  int32_t size;
+} SStreamTableList;
+
+typedef struct SStreamTableMapElement {
+  SStreamTableKeyInfo* table;
+  int32_t index;
+} SStreamTableMapElement;
+
+typedef enum { UIDMAP_SINGLE, UIDMAP_MULTI } EUidMapMode;
+
+typedef struct StreamTableListInfo {
+  SArray*          pTableList;   // element type: SStreamTableKeyInfo*
+  SHashObj*        gIdMap;       // key: groupId/suid, value: SStreamTableList
+  SHashObj*        uIdMap;       // SINGLE: uid -> SStreamTableMapElement; MULTI: uid -> SArray<SStreamTableMapElement>*
+  EUidMapMode      uIdMapMode;
+  void*            pIter;        // iterator for gIdMap
+  int64_t          version;
+} StreamTableListInfo;
+
+typedef struct SStreamTriggerReaderInfo {
+  void*        pTask;
+  int32_t      order;
+  STimeWindow  twindows;
+  uint64_t     suid;
+  uint64_t     uid;
+  int8_t       tableType;
+  int8_t       isVtableStream;  // whether is virtual table stream
+  bool                           timeAlignConsumer;
+  int8_t       isVtableOnlyTs;
+  int8_t       vTableReady;
+  int8_t       deleteReCalc;
+  int8_t       deleteOutTbl;
+  bool                           requireLocalVtableRefs;
+  SNode*       pTagCond;
+  SNode*       pTagIndexCond;
+  SNode*       pConditions;
+  SNodeList*   partitionCols;
+  SNodeList*   pRollupTagCols;  // SNodeList<SColumnNode>; NULL = not rollup
+  SNodeList*   triggerCols;
+  SNodeList*   triggerPseudoCols;
+  SHashObj*    streamTaskMap;
+  SHashObj*                      pTimeAlignScans;
+  SHashObj*                      pTimeAlignRounds;
+  uint64_t     timeAlignSourceId;           // identifies this deployed Reader across its realtime and history sessions
+  uint64_t     timeAlignRoundWatermark[2];  // one sequence per Trigger session
+  SRWLatch     timeAlignScanLock;
+  SArray*      timeAlignWidthTxns;  // local WAL transactions observed continuously since BEGIN
+  int64_t      timeAlignWidthNextVer;
+  SHashObj*    groupIdMap;
+  SArray*      pendingGroupColRefresh;  // lazily allocated int64_t gids whose tag values changed (SET TAG)
+  SMCtbCursor* groupColRefreshCursor;   // paused cursor for a chunked bulk SET TAG refresh
+  int64_t      groupColRefreshVer;
+  int64_t      groupColRefreshVerTime;
+  bool         groupColRefreshRestart;  // retry the WAL record after a failed continuation
+  void*        walMetaRspCache;          // last response retained until a new requestId acknowledges it
+  int32_t      walMetaRspCacheLen;
+  int32_t      walMetaRspCacheCode;
+  int32_t      walMetaRspCacheType;
+  int64_t      walMetaRspCacheSessionId;
+  uint64_t     walMetaRspCacheRequestId;
+  uint64_t     walMetaRspCacheRound;
+  SSubplan*    triggerAst;
+  SSubplan*    calcAst;
+  int8_t       physicalWalCells;
+  int8_t       timeAlignPrecision;   // virtual table precision + 1, zero for a legacy binding
+  SSDataBlock* extendedWalBlock[2];  // immutable layouts with physical aliases before the version column
+  SSDataBlock* triggerResBlock;
+  SSDataBlock* triggerBlock;
+  SSDataBlock* calcResBlock;
+  SSDataBlock* calcBlock;
+  SSDataBlock* metaBlock;
+  SSDataBlock* tsBlock;
+  SArray*      tsSchemas;
+  SExprInfo*   pExprInfoTriggerTag;
+  int32_t      numOfExprTriggerTag;
+  SExprInfo*   pExprInfoCalcTag;
+  int32_t      numOfExprCalcTag;
+  SSHashObj*   uidHashTrigger;  // < uid -> SHashObj < slotId -> colId > >
+  SSHashObj*   uidHashCalc;     // < uid -> SHashObj < slotId -> colId > >
+  void*        historyTableList;
+  SFilterInfo* pFilterInfo;
+  SHashObj*    pTableMetaCacheTrigger;
+  SHashObj*    pTableMetaCacheCalc;
+  SHashObj*    triggerTableSchemaMapVTable; // key: uid, value: STSchema*
+  STSchema*    triggerTableSchema;
+  bool         groupByTbname;
+  bool         isRollupReader;
+  char*        extraErrMsg;
+  void*        pVnode;
+  SStorageAPI  storageApi;
+  SRWLatch     lock;
+
+  StreamTableListInfo        tableList;
+  StreamTableListInfo        vSetTableList;
+
+  SStreamVTableInfoCache *vtbCache;
+
+} SStreamTriggerReaderInfo;
+
+bool    stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_t *pBytes);
+
+typedef struct SStreamReaderFetchState {
+  bool     enabled;
+  uint64_t id;
+  uint64_t queryId;
+  uint64_t taskId;
+  int32_t  execId;
+  int32_t  nodeId;
+  uint64_t streamGen;
+  int64_t  sessionId;
+  bool     dynTbname;
+  bool     readerGroupMode;
+  bool     readerDimensionBatch;
+} SStreamReaderFetchState;
+
+/** Owns the full batch; rtInfo.funcInfo only borrows the active group. */
+typedef struct SStreamReaderDimensionBatch {
+  SStreamRuntimeFuncInfo runtime;
+  SArray*                pGroupOrder;
+  SArray*                pContextViews;
+  int32_t                groupIndex;
+  bool                   groupStarted;
+  bool                   installed;
+  bool                   reuseReader;
+} SStreamReaderDimensionBatch;
+
+typedef struct SStreamTriggerReaderCalcInfo {
+  SStreamReaderDimensionBatch dimensionBatch;
+  SStreamReaderFetchState fetchState;
+  void*       pTask;
+  void*       pFilterInfo;
+  void*       tsConditions;
+  SSubplan*    calcAst;
+  STargetNode* pTargetNodeTs;
+  char*       calcScanPlan;
+  bool        hasPlaceHolder;
+  bool                   readerGroupRequested;
+  bool                   readerGroupAccepted;
+  bool                   readerGroupModeSet;
+  bool                   requiresContextPolicy;
+  qTaskInfo_t pTaskInfo;
+  SStreamRuntimeInfo rtInfo;
+  SStreamRuntimeFuncInfo tmpRtFuncInfo;
+} SStreamTriggerReaderCalcInfo;
+
+void    stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId);
+int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
+                                       int32_t actualNodeId);
+void    stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderBindDimensionGroup(SStreamTriggerReaderCalcInfo* pCalc, uint64_t gid);
+void    stReaderClearDimensionBatch(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq);
+
+typedef struct SStreamReaderCalcProjection SStreamReaderCalcProjection;
+
+int32_t stProjectReaderCalcContext(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId, int32_t readInfoIndex,
+                                   int32_t sourceParamIndex, SStreamRuntimeFuncInfo* pTarget);
+int32_t stPrepareReaderCalcProjection(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId,
+                                      SStreamReaderCalcProjection** ppProjection);
+int32_t stProjectPreparedReaderCalcContext(const SStreamReaderCalcProjection* pProjection, int32_t readInfoIndex,
+                                           SStreamRuntimeFuncInfo* pTarget);
+void    stDestroyReaderCalcProjection(SStreamReaderCalcProjection** ppProjection);
+int32_t stValidateNodeGroupReadBindings(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId);
+
+// typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
+
+typedef enum { WAL_SUBMIT_DATA = 0, WAL_DELETE_DATA, WAL_DELETE_TABLE } ESWalType;
+
+typedef struct {
+  int32_t     order;
+  void*       schemas;
+  bool        isSchema;
+  STimeWindow twindows;
+  int64_t     suid;
+  int64_t     ver;
+  int32_t**   pSlotList;
+} SStreamOptions;
+
+typedef struct {
+  int64_t                              streamId;
+  int64_t                              sessionId;
+  SStorageAPI*                         storageApi;
+  void*                                pReader;
+  SSDataBlock*                         pResBlock;
+  SSDataBlock*                         pResBlockDst;
+  SStreamOptions*                      options;
+  SSHashObj*                           pRollupMetaByUid;
+  SSHashObj*                           pRollupMetaCount;
+  // Virtual metadata scans retain schema identities across META_NEXT requests.
+  STableKeyInfo*                       pMetaTables;
+  int32_t                              numMetaTables;
+  int32_t                              nextMetaTable;
+  char*                                idStr;
+  SQueryTableDataCond                  cond;
+  SArray*                              rawColumnAliases;
+} SStreamReaderTaskInner;
+
+int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,
+                                      STimeWindow twindows, uint64_t suid, int64_t ver, int32_t** pSlotList);
+int32_t createDataBlockForStream(SArray* schemas, SSDataBlock** pBlockRet);
+int32_t qStreamBuildSchema(SArray* schemas, int8_t type, int32_t bytes, col_id_t colId);
+void    releaseStreamTask(void* p);
+void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
+void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
+int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
+/** Builds a Reader batch response while borrowing every block in pBlocks. */
+int32_t streamBuildGroupFetchRsp(const SArray* pBlocks, bool hasNext, void** ppData, size_t* pSize, int8_t precision);
+
+int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
+
+int32_t createStreamTask(void* pVnode, SStreamOptions* options, SStreamReaderTaskInner** ppTask,
+                         SSDataBlock* pResBlock, STableKeyInfo* pList, int32_t pNum, SStorageAPI* storageApi);
+
+int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** ppTask, SStorageAPI* api);
+bool isRollupMultiReader(SStreamTriggerReaderInfo* sStreamReaderInfo);
+
+int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo, EUidMapMode uIdMapMode);
+// Stream partitions may place other expressions before the bare tbname key.
+bool     qStreamPartitionByTbname(SNodeList* pGroupList);
+int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
+void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
+void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
+int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
+int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
+int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t  qStreamGetTableListNum(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t  qStreamGetGroupTableCount(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid);
+SArray*  qStreamGetTableArrayList(SStreamTriggerReaderInfo* sStreamReaderInfo);
+int32_t  qStreamIterTableList(StreamTableListInfo* sStreamReaderInfo, STableKeyInfo** pKeyInfo, int32_t* size, int64_t* suid);
+uint64_t qStreamGetGroupIdFromOrigin(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
+uint64_t qStreamGetGroupIdFromSet(SStreamTriggerReaderInfo* sStreamReaderInfo, int64_t uid);
+int32_t  qStreamRemoveTableList(StreamTableListInfo* pTableListInfo, int64_t uid);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif  // TDENGINE_STREAM_READER_H

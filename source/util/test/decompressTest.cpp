@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define ALLOW_FORBID_FUNC
 #include <gtest/gtest.h>
 #include <stdlib.h>
@@ -29,7 +46,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 10,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len, 10,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 10; ++i) {
@@ -60,7 +77,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 7,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len1, 7,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 7; ++i) {
@@ -75,7 +92,7 @@ TEST(utilTest, DISABLED_decompress_ts_test) {
 
 #ifdef __AVX512VL__
   memset(decompOutput, 0, 10 * 8);
-  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), 1,
+  tsDecompressTimestampAvx512(reinterpret_cast<const char* const>(pOutput), len2, 1,
                               reinterpret_cast<char* const>(decompOutput), false);
 
   for (int32_t i = 0; i < 1; ++i) {
@@ -114,7 +131,7 @@ TEST(utilTest, DISABLED_decompress_perf_test) {
   st = taosGetTimestampUs();
 #ifdef __AVX512VL__
   for (int32_t k = 0; k < 10000; ++k) {
-    tsDecompressTimestampAvx512(px, num, pOutput, false);
+    tsDecompressTimestampAvx512(px, len, num, pOutput, false);
   }
 #endif
 
@@ -182,7 +199,7 @@ void        compressImplTestByAlg(void* pVal, int8_t type, int32_t num, uint32_t
 
     DEFINE_VAR(cmprAlg)
     int32_t len = compres.compFunc(pVal, bytes, num, px, externalSize, cmprAlg, pBuf, externalSize);
-    printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, radio: %f\n", end[l1], alg[l2],
+    printf("encode:%s, compress alg:%s, type:%s, compresess size: %d, actual size: %d, ratio: %f\n", end[l1], alg[l2],
                   compres.name, len, bytes, (float)len / bytes);
     char* pOutput = static_cast<char*>(taosMemoryCalloc(1, externalSize));
     memset(pBuf, 0, externalSize);
@@ -517,25 +534,27 @@ struct DataTypeSupportAvx<double> {
 template <typename T, typename CompF, typename DecompF>
 static void decompressBasicTest(size_t dataSize, const CompF& compress, const DecompF& decompress, T min, T max) {
   auto              origData = utilTestRandomData(dataSize, min, max);
-  std::vector<char> compData(origData.size() * sizeof(origData[0]) + 1);
-  int32_t           cnt = compress(origData.data(), origData.size(), origData.size(), compData.data(), compData.size(),
-                                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_LE(cnt, compData.size());
+  const int32_t     nEle = static_cast<int32_t>(origData.size());
+  const int32_t     nBytes = static_cast<int32_t>(origData.size() * sizeof(origData[0]));
+  std::vector<char> compData(nBytes + 1);
+  const int32_t     compressedSize =
+      compress(origData.data(), nBytes, nEle, compData.data(), nBytes + 1, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_GT(compressedSize, 0);
+  ASSERT_LE(compressedSize, nBytes + 1);
   decltype(origData) decompData(origData.size());
 
   // test simple implementation without SIMD instructions
   tsAVX2Supported = 0;
-  cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_EQ(cnt, compData.size() - 1);
+  int32_t cnt =
+      decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_EQ(cnt, nBytes);
   EXPECT_EQ(origData, decompData);
 
   taosGetSystemInfo();
   if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     // test AVX2 implementation
-    cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                     ONE_STAGE_COMP, nullptr, 0);
-    ASSERT_EQ(cnt, compData.size() - 1);
+    cnt = decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
+    ASSERT_EQ(cnt, nBytes);
     EXPECT_EQ(origData, decompData);
   }
 }
@@ -545,20 +564,25 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
   constexpr size_t  DATA_SIZE = 1 * 1024 * 1024;
   constexpr int32_t NROUND = 1000;
   auto              origData = utilTestRandomData(DATA_SIZE, min, max);
-  std::vector<char> compData(origData.size() * sizeof(origData[0]) + 1);
-  int32_t           cnt = compress(origData.data(), origData.size(), origData.size(), compData.data(), compData.size(),
-                                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_LE(cnt, compData.size());
+  const int32_t     nEle = static_cast<int32_t>(origData.size());
+  const int32_t     nBytes = static_cast<int32_t>(origData.size() * sizeof(origData[0]));
+  std::vector<char> compData(nBytes + 1);
+  const int32_t     compressedSize =
+      compress(origData.data(), nBytes, nEle, compData.data(), nBytes + 1, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_GT(compressedSize, 0);
+  ASSERT_LE(compressedSize, nBytes + 1);
   if (compData[0] == 1) std::cout << "NOT COMPRESSED!\n";
-  std::cout << "Original size: " << compData.size() - 1 << "; Compressed size: " << cnt
-            << "; Compression ratio: " << 1.0 * (compData.size() - 1) / cnt << "\n";
+  std::cout << "Original size: " << nBytes << "; Compressed size: " << compressedSize
+            << "; Compression ratio: " << 1.0 * nBytes / compressedSize << "\n";
   decltype(origData) decompData(origData.size());
 
   tsAVX2Supported = 0;
+  ASSERT_EQ(decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0),
+            nBytes);
+  ASSERT_EQ(origData, decompData);
   auto ms = measureRunTime(
       [&]() {
-        decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                   ONE_STAGE_COMP, nullptr, 0);
+        decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
       },
       NROUND);
   std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " without SIMD costs " << ms
@@ -568,8 +592,7 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
   if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     ms = measureRunTime(
         [&]() {
-          decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                     ONE_STAGE_COMP, nullptr, 0);
+          decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
         },
         NROUND);
     std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " using AVX2 costs " << ms
@@ -636,6 +659,62 @@ TEST(utilTest, decompressDoubleBasic) {
 }
 
 TEST(utilTest, decompressDoublePerf) { RUN_PERF_TEST(double, tsCompressDouble, tsDecompressDouble, 0, 9999999999); }
+
+TEST(utilTest, decompressDoubleBss) {
+  const int32_t lengths[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 4095, 4096, 4097};
+  const uint64_t patterns[] = {
+      UINT64_C(0x0000000000000000), UINT64_C(0x8000000000000000), UINT64_C(0x3ff0000000000000),
+      UINT64_C(0xbff0000000000000), UINT64_C(0x7fefffffffffffff), UINT64_C(0x0010000000000000),
+      UINT64_C(0x7ff0000000000000), UINT64_C(0xfff0000000000000), UINT64_C(0x7ff8000000000042),
+      UINT64_C(0x7ff0000000000042),
+  };
+  uint32_t cmprAlg = 0;
+  SET_COMPRESS(L1_BSS, L2_DISABLED, L2_LVL_DISABLED, cmprAlg);
+
+  taosGetSystemInfo();
+  const char simdEnable = tsSIMDEnable;
+  const char avx2Supported = tsAVX2Supported;
+
+  for (int32_t length : lengths) {
+    std::vector<double> input(length);
+    for (int32_t i = 0; i < length; ++i) {
+      uint64_t bits = patterns[i % (sizeof(patterns) / sizeof(patterns[0]))];
+      if (i >= static_cast<int32_t>(sizeof(patterns) / sizeof(patterns[0]))) {
+        bits ^= UINT64_C(0x9e3779b97f4a7c15) * i;
+      }
+      memcpy(&input[i], &bits, sizeof(input[i]));
+    }
+
+    const int32_t nBytes = length * DOUBLE_BYTES;
+    std::vector<char> compressed(nBytes + 1);
+    ASSERT_EQ(tsCompressDouble2(input.data(), nBytes, length, compressed.data(), static_cast<int32_t>(compressed.size()),
+                                cmprAlg, nullptr, 0),
+              nBytes);
+
+    std::vector<char> scalar(nBytes);
+    tsSIMDEnable = 0;
+    ASSERT_EQ(tsDecompressDouble2(compressed.data(), nBytes, length, scalar.data(), nBytes, cmprAlg, nullptr, 0), nBytes);
+    EXPECT_EQ(0, memcmp(input.data(), scalar.data(), nBytes));
+
+    std::vector<char> unsupported(nBytes);
+    tsSIMDEnable = 1;
+    tsAVX2Supported = 0;
+    ASSERT_EQ(tsDecompressDouble2(compressed.data(), nBytes, length, unsupported.data(), nBytes, cmprAlg, nullptr, 0),
+              nBytes);
+    EXPECT_EQ(0, memcmp(scalar.data(), unsupported.data(), nBytes));
+
+    if (avx2Supported) {
+      std::vector<char> simd(nBytes);
+      tsSIMDEnable = 1;
+      tsAVX2Supported = avx2Supported;
+      ASSERT_EQ(tsDecompressDouble2(compressed.data(), nBytes, length, simd.data(), nBytes, cmprAlg, nullptr, 0), nBytes);
+      EXPECT_EQ(0, memcmp(scalar.data(), simd.data(), nBytes));
+    }
+  }
+
+  tsSIMDEnable = simdEnable;
+  tsAVX2Supported = avx2Supported;
+}
 
 
 TEST(utilTest, decompressTimestampBasic) {

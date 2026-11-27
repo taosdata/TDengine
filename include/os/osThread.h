@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,8 +25,8 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
+#include "osWindows.h"
 #include <tlhelp32.h>
-#include <windows.h>
 #endif
 
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
@@ -35,7 +37,7 @@ extern "C" {
 // #endif
 #endif
 
-#if !defined(WINDOWS) && !defined(_ALPINE)
+#if !defined(WINDOWS) && !defined(_ALPINE) && !defined(TD_ASTRA)
 #ifndef __USE_XOPEN2K
 #define TD_USE_SPINLOCK_AS_MUTEX
 typedef pthread_mutex_t pthread_spinlock_t;
@@ -47,13 +49,31 @@ typedef pthread_t          TdThread;           // pthread api
 typedef pthread_spinlock_t TdThreadSpinlock;   // pthread api
 typedef CRITICAL_SECTION   TdThreadMutex;      // windows api
 typedef HANDLE             TdThreadMutexAttr;  // windows api
+/* Reader-prefer rwlock. The public SRWLOCK blocks new shared acquirers once an
+ * exclusive waiter is queued, which is the opposite of glibc's default
+ * PTHREAD_RWLOCK_PREFER_READER_NP. state packs the holders:
+ *   bits  0..30  reader count
+ *   bit      31  writer holds the lock
+ * nWriterWait is separate so "readers still inside" cannot be confused with
+ * "lock is idle". preferWriter is glibc
+ * PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP. Default 0 matches Linux
+ * pthread_rwlock_init(attr=NULL).
+ * gate/readerCv/writerCv must stay all-zero-valid (SRWLOCK_INIT and
+ * CONDITION_VARIABLE_INIT). Callers such as sessMgt zero the lock and never
+ * call Init; Destroy stays a no-op for the same reason. */
+#define TD_WIN_RWLOCK_READER_MASK 0x7fffffffu
+#define TD_WIN_RWLOCK_WRITER_BIT  0x80000000u
 typedef struct {
-  SRWLOCK lock;
-  int8_t  excl;
+  SRWLOCK            gate;
+  CONDITION_VARIABLE readerCv;
+  CONDITION_VARIABLE writerCv;
+  uint32_t state;
+  int32_t nWriterWait;
+  int32_t preferWriter;
 } TdThreadRwlock;                               // windows api
 typedef pthread_attr_t     TdThreadAttr;        // pthread api
 typedef pthread_once_t     TdThreadOnce;        // pthread api
-typedef HANDLE             TdThreadRwlockAttr;  // windows api
+typedef int32_t            TdThreadRwlockAttr;  // kind: 0 reader-prefer, else writer-prefer
 typedef CONDITION_VARIABLE TdThreadCond;        // windows api
 typedef HANDLE             TdThreadCondAttr;    // windows api
 typedef pthread_key_t      TdThreadKey;         // pthread api
@@ -70,21 +90,51 @@ typedef pthread_cond_t       TdThreadCond;
 typedef pthread_condattr_t   TdThreadCondAttr;
 typedef pthread_key_t        TdThreadKey;
 #endif
-
+#ifdef TD_ASTRA
+#define STACK_SIZE_DEFAULT    (1048576 << 1)
+#define STACK_SIZE_SMALL      (1048576)
+#else
+#define STACK_SIZE_DEFAULT    (10485760)
+#endif
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop  pthread_cleanup_pop
 #if !defined(WINDOWS)
 #if defined(_TD_DARWIN_64)  // MACOS
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#elif defined(TD_ASTRA)
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #else  // LINUX
-#if _XOPEN_SOURCE >= 500 || _POSIX_C_SOURCE >= 200809L
+#if (defined(_XOPEN_SOURCE) && _XOPEN_SOURCE+0 >= 500) || (defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE+0 >= 200809L)
+#if defined(__GLIBC__)
 #define taosThreadRwlockAttrSetKindNP(A, B) pthread_rwlockattr_setkind_np(A, B)
+#else
+#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+#endif
 #else
 #define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
 #endif
 #endif
 #else  // WINDOWS
-#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+/* glibc nptl/pthread.h values. Windows pthread headers do not declare these,
+ * and SetKindNP used to be a no-op macro so the names were never parsed.
+ * kind 0 is reader-prefer (Linux default); any other kind is writer-prefer. */
+#ifndef PTHREAD_RWLOCK_PREFER_READER_NP
+#define PTHREAD_RWLOCK_PREFER_READER_NP 0
+#endif
+#ifndef PTHREAD_RWLOCK_PREFER_WRITER_NP
+#define PTHREAD_RWLOCK_PREFER_WRITER_NP 1
+#endif
+#ifndef PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP
+#define PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP 2
+#endif
+#ifndef PTHREAD_RWLOCK_DEFAULT_NP
+#define PTHREAD_RWLOCK_DEFAULT_NP PTHREAD_RWLOCK_PREFER_READER_NP
+#endif
+/* Implemented in osThread.c. PTHREAD_RWLOCK_PREFER_READER_NP lets new readers
+ * pass a queued writer; meta/wal/bse pass
+ * PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP and block them. */
+int32_t taosWinThreadRwlockAttrSetKindNP(TdThreadRwlockAttr *attr, int32_t kind);
+#define taosThreadRwlockAttrSetKindNP(A, B) taosWinThreadRwlockAttrSetKindNP(A, B)
 #endif
 
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
@@ -94,7 +144,7 @@ typedef pthread_key_t        TdThreadKey;
 #else
 #define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 #endif
-
+#if 0
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
@@ -199,6 +249,7 @@ typedef pthread_key_t        TdThreadKey;
 #define pthread_testcancel             PTHREAD_TESTCANCEL_FUNC_TAOS_FORBID
 #define pthread_sigmask                PTHREAD_SIGMASK_FUNC_TAOS_FORBID
 #define sigwait                        SIGWAIT_FUNC_TAOS_FORBID
+#endif
 #endif
 
 int32_t taosThreadCreate(TdThread *tid, const TdThreadAttr *attr, void *(*start)(void *), void *arg);

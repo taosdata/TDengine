@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -58,11 +60,12 @@ static int DemoInsertData() {
     taos_cleanup();
     return -1;
   }
-  taos_free_result(result);
 
   // you can check affectedRows here
   int rows = taos_affected_rows(result);
   fprintf(stdout, "Successfully inserted %d rows into power.meters.\n", rows);
+
+  taos_free_result(result);
 
   // close & clean
   taos_close(taos);

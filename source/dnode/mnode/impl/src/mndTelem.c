@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2020 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,7 @@
 #include "thttp.h"
 #include "tjson.h"
 #include "mndAnode.h"
+
 
 typedef struct {
   int64_t numOfDnode;
@@ -52,6 +55,10 @@ static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void**)&pVgroup);
     if (pIter == NULL) break;
 
+    if (pVgroup->mountVgId) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
     pStat->numOfChildTable += pVgroup->numOfTables;
     pStat->numOfColumn += pVgroup->numOfTimeSeries;
     pStat->totalPoints += pVgroup->pointsWritten;

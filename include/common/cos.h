@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,13 +25,6 @@ extern "C" {
 #endif
 
 #define S3_BLOCK_CACHE
-
-extern int8_t  tsS3StreamEnabled;
-extern int8_t  tsS3Enabled;
-extern int32_t tsS3BlockSize;
-extern int32_t tsS3BlockCacheSize;
-extern int32_t tsS3PageCacheSize;
-extern int32_t tsS3UploadDelaySec;
 
 int32_t s3Init();
 int32_t s3Begin();

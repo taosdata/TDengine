@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
@@ -187,12 +204,12 @@ void qwDbgDumpJobsInfo(void) {
   int32_t jobIdx = 0;
   SQWJobInfo* pJob = (SQWJobInfo*)taosHashIterate(gQueryMgmt.pJobInfo, NULL);
   while (NULL != pJob) {
-    qDebug("QID:0x%" PRIx64 " CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
+    qDebug("QID:0x%" PRIx64 ", CID:0x%" PRIx64 " the %dth remain job", pJob->memInfo->jobId, pJob->memInfo->clientId, jobIdx++);
 
     int32_t sessionIdx = 0;
     SQWSessionInfo* pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, NULL);
     while (NULL != pSession) {
-      qDebug("QID:0x%" PRIx64 ",SID:%" PRId64 ",CID:0x%" PRIx64 ",TID:0x%" PRIx64 ",EID:%d the %dth remain session", 
+      qDebug("QID:0x%" PRIx64 ", SID:%" PRId64 ", CID:0x%" PRIx64 ", TID:0x%" PRIx64 ", EID:%d the %dth remain session", 
           pSession->qId, pSession->sId, pSession->cId, pSession->tId, pSession->eId, sessionIdx++);
 
       pSession = (SQWSessionInfo*)taosHashIterate(pJob->pSessions, pSession);    
@@ -237,7 +254,7 @@ int32_t qwDbgBuildAndSendRedirectRsp(int32_t rspType, SRpcHandleInfo *pConn, int
 
   tmsgSendRsp(&rpcRsp);
 
-  qDebug("response %s msg, code: %s", TMSG_INFO(rspType), tstrerror(code));
+  qDebug("response %s msg, code:%s", TMSG_INFO(rspType), tstrerror(code));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -257,11 +274,11 @@ void qwDbgSimulateRedirect(SQWMsg *qwMsg, SQWTaskCtx *ctx, bool *rsped) {
       SEpSet epSet = {0};
       epSet.inUse = 1;
       epSet.numOfEps = 3;
-      TAOS_STRCPY(epSet.eps[0].fqdn, "localhost");
+      tstrncpy(epSet.eps[0].fqdn, "localhost", sizeof(epSet.eps[0].fqdn));
       epSet.eps[0].port = 7100;
-      TAOS_STRCPY(epSet.eps[1].fqdn, "localhost");
+      tstrncpy(epSet.eps[1].fqdn, "localhost", sizeof(epSet.eps[1].fqdn));
       epSet.eps[1].port = 7200;
-      TAOS_STRCPY(epSet.eps[2].fqdn, "localhost");
+      tstrncpy(epSet.eps[2].fqdn, "localhost", sizeof(epSet.eps[2].fqdn));
       epSet.eps[2].port = 7300;
 
       ctx->phase = QW_PHASE_POST_QUERY;

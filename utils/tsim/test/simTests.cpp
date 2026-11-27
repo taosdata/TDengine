@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,30 +34,30 @@ void simHandleSignal(int32_t signo, void *sigInfo, void *context);
 
 TEST(simTests, parameters) {
   int32_t ret = 0;
-  int32_t argc = 2;
+  int32_t argc = 3;
   char   *argv[4] = {0};
 
-     simSystemCleanUp();
-  // argv[1] = "-c";
-  // ret = simEntry(argc, argv);
-  // EXPECT_EQ(ret, 0);
+  argc = 3;
+  argv[1] = "-f";
+  argv[2] = "";
+  ret = simEntry(argc, argv);
+  EXPECT_EQ(ret, -1);
 
-  // argv[1] = "-f";
-  // ret = simEntry(argc, argv);
-  // EXPECT_EQ(ret, 0);
+  argc = 4;
+  argv[3] = "-v";
+  ret = simEntry(argc, argv);
+  EXPECT_EQ(ret, -1);
 
-  // argv[1] = "-v";
-  // ret = simEntry(argc, argv);
-  // EXPECT_EQ(ret, 0);
+  argc = 5;
+  argv[3] = "-c";
+  argv[4] = "/etc/taos";
+  ret = simEntry(argc, argv);
+  EXPECT_EQ(ret, -1);
 
-  // argv[1] = "-h";
-  // ret = simEntry(argc, argv);
-  // EXPECT_EQ(ret, 0);
+  argc = 4;
+  argv[3] = "-h";
+  ret = simEntry(argc, argv);
+  EXPECT_EQ(ret, 0);
 
-  // simHandleSignal(0, NULL, NULL);
-
-  // simDebugFlag = 0;
-  // argc = 1;
-  // ret = simEntry(argc, argv);
-  // EXPECT_EQ(ret, -1);
+  simHandleSignal(0, NULL, NULL);
 }

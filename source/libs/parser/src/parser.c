@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,8 +18,215 @@
 #include "parser.h"
 #include "os.h"
 
+#include <stdio.h>
+#include <string.h>
+#include "decimal.h"
+#include "parInsertUtil.h"
 #include "parInt.h"
 #include "parToken.h"
+#include "parUtil.h"
+#include "tname.h"
+#include "ttime.h"
+
+bool qIsLiteralSql(const char* pStr) {
+  if (NULL == pStr || !*pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+  SToken t;
+
+again:
+
+  t.n = tGetToken(pSql, &t.type, NULL);
+  if (t.n == 0) return true;
+  if (t.type == TK_NK_QUESTION) return false;
+
+  pSql += t.n;
+
+  goto again;
+}
+
+#define MATCH(t) (token.type == t)
+#define ADVANCE() pSql = qNextToken(pSql, &token)
+#define RETURN_EXPECTING(msg) do {                                             \
+  (void)snprintf(pCtx->buf, sizeof(pCtx->buf),                                 \
+      "expecting %s, but got `%.*s`",                                          \
+      msg, token.n < 10 ? 10 : token.n, token.z);                              \
+  return TSDB_CODE_PAR_SYNTAX_ERROR;                                           \
+} while (0)
+
+static inline const char* qNextToken(const char *pStr, SToken *t) {
+again:
+  t->z = (char*)pStr;
+  t->n = tGetToken(pStr, &t->type, NULL);
+  if (t->n == 0) return pStr;
+  if (t->type != TK_NK_SPACE) return pStr + t->n;
+  pStr += t->n;
+  goto again;
+}
+
+int32_t qPureParseInsert(SPureInsertParserCtx *pCtx, const char *pStr) {
+  // NOTE: only for insert into [db.]? (...) values (...)
+  pCtx->nr_params  = 0;
+
+  int nr_names = 0;
+  int nr_values = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  const char* pSql = pStr;
+  SToken token;
+
+  ADVANCE();
+  if (!MATCH(TK_INSERT)) {
+    RETURN_EXPECTING("`insert`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_INTO)) {
+    RETURN_EXPECTING("`into`");
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_ID)) {
+    SToken db = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_DOT)) {
+      RETURN_EXPECTING("`.`");
+    }
+    ADVANCE();
+    if (!MATCH(TK_NK_QUESTION)) {
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
+    if (db.z + db.n + 1 + token.n != token.z + token.n) {
+      token.n = token.z + token.n - db.z;
+      token.z = db.z;
+      RETURN_EXPECTING("<ID>.?");
+    }
+    ++pCtx->nr_params;
+  } else if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+  } else {
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  }
+
+  ADVANCE();
+  if (MATCH(TK_USING)) {
+    return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+  }
+  if (MATCH(TK_NK_LP)) {
+    ADVANCE();
+again:
+    if (!MATCH(TK_NK_ID)) {
+      RETURN_EXPECTING("<ID>");
+    }
+    ++nr_names;
+    ADVANCE();
+    if (MATCH(TK_NK_COMMA)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_ID)) {
+        RETURN_EXPECTING("`<ID>`");
+      }
+      goto again;
+    } else if (!MATCH(TK_NK_RP)) {
+      RETURN_EXPECTING("`,` or `)`");
+    }
+    ADVANCE();
+  } else if (!MATCH(TK_VALUES)) {
+    RETURN_EXPECTING("`(` or `values`");
+  }
+
+  if (!MATCH(TK_VALUES)) {
+    if (MATCH(TK_USING)) {
+      return TSDB_CODE_TSC_STMT_TBNAME_ERROR;
+    }
+    RETURN_EXPECTING("`values`");
+  }
+
+  ADVANCE();
+  if (!MATCH(TK_NK_LP)) {
+    RETURN_EXPECTING("`(`");
+  }
+
+  ADVANCE();
+
+next_value:
+  if (MATCH(TK_NK_QUESTION)) {
+    ++pCtx->nr_params;
+    ++nr_values;
+    ADVANCE();
+  } else if (MATCH(TK_NK_INTEGER)
+      || MATCH(TK_NK_FLOAT)
+      || MATCH(TK_NK_STRING)
+      || MATCH(TK_NK_BOOL)
+      || MATCH(TK_NULL)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ++nr_values;
+    ADVANCE();
+  } else if (MATCH(TK_NK_MINUS)) {
+    SToken t1 = token;
+    ADVANCE();
+    if (!MATCH(TK_NK_INTEGER) && !MATCH(TK_NK_FLOAT)) {
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    if (t1.n + token.n != token.z + token.n - t1.z) {
+      token = t1;
+      RETURN_EXPECTING("<integer>|<float>");
+    }
+    ADVANCE();
+    ++nr_values;
+  } else if (MATCH(TK_NOW)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
+    }
+    ++nr_values;
+  } else if (MATCH(TK_TODAY)) {
+    ADVANCE();
+    if (MATCH(TK_NK_LP)) {
+      ADVANCE();
+      if (!MATCH(TK_NK_RP)) {
+        RETURN_EXPECTING("`)`");
+      }
+      ADVANCE();
+    }
+    ++nr_values;
+  } else {
+    RETURN_EXPECTING("`?` or <INTEGER> or <FLOAT> or <STRING>");
+  }
+
+  if (MATCH(TK_NK_COMMA)) {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    }
+    ADVANCE();
+    goto next_value;
+  } else if (MATCH(TK_NK_RP)) {
+    if (nr_names && nr_values != nr_names) {
+      RETURN_EXPECTING("`,`");
+    }
+  } else {
+    if (nr_values == nr_names) {
+      RETURN_EXPECTING("`)`");
+    } else {
+      RETURN_EXPECTING("`,`");
+    }
+  }
+
+  ADVANCE();
+  if (MATCH(TK_NK_SEMI)) return TSDB_CODE_SUCCESS;
+  if (token.n) {
+    RETURN_EXPECTING("<EOF>");
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
@@ -46,6 +255,313 @@ bool qIsInsertValuesSql(const char* pStr, size_t length) {
     }
   } while (pStr - pSql < length);
   return false;
+}
+
+bool qIsUpdateSetSql(const char* pStr, size_t length, SName* pTableName, int32_t acctId, const char* dbName,
+                     char* msgBuf, int32_t msgBufLen, int* pCode) {
+                        if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_UPDATE != t.type) {
+    return false;
+  }
+  SMsgBuf pMsgBuf = {.len = msgBufLen, .buf = msgBuf};
+  pStr += index;
+  index = 0;
+  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    *pCode = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Invalid table name");
+    return false;
+  }
+
+  if (pTableName != NULL) {
+    *pCode = insCreateSName(pTableName, &t, acctId, dbName, &pMsgBuf);
+    if ((*pCode) != TSDB_CODE_SUCCESS) {
+      return false;
+    }
+  }
+    do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+        if (TK_SET == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+  return false;
+}
+
+bool qIsSelectFromSql(const char* pStr, size_t length) {
+  if (NULL == pStr) {
+    return false;
+  }
+
+  const char* pSql = pStr;
+
+  int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false, NULL);
+  if (TK_SELECT != t.type) {
+    return false;
+  }
+
+  do {
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false, NULL);
+    if (TK_FROM == t.type) {
+      return true;
+    }
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+
+  return false;
+}
+
+static bool isColumnPrimaryKey(const STableMeta* pTableMeta, const char* colName, int32_t colNameLen, int32_t* colId) {
+  if (pTableMeta == NULL || colName == NULL) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++) {
+    const SSchema* pSchema = &pTableMeta->schema[i];
+    if (strncmp(pSchema->name, colName, colNameLen) == 0 && strlen(pSchema->name) == colNameLen) {
+      if (colId) {
+        *colId = i;
+      }
+      if ((pSchema->flags & COL_IS_KEY || pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+        return true;
+      }
+      return false;
+    }
+  }
+  return false;
+}
+
+int32_t convertUpdateToInsert(const char* pSql, char** pNewSql, STableMeta* pTableMeta, SSHashObj* predicateCols,
+                              char* msgBuf, int32_t msgBufLen) {
+  if (NULL == pSql || NULL == pNewSql) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char* pEnd = pSql + strlen(pSql);
+  size_t      maxSqlLen = strlen(pSql) * 2;
+  char*  newSql = taosMemoryMalloc(maxSqlLen);
+  if (newSql == NULL) {
+    return terrno;
+  }
+  char*   p = newSql;
+  int32_t index = 0;
+  SToken  t;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SMsgBuf pMsgBuf = {msgBufLen, msgBuf};
+
+  // UPDATE
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (TK_UPDATE != t.type) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected UPDATE keyword");
+    return code;
+  }
+  pSql += index;
+
+  // tbname
+  index = 0;
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (t.n == 0 || t.z == NULL) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Invalid table name");
+    return code;
+  }
+
+  {
+    size_t rem = maxSqlLen - (p - newSql);
+    int written = snprintf(p, rem, "INSERT INTO %.*s (", (int)t.n, t.z);
+    if (written < 0 || (size_t)written >= rem) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "sql too long");
+      return code;
+    }
+    p += written;
+  }
+  pSql += index;
+
+  // SET
+  index = 0;
+  t = tStrGetToken((char*)pSql, &index, false, NULL);
+  if (TK_SET != t.type) {
+    taosMemoryFree(newSql);
+    code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected SET keyword");
+    return code;
+  }
+  pSql += index;
+
+  bool    firstColumn = true;
+  int32_t columnCount = 0;
+  bool inSetClause = true;
+  int32_t numOfCols = 0;
+
+  // col name
+  while (inSetClause && pSql < pEnd) {
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.n == 0 || t.z == NULL) {
+      break;
+    }
+
+    // pk can't set
+    if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, t.z, t.n, NULL)) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Cannot update primary key column '%.*s'",
+                                     t.n, t.z);
+      return code;
+    }
+
+    if (!firstColumn) {
+      *p++ = ',';
+    }
+    numOfCols++;
+    memcpy(p, t.z, t.n);
+    p += t.n;
+    firstColumn = false;
+    columnCount++;
+    pSql += index;
+
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.type != TK_NK_EQ) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '=' after column name");
+      return code;
+    }
+    pSql += index;
+
+    // value must be ?
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.n == 0 || t.z == NULL) {
+      break;
+    }
+    if (t.type != TK_NK_QUESTION) {
+      taosMemoryFree(newSql);
+      code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+      return code;
+    }
+    pSql += index;
+
+    index = 0;
+    t = tStrGetToken((char*)pSql, &index, false, NULL);
+    if (t.type == TK_WHERE) {
+      inSetClause = false;
+      pSql += index;
+    }
+  }
+
+  // where clause
+  if (pSql < pEnd) {
+    bool inWhereClause = true;
+    int32_t bracketLevel = 0;
+
+    while (inWhereClause && pSql < pEnd) {
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+
+      if (t.type == TK_NK_LP) {
+        bracketLevel++;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_NK_RP) {
+        bracketLevel--;
+        pSql += index;
+        continue;
+      } else if (t.type == TK_IN || t.type == TK_EXISTS) {
+        while (pSql < pEnd) {
+          pSql += index;
+          index = 0;
+          t = tStrGetToken((char*)pSql, &index, false, NULL);
+          if (t.type == TK_AND || t.type == TK_OR || t.n == 0 || t.z == NULL) {
+            break;
+          }
+        }
+        continue;
+      }
+
+      const char* colName = t.z;
+      int32_t     colNameLen = t.n;
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.n == 0 || t.z == NULL) {
+        break;
+      }
+
+      // where cols muset be pk, ignore others
+      int32_t colId = -1;
+      if (t.type == TK_NK_QUESTION) {
+        if (pTableMeta != NULL && isColumnPrimaryKey(pTableMeta, colName, colNameLen, &colId)) {
+          if (!firstColumn) {
+            *p++ = ',';
+          }
+          memcpy(p, colName, colNameLen);
+          p += colNameLen;
+          firstColumn = false;
+          columnCount++;
+        } else {
+          if (tSimpleHashPut(predicateCols, &numOfCols, sizeof(int32_t), &colId, sizeof(int32_t))) {
+            taosMemoryFree(newSql);
+            code = generateSyntaxErrMsgExt(&pMsgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Expected '?' placeholder");
+            return code;
+          }
+        }
+        numOfCols++;
+      }
+      pSql += index;
+
+      index = 0;
+      t = tStrGetToken((char*)pSql, &index, false, NULL);
+      if (t.type == TK_AND || t.type == TK_OR) {
+        pSql += index;
+      } else {
+        if (bracketLevel == 0) {
+          break;
+        }
+        pSql += index;
+      }
+    }
+  }
+
+  p += snprintf(p, maxSqlLen - (p - newSql), ") VALUES (");
+  for (int32_t i = 0; i < columnCount; i++) {
+    if (i > 0) {
+      *p++ = ',';
+    }
+    *p++ = '?';
+  }
+  *p++ = ')';
+  *p = '\0';
+
+  *pNewSql = newSql;
+  return code;
 }
 
 bool qIsCreateTbFromFileSql(const char* pStr, size_t length) {
@@ -109,8 +625,7 @@ bool qParseDbName(const char* pStr, size_t length, char** pDbName) {
     if (*pDbName == NULL) {
       return false;
     }
-    strncpy(*pDbName, t.z, dbNameLen);
-    (*pDbName)[dbNameLen] = '\0';
+    tstrncpy(*pDbName, t.z, dbNameLen + 1);
     return true;
   }
   return false;
@@ -153,6 +668,18 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
   return code;
 }
 
+static uint8_t inferTimestampPrecision(int64_t tsVal) {
+  // Preserve the timestamp precision convention used by statement bindings.
+  int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
+  if (absVal < 10000000000000LL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+  if (absVal < 10000000000000000LL) {
+    return TSDB_TIME_PRECISION_MICRO;
+  }
+  return TSDB_TIME_PRECISION_NANO;
+}
+
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, void *charsetCxt) {
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
@@ -188,7 +715,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
@@ -207,6 +734,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
+      break;
+    }
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
@@ -217,6 +751,44 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
+}
+
+static uint8_t getDecimalBindScale(const char* value, int32_t len, uint8_t maxScale) {
+  int32_t fractionDigits = 0;
+  int32_t trailingZeros = 0;
+  int32_t exponentSign = 1;
+  int32_t exponentPos = len;
+  int64_t exponent = 0;
+  bool    afterPoint = false;
+
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == 'e' || value[i] == 'E') {
+      exponentPos = i + 1;
+      break;
+    }
+    if (value[i] == '.') {
+      afterPoint = true;
+    } else if (isdigit((unsigned char)value[i])) {
+      if (afterPoint) {
+        ++fractionDigits;
+      }
+      trailingZeros = value[i] == '0' ? trailingZeros + 1 : 0;
+    }
+  }
+
+  if (exponentPos < len && (value[exponentPos] == '+' || value[exponentPos] == '-')) {
+    exponentSign = value[exponentPos] == '-' ? -1 : 1;
+    ++exponentPos;
+  }
+  // Account for significand zeros even when a negative exponent shifts them
+  // into the fractional part. The bound still keeps exponent parsing safe.
+  int64_t exponentLimit = (int64_t)TMAX(fractionDigits, trailingZeros) + maxScale;
+  for (int32_t i = exponentPos; i < len && isdigit((unsigned char)value[i]); ++i) {
+    exponent = TMIN(exponent * 10 + value[i] - '0', exponentLimit);
+  }
+
+  int64_t scale = (int64_t)fractionDigits - trailingZeros - exponentSign * exponent;
+  return (uint8_t)TMAX(0, TMIN(scale, maxScale));
 }
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
@@ -234,8 +806,8 @@ static void rewriteQueryExprAlias(SNode* pRoot, int32_t* pNo) {
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOper = (SSetOperator*)pRoot;
-      rewriteQueryExprAlias(pSetOper->pLeft, pNo);
-      rewriteQueryExprAlias(pSetOper->pRight, pNo);
+      for (int32_t i = 0; i < setOperatorChildCount(pSetOper); ++i)
+        rewriteQueryExprAlias(setOperatorChildAt(pSetOper, i), pNo);
       break;
     }
     default:
@@ -292,7 +864,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
-                            const struct SMetaData* pMetaData, SQuery* pQuery) {
+                            struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
   int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
   if (TSDB_CODE_SUCCESS == code && pCatalogReq) {
@@ -315,18 +887,6 @@ int32_t qContinueParseSql(SParseContext* pCxt, struct SCatalogReq* pCatalogReq, 
 int32_t qContinueParsePostQuery(SParseContext* pCxt, SQuery* pQuery, SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pQuery->pRoot)) {
-    case QUERY_NODE_CREATE_STREAM_STMT: {
-      code = translatePostCreateStream(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_INDEX_STMT: {
-      code = translatePostCreateSmaIndex(pCxt, pQuery, pBlock);
-      break;
-    }
-    case QUERY_NODE_CREATE_TSMA_STMT: {
-      code = translatePostCreateTSMA(pCxt, pQuery, pBlock);
-      break;
-    }
     default:
       break;
   }
@@ -371,6 +931,9 @@ void destoryCatalogReq(SCatalogReq* pCatalogReq) {
   taosArrayDestroy(pCatalogReq->pTableIndex);
   taosArrayDestroy(pCatalogReq->pTableCfg);
   taosArrayDestroy(pCatalogReq->pTableTag);
+  taosArrayDestroy(pCatalogReq->pVStbRefDbs);
+  taosArrayDestroy(pCatalogReq->pExtSourceCheck);
+  taosArrayDestroy(pCatalogReq->pExtTableMeta);
 }
 
 void tfreeSParseQueryRes(void* p) {
@@ -398,7 +961,7 @@ void qDestroyParseContext(SParseContext* pCxt) {
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
-  return extractResultSchema(pRoot, numOfCols, pSchema);
+  return extractResultSchema(pRoot, numOfCols, pSchema, NULL);
 }
 
 int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
@@ -447,7 +1010,7 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
   }
-  if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || pVal->node.resType.type == TSDB_DATA_TYPE_DECIMAL) {
     taosMemoryFreeClear(pVal->datum.p);
   }
 
@@ -478,8 +1041,27 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
         return terrno;
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
-      strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      TAOS_STRNCPY(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
       pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
+      if (IS_DURATION_VAL(pVal->flag)) {
+        taosMemoryFreeClear(pVal->literal);
+        taosMemoryFreeClear(pVal->datum.p);
+        pVal->literal = taosStrndup((const char*)pParam->buffer, pVal->node.resType.bytes - VARSTR_HEADER_SIZE);
+        if (!pVal->literal) {
+          return terrno;
+        }
+        int64_t duration = 0;
+        char    unit = 0;
+        if (parseNatualDuration(pVal->literal, strlen(pVal->literal), &duration, &unit,
+                                pVal->node.resType.precision, true) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_PAR_WRONG_VALUE_TYPE;
+        }
+        pVal->datum.i = duration;
+        pVal->unit = unit;
+        *(int64_t*)&pVal->typeData = duration;
+        pVal->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      }
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
@@ -497,6 +1079,64 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
+    case TSDB_DATA_TYPE_DECIMAL64: {
+      int32_t   strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t   precision = TSDB_DECIMAL64_MAX_PRECISION;
+      uint8_t   scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal64 dec = {0};
+      int32_t   code = decimal64FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      int64_t value = DECIMAL64_GET_VALUE(&dec);
+      pVal->datum.i = value;
+      pVal->typeData = value;
+      pVal->node.resType.bytes = sizeof(int64_t);
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL: {
+      // Conversion can fail after rebinding a scalar whose union held no pointer.
+      pVal->datum.p = NULL;
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DECIMAL].bytes;
+      int32_t    strLen = pParam->length ? *(pParam->length) : 0;
+      uint8_t    precision = TSDB_DECIMAL128_MAX_PRECISION;
+      uint8_t    scale = getDecimalBindScale((const char*)pParam->buffer, strLen, precision);
+      Decimal128 dec = {0};
+      int32_t    code = decimal128FromStr((const char*)pParam->buffer, strLen, precision, scale, &dec);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pVal->datum.p = taosMemoryMalloc(pVal->node.resType.bytes);
+      if (NULL == pVal->datum.p) {
+        return terrno;
+      }
+      memcpy(pVal->datum.p, &dec, sizeof(Decimal128));
+      pVal->node.resType.precision = precision;
+      pVal->node.resType.scale = scale;
+      break;
+    }
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
+      return TSDB_CODE_BLOB_NOT_SUPPORT;  // BLOB data type is not supported in stmt2
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      // Auto-detect source precision from the magnitude of the int64 value.
+      //
+      // The raw (unconverted) value is stored together with the detected source
+      // precision in pVal->node.resType.precision.  The actual conversion to the
+      // DB's target precision is deferred to translateValueImpl(), which runs
+      // after the statement is fully translated and SSelectStmt::precision is set.
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+      pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      // deferred; normalized to statement precision during translateWhere(),
+      // before getQueryTimeRange derives pSelect->timeRange
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
+      break;
+    }
     default: {
       int32_t code = nodesSetValueNodeValue(pVal, pParam->buffer);
       if (code) {
@@ -507,6 +1147,14 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
   }
   pVal->translate = true;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStmtRefreshQuery2(SQuery* pQuery) {
+  nodesDestroyNode(pQuery->pRoot);
+  pQuery->pRoot = NULL;
+  int32_t code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
+  if (code == TSDB_CODE_SUCCESS) rewriteExprAlias(pQuery->pRoot);
+  return code;
 }
 
 int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colIdx, void* charsetCxt) {
@@ -525,20 +1173,51 @@ int32_t qStmtBindParams2(SQuery* pQuery, TAOS_STMT2_BIND* pParams, int32_t colId
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
-    nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = NULL;
-    code = nodesCloneNode(pQuery->pPrepareRoot, &pQuery->pRoot);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    rewriteExprAlias(pQuery->pRoot);
+    code = qStmtRefreshQuery2(pQuery);
   }
   return code;
 }
 
-int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = translate(pCxt, pQuery, NULL);
+int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery, SMetaData* pMetaData) {
+  SParseMetaCache metaCache = {0};
+  int32_t         code = TSDB_CODE_SUCCESS;
+
+  // If metaData is provided, we need to collect metadata keys first to build SCatalogReq
+  // Then put the metaData into cache
+  if (pMetaData) {
+    SCatalogReq catalogReq = {0};
+    // After collectMetaKey/buildCatalogReq, metaCache contains "request/reserved" hashes.
+    // We must clear them before putMetaDataToCache, otherwise the hash ends up mixed
+    // (db-keyed request entries + tb-keyed metadata entries) and destoryParseMetaCache(false)
+    // will not release nested request hashes (leading to LeakSanitizer reports).
+    bool metaCacheIsRequest = true;
+    // Collect metadata requirements from query
+    code = collectMetaKey(pCxt, pQuery, &metaCache);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Build catalog request from collected metadata requirements
+      code = buildCatalogReq(&metaCache, &catalogReq);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      // Switch metaCache from request-mode to metadata-mode.
+      destoryParseMetaCache(&metaCache, true);
+      (void)memset(&metaCache, 0, sizeof(metaCache));
+      metaCacheIsRequest = false;
+
+      // Put metadata to cache using the catalogReq to match data
+      code = putMetaDataToCache(&catalogReq, pMetaData, &metaCache);
+    }
+    // Clean up catalog request
+    destoryCatalogReq(&catalogReq);
+    if (TSDB_CODE_SUCCESS != code) {
+      destoryParseMetaCache(&metaCache, metaCacheIsRequest);
+      return code;
+    }
+  }
+
+  code = translate(pCxt, pQuery, &metaCache);
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
+  destoryParseMetaCache(&metaCache, false);
   return code;
 }

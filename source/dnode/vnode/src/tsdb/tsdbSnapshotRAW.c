@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -45,9 +47,11 @@ typedef struct STsdbSnapRAWReader {
 
   // iter
   SDataFileRAWReaderIter dataIter[1];
+
+  int32_t destDnodeId;  // target follower dnodeId served by this reader, used for per-target bucketed progress stats
 } STsdbSnapRAWReader;
 
-int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapRAWReader** reader) {
+int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, int32_t destDnodeId, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -57,9 +61,50 @@ int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, STsdbSnapR
   reader[0]->tsdb = tsdb;
   reader[0]->ever = ever;
   reader[0]->type = type;
+  reader[0]->destDnodeId = destDnodeId;  // record target dnodeId, used for per-bucket stats and bucket cleanup on close
 
   code = tsdbFSCreateRefSnapshot(tsdb->pFS, &reader[0]->fsetArr);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // build snap send progress stat
+  {
+    int32_t n = (int32_t)TARRAY2_SIZE(reader[0]->fsetArr);
+    SSnapSendVnodeStat* pStat = (SSnapSendVnodeStat*)taosMemoryCalloc(1, sizeof(*pStat));
+    if (pStat != NULL) {
+      pStat->totalFileSets = n;
+      pStat->startTime = taosGetTimestampMs();
+      if (n > 0) {
+        pStat->pFileSetStats = (SSnapSendFileSetStat*)taosMemoryCalloc(n, sizeof(SSnapSendFileSetStat));
+        if (pStat->pFileSetStats != NULL) {
+          pStat->fileSetCount = n;
+          for (int32_t i = 0; i < n; i++) {
+            STFileSet*            fset = TARRAY2_GET(reader[0]->fsetArr, i);
+            SSnapSendFileSetStat* s = &pStat->pFileSetStats[i];
+            s->fid = fset->fid;
+            s->sver = 0;
+            s->ever = ever;
+            s->transferType = type;
+            for (int32_t ftype = 0; ftype < TSDB_FTYPE_MAX; ftype++) {
+              if (fset->farr[ftype] != NULL) {
+                s->totalSize += fset->farr[ftype]->f[0].size;
+                s->fileCount++;
+              }
+            }
+            SSttLvl* lvl;
+            TARRAY2_FOREACH(fset->lvlArr, lvl) {
+              STFileObj* fobj;
+              TARRAY2_FOREACH(lvl->fobjArr, fobj) {
+                s->totalSize += fobj->f[0].size;
+                s->fileCount++;
+              }
+            }
+          }
+        }
+      }
+      // Hand off the built progress stats to the bucket of the corresponding destDnodeId (the helper holds the write lock internally and takes ownership of pStat)
+      tsdbSnapPutTargetStat(tsdb, reader[0]->destDnodeId, pStat);
+    }
+  }
 
 _exit:
   if (code) {
@@ -82,11 +127,15 @@ void tsdbSnapRAWReaderClose(STsdbSnapRAWReader** reader) {
   int32_t lino = 0;
 
   STsdb* tsdb = reader[0]->tsdb;
+  int32_t destDnodeId = reader[0]->destDnodeId;  // capture the target dnodeId before freeing the reader, for later bucket cleanup
 
   TARRAY2_DESTROY(reader[0]->dataReaderArr, tsdbDataFileRAWReaderClose);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
   reader[0] = NULL;
+
+  // Clean up this target's progress bucket (the helper holds the write lock internally)
+  tsdbSnapRemoveTargetStat(tsdb, destDnodeId);
   return;
 }
 
@@ -237,6 +286,10 @@ static int32_t tsdbSnapRAWReadBegin(STsdbSnapRAWReader* reader) {
     reader->ctx->fset = TARRAY2_GET(reader->fsetArr, reader->ctx->fsetArrIdx++);
     reader->ctx->isDataDone = false;
 
+    // Record the current fileset's transfer start time (bucketed per target; the helper holds the write lock internally with bounds checking)
+    int32_t idx = reader->ctx->fsetArrIdx - 1;
+    tsdbSnapMarkFileSetStart(reader->tsdb, reader->destDnodeId, idx);
+
     code = tsdbSnapRAWReadFileSetOpenReader(reader);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -255,6 +308,11 @@ static int32_t tsdbSnapRAWReadEnd(STsdbSnapRAWReader* reader) {
   tsdbSnapRAWReadFileSetCloseIter(reader);
   tsdbSnapRAWReadFileSetCloseReader(reader);
   reader->ctx->fset = NULL;
+
+  // Mark the current fileset transfer as complete (bucketed per target; the helper holds the write lock internally)
+  int32_t idx = reader->ctx->fsetArrIdx - 1;
+  tsdbSnapMarkFileSetEnd(reader->tsdb, reader->destDnodeId, idx);
+
   return 0;
 }
 
@@ -292,6 +350,12 @@ _exit:
   if (code) {
     TSDB_ERROR_LOG(TD_VID(reader->tsdb->pVnode), code, lino);
   } else {
+    // Accumulate the current fileset's read bytes (bucketed per target; the helper holds the write lock internally with bounds checking)
+    if (data[0] != NULL) {
+      SSnapDataHdr *hdr = (SSnapDataHdr *)data[0];
+      int32_t       idx = reader->ctx->fsetArrIdx - 1;
+      tsdbSnapAddReadSize(reader->tsdb, reader->destDnodeId, idx, hdr->size);
+    }
     tsdbDebug("vgId:%d %s done", TD_VID(reader->tsdb->pVnode), __func__);
   }
   return code;
@@ -319,7 +383,6 @@ struct STsdbSnapRAWWriter {
     bool       fsetWriteBegin;
     int32_t    fid;
     STFileSet* fset;
-    SDiskID    did;
     int64_t    cid;
     int64_t    level;
 
@@ -371,7 +434,7 @@ static int32_t tsdbSnapRAWWriteFileSetOpenWriter(STsdbSnapRAWWriter* writer) {
       .szPage = writer->szPage,
       .fid = writer->ctx->fid,
       .cid = writer->commitID,
-      .did = writer->ctx->did,
+      .expLevel = writer->ctx->level,
       .level = writer->ctx->level,
   };
 
@@ -399,17 +462,17 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
-  code = tfsAllocDisk(writer->tsdb->pVnode->pTfs, level, &writer->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  code = tfsMkdirRecurAt(writer->tsdb->pVnode->pTfs, writer->tsdb->path, writer->ctx->did);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  // Compute the expected storage tier for this file based on its age vs the
+  // keep configuration, and feed it back into ctx->level so the fileset writer
+  // allocates the restored files on the correct disk tier (expLevel/level).
+  // Previously this value was computed but never assigned (dead code), which
+  // left ctx->level at its calloc-initialized 0 and forced every restored file
+  // onto storage tier 0 during redistribute / snapshot restore.
+  writer->ctx->level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  writer->ctx->level = level;
   writer->ctx->fsetWriteBegin = true;
 
 _exit:
@@ -501,10 +564,9 @@ static int32_t tsdbSnapRAWWriteTimeSeriesData(STsdbSnapRAWWriter* writer, STsdbD
   int32_t code = 0;
   int32_t lino = 0;
 
-  int32_t encryptAlgorithm = writer->tsdb->pVnode->config.tsdbCfg.encryptAlgorithm;
-  char*   encryptKey = writer->tsdb->pVnode->config.tsdbCfg.encryptKey;
+  SEncryptData *pEncryptData = &(writer->tsdb->pVnode->config.tsdbCfg.encryptData);
 
-  code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, encryptAlgorithm, encryptKey);
+  code = tsdbFSetRAWWriteBlockData(writer->ctx->fsetWriter, bHdr, pEncryptData);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
@@ -514,9 +576,47 @@ _exit:
   return code;
 }
 
+// Validate a peer-supplied RAW block (SSnapDataHdr::data / size) before any of its fields are used as
+// an array index, file identifier or copy length.
+int32_t tsdbSnapRAWCheckBlock(const uint8_t* data, int64_t size) {
+  if (data == NULL || size < (int64_t)sizeof(STsdbDataRAWBlockHeader)) {
+    tsdbError("%s invalid RAW block size:%" PRId64 ", min:%d", __func__, size,
+              (int32_t)sizeof(STsdbDataRAWBlockHeader));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const STsdbDataRAWBlockHeader* bHdr = (const void*)data;
+  if (!tsdbFTypeIsValid(bHdr->file.type)) {
+    tsdbError("%s invalid RAW block file type:%d", __func__, bHdr->file.type);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (bHdr->dataLength != size - (int64_t)sizeof(STsdbDataRAWBlockHeader)) {
+    tsdbError("%s invalid RAW block dataLength:%" PRId64 ", payload size:%" PRId64, __func__, bHdr->dataLength,
+              size - (int64_t)sizeof(STsdbDataRAWBlockHeader));
+    return TSDB_CODE_INVALID_MSG;
+  }
+  // fid is an int64 on the wire and is narrowed to the int32 STFile.fid below
+  if (bHdr->file.fid < INT32_MIN || bHdr->file.fid > INT32_MAX || bHdr->file.cid < 0 || bHdr->file.size < 0 ||
+      bHdr->offset < 0) {
+    tsdbError("%s invalid RAW block fid:%" PRId64 " cid:%" PRId64 " size:%" PRId64 " offset:%" PRId64, __func__,
+              bHdr->file.fid, bHdr->file.cid, bHdr->file.size, bHdr->offset);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  // the level only exists in the stt member of the file union; stt levels are kept in a sorted list, so only a
+  // negative value is invalid
+  if (bHdr->file.type == TSDB_FTYPE_STT && bHdr->file.stt->level < 0) {
+    tsdbError("%s invalid RAW block stt level:%d", __func__, bHdr->file.stt->level);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return 0;
+}
+
 static int32_t tsdbSnapRAWWriteData(STsdbSnapRAWWriter* writer, SSnapDataHdr* hdr) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  code = tsdbSnapRAWCheckBlock(hdr->data, hdr->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   STsdbDataRAWBlockHeader* bHdr = (void*)hdr->data;
   int32_t                  fid = bHdr->file.fid;

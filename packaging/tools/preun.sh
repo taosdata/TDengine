@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Script to stop the service and uninstall TSDB
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'
@@ -150,6 +163,9 @@ clean_service
 # Remove all links
 ${csudo}rm -f ${bin_link_dir}/taos       || :
 ${csudo}rm -f ${bin_link_dir}/taosd      || :
+${csudo}rm -f ${bin_link_dir}/taosudf    || :
+${csudo}rm -f ${bin_link_dir}/taosmqtt  || :
+${csudo}rm -f ${bin_link_dir}/taosgen  || :
 ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
 ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
@@ -159,6 +175,7 @@ ${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
 ${csudo}rm -f ${bin_link_dir}/taos-explorer  || :
 ${csudo}rm -f ${bin_link_dir}/start-all.sh  || :
 ${csudo}rm -f ${bin_link_dir}/stop-all.sh  || :
+${csudo}rm -f ${bin_link_dir}/reconcile-tsdb-nodes.sh || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :
@@ -167,9 +184,13 @@ ${csudo}rm -f ${inc_link_dir}/tdef.h || :
 ${csudo}rm -f ${inc_link_dir}/taosudf.h || :
 ${csudo}rm -f ${inc_link_dir}/taosws.h || :
 ${csudo}rm -f ${lib_link_dir}/libtaos.*   || :
+${csudo}rm -f ${lib_link_dir}/libtaosnative.*   || :
 ${csudo}rm -f ${lib_link_dir}/libtaosws.so   || :
+${csudo}rm -f ${lib_link_dir}/libtaospyudf.*   || :
 ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
+${csudo}rm -f ${lib64_link_dir}/libtaosnative.* || :
 ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
+${csudo}rm -f ${lib64_link_dir}/libtaospyudf.* || :
 
 ${csudo}rm -f ${log_link_dir}            || :
 ${csudo}rm -f ${data_link_dir}           || :
