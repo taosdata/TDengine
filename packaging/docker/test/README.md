@@ -8,7 +8,7 @@
 
 | 层 | 文件 | 需要 docker | 在哪跑 |
 |---|---|---|---|
-| 静态守卫 | `test_entrypoint_community.py` | 否 | CI（`python3 -m unittest -v test_entrypoint_community`） |
+| 静态守卫 | `test_entrypoint_community.py` | 否 | CI `Docker Entrypoint Check`（`.github/workflows/docker-entrypoint-check.yml`） |
 | 行为验证 | `run-local.sh` | 是 | 本地（改脚本后必跑） |
 
 ## 本地跑

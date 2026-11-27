@@ -1,0 +1,59 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# Static guard rails for the community image entrypoint.
+#
+# packaging/docker/bin/entrypoint.sh only supervises processes, so a regression
+# there is invisible until a container "stays up but is dead" in production.
+# The checks here are text-based and need neither docker nor a C++ build, which
+# keeps the job a few seconds long.
+#
+# Behavioural coverage needs a docker daemon and lives in
+# packaging/docker/test/run-local.sh -- run it locally after touching the
+# entrypoint.
+
+name: Docker Entrypoint Check
+
+on:
+  pull_request:
+    branches:
+      - 'main'
+      - '3.0'
+      - '3.3.8'
+    paths:
+      - 'packaging/docker/**'
+      - '.github/workflows/docker-entrypoint-check.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  entrypoint-static:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Check shell syntax
+        run: bash -n packaging/docker/bin/entrypoint.sh
+
+      - name: Check supervision contract
+        working-directory: packaging/docker/test
+        run: python3 -m unittest -v test_entrypoint_community
