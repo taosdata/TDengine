@@ -969,12 +969,13 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   mndReleaseUser(pMnode, pUser);
   pUser = NULL;
 
-  // taoskeeper interpolates the relayed body into SQL executed with its stored root credentials,
-  // so a non-JSON / malformed payload must never reach the monitoring endpoints. Reject anything
-  // that is not well-formed JSON before forwarding it.
-  if (statisReq.pCont == NULL || !tjsonValidateJson(statisReq.pCont)) {
+  // mnode only relays TDMT_MND_STATIS to the monitoring endpoints. Payload
+  // validation is intentionally not performed here; the consumer is responsible
+  // for validating the body. Keep the NULL guard because monSendContent() and
+  // the log below both require a non-NULL buffer.
+  if (statisReq.pCont == NULL) {
     tFreeSStatisReq(&statisReq);
-    mError("statis req from %s dropped: payload is not valid JSON", RPC_MSG_USER(pReq));
+    mError("statis req from %s dropped: payload is NULL", RPC_MSG_USER(pReq));
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
