@@ -1504,6 +1504,7 @@ typedef struct SSTriggerPullRequest {
   uint64_t          progressRequestToken;  // does not serialize
   SStreamManualRecalcAttemptId manualAttempt;         // does not serialize
   uint32_t          retryCount;  // does not serialize
+  int64_t           retryDueNs;  // does not serialize, earliest re-send of a retried pull
   uint64_t                     timeAlignWalRound;    // WAL reads for an admitted TIME_ALIGN round
   uint64_t                     timeAlignWalRequest;  // stable across a transport retry
 } SSTriggerPullRequest;

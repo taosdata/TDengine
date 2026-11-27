@@ -40418,6 +40418,21 @@ uint8_t                gRecalcBarrierCheckpoint[128];
 int64_t                gRecalcBarrierCheckpointLen = 0;
 int32_t                gManualStreamErrorCalls = 0;
 TAOS_TMR_CALLBACK      gManualWaitCallback = nullptr;
+int32_t                gManualTriggerNoticeDrops = 0;
+std::atomic<int64_t>   gManualWallNs{0};
+std::atomic<int64_t>   gManualMonoNs{0};
+
+int32_t readManualClock(int clockId, struct timespec* pTime) {
+  int64_t nowNs = clockId == CLOCK_REALTIME ? gManualWallNs.load() : gManualMonoNs.load();
+  pTime->tv_sec = (time_t)(nowNs / NANOSECOND_PER_SEC);
+  pTime->tv_nsec = (long)(nowNs % NANOSECOND_PER_SEC);
+  return 0;
+}
+
+void advanceManualClock(int64_t deltaNs) {
+  gManualWallNs += deltaNs;
+  gManualMonoNs += deltaNs;
+}
 SStreamTask*           gManualAcquiredTask = nullptr;
 int32_t                gManualTriggerStartCalls = 0;
 int32_t                gManualRetryAllocCalls = 0;
@@ -40455,7 +40470,11 @@ void ignoreManualTimerStop(tmr_h) {}
 
 int32_t captureManualTriggerStart(void*, EQueueType, SRpcMsg* pMsg) {
   ++gManualTriggerStartCalls;
-  rpcFreeCont(gManualQueuedCtrl.pCont);
+  if (gManualQueuedCtrl.pCont != nullptr) {
+    // A second wake posted before the first was processed is a duplicate the timer must not produce.
+    ++gManualTriggerNoticeDrops;
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+  }
   gManualQueuedCtrl = *pMsg;
   pMsg->pCont = nullptr;
   return TSDB_CODE_SUCCESS;
@@ -41148,6 +41167,7 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
     gManualMissingAcquireCalls = 0;
     gManualTerminalWaitNode = nullptr;
     gManualTerminalRequeueCalls = 0;
+    gManualTriggerNoticeDrops = 0;
     stub_.set(streamTmrStop, ignoreManualTimerStop);
     stTriggerTaskEnvCleanup();
     gManualWaitCallback = nullptr;
@@ -41379,6 +41399,23 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
         stTriggerTaskProcessRsp(&task_.task, &response, pErrorTaskId == nullptr ? &localErrorTaskId : pErrorTaskId);
     destroyAhandle(sendInfo);
     return code;
+  }
+
+  // Fires the timer the trigger armed for its wait list and processes the wake it posts, so a test
+  // exercises the deadline path instead of injecting its own wake. Returns false when nothing is due.
+  bool DriveWaitTimer() {
+    if (gManualWaitCallback == nullptr) return false;
+    gManualAcquiredTask = &task_.task;
+    stub_.set(streamAcquireTask, acquireManualTriggerTask);
+    stub_.set(streamReleaseTask, releaseManualTriggerTask);
+    PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+    gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+    gManualWaitCallback(nullptr, nullptr);
+    gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+    gManualAcquiredTask = nullptr;
+    if (gManualQueuedCtrl.pCont == nullptr) return false;
+    EXPECT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+    return true;
   }
 
   int32_t ProcessCapturedCalcResponse(int32_t responseCode) {
@@ -41969,18 +42006,96 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, MissingHistoryBoundaryReader
   EXPECT_EQ(0, TD_DLIST_NELES(&task_.backoffRecalcRequests));
 }
 
-TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReportsTriggerForRecovery) {
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderResendsOnEachDeadline) {
   ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
   ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
   ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
   auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
   auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
   ASSERT_NE(nullptr, request);
   EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
-  EXPECT_EQ(ahandle->manualAttempt.chainId, 0U);
   ASSERT_NE(request->readerTaskId, task_.task.taskId);
 
   int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(gManualTriggerStartCalls, 0);
+  auto* queued = *reinterpret_cast<SSTriggerPullRequest**>(TD_DLIST_HEAD(&realtime_.retryPullReqs)->data);
+  EXPECT_EQ(queued, request);
+  EXPECT_EQ(queued->retryCount, 1U);
+
+  // Before the first deadline the armed wake neither fires nor burns an attempt.
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 0);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(request->retryCount, 1U);
+
+  // First deadline: the timer itself re-sends the same request.
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* resent = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, resent);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(resent->param), request);
+  EXPECT_EQ(request->retryCount, 1U);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
+
+  // A second missing reply schedules its own deadline and keeps the same request.
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+  EXPECT_EQ(request->retryCount, 2U);
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 1);
+
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerStartCalls, 2);
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* again = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, again);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(again->param), request);
+  EXPECT_EQ(request->retryCount, 2U);
+  EXPECT_EQ(listNEles(&realtime_.retryPullReqs), 0);
+  EXPECT_EQ(gManualStreamErrorCalls, 0);
+  ExpectNoManualRecalcJobs();
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReportsTriggerAfterRetryBudgetExhausted) {
+  ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
+  ASSERT_EQ(ProcessRealtimeStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(ahandle->sessionId, kRealtimeSessionId);
+  ASSERT_NE(request->readerTaskId, task_.task.taskId);
+
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  for (uint32_t attempt = 1; attempt <= STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT; ++attempt) {
+    ASSERT_EQ(listNEles(&realtime_.retryPullReqs), 1);
+    EXPECT_EQ(request->retryCount, attempt);
+    advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+    ASSERT_TRUE(DriveWaitTimer());
+    ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+    if (attempt < STREAM_PULL_TASK_NOT_EXIST_RETRY_LIMIT) {
+      EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+    }
+  }
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+
+  // The budget is exhausted: the next missing-reader reply is reported for recovery.
   EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId),
             TSDB_CODE_STREAM_TASK_NOT_EXIST);
   EXPECT_EQ(errorTaskId, task_.task.taskId);
@@ -41988,6 +42103,43 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, RealtimeMissingReaderReports
   EXPECT_EQ(TD_DLIST_NELES(&task_.backoffRecalcRequests), 0);
   EXPECT_EQ(gManualStreamErrorCalls, 0);
   ExpectNoManualRecalcJobs();
+}
+
+TEST_F(StreamTriggerTaskManualRetryIntegrationTest, HistoryMissingReaderResendsOnArmedTimer) {
+  ExpectNoManualRecalcJobs();
+  gManualWallNs = taosGetTimestampNs();
+  gManualMonoNs = taosGetMonoTimestampNs();
+  stub_.set(taosClockGetTime, readManualClock);
+
+  ASSERT_EQ(QueueFillHistory(100, 200), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* ahandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  auto* request = static_cast<SSTriggerPullRequest*>(ahandle->param);
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(ahandle->sessionId, kHistorySessionId);
+  EXPECT_TRUE(context_.isHistory);
+  ASSERT_NE(request->readerTaskId, task_.task.taskId);
+
+  int64_t errorTaskId = 0;
+  EXPECT_EQ(ProcessCapturedPullResponse(TSDB_CODE_STREAM_TASK_NOT_EXIST, &errorTaskId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(listNEles(&context_.retryPullReqs), 1);
+  auto* queued = *reinterpret_cast<SSTriggerPullRequest**>(TD_DLIST_HEAD(&context_.retryPullReqs)->data);
+  EXPECT_EQ(queued, request);
+  EXPECT_EQ(queued->retryCount, 1U);
+
+  EXPECT_FALSE(DriveWaitTimer());
+  EXPECT_EQ(request->retryCount, 1U);
+
+  advanceManualClock(STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC + NANOSECOND_PER_MSEC);
+  ASSERT_TRUE(DriveWaitTimer());
+  EXPECT_EQ(gManualTriggerNoticeDrops, 0);
+  ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
+  auto* resent = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
+  ASSERT_NE(nullptr, resent);
+  EXPECT_EQ(static_cast<SSTriggerPullRequest*>(resent->param), request);
+  EXPECT_EQ(request->retryCount, 1U);
+  EXPECT_EQ(listNEles(&context_.retryPullReqs), 0);
 }
 
 TEST_F(StreamTriggerTaskManualRetryIntegrationTest, MissingValidationReaderPreservesManualAttemptForRecovery) {

@@ -2428,6 +2428,7 @@ typedef enum {
   STREAM_TRIGGER_WAIT_RESULT_CHECK,
   STREAM_TRIGGER_WAIT_WAL_CHECKPOINT,
   STREAM_TRIGGER_WAIT_GROUP_COL_RETRY,
+  STREAM_TRIGGER_WAIT_PULL_RETRY,
 } EStreamTriggerWaitReason;
 
 typedef struct StreamTriggerWaitInfo {
@@ -3325,7 +3326,7 @@ static int32_t stTriggerTaskAddWait(SStreamTriggerTask *pTask, int64_t sessionId
   }
   taosWLockLatch(&gStreamTriggerWaitLatch);
   if (reason == STREAM_TRIGGER_WAIT_PERIOD_POLL || reason == STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE ||
-      reason == STREAM_TRIGGER_WAIT_RESULT_CHECK || currentId) {
+      reason == STREAM_TRIGGER_WAIT_RESULT_CHECK || reason == STREAM_TRIGGER_WAIT_PULL_RETRY || currentId) {
     SListIter  iter = {0};
     SListNode *pNode = NULL;
     tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
@@ -3510,7 +3511,8 @@ static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64
 
 static int64_t stTriggerWaitClock(EStreamTriggerWaitReason reason, int64_t wallNow, int64_t monoNow) {
   return (reason == STREAM_TRIGGER_WAIT_CALC_RETRY || reason == STREAM_TRIGGER_WAIT_RESULT_CHECK ||
-          reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT || reason == STREAM_TRIGGER_WAIT_GROUP_COL_RETRY)
+          reason == STREAM_TRIGGER_WAIT_WAL_CHECKPOINT || reason == STREAM_TRIGGER_WAIT_GROUP_COL_RETRY ||
+          reason == STREAM_TRIGGER_WAIT_PULL_RETRY)
              ? monoNow
              : wallNow;
 }
@@ -5594,6 +5596,36 @@ static bool stTriggerTaskConsumeMissingTaskRetry(SSTriggerPullRequest *pReq) {
   }
   ++pReq->retryCount;
   return true;
+}
+
+// Only requests that can be rebuilt from their own payload may be re-sent after a missing-reader reply.
+// The continuation pulls consume a cursor that lives in the reader that answered the previous page, and
+// the WAL data pulls release their per-table ranges right after the first send, so re-sending those
+// would come back as NO_CONTEXT/NO_DATA instead of the pages the trigger still needs.
+//
+// A vtable reader answers NOT_EXIST for its data pulls while the binding it lost is not restored, and no
+// amount of re-sending restores it, so those keep the fail-fast recovery. Only the pulls that establish or
+// refresh the binding are retried for a vtable stream.
+static bool stTriggerTaskPullResendSafe(const SSTriggerPullRequest *pReq, bool isVirtualTable) {
+  if (pReq == NULL) {
+    return false;
+  }
+  switch (pReq->type) {
+    case STRIGGER_PULL_SET_TABLE:
+    case STRIGGER_PULL_GROUP_COL_VALUE:
+    case STRIGGER_PULL_VTABLE_INFO:
+    case STRIGGER_PULL_VTABLE_PSEUDO_COL:
+    case STRIGGER_PULL_OTABLE_INFO:
+      return true;
+    case STRIGGER_PULL_LAST_TS:
+    case STRIGGER_PULL_FIRST_TS:
+    case STRIGGER_PULL_TSDB_META:
+    case STRIGGER_PULL_WAL_META_NEW:
+    case STRIGGER_PULL_WAL_META_DATA_NEW:
+      return !isVirtualTable;
+    default:
+      return false;
+  }
 }
 
 static int32_t stTriggerTaskCloneNestedInputRequest(const SSTriggerVirTablePseudoColRequest *pSrc,
@@ -19391,12 +19423,29 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         }
         bool missingTask = pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST;
         if (missingTask) {
-          *pErrTaskId = pStreamTask->taskId;
-          code = pRsp->code;
-          ST_TASK_WLOG("reader task is missing, report trigger failure for recovery, readerTaskId:%" PRIx64
-                       ", triggerTaskId:%" PRIx64 ", retryCount:%u",
-                       pReq->readerTaskId, pStreamTask->taskId, pReq->retryCount);
-          QUERY_CHECK_CODE(code, lino, _end);
+          // A reader answers STREAM_TASK_NOT_EXIST while it is still being created - a deploy that adds
+          // readers at runtime publishes them to the trigger before the vnode holds the task - or while it
+          // is being dropped. Retry such a pull within the missing-task budget so the race cannot stop the
+          // whole stream; only an exhausted budget is reported. Time-align rounds keep the fail-fast
+          // behavior because their round state is driven by the pull that failed.
+          bool retryQueued = pAhandle->timeAlignRound == 0 &&
+                             stTriggerTaskPullResendSafe(pReq, pTask->isVirtualTable) &&
+                             (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID ||
+                              pReq->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) &&
+                             stTriggerTaskConsumeMissingTaskRetry(pReq);
+          if (!retryQueued) {
+            *pErrTaskId = pStreamTask->taskId;
+            code = pRsp->code;
+            ST_TASK_WLOG("reader task is missing, report trigger failure for recovery, readerTaskId:%" PRIx64
+                         ", triggerTaskId:%" PRIx64 ", retryCount:%u",
+                         pReq->readerTaskId, pStreamTask->taskId, pReq->retryCount);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+          // The retry wait is a relative delay, so it has to stay on the monotonic clock.
+          pReq->retryDueNs = taosGetMonoTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+        } else {
+          // A generic retry is sent on the next wake, so it must not inherit an old missing-reader deadline.
+          pReq->retryDueNs = 0;
         }
         bool addWait = false;
         if (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
@@ -19412,9 +19461,17 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           localFailure = code != TSDB_CODE_SUCCESS;
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        if (addWait) {
+        if (addWait && !missingTask) {
           int64_t resumeTime = taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
           code = stTriggerTaskAddWaitSession(pTask, pReq->sessionId, resumeTime);
+          localFailure = code != TSDB_CODE_SUCCESS;
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        if (missingTask) {
+          // The missing-reader deadline needs its own monotonic wake: the generic wake above is skipped
+          // when the queue was not empty, and a wall-clock clock can be moved backwards.
+          code = stTriggerTaskAddWaitSessionForReason(pTask, pReq->sessionId, pReq->retryDueNs,
+                                                      STREAM_TRIGGER_WAIT_PULL_RETRY);
           localFailure = code != TSDB_CODE_SUCCESS;
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -23724,6 +23781,9 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   SStreamTaskAddr      *pReader = pProgress->pTaskAddr;
   pReq->type = type;
   pReq->readerTaskId = pReader->taskId;
+  // A new logical request starts with a fresh missing-reader budget; only its own re-sends keep counting.
+  pReq->retryCount = 0;
+  pReq->retryDueNs = 0;
 
   pReq->timeAlignWalRound = 0;
   if (pProgress->timeAlignRound && (type == STRIGGER_PULL_WAL_META_NEW || type == STRIGGER_PULL_WAL_META_DATA_NEW ||
@@ -23924,6 +23984,9 @@ static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pCon
   QUERY_CHECK_CONDITION(pProgress->pendingPulls == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   pReq->type = STRIGGER_PULL_GROUP_COL_VALUE;
   pReq->readerTaskId = pReader->taskId;
+  // Each group value pull is a new logical request on the shared progress request.
+  pReq->retryCount = 0;
+  pReq->retryDueNs = 0;
   pProgress->pullReq.groupColValueReq.gid = gid;
 
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
@@ -28374,10 +28437,24 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   }
 
   if (listNEles(&pContext->retryPullReqs) > 0) {
-    while (listNEles(&pContext->retryPullReqs) > 0) {
-      SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
+    // Each missing-reader re-send waits for its own deadline, so a later failure cannot be pushed out by
+    // the timer that was armed for an earlier one.
+    int64_t    earliestDue = INT64_MAX;
+    SListNode *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
+    while (pNode != NULL) {
+      SListNode            *pNext = TD_DLIST_NODE_NEXT(pNode);
       SSTriggerPullRequest *pReq = *(SSTriggerPullRequest **)pNode->data;
-      code = stRealtimeContextRetryPullRequest(pContext, pNode, pReq);
+      if (pReq->retryDueNs > taosGetMonoTimestampNs()) {
+        if (pReq->retryDueNs < earliestDue) earliestDue = pReq->retryDueNs;
+      } else {
+        code = stRealtimeContextRetryPullRequest(pContext, pNode, pReq);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      pNode = pNext;
+    }
+    if (earliestDue != INT64_MAX) {
+      code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, earliestDue,
+                                                  STREAM_TRIGGER_WAIT_PULL_RETRY);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
@@ -32882,6 +32959,9 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
 
   if (pReq == NULL) {
     pReq = &pProgress->pullReq.base;
+    // A new logical request starts with a fresh missing-reader budget; only its own re-sends keep counting.
+    pReq->retryCount = 0;
+    pReq->retryDueNs = 0;
   }
   SStreamTaskAddr *pReader = &pProgress->taskAddr;
   pReq->type = type;
@@ -34022,10 +34102,24 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
   if (listNEles(&pContext->retryPullReqs) > 0) {
     retryPath = true;
-    while (listNEles(&pContext->retryPullReqs) > 0) {
-      SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
+    // Each missing-reader re-send waits for its own deadline, so a later failure cannot be pushed out by
+    // the timer that was armed for an earlier one.
+    int64_t    earliestDue = INT64_MAX;
+    SListNode *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
+    while (pNode != NULL) {
+      SListNode            *pNext = TD_DLIST_NODE_NEXT(pNode);
       SSTriggerPullRequest *pReq = *(SSTriggerPullRequest **)pNode->data;
-      code = stHistoryContextRetryPullRequest(pContext, pNode, pReq);
+      if (pReq->retryDueNs > taosGetMonoTimestampNs()) {
+        if (pReq->retryDueNs < earliestDue) earliestDue = pReq->retryDueNs;
+      } else {
+        code = stHistoryContextRetryPullRequest(pContext, pNode, pReq);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+      pNode = pNext;
+    }
+    if (earliestDue != INT64_MAX) {
+      code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, earliestDue,
+                                                  STREAM_TRIGGER_WAIT_PULL_RETRY);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     goto _end;
@@ -44151,9 +44245,17 @@ static int32_t stRealtimePeriodSyncReaders(SSTriggerRealtimeContext *pContext) {
       SSTriggerPeriodReader reader = {.nextVer = input.nextVer};
       code = tSimpleHashPut(pState->pCollecting->pReaders, &pAddress->nodeId, sizeof(int32_t), &reader, sizeof(reader));
       if (code != TSDB_CODE_SUCCESS) return code;
-    } else if (!pInput->inFlight && !pInput->retry) {
-      pInput->address = *pAddress;
-      pInput->request.base.readerTaskId = pAddress->taskId;
+    } else if (!pInput->inFlight) {
+      bool replaced = pInput->address.taskId != pAddress->taskId;
+      if (!pInput->retry || replaced) {
+        pInput->address = *pAddress;
+        pInput->request.base.readerTaskId = pAddress->taskId;
+      }
+      if (replaced && pInput->retry) {
+        // Re-send the registered batch to the reader that replaced the old one. Starting a new batch
+        // here would be rejected while the pending batch still owns the vnode token.
+        pInput->request.base.retryDueNs = 0;
+      }
     }
     pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
   }
@@ -44169,6 +44271,9 @@ static int32_t stRealtimePeriodSend(SSTriggerRealtimeContext *pContext, SSTrigge
   SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
   if (newBatch) {
     pReq->type = STRIGGER_PULL_WAL_META_NEW;
+    // A new batch starts with a fresh missing-reader budget; only its own re-sends keep counting.
+    pReq->retryCount = 0;
+    pReq->retryDueNs = 0;
     pInput->request.walMetaNewReq.lastVer = pInput->nextVer;
     pInput->request.walMetaNewReq.ctime = pInput->pCycle->window.ekey;
     pInput->batchToken++;
@@ -44227,18 +44332,30 @@ static int32_t stRealtimePeriodPoll(SSTriggerRealtimeContext *pContext, int64_t 
     if (code != TSDB_CODE_SUCCESS) return code;
   }
   int32_t               iter = 0;
+  int64_t               retryWake = INT64_MAX;
   SSTriggerPeriodInput *pInput = tSimpleHashIterate(pState->pInputs, NULL, &iter);
   while (pInput != NULL) {
     SSTriggerPeriodReader *pReader = tSimpleHashGet(pInput->pCycle->pReaders, &pInput->address.nodeId, sizeof(int32_t));
     if (!pInput->inFlight && !pReader->atCutoff && (!patching || pInput->retry)) {
-      if (now >= pInput->nextPoll) {
+      bool due = pInput->retry ? (taosGetMonoTimestampNs() >= pInput->request.base.retryDueNs)
+                               : (now >= pInput->nextPoll);
+      if (due) {
         code = stRealtimePeriodSend(pContext, pInput, now, !pInput->retry);
         if (code != TSDB_CODE_SUCCESS) return code;
+      } else if (pInput->retry) {
+        // Readers of one session report their missing replies at different times, so the retry wake has to
+        // follow the earliest pending deadline instead of the one that happened to wake this scan.
+        retryWake = TMIN(retryWake, pInput->request.base.retryDueNs);
       } else {
         wake = TMIN(wake, pInput->nextPoll);
       }
     }
     pInput = tSimpleHashIterate(pState->pInputs, pInput, &iter);
+  }
+  if (retryWake != INT64_MAX) {
+    code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, retryWake,
+                                                STREAM_TRIGGER_WAIT_PULL_RETRY);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
   if (now < pState->pCollecting->window.ekey) wake = TMIN(wake, pState->pCollecting->window.ekey);
   return stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, wake, STREAM_TRIGGER_WAIT_PERIOD_POLL);
@@ -44359,15 +44476,35 @@ static int32_t stRealtimePeriodProcRsp(SSTriggerRealtimeContext *pContext, SSTri
   pInput->inFlight = false;
   if (pRsp->code != TSDB_CODE_SUCCESS && pRsp->code != TSDB_CODE_STREAM_NO_DATA) {
     switch (pRsp->code) {
-      case TSDB_CODE_STREAM_TASK_NOT_EXIST:
       case TSDB_CODE_STREAM_VTB_TAG_CHANGED:
       case TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST:
       case TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST:
       case TSDB_CODE_STREAM_VTB_REF_TOO_DEEP:
         return pRsp->code;
+      case TSDB_CODE_STREAM_TASK_NOT_EXIST:
+        // A vtable reader answers NOT_EXIST for its WAL pulls while the binding it lost is missing, and
+        // re-sending cannot restore it, so that keeps the fail-fast recovery.
+        if (!stTriggerTaskPullResendSafe(&pInput->request.base, pTask->isVirtualTable)) {
+          return pRsp->code;
+        }
+        if (!stTriggerTaskConsumeMissingTaskRetry(&pInput->request.base)) {
+          return pRsp->code;
+        }
+        // The batch retry is a relative delay, so its deadline stays on the monotonic clock while the
+        // window end keeps using the wall clock.
+        pInput->request.base.retryDueNs = taosGetMonoTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+        pInput->nextPoll = now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+        code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, pInput->request.base.retryDueNs,
+                                                    STREAM_TRIGGER_WAIT_PULL_RETRY);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        pInput->retry = true;
+        return TSDB_CODE_SUCCESS;
       default:
         pInput->retry = true;
         pInput->nextPoll = now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+        pInput->request.base.retryDueNs = taosGetMonoTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
         code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, pInput->nextPoll,
                                                     STREAM_TRIGGER_WAIT_PERIOD_POLL);
         return code == TSDB_CODE_SUCCESS ? pRsp->code : code;
