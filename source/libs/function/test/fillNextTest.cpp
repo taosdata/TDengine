@@ -184,7 +184,8 @@ TEST_F(FillNextTest, ResolvesPendingAcrossBlocks) {
   int32_t in2[] = {0, 7};
   char    in2Nulls = 0;
   SColumnInfoData input2 = {};
-  input2.info = input1.info;
+  input2.info.type = TSDB_DATA_TYPE_INT;
+  input2.info.bytes = sizeof(int32_t);
   input2.pData = reinterpret_cast<char*>(in2);
   input2.nullbitmap = &in2Nulls;
   colDataSetNULL(&input2, 0);
