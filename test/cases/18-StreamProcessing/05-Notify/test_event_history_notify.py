@@ -145,12 +145,18 @@ class TestEventHistoryNotify:
                     "insert into history_notify_src.src values "
                     "('2026-09-12 15:36:00.000',1100) ('2026-09-12 15:37:00.000',800)"
                 )
-                events = self._wait_events(path, ["WINDOW_OPEN", "WINDOW_OPEN", "WINDOW_CLOSE"])
-                assert events[1].windowStart == 1789198560000
-                assert events[2].windowStart == 1789198560000
-                assert events[2].windowEnd == 1789198620000
-                assert events[1].triggerId == events[2].triggerId
-                assert events[0].triggerId != events[1].triggerId
+                # Recalculation reopens the historical window. Its notifications can
+                # interleave with the realtime window, but each window closes after OPEN.
+                history, reopened, full_close, live_open, live_close = self._wait_events(
+                    path, ["WINDOW_OPEN", "WINDOW_OPEN", "WINDOW_CLOSE", "WINDOW_OPEN", "WINDOW_CLOSE"],
+                    by_window=True,
+                )
+                assert history.windowStart == reopened.windowStart == full_close.windowStart == 1789196760000
+                assert live_open.windowStart == live_close.windowStart == 1789198560000
+                assert full_close.windowEnd == live_close.windowEnd == 1789198620000
+                assert history.triggerId and live_open.triggerId
+                assert history.triggerId == reopened.triggerId == full_close.triggerId
+                assert live_open.triggerId == live_close.triggerId != history.triggerId
         finally:
             tdStream.dropAllStreamsAndDbs()
             stop_notify_server_background()
@@ -263,12 +269,14 @@ class TestEventHistoryNotify:
             "select cast(ts as bigint), cnt from result", [[base + 60000, 24]], retry=30,
         )
 
-    def _wait_events(self, path, expected):
+    def _wait_events(self, path, expected, *, by_window=False):
         deadline = time.monotonic() + 60
         stable_since = None
         events = []
         while time.monotonic() < deadline:
             events = list(NotifyLog(path).events()) if os.path.exists(path) else []
+            if by_window:
+                events.sort(key=lambda event: event.windowStart)
             observed = [event.eventType for event in events]
             assert len(observed) <= len(expected), observed
             if observed == expected:

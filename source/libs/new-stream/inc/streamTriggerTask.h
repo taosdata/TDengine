@@ -198,6 +198,7 @@ typedef struct SSTriggerNotifyWindow {
   bool        forceWinOpen;
   bool        winOpenEmitted;
   bool        collapsedParent;
+  bool        explicitEventEnd;  // END supplied a signed timestamp for this close
   int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
@@ -309,6 +310,7 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  bool                             firstClosePending;
   bool                             recalcNextOpen;
   TSKEY                            lastOpenRepairStart;
   struct SAlignedFutureRepair     *alignedFuture;
@@ -1234,6 +1236,7 @@ typedef struct SSTriggerRecalcRequest {
   bool                       frozen;
   bool                       noMerge;
   bool                       openWindowRepair;
+  int8_t                      *pFirstCloseDelivered;  // borrowed from the task until history output drains
   bool                         alignedCheckpointWork;
   bool                       waitForOutput;
   struct SStreamTriggerTask *pOpenRepairOwner;
@@ -1423,6 +1426,8 @@ typedef struct SStreamTriggerTask {
 
   SRWLatch   recalcRequestLock;
   bool                   activeAlignedCheckpointWork;
+  SSHashObj             *pFirstCloseRepairs;  // gid -> first ordinary FILL_HISTORY close, across reader changes
+  int8_t                *pActiveFirstCloseDelivered;
   uint64_t               activeAlignedRepairId;
   int32_t                alignedCheckpointHold;
   bool       recalcInProgress;     // Protected by recalcRequestLock through history completion.

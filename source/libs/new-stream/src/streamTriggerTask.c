@@ -6493,7 +6493,15 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
 #define STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION 15
 #define STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION           16
 #define STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION           17
-#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                   STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION
+#define STREAM_TRIGGER_CHECKPOINT_FIRST_CLOSE_VERSION              18
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                   STREAM_TRIGGER_CHECKPOINT_FIRST_CLOSE_VERSION
+
+typedef struct {
+  STimeWindow range;
+  TSKEY       frontier;
+  bool        needsReplay;
+  int8_t      delivered;  // published by history, read by the realtime checkpoint encoder
+} SFirstCloseRepair;
 
 static SSTriggerExtProgress *stTriggerTaskGetExtProgressByRef(SSHashObj *pExtProgress,
                                                               const SSTriggerExtOrigTableRef *pRef) {
@@ -8258,6 +8266,52 @@ static int32_t stDecodeAlignedRepair(SDecoder *decoder, int64_t gid, SCheckpoint
   return 0;
 }
 
+static int32_t stEncodeFirstCloseRepairs(SEncoder *encoder, SStreamTriggerTask *task) {
+  SSHashObj *repairs = task->pFirstCloseRepairs;
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, tSimpleHashGetSize(repairs)));
+  int32_t            iter = 0;
+  SFirstCloseRepair *repair = NULL;
+  while ((repair = tSimpleHashIterate(repairs, repair, &iter))) {
+    const int64_t *gid = tSimpleHashGetKey(repair, NULL);
+    bool           unfinished = !atomic_load_8(&repair->delivered);
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, *gid));
+    TAOS_CHECK_RETURN(tEncodeI8(encoder, unfinished));
+    if (!unfinished) continue;  // Completed groups only need their identity.
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, repair->range.skey));
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, repair->range.ekey));
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, repair->frontier));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stDecodeFirstCloseRepairs(SDecoder *decoder, int64_t len, SSHashObj **repairs) {
+  int32_t count = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &count));
+  if (count <= 0 || count > len / (sizeof(int64_t) + sizeof(int8_t))) return TSDB_CODE_INVALID_MSG;
+  *repairs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (!*repairs) return terrno;
+  for (int32_t i = 0; i < count; ++i) {
+    int64_t           gid = 0;
+    int8_t            unfinished = 0;
+    SFirstCloseRepair repair = {0};
+    TAOS_CHECK_RETURN(tDecodeI64(decoder, &gid));
+    TAOS_CHECK_RETURN(tDecodeI8(decoder, &unfinished));
+    if ((unfinished != 0 && unfinished != 1) || tSimpleHashGet(*repairs, &gid, sizeof(gid))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    repair.delivered = !unfinished;
+    if (unfinished) {
+      TAOS_CHECK_RETURN(tDecodeI64(decoder, &repair.range.skey));
+      TAOS_CHECK_RETURN(tDecodeI64(decoder, &repair.range.ekey));
+      TAOS_CHECK_RETURN(tDecodeI64(decoder, &repair.frontier));
+      if (repair.range.skey > repair.range.ekey) return TSDB_CODE_INVALID_MSG;
+      repair.needsReplay = true;
+    }
+    TAOS_CHECK_RETURN(tSimpleHashPut(*repairs, &gid, sizeof(gid), &repair, sizeof(repair)));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen, int32_t version) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -8299,9 +8353,11 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
 
   int32_t alignedCount = stCountCheckpointAlignedRepairs(pTask);
   int32_t ordinaryCount = stCountCheckpointOrdinary(pTask);
-  code = tEncodeI32(&encoder, ordinaryCount  ? STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION
-                              : alignedCount ? STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION
-                                             : STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION);
+  bool    firstClose = tSimpleHashGetSize(pTask->pFirstCloseRepairs) > 0;
+  code = tEncodeI32(&encoder, firstClose      ? STREAM_TRIGGER_CHECKPOINT_FIRST_CLOSE_VERSION
+                              : ordinaryCount ? STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION
+                              : alignedCount  ? STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION
+                                              : STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t nWalProgresses = 0;
@@ -8621,6 +8677,10 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     pRecovered = tSimpleHashIterate(pRecoveredPrevWindows, pRecovered, &recoveredIter);
   }
 
+  if (firstClose) {
+    code = stEncodeFirstCloseRepairs(&encoder, pTask);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   if (alignedCount || ordinaryCount) {
     code = stEncodeAlignedRepairs(&encoder, pTask->pRealtimeContext, alignedCount);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -8795,6 +8855,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   SArray                  *pDecodedTreePrevWindows = NULL;
   SArray                  *pDecodedPrevWindowSnapshots = NULL;
   SSHashObj               *pDecodedOrdinary = NULL;
+  SSHashObj               *pDecodedFirstClose = NULL;
   SSHashObj               *pDecodedAligned = NULL;
   SSHashObj               *pDecodedCutoff = NULL;
   SSHashObj               *pDecodedPrevWindows = NULL;
@@ -9324,7 +9385,15 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     }
   }
 
-  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION) {
+  if (formatVer == STREAM_TRIGGER_CHECKPOINT_FIRST_CLOSE_VERSION) {
+    QUERY_CHECK_CONDITION(!nested && pTask->fillHistory && !pTask->fillHistoryFirst, code, lino, _end,
+                          TSDB_CODE_INVALID_MSG);
+    code = stDecodeFirstCloseRepairs(&decoder, len, &pDecodedFirstClose);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (formatVer == STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION ||
+      formatVer == STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION) {
     int32_t count = 0;
     code = tDecodeI32(&decoder, &count);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -9349,7 +9418,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     }
   }
 
-  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION) {
+  if (formatVer == STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION) {
     int32_t count = 0;
     code = tDecodeI32(&decoder, &count);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -9505,6 +9574,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   pTask->nestedRecoveryError = TSDB_CODE_SUCCESS;
   pTask->pNestedRecovery = pRecovery;
   pRecovery = NULL;
+  TSWAP(pTask->pFirstCloseRepairs, pDecodedFirstClose);
   TSWAP(pTask->pRealtimeContext->pRecoveredOrdinary, pDecodedOrdinary);
   TSWAP(pTask->pRealtimeContext->pRecoveredAlignedRepairs, pDecodedAligned);
 
@@ -9515,6 +9585,7 @@ _end:
   taosArrayDestroy(pFrozenReaders);
   taosArrayDestroy(pDecodedTreePrevWindows);
   taosArrayDestroy(pDecodedPrevWindowSnapshots);
+  tSimpleHashCleanup(pDecodedFirstClose);
   tSimpleHashCleanup(pDecodedOrdinary);
   tSimpleHashCleanup(pDecodedAligned);
   tSimpleHashCleanup(pDecodedCutoff);
@@ -11557,6 +11628,7 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
   }
 
   if ((pReq->scanRange.skey > pReq->scanRange.ekey) || (pReq->calcRange.skey > pReq->calcRange.ekey)) {
+    if (pReq->pFirstCloseDelivered) atomic_store_8(pReq->pFirstCloseDelivered, 1);
     if (isUserRecalc && pNoDataGids != NULL) {
       void *px = taosArrayPush(pNoDataGids, &pReq->gid);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
@@ -11758,17 +11830,35 @@ static int32_t stTriggerTaskAddOpenWindowRecalc(SStreamTriggerTask *pTask, SSTri
   return code;
 }
 
-int32_t stTriggerTaskTryAddNextWindowRecalc(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                            const STimeWindow *pRecalcRange) {
+static int32_t stSubmitFirstCloseRepair(SStreamTriggerTask *task, SSTriggerRealtimeGroup *group,
+                                        SFirstCloseRepair *repair) {
+  SSTriggerRecalcRequest *req = taosMemoryCalloc(1, sizeof(*req));
+  if (req == NULL) return terrno;
+  // The task owns this hash entry until teardown. Hash growth relinks entries without moving them.
+  req->noMerge = true;
+  req->pFirstCloseDelivered = &repair->delivered;
+  STimeWindow range = repair->range;
+  int32_t code =
+      stTriggerTaskAddRecalcRequestImpl(task, group, &range, false, false, true, 0, false, NULL, false, &req, NULL, 0);
+  stTriggerTaskDestroyRecalcRequest(&req);
+  return code;
+}
+
+static int32_t stTriggerTaskTryAddNextWindowRecalcImpl(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                                       const STimeWindow *pRecalcRange, bool confirmedFirstClose) {
   if (stTriggerTaskHasNestedRecoveryOwner(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
-  // Plain SESSION windows retain their real last-row timestamp while open.
-  bool unclosedSession =
-      !BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) &&
-      pTask->triggerType == STREAM_TRIGGER_SESSION &&
-      pRecalcRange->ekey + pTask->gap > pGroup->newThreshold;
-  if ((pRecalcRange->ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) || unclosedSession) {
+  bool unclosed = (pRecalcRange->ekey & TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) != 0;
+  if (pTask->triggerType == STREAM_TRIGGER_SESSION &&
+      !BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    // The first SESSION close carries a signed last-row timestamp, including dates before the epoch.
+    bool waitingForGap =
+        pRecalcRange->ekey > TSKEY_MAX - pTask->gap || pRecalcRange->ekey + pTask->gap > pGroup->newThreshold;
+    unclosed = waitingForGap || (!pGroup->firstClosePending && unclosed);
+  }
+  // A confirmed first close carries a signed end timestamp, whose bit 62 can also be set.
+  if (unclosed && !confirmedFirstClose) {
     int32_t code = stTriggerTaskAddOpenWindowRecalc(pTask, pGroup, pRecalcRange->skey);
     if (code != TSDB_CODE_SUCCESS) return code;
     ST_TASK_DLOG("defer recalc request for unclosed window, groupId: %" PRId64 ", start: %" PRId64, pGroup->gid,
@@ -11776,15 +11866,48 @@ int32_t stTriggerTaskTryAddNextWindowRecalc(SStreamTriggerTask *pTask, SSTrigger
     return TSDB_CODE_SUCCESS;
   }
 
+  // Replay can independently request this same predecessor. The saved first close owns that submission.
+  const SFirstCloseRepair *saved = tSimpleHashGet(pTask->pFirstCloseRepairs, &pGroup->gid, sizeof(pGroup->gid));
+  if (saved && saved->needsReplay && saved->range.skey == pRecalcRange->skey &&
+      saved->range.ekey == pRecalcRange->ekey) {
+    pGroup->recalcNextWindow = false;
+    pGroup->recalcNextOpen = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   ST_TASK_DLOG("add recalc request for next window, groupId: %" PRId64 ", start: %" PRId64 ", end: %" PRId64,
                pGroup->gid, pRecalcRange->skey, pRecalcRange->ekey);
   STimeWindow recalcRange = *pRecalcRange;
-  int32_t     code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &recalcRange, false, false, true, 0);
+  int32_t     code;
+  if (pGroup->firstClosePending) {
+    SSHashObj **repairs = &pTask->pFirstCloseRepairs;
+    if (*repairs == NULL) {
+      *repairs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+      if (*repairs == NULL) return terrno;
+    }
+    SFirstCloseRepair repair = {.range = recalcRange, .frontier = pGroup->newThreshold};
+    TAOS_CHECK_RETURN(tSimpleHashPut(*repairs, &pGroup->gid, sizeof(pGroup->gid), &repair, sizeof(repair)));
+    SFirstCloseRepair *stored = tSimpleHashGet(*repairs, &pGroup->gid, sizeof(pGroup->gid));
+    if (stored == NULL) return TSDB_CODE_INTERNAL_ERROR;
+    code = stSubmitFirstCloseRepair(pTask, pGroup, stored);
+    if (code == TSDB_CODE_SUCCESS) {
+      pGroup->firstClosePending = false;
+    } else {
+      TAOS_UNUSED(tSimpleHashRemove(*repairs, &pGroup->gid, sizeof(pGroup->gid)));
+    }
+  } else {
+    code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &recalcRange, false, false, true, 0);
+  }
   if (code == TSDB_CODE_SUCCESS) {
     pGroup->recalcNextWindow = false;
     pGroup->recalcNextOpen = false;
   }
   return code;
+}
+
+int32_t stTriggerTaskTryAddNextWindowRecalc(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                            const STimeWindow *pRecalcRange) {
+  return stTriggerTaskTryAddNextWindowRecalcImpl(pTask, pGroup, pRecalcRange, false);
 }
 
 int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup) {
@@ -11880,6 +12003,7 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
   if (pNode != NULL) {
     *ppReq = *(SSTriggerRecalcRequest **)pNode->data;
     // Transfer the checkpoint barrier from the queue to the active scan under the same lock.
+    pTask->pActiveFirstCloseDelivered = (*ppReq)->pFirstCloseDelivered;
     pTask->activeAlignedCheckpointWork = (*ppReq)->alignedCheckpointWork;
     pTask->activeAlignedRepairId = (*ppReq)->alignedRepairId;
     pTask->recalcInProgress = !(*ppReq)->isHistory;
@@ -15444,6 +15568,8 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     tSimpleHashCleanup(pTask->pGroupPendingRecalcs);
     pTask->pGroupPendingRecalcs = NULL;
   }
+  tSimpleHashCleanup(pTask->pFirstCloseRepairs);
+  pTask->pFirstCloseRepairs = NULL;
 
   if (pTask->pUserRecalcRequests != NULL) {
     taosArrayDestroy(pTask->pUserRecalcRequests);
@@ -28895,6 +29021,14 @@ _check:
           goto _end;
         }
 
+        // Rebuild the saved request once this input has restored the window and its pending output.
+        SFirstCloseRepair *repair = tSimpleHashGet(pTask->pFirstCloseRepairs, &pGroup->gid, sizeof(pGroup->gid));
+        if (repair && repair->needsReplay && pGroup->newThreshold >= repair->frontier) {
+          code = stSubmitFirstCloseRepair(pTask, pGroup, repair);
+          QUERY_CHECK_CODE(code, lino, _end);
+          repair->needsReplay = false;
+        }
+
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
           code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
@@ -33776,6 +33910,10 @@ static int32_t stHistoryContextTryFinish(SSTriggerHistoryContext *pContext) {
   }
   code = stHistoryContextCompleteOpenRepair(pContext);
   if (code != TSDB_CODE_SUCCESS) return code;
+  if (pTask->pActiveFirstCloseDelivered) {
+    atomic_store_8(pTask->pActiveFirstCloseDelivered, 1);
+    pTask->pActiveFirstCloseDelivered = NULL;
+  }
   stHistoryContextDestroy(&pTask->pHistoryContext);
   pTask->pHistoryContext = taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext));
   if (pTask->pHistoryContext == NULL) return terrno;
@@ -35575,6 +35713,16 @@ static bool stTriggerTaskRequiresOrderedInput(const SStreamTriggerTask *pTask) {
   return pTask->ignoreDisorder || (!nested && pTask->countStepForcesOrderedInput);
 }
 
+static bool stRealtimeGroupNeedsFirstCloseRecalc(const SSTriggerRealtimeGroup *pGroup) {
+  const SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+  bool windowTrigger = pTask->triggerType == STREAM_TRIGGER_STATE || pTask->triggerType == STREAM_TRIGGER_SESSION ||
+                       pTask->triggerType == STREAM_TRIGGER_EVENT ||
+                       (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0);
+  return !pGroup->pContext->recovering && pTask->fillHistory && !pTask->fillHistoryFirst && windowTrigger &&
+         !pGroup->hasClosedWindow && !pGroup->hasClosedParentWindow &&
+         !BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+}
+
 static void stRealtimeGroupRestoreCheckpointPredecessor(SSTriggerRealtimeGroup *pGroup) {
   if (pGroup == NULL || pGroup->pContext == NULL || pGroup->pContext->pRecoveredPrevWindows == NULL) {
     return;
@@ -36334,6 +36482,11 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
   if (pMeta->skey <= pMeta->ekey) {
     code = taosObjListAppend(pMetas, pMeta);
     QUERY_CHECK_CODE(code, lino, _end);
+    // The last recovery metadata batch can be checked after the context switches back to live.
+    if (stRealtimeGroupNeedsFirstCloseRecalc(pGroup) &&
+        !tSimpleHashGet(pTask->pFirstCloseRepairs, &pGroup->gid, sizeof(pGroup->gid))) {
+      pGroup->firstClosePending = true;
+    }
     pGroup->newThreshold = TMAX(pGroup->newThreshold, pMeta->ekey - pTask->watermark);
   }
 
@@ -38915,6 +39068,7 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
       if (_closeNow) {
         SSTriggerNotifyWindow *pClosedWin = pWin;
         pWin->range.ekey = _ekey;
+        pWin->explicitEventEnd = pe[i] && !implicitClose;
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
           int64_t parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
           char    conditionPath[32] = {0};
@@ -39380,6 +39534,10 @@ static int32_t stRealtimeGroupCloseTreeSuffix(SSTriggerRealtimeGroup *pGroup, in
     }
     QUERY_CHECK_CODE(stRealtimeGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_CLOSE, !pNode->isLeaf), lino,
                      _end);
+    if (pGroup->firstClosePending && stRealtimeGroupNeedsFirstCloseRecalc(pGroup) &&
+        !(pNode->isLeaf && stEventTreeIsSingleStartCondition(pTask->pEventTree))) {
+      QUERY_CHECK_CODE(stTriggerTaskTryAddNextWindowRecalcImpl(pTask, pGroup, &pWin->range, true), lino, _end);
+    }
     SSTriggerPrevWindowState *pPrevState = stEventTreeGetPrevWindow(pGroup->eventTreePrevWindows, pNode);
     QUERY_CHECK_NULL(pPrevState, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     pPrevState->window = pWin->range;
@@ -39846,6 +40004,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   notifyOpen = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN);
   notifyClose = (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE);
   bool delayedPrev = stTriggerTaskNeedsMaxDelayPrevRepair(pTask);
+  bool firstLiveClose = pGroup->firstClosePending && stRealtimeGroupNeedsFirstCloseRecalc(pGroup);
 
   // check whether calc params in this round should be pending
   int64_t numWin = TARRAY_SIZE(pContext->pWindows);
@@ -40039,25 +40198,33 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
   }
 
   // add recalc request if needed
-  if (pGroup->recalcNextWindow) {
+  if (firstLiveClose || pGroup->recalcNextWindow) {
     STimeWindow            recalcRange = {.skey = INT64_MAX, .ekey = INT64_MAX};
     SSTriggerNotifyWindow *pWin = NULL;
     bool                   isPendingParent = false;
+    bool                   confirmedFirstClose = false;
     bool                   preferParent =
         (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0;
-    if (TARRAY_SIZE(pContext->pWindows) > 0) {
+    if (numClosed > 0 || (numWin > 0 && !firstLiveClose)) {
       pWin = TARRAY_GET_ELEM(pContext->pWindows, 0);
       if (recalcRange.skey > pWin->range.skey) {
         recalcRange = pWin->range;
+        confirmedFirstClose =
+            firstLiveClose && (pTask->triggerType == STREAM_TRIGGER_SLIDING || pWin->explicitEventEnd);
       }
+    } else if (numWin > 0 && pGroup->recalcNextOpen && TARRAY_SIZE(pContext->pParentWindows) == 0) {
+      pWin = TARRAY_GET_ELEM(pContext->pWindows, 0);
+      code = stTriggerTaskAddOpenWindowRecalc(pTask, pGroup, pWin->range.skey);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
     if (TARRAY_SIZE(pContext->pParentWindows) > 0) {
       pWin = TARRAY_GET_ELEM(pContext->pParentWindows, 0);
       if (recalcRange.skey > pWin->range.skey || (preferParent && recalcRange.skey == pWin->range.skey)) {
         recalcRange = pWin->range;
+        confirmedFirstClose = firstLiveClose;
       }
     }
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
+    if (!firstLiveClose && pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
       pWin = &pGroup->parentWindow;
       if (recalcRange.skey > pWin->range.skey || (preferParent && recalcRange.skey == pWin->range.skey)) {
         recalcRange = pWin->range;
@@ -40065,7 +40232,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       }
     }
     if (recalcRange.skey != INT64_MAX && !isPendingParent) {
-      code = stTriggerTaskTryAddNextWindowRecalc(pTask, pGroup, &recalcRange);
+      code = stTriggerTaskTryAddNextWindowRecalcImpl(pTask, pGroup, &recalcRange, confirmedFirstClose);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }

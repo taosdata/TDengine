@@ -8784,6 +8784,72 @@ TEST_F(StreamNestedRecoveryTest, RevokedWalRoundDropsBufferedInputAndQueuesFresh
   stTriggerTaskDestroyRecalcRequest(&repair);
 }
 
+TEST_F(StreamNestedRecoveryTest, ChangedAlignedReaderDoesNotRepeatFirstClose) {
+  using H = RealtimePipelineHarness;
+  H harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE));
+  auto* task = harness.task();
+  task->addOptions |= STREAM_OPTION_TIME_ALIGN;
+  task->fillHistory = true;
+  task->fillHistoryStartTime = 0;
+  task->historyFinished = 1;
+  task->historyCalcStarted = false;
+  task->ignoreNoDataTrigger = true;
+  task->eventTrueForInfo = {};
+  ASSERT_TRUE(harness.start());
+
+  auto bound = [&](TSKEY last, int64_t cursor, uint64_t source) {
+    return harness.feedLastTsForReader(H::kReaderTaskId, last, H::kGid, STRIGGER_PULL_TIME_ALIGN_BOUND, cursor, source);
+  };
+  auto closeWindow = [&](TSKEY start, int64_t version) {
+    ASSERT_TRUE(harness.feedParityRows({{start, false, 0, 1, 0},
+                                        {start + 10, false, 0, 1, 0},
+                                        {start + 20, false, 0, 0, 1},
+                                        {start + 30, false, 0, 0, 0}},
+                                       version));
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_VALIDATE, 0));
+    ASSERT_NE(nullptr, harness.group());
+    ASSERT_TRUE(harness.group()->hasClosedParentWindow);
+    EXPECT_EQ(start, harness.group()->prevParentWindow.skey);
+    EXPECT_EQ(start + 20, harness.group()->prevParentWindow.ekey);
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  };
+  auto finishRepair = [&](bool firstClose, TSKEY start, TSKEY end, uint64_t source) {
+    ASSERT_EQ(1, listNEles(task->pRecalcRequests));
+    auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(tdListGetHead(task->pRecalcRequests)->data);
+    EXPECT_EQ(H::kGid, request->gid);
+    EXPECT_EQ(firstClose, request->pFirstCloseDelivered != nullptr);
+    EXPECT_EQ(!firstClose, request->timeAlignRepairOwner == task);
+    EXPECT_EQ(start, request->calcRange.skey);
+    EXPECT_EQ(end, request->calcRange.ekey);
+    ASSERT_EQ(0, harness.dispatchSerializedSessionControlCode(STREAM_TRIGGER_HISTORY_SESSIONID));
+    ASSERT_TRUE(task->recalcInProgress);
+    ASSERT_TRUE(bound(end, 10, source));
+    // The history Reader has no rows in the requested range. Its first later row completes the scan.
+    ASSERT_TRUE(harness.feedLastTsForReader(H::kReaderTaskId, 1000, H::kGid, STRIGGER_PULL_FIRST_TS));
+    ASSERT_FALSE(task->recalcInProgress);
+    ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  };
+
+  ASSERT_TRUE(bound(0, 1, 71));
+  ASSERT_NO_FATAL_FAILURE(closeWindow(100, 2));
+  ASSERT_NO_FATAL_FAILURE(finishRepair(true, 100, 120, 71));
+
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_TRUE(bound(200, 3, 72));
+  ASSERT_TRUE(harness.context()->timeAlignRestart);
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_EQ(0, harness.respondPullCode(STRIGGER_PULL_TIME_ALIGN_RELEASE, 0));
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_TRUE(bound(200, 3, 72));
+  ASSERT_NO_FATAL_FAILURE(finishRepair(false, 0, 200, 72));
+
+  ASSERT_EQ(0, harness.dispatchSerializedRealtimeStartCode());
+  ASSERT_NO_FATAL_FAILURE(closeWindow(300, 4));
+  EXPECT_EQ(0, listNEles(task->pRecalcRequests));
+}
+
 TEST_F(StreamNestedRecoveryTest, WalCheckRetryRetainsMetadataAndExpiredPageReseedsOnlyItsCells) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
@@ -25045,6 +25111,218 @@ TEST_F(StreamNestedRealtimeTest, ZeroStartTagFallbackConsumesPreviousStreak) {
   }
 }
 
+TEST_F(StreamNestedRealtimeTest, NegativeIntervalAndExplicitEventFirstCloseQueueOnce) {
+  for (bool interval : {false, true}) {
+    SCOPED_TRACE(interval ? "INTERVAL" : "EVENT");
+    RealtimePipelineHarness harness;
+    harness.setDeployIgnoreDisorder(true);
+    ASSERT_TRUE(harness.init(interval ? RealtimePipelinePlan::LegacySession : RealtimePipelinePlan::LegacyParityEvent,
+                             false, STRIGGER_EVENT_WINDOW_NONE));
+    auto* task = harness.task();
+    if (interval) {
+      task->triggerType = STREAM_TRIGGER_SLIDING;
+      task->interval.interval = task->interval.sliding = 1000;
+      task->interval.intervalUnit = task->interval.slidingUnit = TIME_UNIT_MILLISECOND;
+      task->interval.precision = TSDB_TIME_PRECISION_MILLI;
+    } else {
+      SNode* start = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                                  &start));
+      nodesDestroyNode(task->pStartCond);
+      task->pStartCond = start;
+      task->eventTrueForInfo = {};
+    }
+    ASSERT_TRUE(harness.start());
+    task->fillHistory = true;
+    task->fillHistoryStartTime = -4000;
+    ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, -3500));
+    ASSERT_TRUE(harness.feedParityRows({{-2800, false, 0, 1, 0}, {-2000, false, 0, 0, 1}}, 2));
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+    ASSERT_NE(nullptr, request);
+    EXPECT_NE(nullptr, request->pFirstCloseDelivered);
+    EXPECT_FALSE(request->openWindowRepair);
+    EXPECT_EQ(interval ? -3000 : -2800, request->calcRange.skey);
+    EXPECT_EQ(interval ? -2001 : -2000, request->calcRange.ekey);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}, {2000, false, 0, 0, 1}}, 3));
+    EXPECT_EQ(0, listNEles(task->pRecalcRequests));
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, FirstCloseAfterRecoveryPreservesOpenPredecessorRepair) {
+  RealtimePipelineHarness harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_OPEN));
+  auto*  task = harness.task();
+  SNode* singleStart = nullptr;
+  ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                              &singleStart));
+  nodesDestroyNode(task->pStartCond);
+  task->pStartCond = singleStart;
+  task->eventTrueForInfo = {};
+  task->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART;
+  ASSERT_TRUE(harness.start());
+  task->fillHistory = true;
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  auto*         ctx = harness.context();
+  const int32_t vg = RealtimePipelineHarness::kVgId;
+  auto*         reader = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(ctx->pReaderWalProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, reader);
+  reader->savedVer = 4;
+  ctx->recovering = true;
+
+  ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}}, 2));
+  ASSERT_TRUE(ctx->recovering);
+  ASSERT_NE(nullptr, harness.group());
+  EXPECT_EQ(1000, harness.group()->lastOpenRepairStart);
+  ASSERT_TRUE(harness.feedParityRows({{2000, false, 0, 1, 0}}, 3));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_TRUE(request->openWindowRepair);
+  EXPECT_EQ(1000, request->calcRange.skey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_EQ(nullptr, request);
+
+  ASSERT_TRUE(harness.feedParityRows({{3000, false, 0, 1, 0}}, 4));
+  ASSERT_FALSE(ctx->recovering);
+  ASSERT_TRUE(harness.feedParityRows({{4000, false, 0, 0, 1}}, 5));
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_FALSE(request->openWindowRepair);
+  EXPECT_EQ(1000, request->calcRange.skey);
+  EXPECT_EQ(4000, request->calcRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+  EXPECT_EQ(nullptr, request);
+}
+
+TEST_F(StreamNestedRealtimeTest, CheckpointReplaysOnlyUnfinishedFirstClose) {
+  enum Phase { queued, active, delivered, queuedWithPredecessor };
+  using Harness = RealtimePipelineHarness;
+  const std::vector<PipelineRow> firstClose = {
+      {1000, false, 0, 1, 0}, {2000, false, 0, 1, 0}, {3000, false, 0, 0, 1}, {4000, false, 0, 1, 0}};
+  auto deploy = [](Harness& harness, Phase phase) {
+    harness.setDeployIgnoreDisorder(true);
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE));
+    auto* task = harness.task();
+    task->eventTrueForInfo = {};
+    if (phase == queuedWithPredecessor) {
+      SNode* singleStart = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(task->pStartCond)->pNodeList, 0),
+                                  &singleStart));
+      nodesDestroyNode(task->pStartCond);
+      task->pStartCond = singleStart;
+      task->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART;
+    }
+  };
+
+  for (Phase phase : {queued, active, delivered, queuedWithPredecessor}) {
+    SCOPED_TRACE(phase);
+    std::vector<uint8_t> checkpoint;
+    {
+      Harness saved;
+      ASSERT_NO_FATAL_FAILURE(deploy(saved, phase));
+      if (phase == delivered) {
+        saved.task()->historyCalcStarted = false;
+        saved.task()->ignoreNoDataTrigger = true;
+      }
+      ASSERT_TRUE(saved.start());
+      auto* task = saved.task();
+      task->fillHistory = true;
+      task->historyFinished = 1;
+      ASSERT_TRUE(saved.feedLastTsForReader(Harness::kReaderTaskId, 0));
+      ASSERT_TRUE(saved.feedParityRows({{500, false, 0, 0, 0}}, 2));
+      ASSERT_TRUE(saved.feedParityRows(firstClose, 3));
+      ASSERT_EQ(1, listNEles(task->pRecalcRequests));
+      if (phase == active) {
+        SSTriggerRecalcRequest* request = nullptr;
+        ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(task, &request));
+        ASSERT_NE(nullptr, request);
+        EXPECT_EQ(1000, request->calcRange.skey);
+        EXPECT_EQ(3000, request->calcRange.ekey);
+        stTriggerTaskDestroyRecalcRequest(&request);
+      } else if (phase == delivered) {
+        ASSERT_EQ(0, saved.dispatchSerializedSessionControlCode(STREAM_TRIGGER_HISTORY_SESSIONID));
+        ASSERT_TRUE(task->recalcInProgress);
+        ASSERT_TRUE(saved.feedLastTsForReader(Harness::kReaderTaskId, 5000, Harness::kGid, STRIGGER_PULL_FIRST_TS));
+        ASSERT_FALSE(task->recalcInProgress);
+      }
+      const int32_t vg = Harness::kVgId;
+      auto*         reader =
+          static_cast<SSTriggerWalProgress*>(tSimpleHashGet(saved.context()->pReaderWalProgress, &vg, sizeof(vg)));
+      ASSERT_NE(nullptr, reader);
+      // A successor with an open EVENT condition can pin the cursor before this batch.
+      reader->doneVer = phase == delivered ? 2 : 3;
+      int64_t length = 0;
+      ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(task, nullptr, &length, 1));
+      ASSERT_GT(length, 0);
+      checkpoint.resize(length);
+      ASSERT_EQ(0, stTriggerTaskDoGenCheckpoint(task, checkpoint.data(), &length, 1));
+    }
+
+    Harness restored;
+    ASSERT_NO_FATAL_FAILURE(deploy(restored, phase));
+    restored.task()->fillHistory = true;
+    restored.setCheckpointBytes(std::move(checkpoint));
+    ASSERT_TRUE(restored.start());
+    ASSERT_TRUE(restored.feedParityRows({{500, false, 0, 0, 0}}, 2));
+    EXPECT_EQ(phase != delivered, restored.context()->recovering);
+    EXPECT_EQ(0, listNEles(restored.task()->pRecalcRequests));
+    ASSERT_TRUE(restored.feedParityRows(firstClose, 3));
+    ASSERT_FALSE(restored.context()->recovering);
+    SSTriggerRecalcRequest* replay = nullptr;
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(restored.task(), &replay));
+    if (phase == delivered) {
+      EXPECT_EQ(nullptr, replay);
+    } else {
+      ASSERT_NE(nullptr, replay);
+      EXPECT_EQ(1000, replay->calcRange.skey);
+      EXPECT_EQ(3000, replay->calcRange.ekey);
+    }
+    stTriggerTaskDestroyRecalcRequest(&replay);
+    ASSERT_EQ(0, stTriggerTaskFetchRecalcRequest(restored.task(), &replay));
+    EXPECT_EQ(nullptr, replay);
+    stTriggerTaskDestroyRecalcRequest(&replay);
+    ASSERT_TRUE(restored.feedParityRows({{5000, false, 0, 0, 1}}, 4));
+    EXPECT_EQ(0, listNEles(restored.task()->pRecalcRequests));
+    if (phase == queuedWithPredecessor) {
+      ASSERT_NE(nullptr, restored.group());
+      EXPECT_EQ(4000, restored.group()->prevWindow.skey);
+      EXPECT_EQ(5000, restored.group()->prevWindow.ekey);
+    }
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, ReplayedEventCloseDoesNotScheduleAnotherFirstClose) {
+  RealtimePipelineHarness harness;
+  harness.setDeployIgnoreDisorder(true);
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_CLOSE));
+  ASSERT_TRUE(harness.start());
+  harness.task()->fillHistory = true;
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  auto*         ctx = harness.context();
+  const int32_t vg = RealtimePipelineHarness::kVgId;
+  auto*         reader = static_cast<SSTriggerWalProgress*>(tSimpleHashGet(ctx->pReaderWalProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, reader);
+  reader->savedVer = 4;
+  ctx->recovering = true;
+  ReplayRecalcProbe probe;
+  installReplayRecalcProbe(&probe);
+  ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}, {2000, false, 0, 1, 0}, {3000, false, 0, 0, 1}}, 2));
+  ASSERT_TRUE(ctx->recovering);
+  ASSERT_NE(nullptr, harness.group());
+  ASSERT_TRUE(harness.group()->hasClosedParentWindow);
+  EXPECT_EQ(0, probe.addCalls);
+  ASSERT_TRUE(harness.feedParityRows({{4000, false, 0, 0, 0}}, 4));
+  ASSERT_FALSE(ctx->recovering);
+  ASSERT_TRUE(harness.feedParityRows({{5000, false, 0, 1, 0}, {6000, false, 0, 1, 0}, {7000, false, 0, 0, 1}}, 5));
+  EXPECT_EQ(0, probe.addCalls);
+}
+
 TEST_F(StreamNestedRealtimeTest, DeletedStatePredecessorRepairsAlreadyOpenSuccessor) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_NONE,
@@ -33019,6 +33297,33 @@ TEST(StreamTriggerTaskRecalcTest, SessionPredecessorRepairWaitsForSuccessorGap) 
   }
 }
 
+TEST(StreamTriggerTaskRecalcTest, FirstClosedSessionBeforeEpochQueuesHistoryBoundaryRepair) {
+  CountRecalcFixture fixture;
+  fixture.task_.triggerType = STREAM_TRIGGER_SESSION;
+  fixture.task_.gap = 1000;
+  fixture.task_.fillHistory = true;
+  fixture.task_.fillHistoryStartTime = -4000;
+  fixture.task_.ignoreDisorder = true;
+  fixture.group_.oldThreshold = -2000;
+  fixture.group_.newThreshold = 1000;
+  fixture.group_.firstClosePending = true;
+
+  const STimeWindow firstLiveSession = {-2800, -2000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &firstLiveSession));
+  EXPECT_FALSE(fixture.group_.firstClosePending);
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_NE(nullptr, request->pFirstCloseDelivered);
+  EXPECT_FALSE(request->openWindowRepair);
+  EXPECT_EQ(-4000, request->scanRange.skey);
+  EXPECT_EQ(-2800, request->calcRange.skey);
+  EXPECT_EQ(-2000, request->calcRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  tSimpleHashCleanup(fixture.task_.pFirstCloseRepairs);
+  fixture.task_.pFirstCloseRepairs = nullptr;
+}
+
 TEST(StreamTriggerTaskRecalcTest, UnmarkedDeleteRangeDoesNotWaitForUnrelatedWindow) {
   CountRecalcFixture fixture;
   STimeWindow        range = {.skey = 100, .ekey = 102};
@@ -37301,6 +37606,39 @@ TEST_F(StreamTriggerIntervalMergeTest, FixedNonOverlappingIntervalKeepsAtMostOne
 
   ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
   EXPECT_LE(group_.windows.neles, 1);
+}
+
+TEST_F(StreamTriggerIntervalMergeTest, IgnoredLateWalWakesOnlyPendingPredecessorRepair) {
+  ConfigureInterval(3000, 'a', 1000, 'a');
+  task_.fillHistory = true;
+  task_.ignoreDisorder = true;
+  SSTriggerMetaData live = *static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+  taosObjListClear(metas_);
+  ASSERT_EQ(stTestRealtimeGroupAddMeta(&group_, reader_->nodeId, nullptr, &live, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(group_.windows.neles, 3);
+  ASSERT_FALSE(group_.hasClosedWindow);
+  ASSERT_EQ(TD_DLIST_NELES(&context_.groupsToCheck), 0);
+
+  SSTriggerRealtimeGroup* group = &group_;
+  ASSERT_EQ(tSimpleHashPut(context_.pGroups, &group_.gid, sizeof(group_.gid), &group, sizeof(group)),
+            TSDB_CODE_SUCCESS);
+  SSDataBlock empty = {};
+  context_.pDeleteBlock = &empty;
+  context_.pTableBlock = &empty;
+  group_.oldThreshold = group_.newThreshold;
+  for (int64_t i = 0; i < 2; ++i) {
+    if (i == 1) group_.recalcNextWindow = true;
+    const TSKEY ts = live.skey - 1 - i;
+    context_.pMetaBlock = makePipelineMetaBlock(group_.gid, ts, live.ver + 1 + i, ts);
+    ASSERT_NE(context_.pMetaBlock, nullptr);
+    int32_t code = stTriggerTestProcWalMeta(&context_, progress_, 0);
+    blockDataDestroy(context_.pMetaBlock);
+    context_.pMetaBlock = nullptr;
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(group_.newThreshold, group_.oldThreshold);
+    ASSERT_EQ(TD_DLIST_NELES(&context_.groupsToCheck), i);
+  }
 }
 
 TEST_F(StreamTriggerIntervalMergeTest, FixedGappedIntervalKeepsAtMostOneOpenWindow) {

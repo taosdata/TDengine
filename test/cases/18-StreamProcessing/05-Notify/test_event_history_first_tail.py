@@ -209,6 +209,63 @@ class TestEventHistoryFirstTail:
             tdStream.dropAllStreamsAndDbs()
             stop_notify_server_background()
 
+    @pytest.mark.parametrize("start", ["v=1", "v=1 true_for(count 1)"], ids=["scalar", "condition_tree"])
+    @pytest.mark.parametrize("same_batch", [False, True], ids=["split", "same_batch"])
+    def test_fill_history_first_live_close(self, start, same_batch, tmp_path):
+        """Recalculate the first live EVENT window and keep its realtime CLOSE.
+
+        Check the realtime, historical and next window bounds in the result
+        table and in CLOSE notifications after subscriber deduplication.
+
+        Catalog:
+            - Streams:05-Notify:EventWindow
+
+        Since: v3.4.4.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7180498301
+
+        History:
+            - 2026-11-26 Added first live CLOSE regression
+        """
+        base = 1735689600000
+        path = os.path.join(tmp_path, "live.log")
+        start_notify_server_background(port=12345, log_path=str(tmp_path))
+        try:
+            tdSql.prepare(dbname="first_live_close", vgroups=1)
+            tdSql.execute("create table src (ts timestamp, v int)")
+            tdSql.execute(f"insert into src values ({base},1) ({base+1000},1)")
+            tdSql.execute(
+                f"create stream s event_window(start with {start} end with v=0) from src "
+                "stream_options(fill_history|ignore_disorder|event_type(window_close)) "
+                "notify('ws://localhost:12345/live') on(window_close) notify_options(notify_history) "
+                "into result as select _twstart ts, _twend wend, count(*) cnt "
+                "from src where ts>=_twstart and ts<=_twend"
+            )
+            tdStream.checkStreamStatus("s")
+            self._wait_query(
+                "select history_progress_pct from information_schema.ins_streams "
+                "where db_name='first_live_close' and stream_name='s'", [(100,)]
+            )
+            rows = "select cast(ts as bigint), cast(wend as bigint), cnt from result order by ts"
+            first_values = f"({base+3000},1) ({base+4000},1) ({base+5000},0)"
+            next_values = f"({base+6000},1) ({base+7000},0)"
+            first = [(base, base+5000, 5), (base+3000, base+5000, 3)]
+            if same_batch:
+                tdSql.execute(f"insert into src values {first_values} {next_values}")
+            else:
+                tdSql.execute(f"insert into src values {first_values}")
+                self._wait_query(rows, first)
+                tdSql.execute(f"insert into src values {next_values}")
+            expected = first + [(base+6000, base+7000, 2)]
+            self._wait_query(rows, expected)
+            closes = self._wait_events(path, ["WINDOW_CLOSE"] * len(expected), deduplicate=True)
+            assert sorted((e.windowStart, e.windowEnd) for e in closes) == [(s, e) for s, e, _ in expected]
+        finally:
+            tdStream.dropAllStreamsAndDbs()
+            stop_notify_server_background()
+
     def _wait_query(self, sql, expected):
         for _ in range(300):
             tdSql.query(sql)
@@ -223,13 +280,20 @@ class TestEventHistoryFirstTail:
             for col, value in enumerate(values):
                 tdSql.checkData(row, col, value)
 
-    def _wait_events(self, path, expected, count=None):
+    def _wait_events(self, path, expected, count=None, *, deduplicate=False):
         count = len(expected) if count is None else count
         deadline = time.monotonic() + 60
         stable_since = None
         events = []
         while time.monotonic() < deadline:
             events = list(NotifyLog(path).events()) if os.path.exists(path) else []
+            if deduplicate:
+                by_id = {}
+                for event in events:
+                    assert event.triggerId
+                    first = by_id.setdefault((event.eventType, event.triggerId), event)
+                    assert (event.windowStart, event.windowEnd) == (first.windowStart, first.windowEnd)
+                events = list(by_id.values())
             observed = [e.eventType for e in events]
             assert len(events) <= count, [e.raw for e in events]
             if len(events) == count and (expected is None or observed == expected):
