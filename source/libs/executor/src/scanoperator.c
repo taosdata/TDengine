@@ -1430,6 +1430,113 @@ static bool requiresTableMetaForPseudoColumns(const SExprInfo* pExpr, int32_t nu
   return false;
 }
 
+// Make sure a destination column can take `rows` values before it is filled.
+// Fixed-width columns need both the payload buffer and the NULL bitmap (the
+// NULL filler writes the bitmap and memsets the payload); variable-width ones
+// need the per-row offset array, because colDataSetNItems only grows the
+// payload and then writes varmeta.offset[i]. Capacity is only grown on a column
+// that was never allocated: colInfoDataEnsureCapacity sizes the column to
+// exactly `rows`, which would shrink a block column that was allocated for the
+// larger block capacity, and variable-width payload is reserved by
+// colDataSetNItems itself.
+static int32_t ensureScalarGroupDstCapacity(SColumnInfoData* pDst, int32_t rows) {
+  if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+    if (pDst->varmeta.offset == NULL) {
+      return colInfoDataEnsureCapacity(pDst, rows, false);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pDst->pData == NULL || pDst->nullbitmap == NULL) {
+    return colInfoDataEnsureCapacity(pDst, rows, false);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                        SColumnInfoData* pDst, int32_t rows, bool* pSet) {
+  *pSet = false;
+  if (pTableListInfo == NULL || pTableListInfo->pGroupDataSlots == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t* pDataIndex = taosHashGet(pTableListInfo->pGroupDataSlots, &slotId, sizeof(slotId));
+  if (pDataIndex == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t* pRow = pTableListInfo->pGroupDataRows
+                      ? taosHashGet(pTableListInfo->pGroupDataRows, &uid, sizeof(uid))
+                      : NULL;
+  int32_t groupDataSize = pTableListInfo->pGroupData ? taosArrayGetSize(pTableListInfo->pGroupData) : 0;
+  // A missing per-table row or a released group column is a normal fallback
+  // case (for example a cache-hit path or an aggregate block whose uid is not
+  // a table uid): leave the column unset so the caller evaluates it from the
+  // table's own tags instead of failing the whole query. The data index is
+  // validated independently because the slot map and group data are built in
+  // separate steps.
+  if (pRow == NULL || *pDataIndex < 0 || *pDataIndex >= groupDataSize || *pRow < 0 ||
+      *pRow >= taosArrayGetSize(pTableListInfo->pTableList)) {
+    qTrace("no reusable scalar group result, uid:%" PRIu64 " slot:%d, fallback to table tags", uid, slotId);
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnInfoData* pSrc = taosArrayGetP(pTableListInfo->pGroupData, *pDataIndex);
+  if (pSrc == NULL) {
+    qTrace("no reusable scalar group result, uid:%" PRIu64 " slot:%d, fallback to table tags", uid, slotId);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // The cached result must be schema compatible with the output column.
+  // Variable-length values carry their own length and colDataSetNItems sizes
+  // the destination from the data, so a wider declared output column (e.g.
+  // virtual-table widening) is safe to fill. Fixed-width values are copied
+  // with the destination width, so a width mismatch could over-read the
+  // source; fall back to the table tags instead.
+  if (pSrc->info.type != pDst->info.type) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Precision/scale carry semantics for TIMESTAMP and DECIMAL even when the
+  // type and width match, so a differently declared output must fall back as
+  // well instead of copying values with another time unit or scale.
+  if (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(pSrc->info.type) && pSrc->info.bytes != pDst->info.bytes) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Both fill paths write through the payload/bitmap (fixed-width) or the
+  // offset array (variable-width), so size the destination once for the rows
+  // being filled before branching on the source value.
+  int32_t code = ensureScalarGroupDstCapacity(pDst, rows);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (colDataIsNull_s(pSrc, *pRow)) {
+      colDataSetNNULL(pDst, 0, rows);
+    } else {
+      // colDataSetNItems only writes payload. A reused output column may still
+      // carry NULL bits from an earlier fill, so clear them before overwriting
+      // those rows; otherwise the copied values would be read back as NULL.
+      if (!IS_VAR_DATA_TYPE(pDst->info.type) && pDst->nullbitmap != NULL) {
+        memset(pDst->nullbitmap, 0, BitmapLen(rows));
+      }
+      pDst->hasNull = false;
+      code = colDataSetNItems(pDst, 0, colDataGetData(pSrc, *pRow), rows, 1, false);
+    }
+  }
+  // Only claim the column has data once the fill succeeded, so a failed fill
+  // cannot leave a half-initialized column marked as fully populated.
+  if (code == TSDB_CODE_SUCCESS) {
+    pDst->info.noData = false;
+  }
+  *pSet = code == TSDB_CODE_SUCCESS;
+  return code;
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestSetScalarGroupColumnData(const STableListInfo* pTableListInfo, int32_t slotId, uint64_t uid,
+                                         SColumnInfoData* pDst, int32_t rows, bool* pSet) {
+  return setScalarGroupColumnData(pTableListInfo, slotId, uid, pDst, rows, pSet);
+}
+#endif
+
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr, SSDataBlock* pBlock,
                                int32_t rows, SExecTaskInfo* pTask, const STableListInfo* pTableListInfo,
                                STableMetaCacheInfo* pCache) {
@@ -1542,6 +1649,32 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       colInfoDataCleanup(pColInfoData, pBlock->info.rows);
     }
 
+    // A scalar group output is materialized once per group key and then reused
+    // for every row of the block, which skips the per-row pseudo-column path.
+    // With a constant group key the value belongs to the owned const tag column
+    // (one row, uid handshake done by getConstTagOutputColumn), not to the
+    // block placeholder that consumers of that slot never read. Scan pseudo
+    // functions keep their own const handling below.
+    // The const column is resolved once here and handed to the tag fallback
+    // below, so a failed reuse continues from the exact same prepared column
+    // instead of re-preparing a second one.
+    SColumnInfoData* pGroupDst = pColInfoData;
+    SColumnInfoData* pConstGroupCol = NULL;
+    int32_t          groupRows = pBlock->info.rows;
+    if (constGroupKey && !fmIsScanPseudoColumnFunc(functionId)) {
+      pConstGroupCol = getConstTagOutputColumn(pBlock, dstSlotId);
+      if (pConstGroupCol != NULL) {
+        pGroupDst = pConstGroupCol;
+        groupRows = 1;
+      }
+    }
+    bool groupDataSet = false;
+    code = setScalarGroupColumnData(pTableListInfo, dstSlotId, pBlock->info.id.uid, pGroupDst, groupRows, &groupDataSet);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (groupDataSet) {
+      continue;
+    }
+
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
       int32_t fType = pExpr1->pExpr->_function.functionType;
@@ -1581,7 +1714,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {  // these are tags
-      SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, pExpr1->base.resSchema.slotId);
+      // Reuse the const column resolved before the reuse attempt (NULL when
+      // this is a block column) so the fallback keeps the state prepared there.
+      SColumnInfoData* pConstCol = pConstGroupCol;
       int32_t tagRows = pBlock->info.rows;
       if (pConstCol != NULL) {
         pColInfoData = pConstCol;

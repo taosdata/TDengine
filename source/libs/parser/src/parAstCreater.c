@@ -1006,6 +1006,13 @@ static bool isNoConcurrentLastScanHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kHint, pToken->n);
 }
 
+static bool isNoGroupKeyReuseHint(const SToken* pToken) {
+  static const char kHint[] = "NO_GROUP_KEY_REUSE";
+
+  return pToken->n == (int32_t)strlen(kHint) &&
+         0 == strncasecmp(pToken->z, kHint, pToken->n);
+}
+
 static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
   if (!pHintList) return JOIN_ALGO_UNKNOWN;
 
@@ -1074,6 +1081,7 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
       if (paramNum != 0 || hasHint(*ppHintList, HINT_INTERVAL_LIMIT)) return true;
       break;
     case HINT_NO_CONCURRENT_LAST_SCAN:
+    case HINT_NO_GROUP_KEY_REUSE:
       if (paramNum != 0 || hasHint(*ppHintList, opt)) return true;
       break;
     case HINT_SPLIT_SCAN:
@@ -1315,6 +1323,15 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
             break;
           }
           opt = HINT_NO_CONCURRENT_LAST_SCAN;
+          break;
+        }
+        if (!inParamList && isNoGroupKeyReuseHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_NO_GROUP_KEY_REUSE;
           break;
         }
         if (!inParamList && isNoExtWinPartitionBatchHint(&t0)) {

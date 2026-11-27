@@ -7533,6 +7533,35 @@ static bool planOptNodeListHasTbname(SNodeList* pKeys) {
   return hasCol;
 }
 
+// Single traversal for materialization checks: both the tbname column and the
+// tbname() function make a group expression per-table rather than per-group.
+static EDealRes partTagsOptHasAnyTbname(SNode* pNode, void* pContext) {
+  ENodeType type = nodeType(pNode);
+  if (QUERY_NODE_COLUMN == type) {
+    if (COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  } else if (QUERY_NODE_FUNCTION == type &&
+             FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pNode)->funcType) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool partTagsExprHasTbname(SNode* pNode) {
+  bool hasTbname = false;
+  nodesWalkExpr(pNode, partTagsOptHasAnyTbname, &hasTbname);
+  return hasTbname;
+}
+
+static bool partTagsGroupHasTbname(SNodeList* pKeys) {
+  bool hasTbname = false;
+  nodesWalkExprs(pKeys, partTagsOptHasAnyTbname, &hasTbname);
+  return hasTbname;
+}
+
 static bool isImplicitPartitionKeyList(SNodeList* pKeys) {
   if (1 != LIST_LENGTH(pKeys)) {
     return false;
@@ -7903,14 +7932,318 @@ static bool partTagsHasRealConsumer(const SAggLogicNode* pAgg, SNode* pExpr) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg,
+static bool partTagsFuncIsReusableScalar(int32_t funcId) {
+  // Only a pure scalar function can be evaluated once per group and reused by
+  // the scan. Aggregates, window pseudo columns, vector/indefinite-row and
+  // placeholder functions depend on more than one row or on execution context.
+  return !fmIsVolatileFunc(funcId) && !fmIsNoPushdownFunc(funcId) &&
+         !fmIsScanPseudoColumnFunc(funcId) && !fmIsWindowPseudoColumnFunc(funcId) &&
+         !fmIsAggFunc(funcId) && !fmIsVectorFunc(funcId) && !fmIsIndefiniteRowsFunc(funcId) &&
+         !fmIsPlaceHolderFunc(funcId);
+}
+
+static EDealRes partTagsOptHasNonMaterializableNode(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+      return DEAL_RES_CONTINUE;
+    case QUERY_NODE_FUNCTION:
+      if (!partTagsFuncIsReusableScalar(((SFunctionNode*)pNode)->funcId)) {
+        *(bool*)pContext = true;
+        return DEAL_RES_END;
+      }
+      return DEAL_RES_CONTINUE;
+    default:
+      // Subqueries (REMOTE_VALUE and friends) and other executor-context nodes
+      // cannot be copied into scan pseudo columns safely. Keep the original
+      // wrapper expression and let the aggregate evaluate it.
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+  }
+}
+
+static bool partTagsCanMaterializeGroupExpr(SNode* pNode) {
+  // Callers feed this predicate from group tag and pseudo column lists; a NULL
+  // entry must disable materialization instead of dereferencing it below.
+  if (NULL == pNode) {
+    return false;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_VALUE == nodeType(pNode)) {
+    return false;
+  }
+  bool hasNonMaterializable = false;
+  nodesWalkExpr(pNode, partTagsOptHasNonMaterializableNode, &hasNonMaterializable);
+  return !hasNonMaterializable && !partTagsExprHasTbname(pNode);
+}
+
+// Contract: pScan->pGroupTags is a clone of the logic scan node's group tags
+// (planPhysiCreater.c) and is passed unchanged to the executor, whose group Data
+// indexing walks the same list. Order and contents must stay identical between
+// the planner rewrite and the executor lookup; only VALUE entries are skipped
+// on both sides.
+// addDataBlockSlots() keys an expression output by its aliasName and an
+// unqualified column by its colName (getSlotKey, planPhysiCreater.c). A
+// materialized group expression is published twice: as the scan pseudo column
+// (key = aliasName) and as the derived column appended to the scan targets
+// (key = colName, which doCreateColumn copies from aliasName), so the two
+// representations land in one output slot with one resType. That only works
+// while the name is unique: two different expressions sharing it would be
+// deduplicated into the same slot, and the executor's nodesEqualNode-based
+// pseudo-column match would then map one slot to two groupData indexes. Keep
+// the wrapper whenever the alias is empty or already used by another scan
+// output.
+static const char* partTagsSlotName(const SNode* pNode) {
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+  }
+  if (NULL == pNode || QUERY_NODE_VALUE == nodeType(pNode)) {
+    return NULL;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    const SColumnNode* pCol = (const SColumnNode*)pNode;
+    // A qualified column is keyed by tableAlias.colName and cannot collide
+    // with the bare alias of a group expression.
+    return ('\0' == pCol->tableAlias[0]) ? pCol->colName : NULL;
+  }
+  return ((const SExprNode*)pNode)->aliasName;
+}
+
+// Name a scan output is published under in pScan->node.pTargets: a column
+// appears by colName and a plain expression by aliasName. Only node kinds that
+// embed SExprNode as their first member are read through it; a TARGET wrapper is
+// unwrapped first and every other kind stays unnamed, so a caller never reads
+// one layout through another.
+static const char* partTagsPseudoOutputName(const SNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+    if (NULL == pNode) {
+      return NULL;
+    }
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      return ((const SColumnNode*)pNode)->colName;
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_FUNCTION:
+      return ((const SExprNode*)pNode)->aliasName;
+    default:
+      return NULL;
+  }
+}
+
+static bool partTagsAliasCollides(SNodeList* pList, const SNode* pNode) {
+  if (NULL == pNode) {
+    return true;
+  }
+  // Only plain expression nodes embed SExprNode as their first member. Anything
+  // else (e.g. a TARGET wrapper) keeps the wrapper instead of reading the alias
+  // through a mismatched layout.
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_WHEN_THEN:
+    case QUERY_NODE_FUNCTION:
+      break;
+    default:
+      return true;
+  }
+
+  const char* alias = ((const SExprNode*)pNode)->aliasName;
+  if ('\0' == alias[0]) {
+    return true;
+  }
+
+  SNode* pItem = NULL;
+  FOREACH(pItem, pList) {
+    const char* name = partTagsSlotName(pItem);
+    if (NULL != name && 0 == strcmp(alias, name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool partTagsCanMaterializeAlias(const SScanLogicNode* pScan, const SNode* pNode) {
+  return !partTagsAliasCollides(pScan->pScanPseudoCols, pNode) &&
+         !partTagsAliasCollides(pScan->node.pTargets, pNode);
+}
+
+// The statement-level hint is attached to the statement root, which is not
+// always the aggregate node this rewrite starts from (a sort/project can sit
+// above it), so look up the parent chain instead of only the agg node.
+static bool partTagsOptHasNoGroupKeyReuseHint(const SLogicNode* pNode) {
+  for (const SLogicNode* pCurr = pNode; NULL != pCurr; pCurr = pCurr->pParent) {
+    if (getOptHint(pCurr->pHint, HINT_NO_GROUP_KEY_REUSE)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// A materialized group key publishes the scalar result in place of the source
+// expression: the aggregate wrapper receives a derived column named after the
+// original expression. Rules that must reason about the source (last-cache tag
+// classification) resolve that column back through the scan group tags, which
+// still hold the raw expression.
+static SNode* partTagsResolveMaterializedGroupExpr(const SScanLogicNode* pScan, const SColumnNode* pCol) {
+  if (NULL == pScan || NULL == pCol || NULL == pScan->pGroupTags || '\0' == pCol->colName[0]) {
+    return NULL;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pGroupTags) {
+    // Only plain expression kinds embed SExprNode. A COLUMN was never
+    // rewritten and a VALUE is never materialized.
+    if (QUERY_NODE_COLUMN == nodeType(pNode) || QUERY_NODE_VALUE == nodeType(pNode)) {
+      continue;
+    }
+    const char* name = partTagsPseudoOutputName(pNode);
+    if (NULL != name && '\0' != name[0] && 0 == strcmp(name, pCol->colName)) {
+      return pNode;
+    }
+  }
+
+  return NULL;
+}
+
+// Drop the scan outputs that published a materialized group expression: the
+// derived target and the pseudo column that produced it. Both are keyed by the
+// expression alias, which the caller recorded in pNames.
+static int32_t partTagsPruneMaterializedScanOutputs(SScanLogicNode* pScan, SHashObj* pNames) {
+  if (NULL == pScan || NULL == pScan->pScanPseudoCols || NULL == pNames) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SListCell* pCell = pScan->pScanPseudoCols->pHead;
+  while (NULL != pCell) {
+    SNode* pPseudo = pCell->pNode;
+    if (NULL == pPseudo || QUERY_NODE_COLUMN == nodeType(pPseudo) || !partTagsCanMaterializeGroupExpr(pPseudo)) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    const char* name = partTagsPseudoOutputName(pPseudo);
+    if (NULL == name || NULL == taosHashGet(pNames, name, strlen(name))) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    SListCell* pTargetCell = NULL != pScan->node.pTargets ? pScan->node.pTargets->pHead : NULL;
+    while (NULL != pTargetCell) {
+      const char* targetName = partTagsPseudoOutputName(pTargetCell->pNode);
+      if (NULL != targetName && 0 == strcmp(name, targetName)) {
+        pTargetCell = nodesListErase(pScan->node.pTargets, pTargetCell);
+        break;
+      }
+      pTargetCell = pTargetCell->pNext;
+    }
+
+    pCell = nodesListErase(pScan->pScanPseudoCols, pCell);
+  }
+
+  if (0 == pScan->pScanPseudoCols->length) {
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// Restore the raw source expression for materialized group keys. A cache scan
+// and any rule that rebuilds the scan from its aggregate functions can provide
+// raw tag columns but not the materialized group data, so the wrapper must
+// evaluate the expression from the tags again. The caller re-collects the tag
+// columns into the rebuilt scan output (splitCacheLastFuncOptUpdateScanNode) or
+// the original tag columns are already present.
+static int32_t partTagsDematerializeGroupKeys(SAggLogicNode* pAgg, SScanLogicNode* pScan) {
+  if (NULL == pAgg || NULL == pScan || NULL == pScan->pScanPseudoCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SHashObj* pRemoved = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pRemoved) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+    if (FUNCTION_TYPE_GROUP_KEY != pFunc->funcType && FUNCTION_TYPE_GROUP_CONST_VALUE != pFunc->funcType) {
+      continue;
+    }
+    if (NULL == pFunc->pParameterList || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+      continue;
+    }
+
+    SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+      continue;
+    }
+
+    SNode* pSource = partTagsResolveMaterializedGroupExpr(pScan, (SColumnNode*)pParam);
+    if (NULL == pSource) {
+      continue;
+    }
+
+    char name[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(name, ((SColumnNode*)pParam)->colName, sizeof(name));
+
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pSource, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    nodesDestroyList(pFunc->pParameterList);
+    pFunc->pParameterList = NULL;
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    if ('\0' != name[0]) {
+      code = taosHashPut(pRemoved, name, strlen(name), NULL, 0);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && taosHashGetSize(pRemoved) > 0) {
+    code = partTagsPruneMaterializedScanOutputs(pScan, pRemoved);
+  }
+
+  taosHashCleanup(pRemoved);
+  return code;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SScanLogicNode* pScan, int32_t start, SAggLogicNode* pAgg,
                                                bool appendWrapperTarget) {
+  // Any tbname in the group keys disables materialization for the whole query:
+  // the executor's UID grouping path (groupbyTbname) skips groupData
+  // initialization, so a per-expression materialized column would have no
+  // producer. partTagsCanMaterializeGroupExpr keeps its own per-expression
+  // tbname check for callers that have no list-level gate (e.g.
+  // partTagsOptRemovePseudoCols).
+  bool groupHasTbname = partTagsGroupHasTbname(pScan->pGroupTags);
   bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAgg->pAggFuncs);
   partTagsDebugLogConsumerChain(pAgg);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t index = 0;
   SNode*  pNode = NULL;
-  FOREACH(pNode, pGroupTags) {
+  FOREACH(pNode, pScan->pGroupTags) {
     int32_t currIndex = index++;
     bool    needOutput = partTagsHasRealConsumer(pAgg, pNode);
     planDebug("FQ-partTags: groupTag[%d] nodeType=%d needOutput=%d", currIndex, (int)nodeType(pNode), needOutput);
@@ -7920,17 +8253,80 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
     SFunctionNode* pFunc = NULL;
     if (hasIndefRowsSelectFunc) {
       code = partTagsCreateWrapperFunc("_select_value", pNode, &pFunc);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
-      }
     } else {
       code = partTagsCreateWrapperFunc("_group_key", pNode, &pFunc);
-      if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
-      }
     }
+    if (TSDB_CODE_SUCCESS == code && !appendWrapperTarget && SCAN_TYPE_STREAM != pScan->scanType &&
+        !partTagsOptHasNoGroupKeyReuseHint((const SLogicNode*)pScan) && !groupHasTbname &&
+        partTagsCanMaterializeGroupExpr(pNode) && partTagsCanMaterializeAlias(pScan, pNode)) {
+      // Reusable group data is incompatible with the table-group cache: that
+      // cache stores only table ids and group ids, so the executor cannot
+      // answer a cache hit with materialized values. NO_GROUP_KEY_REUSE is the
+      // optional non-materialized path for deployments that want repeated
+      // grouped scans to keep their tagFilterCache hits.
+      // Stream scans fill pseudo columns from raw tags in the WAL path. Keep
+      // the original wrapper expression there so aggregation evaluates it.
+      // Reuse the scalar value that other scans calculate for group IDs.
+      //
+      // The scan pseudo column must be the whole expression node, appended in
+      // group-tag order (VALUE entries are not materialized). The executor's
+      // initGroupDataSlotMap matches it back with nodesEqualNode and assigns
+      // the groupData index in that same order, so keep both sides aligned.
+      // The output slot is keyed by aliasName (addDataBlockSlots), hence the
+      // partTagsCanMaterializeAlias gate above; a duplicate alias would map
+      // two group expressions onto one slot.
+      //
+      // Build every fallible piece first and commit afterwards, so a failure
+      // cannot leave the scan with a pseudo column/target whose wrapper is
+      // missing from the aggregate function list.
+      SNode*     pScanExpr = NULL;
+      SNodeList* pScanCols = NULL;
+      SNodeList* pFuncParams = NULL;
+
+      code = nodesCloneNode(pNode, &pScanExpr);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = createColumnByRewriteExpr(pNode, &pScanCols);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = createColumnByRewriteExpr(pNode, &pFuncParams);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t appendCode = nodesListMakeStrictAppend(&pScan->pScanPseudoCols, pScanExpr);
+        pScanExpr = NULL;  // ownership is consumed on both success and failure
+        code = appendCode;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        int32_t appendCode = nodesListStrictAppendList(pScan->node.pTargets, pScanCols);
+        pScanCols = NULL;  // ownership is consumed on both success and failure
+        code = appendCode;
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        // Swap in the derived columns only after every fallible step passed:
+        // the wrapper keeps its original parameter list (and the signature
+        // fmGetFuncInfo computed from it) while an error can still destroy it.
+        NODES_DESTORY_LIST(pFunc->pParameterList);
+        pFunc->pParameterList = pFuncParams;
+        pFuncParams = NULL;
+      }
+      nodesDestroyNode(pScanExpr);
+      nodesDestroyList(pScanCols);
+      nodesDestroyList(pFuncParams);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      // Wrapper creation leaves *ppFunc NULL on failure, and the materialization
+      // above commits its pieces atomically, so pFunc is still unowned here.
+      // This is the only explicit release point.
+      nodesDestroyNode((SNode*)pFunc);
+      break;
+    }
+    // Strict append takes ownership of pFunc on success and releases it on
+    // failure; createColumnByRewriteExpr only clones from it. No later holder
+    // refers back to this node, so do not destroy it below.
+    SNode* pAggFunc = (SNode*)pFunc;
+    code = nodesListStrictAppend(pAgg->pAggFuncs, pAggFunc);
+    pFunc = NULL;
     if (TSDB_CODE_SUCCESS == code && appendWrapperTarget) {
-      code = createColumnByRewriteExpr((SNode*)pFunc, &pAgg->node.pTargets);
+      code = createColumnByRewriteExpr(pAggFunc, &pAgg->node.pTargets);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -8026,53 +8422,82 @@ static EDealRes partTagsCollectColsNodes(SNode* pNode, void* pContext) {
 }
 
 
-static bool partTagsIsScanPseudoColsInConds(SScanLogicNode* pScan) {
-  SCollectColsCxt cxt = {
-      .errCode = TSDB_CODE_SUCCESS,
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
-  if (NULL == cxt.pColHash) {
-    return true;
-  }
-
-  nodesWalkExpr(pScan->node.pConditions, partTagsCollectColsNodes, &cxt);
-  if (cxt.errCode) {
-    taosHashCleanup(cxt.pColHash);
-    return true;
-  }
-
-  SNode* pNode = NULL;
-  FOREACH(pNode, pScan->pScanPseudoCols) {
-    if (taosHashGet(cxt.pColHash, ((SExprNode*)pNode)->aliasName, strlen(((SExprNode*)pNode)->aliasName))) {
-      taosHashCleanup(cxt.pColHash);
-      return true;
-    }
-  }
-
-  taosHashCleanup(cxt.pColHash);
-  return false;
-}
-
 static int32_t partTagsOptRemovePseudoCols(SScanLogicNode* pScan) {
   if (!pScan->noPseudoRefAfterGrp || NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (pScan->node.pConditions && partTagsIsScanPseudoColsInConds(pScan)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pNode = NULL, *pTarget = NULL;
-  FOREACH(pNode, pScan->pScanPseudoCols) {
-    FOREACH(pTarget, pScan->node.pTargets) {
-      if (0 == strcmp(((SExprNode*)pNode)->aliasName, ((SColumnNode*)pTarget)->colName)) {
-        ERASE_NODE(pScan->node.pTargets);
-        break;
-      }
+  // Nothing after GROUP BY consumes a tag, so only two kinds of pseudo column
+  // survive:
+  //   1. the raw expression the materialization path in
+  //      partTagsRewriteGroupTagsToFuncs published as the executor's producer
+  //      for a reusable scalar group result;
+  //   2. a plain column still referenced by a scan condition (virtual-table
+  //      tag conditions read it by slot).
+  // Every other entry (a plain tag kept only as a group key, or a pseudo
+  // function the rewrite gave up on) would make the scan fetch tags and fill a
+  // whole column per block for no consumer. Collect the condition column names
+  // first; a failure to build that set keeps all plain columns rather than
+  // pruning a column a condition may read.
+  SCollectColsCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS,
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+  bool keepCondCols = true;
+  if (NULL != cxt.pColHash) {
+    if (NULL != pScan->node.pConditions) {
+      nodesWalkExpr(pScan->node.pConditions, partTagsCollectColsNodes, &cxt);
+    }
+    if (TSDB_CODE_SUCCESS == cxt.errCode) {
+      keepCondCols = false;
     }
   }
-  
-  nodesDestroyList(pScan->pScanPseudoCols);
-  pScan->pScanPseudoCols = NULL;
+
+  SListCell* pCell = pScan->pScanPseudoCols->pHead;
+  while (NULL != pCell) {
+    SNode* pPseudo = pCell->pNode;
+    bool   keep = false;
+    if (NULL == pPseudo) {
+      keep = false;
+    } else if (QUERY_NODE_COLUMN == nodeType(pPseudo)) {
+      const char* name = partTagsPseudoOutputName(pPseudo);
+      keep = keepCondCols || (NULL != name && NULL != cxt.pColHash &&
+                              NULL != taosHashGet(cxt.pColHash, name, strlen(name)));
+    } else {
+      keep = partTagsCanMaterializeGroupExpr(pPseudo);
+    }
+
+    if (keep) {
+      pCell = pCell->pNext;
+      continue;
+    }
+
+    // Derive the output name only from node kinds that embed SExprNode; a
+    // wrapper with another layout has no name to match on and is kept rather
+    // than erased as a guess.
+    const char* pseudoName = partTagsPseudoOutputName(pPseudo);
+    if (NULL != pseudoName) {
+      SListCell* pTargetCell = NULL != pScan->node.pTargets ? pScan->node.pTargets->pHead : NULL;
+      while (NULL != pTargetCell) {
+        const char* targetName = partTagsPseudoOutputName(pTargetCell->pNode);
+        if (NULL != targetName && 0 == strcmp(pseudoName, targetName)) {
+          pTargetCell = nodesListErase(pScan->node.pTargets, pTargetCell);
+          break;
+        }
+        pTargetCell = pTargetCell->pNext;
+      }
+    }
+
+    pCell = nodesListErase(pScan->pScanPseudoCols, pCell);
+  }
+
+  if (NULL != cxt.pColHash) {
+    taosHashCleanup(cxt.pColHash);
+  }
+
+  if (0 == pScan->pScanPseudoCols->length) {
+    nodesDestroyList(pScan->pScanPseudoCols);
+    pScan->pScanPseudoCols = NULL;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -8282,7 +8707,7 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       // The external connector needs the wrapper in the declared remote output.
       // Local scans materialize it through pAggFuncs, as in 3.0; adding both
       // representations makes the aggregate descriptor count the tag twice.
-      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg, pScan->scanType == SCAN_TYPE_EXTERNAL);
+      code = partTagsRewriteGroupTagsToFuncs(pScan, start, pAgg, pScan->scanType == SCAN_TYPE_EXTERNAL);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -9765,15 +10190,28 @@ static int32_t lastSmaNotNullPrefilterOptimize(SOptimizeContext* pCxt, SLogicSub
 }
 
 typedef struct SLastRowScanOptLastParaCkCxt {
-  bool hasTag;
-  bool hasCol;
+  const SScanLogicNode* pScan;
+  bool                  hasTag;
+  bool                  hasCol;
 } SLastRowScanOptLastParaCkCxt;
 
 static EDealRes lastRowScanOptLastParaIsTagImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SLastRowScanOptLastParaCkCxt* pCxt = pContext;
-    if (COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType || COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+    SColumnNode*                  pCol = (SColumnNode*)pNode;
+    if (COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType) {
       pCxt->hasTag = true;
+      return DEAL_RES_END;
+    }
+    // A materialized group key is exposed as a derived column, so its colType
+    // no longer says where it came from. Classify the source expression to
+    // keep the last-row/last cache applicable to tag-only group keys.
+    SNode* pSource = partTagsResolveMaterializedGroupExpr(pCxt->pScan, pCol);
+    if (NULL != pSource) {
+      SLastRowScanOptLastParaCkCxt source = {.pScan = NULL, .hasTag = false, .hasCol = false};
+      nodesWalkExpr(pSource, lastRowScanOptLastParaIsTagImpl, &source);
+      pCxt->hasTag = pCxt->hasTag || source.hasTag;
+      pCxt->hasCol = pCxt->hasCol || source.hasCol;
     } else {
       pCxt->hasCol = true;
     }
@@ -9782,8 +10220,8 @@ static EDealRes lastRowScanOptLastParaIsTagImpl(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool lastRowScanOptLastParaIsTag(SNode* pExpr) {
-  SLastRowScanOptLastParaCkCxt cxt = {.hasTag = false, .hasCol = false};
+static bool lastRowScanOptLastParaIsTag(const SScanLogicNode* pScan, SNode* pExpr) {
+  SLastRowScanOptLastParaCkCxt cxt = {.pScan = pScan, .hasTag = false, .hasCol = false};
   nodesWalkExpr(pExpr, lastRowScanOptLastParaIsTagImpl, &cxt);
   return cxt.hasTag && !cxt.hasCol;
 }
@@ -9924,7 +10362,7 @@ static bool lastRowScanOptCheckFuncList(SLogicNode* pNode, int8_t cacheLastModel
       }
     } else if (FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType || 
                 FUNCTION_TYPE_GROUP_CONST_VALUE == pAggFunc->funcType) {
-      if (!lastRowScanOptLastParaIsTag(pParam)) {
+      if (!lastRowScanOptLastParaIsTag(pScan, pParam)) {
         canOptimize = false;
         break;
       }
@@ -10150,6 +10588,15 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   int32_t code = 0;
   int32_t lino = 0;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  // The cache scan emits one row per table from the last/last_row cache; it
+  // does not build the reusable group data. Evaluate materialized group keys
+  // from the raw tag expression again before switching the scan type, otherwise
+  // their derived output would have no producer.
+  code = partTagsDematerializeGroupKeys(pAgg, pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
 
@@ -10827,6 +11274,14 @@ static int32_t splitCacheLastFuncOptGrouped(SOptimizeContext* pCxt,
 
   SScanLogicNode* pScan =
       (SScanLogicNode*)nodesListGetNode(pCache->node.pChildren, 0);
+  // updateScanNode rebuilds each branch scan from its aggregate functions, so
+  // group keys become raw tag columns again. Restore the source expression on
+  // the materialized wrappers first; otherwise the cached branch would keep a
+  // derived parameter whose producing slot is gone, and the group-key match
+  // below would also fail to recognize the existing wrapper.
+  code = partTagsDematerializeGroupKeys(pCache, pScan);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
   SNode* pNode = NULL;
   WHERE_EACH(pNode, pCache->pAggFuncs) {
     if (isNeedSplitCacheLastFunc((SFunctionNode*)pNode, pScan,
