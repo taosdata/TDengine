@@ -162,8 +162,8 @@ class TestStreamVtableTagAggregate:
             ]
             tdSql.checkResultsByArray(query, expected, retry=60)
 
-            # Realtime input has already opened state 3 at ts + 124000.
-            later_ts = ts + 124000
+            state3_start = ts + 124000
+            later_ts = state3_start
             if fill_history:
                 # Subsequent input must be beyond the completed backfill.
                 later_ts = max(later_ts, int(time.time() * 1000) + 1000)
@@ -172,7 +172,9 @@ class TestStreamVtableTagAggregate:
                 f"insert into {state_db}.raw values "
                 f"({later_ts}, 3) ({later_ts + 61000}, 3) ({later_ts + 62000}, 4)"
             )
-            expected.append((later_ts, 3, "24", "123000000", "job-late3", None))
+            # First-close recalculation also emits the window starting in history.
+            starts = (state3_start, later_ts) if fill_history else (later_ts,)
+            expected.extend((start, 3, "24", "123000000", "job-late3", None) for start in starts)
             tdSql.checkResultsByArray(query, expected, retry=60)
         finally:
             for name in (db, state_db, job_db):
