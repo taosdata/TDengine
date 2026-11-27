@@ -15365,10 +15365,20 @@ int32_t tDeserializeSKillQueryReq(void *buf, int32_t bufLen, SKillQueryReq *pReq
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char*    pStr = NULL;
+  uint32_t wireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->queryStrId));
+  // queryStrId is a fixed-size array used as a NUL-terminated C string downstream, so the wire
+  // payload must carry its NUL terminator. wireLen == 0 must be rejected as well: for an empty
+  // encoding tDecodeBinary() yields a one-past-end pointer when the field is last in the
+  // message, and tDecodeCStrToN() would read one byte past the decoded region (CWE-125).
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&pStr, &wireLen));
+  if (wireLen == 0 || wireLen > sizeof(pReq->queryStrId) || pStr[wireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->queryStrId, pStr, wireLen);
   tEndDecode(&decoder);
 
 _exit:
