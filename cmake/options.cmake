@@ -28,8 +28,25 @@ if(TD_COMMUNITY_STANDALONE)
   set(BUILD_VER_COMPATIBLE  "" CACHE STRING "Compatible version number override")
   set(BUILD_VER_TYPE        "" CACHE STRING "Version type override (e.g. stable)")
   set(BUILD_VER_DATE        "" CACHE STRING "Version date override (e.g. %Y-%m-%d %H:%M:%S %z)")
-  set(BUILD_VER_CPUTYPE     "" CACHE STRING "CPU type override")
-  set(BUILD_VER_OSTYPE      "" CACHE STRING "OS type override")
+  # BUILD_VER_CPUTYPE / BUILD_VER_OSTYPE are detected by platform.cmake, which
+  # runs before this file.  Do not register them here with an empty cache
+  # default: with cmake_minimum_required(3.16) (CMP0126 OLD) a
+  # `set(<var> "" CACHE STRING ...)` also drops the normal variable of the same
+  # name, so the detected value is lost and version.cmake falls back to "Linux"
+  # plus an architecture guess on every platform.
+  #
+  # Only a value that really came from the command line is taken over, and it is
+  # taken verbatim: an explicit `-DBUILD_VER_OSTYPE=` (empty) is a deliberate
+  # override and must not be replaced by a default either.
+  foreach(_td_ver_var BUILD_VER_CPUTYPE BUILD_VER_OSTYPE)
+    if(DEFINED CACHE{${_td_ver_var}})
+      set(${_td_ver_var} "$CACHE{${_td_ver_var}}")
+      set(TD_${_td_ver_var}_OVERRIDDEN TRUE)
+    else()
+      set(TD_${_td_ver_var}_OVERRIDDEN FALSE)
+    endif()
+  endforeach()
+  unset(_td_ver_var)
   set(BUILD_GITINFO         "" CACHE STRING "Git commit ID override")
   set(BUILD_GITINFOI        "" CACHE STRING "Internal git commit ID override")
 endif()
