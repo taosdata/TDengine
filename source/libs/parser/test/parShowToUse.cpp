@@ -188,6 +188,20 @@ TEST_F(ParserShowToUseTest, showTables) {
   run("SHOW test.tables like 'c%'");
 }
 
+TEST_F(ParserShowToUseTest, showTablesOverlongDbName) {
+  useDb("root", "test");
+
+  // The database name is only length-checked after the meta keys are collected, so the
+  // "<acct>.<db>" key built for the parser meta cache must be bounds-checked itself.
+  std::string longDb(TSDB_TABLE_FNAME_LEN + 64, 0x64);
+
+  runCollectMetaKeyOnly("SHOW " + longDb + ".tables", TSDB_CODE_TSC_INVALID_DB_LENGTH);
+
+  runCollectMetaKeyOnly("SHOW " + longDb + ".vgroups", TSDB_CODE_TSC_INVALID_DB_LENGTH);
+
+  runCollectMetaKeyOnly("SHOW TAGS FROM st1 FROM " + longDb, TSDB_CODE_TSC_INVALID_DB_LENGTH);
+}
+
 TEST_F(ParserShowToUseTest, showTableDistributed) {
   useDb("root", "test");
 

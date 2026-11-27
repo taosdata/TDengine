@@ -152,6 +152,29 @@ class ParserTestBaseImpl {
     runAsyncApis(sql, expect, checkStage);
   }
 
+  // Runs parse() and collectMetaKey() only, and expects collectMetaKey() to return `expect`.
+  // collectMetaKey() runs before any catalog access, so this covers failures raised while
+  // the parser meta cache keys are being built.
+  void runCollectMetaKeyOnly(const string& sql, int32_t expect) {
+    reset(expect, PARSER_STAGE_PARSE, TEST_INTERFACE_ASYNC_INTERNAL);
+    stmtEnv_.checkFunc_ = "collectMetaKey";
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt, true);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      bool                                    request = true;
+      unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+          new SParseMetaCache(), bind(destoryParseMetaCacheWarpper, _1, cref(request)));
+      doParse(&cxt, query.get());
+      doCollectMetaKey(&cxt, *(query.get()), metaCache.get());
+    } catch (const TerminateFlag& e) {
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+  }
+
   // Pure parse check: builds the AST via parse() only — no authenticate, no
   // translate, no catalog access. Use to validate grammar/AST shape for statements
   // whose later stages can't be exercised under the unit-test mock catalog.
@@ -696,6 +719,10 @@ void ParserTestBase::runParseOnly(const std::string& sql, int32_t expect) {
 
 void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->runAsyncOnly(sql, expect, checkStage);
+}
+
+void ParserTestBase::runCollectMetaKeyOnly(const std::string& sql, int32_t expect) {
+  return impl_->runCollectMetaKeyOnly(sql, expect);
 }
 
 void ParserTestBase::runClonedAst(const std::string& sql, int32_t expect, ParserStage checkStage) {

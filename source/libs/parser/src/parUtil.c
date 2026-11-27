@@ -1422,12 +1422,18 @@ static int32_t reserveTableReqInCacheImpl(const char* pTbFName, int32_t len, SHa
 static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
+  if (len < 0 || len >= (int32_t)sizeof(fullName)) {
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
   return reserveTableReqInCacheImpl(fullName, len, pTables);
 }
 
 static int32_t reserveTableReqInDbCacheImpl(int32_t acctId, const char* pDb, const char* pTable, SHashObj* pDbs) {
   SParseTablesMetaReq req = {0};
   int32_t             len = snprintf(req.dbFName, sizeof(req.dbFName), "%d.%s", acctId, pDb);
+  if (len < 0 || len >= (int32_t)sizeof(req.dbFName)) {
+    return TSDB_CODE_TSC_INVALID_DB_LENGTH;
+  }
   int32_t             code = reserveTableReqInCache(acctId, pDb, pTable, &req.pTables);
   if (TSDB_CODE_SUCCESS == code) {
     code = taosHashPut(pDbs, req.dbFName, len, &req, sizeof(SParseTablesMetaReq));
@@ -1444,6 +1450,9 @@ static int32_t reserveTableReqInDbCache(int32_t acctId, const char* pDb, const c
   }
   char                 fullName[TSDB_DB_FNAME_LEN];
   int32_t              len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  if (len < 0 || len >= (int32_t)sizeof(fullName)) {
+    return TSDB_CODE_TSC_INVALID_DB_LENGTH;
+  }
   SParseTablesMetaReq* pReq = taosHashGet(*pDbs, fullName, len);
   if (NULL == pReq) {
     return reserveTableReqInDbCacheImpl(acctId, pDb, pTable, *pDbs);
@@ -1630,6 +1639,9 @@ static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** p
   }
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  if (len < 0 || len >= (int32_t)sizeof(fullName)) {
+    return TSDB_CODE_TSC_INVALID_DB_LENGTH;
+  }
   return taosHashPut(*pDbs, fullName, len, &nullPointer, POINTER_BYTES);
 }
 
