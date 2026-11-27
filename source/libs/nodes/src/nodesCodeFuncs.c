@@ -52,7 +52,7 @@ static int32_t jsonGetLastScanType(const SJson* pJson, const char* name,
 }
 
 static bool isPhysiOperatorType(ENodeType type) {
-  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN &&
+  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK &&
          type != QUERY_NODE_PHYSICAL_SUBPLAN && type != QUERY_NODE_PHYSICAL_PLAN &&
          type != QUERY_NODE_PHYSICAL_PLAN_DISPATCH && type != QUERY_NODE_PHYSICAL_PLAN_INSERT &&
          type != QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT && type != QUERY_NODE_PHYSICAL_PLAN_DELETE;
@@ -592,6 +592,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicJoin";
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return "LogicAgg";
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
+      return "LogicScalarCheck";
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return "LogicProject";
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -656,6 +658,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiMergeCountWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return "PhysiMergeAnomalyWindow";
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
+      return "PhysicalScalarCheck";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -2773,6 +2777,7 @@ static const char* jkJoinLogicPlanPrimKeyEqCondition = "PrimKeyEqCond";
 static const char* jkJoinLogicPlanColEqCondition = "ColumnEqCond";
 static const char* jkJoinLogicPlanTagEqCondition = "TagEqCond";
 static const char* jkJoinLogicPlanIsCrossJoin = "IsCrossJoin";
+static const char* jkJoinLogicPlanScalarSubqueryJoin = "ScalarSubqueryJoin";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -2801,6 +2806,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkJoinLogicPlanIsCrossJoin, pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->scalarSubqueryJoin) {
+    code = tjsonAddBoolToObject(pJson, jkJoinLogicPlanScalarSubqueryJoin, true);
   }
   return code;
 }
@@ -2832,6 +2840,9 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinLogicPlanIsCrossJoin)) {
     code = tjsonGetBoolValue(pJson, jkJoinLogicPlanIsCrossJoin, &pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinLogicPlanScalarSubqueryJoin)) {
+    code = tjsonGetBoolValue(pJson, jkJoinLogicPlanScalarSubqueryJoin, &pNode->scalarSubqueryJoin);
   }
 
   return code;
@@ -7624,6 +7635,7 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
 
 static const char* jkPlanQueryId = "QueryId";
 static const char* jkPlanNumOfSubplans = "NumOfSubplans";
+static const char* jkPlanCountIncludesSubqueries = "CountIncludesSubqueries";
 static const char* jkPlanSubplans = "Subplans";
 static const char* jkPlanSubplanLevels = "SubplanLevels";
 static const char* jkPlanSubplanLinks = "SubplanLinks";
@@ -7780,7 +7792,7 @@ _return:
   return code;
 }
 
-static int32_t planToJson(const void* pObj, SJson* pJson) {
+static int32_t planToJsonImpl(const void* pObj, SJson* pJson) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
   bool extended = NULL != pNode->pCorrelationTemplates || LIST_LENGTH(pNode->pSubplans) > 1;
   char tmpBuf[64] = {0};
@@ -7808,6 +7820,7 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
     FOREACH(pTmp, pNode->pChildren) {
       snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
       code = tjsonAddObject(pJson, tmpBuf, nodeToJson, pTmp);
+      if (TSDB_CODE_SUCCESS != code) break;
       ++i;
     }
   }
@@ -7824,6 +7837,18 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
       code = tjsonAddTArray(pJson, "SubqueryDependencies", subqueryDependencyToJson, pNode->pSubqueryDeps);
     }
   }
+  return code;
+}
+
+static int32_t planToJson(const void* pObj, SJson* pJson) {
+  const SQueryPlan* plan = (const SQueryPlan*)pObj;
+  SPlanExportView view = {0};
+  int32_t code = nodesBuildPlanExportView(plan, &view);
+  if (code == TSDB_CODE_SUCCESS) code = planToJsonImpl(&view.plan, pJson);
+  if (code == TSDB_CODE_SUCCESS && view.plan.numOfSubplans != plan->numOfSubplans) {
+    code = tjsonAddBoolToObject(pJson, jkPlanCountIncludesSubqueries, true);
+  }
+  nodesClearPlanExportView(&view);
   return code;
 }
 
@@ -8171,10 +8196,10 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && numOfSubQueries > 0) {
     char tmpBuf[64] = {0};
-    SNode* pPlan = NULL;
     for (int32_t i = 0; i < numOfSubQueries; ++i) {
+      SNode* pPlan = NULL;
       snprintf(tmpBuf, sizeof(tmpBuf), "%s%d", jkPlanSubQueries, i);
-      code = jsonToNodeObject(pJson, tmpBuf, (SNode**)&pPlan);
+      code = jsonToNodeObject(pJson, tmpBuf, &pPlan);
       if (code) {
         break;
       }
@@ -8186,12 +8211,18 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
       }
       code = nodesListMakeStrictAppend(&pNode->pChildren, pPlan);
       if (code) {
-        nodesDestroyNode(pPlan);
         break;
       }
     }
   }
   
+  bool countIncludesSubqueries = false;
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkPlanCountIncludesSubqueries)) {
+    code = tjsonGetBoolValue(pJson, jkPlanCountIncludesSubqueries, &countIncludesSubqueries);
+  }
+  if (TSDB_CODE_SUCCESS == code && countIncludesSubqueries) {
+    code = nodesCountPlanAndSubqueries(pNode, pNode->numOfSubplans, &pNode->numOfSubplans);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = correlationJsonList(pJson, "CorrelationTemplates", &pNode->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
   }
@@ -15368,6 +15399,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicTagRefSourceNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return logicAggNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return logicProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -15436,6 +15468,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showExtSourceCapabilityStmtToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return physiSysTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return physiProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -15934,6 +15967,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicTagRefSourceNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return jsonToLogicAggNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return jsonToLogicProjectNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -15992,6 +16026,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToExtTableNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return jsonToPhysiSysTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return jsonToPhysiProjectNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:

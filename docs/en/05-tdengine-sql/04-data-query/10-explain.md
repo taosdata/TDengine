@@ -345,9 +345,29 @@ For statements that contain subqueries, do not stop at the first few lines of th
 
 ### Correlated Scalar Subqueries
 
-A correlated scalar subquery appears as a `Correlated Scalar Subquery` expression under the operator that evaluates it, rather than as a one-time `InitPlan`. The expression row shows its template number, evaluation stage, and result type. Parameter rows identify the source scope and block/slot or inherited parameter number, without showing parameter values. The execution plan for the correlated subquery appears under `Subquery Plan`, including its scans, aggregates, sorts, and other operators. Static `EXPLAIN` displays this plan information without executing the subquery.
+A correlated scalar subquery can appear in one of two forms in an execution plan, depending on whether the optimizer rewrites it as a JOIN:
 
-`EXPLAIN ANALYZE` also displays `Input Rows`, `Calls`, and `Time` for that expression: the rows or JOIN candidate pairs that reached the evaluation point, the number of inner calls actually started, and their cumulative elapsed time. `Calls` is distinct from the owning operator's `execTimes`; separate calls with identical parameters are counted separately. A branch evaluated under ordinary CASE semantics is counted even when its value is not selected. A parent call's time includes waiting for nested calls, so times across nested levels should not be added together as the SQL statement's total time.
+- **JOIN rewrite path (default for eligible equality-correlated scalar subqueries)**: No `Correlated Scalar Subquery` expression appears for the rewritten subquery. Instead, the inner table is grouped by the correlation key (`GroupAggregate`) and joined to the outer table (`Left Join`). If the subquery returns a data column directly, a `Scalar Row Check` operator also appears above `Left Join` to enforce scalar cardinality at runtime (still raising an error if an outer row matches more than one inner row). If the subquery computes a single-value aggregate such as `AVG`, `SUM`, `MIN`, or `MAX`, each group produces at most one value and `Scalar Row Check` is not needed.
+- **Per-row evaluation path (ineligible subqueries or when `NO_DECORRELATE()` is specified)**: The subquery appears as a `Correlated Scalar Subquery` expression under the operator that evaluates it, rather than as a one-time `InitPlan`. The expression row shows its template number, evaluation stage, and result type. Parameter rows identify the source scope and block/slot or inherited parameter number, without showing parameter values. The execution plan for the correlated subquery appears under `Subquery Plan`, including its scans, aggregates, sorts, and other operators. Static `EXPLAIN` displays this plan information without executing the subquery.
+
+On the per-row evaluation path, `EXPLAIN ANALYZE` also displays `Input Rows`, `Calls`, and `Time` under the `Correlated Scalar Subquery` expression: the rows or JOIN candidate pairs that reached the evaluation point, the number of inner calls actually started, and their cumulative elapsed time. `Calls` is distinct from the owning operator's `execTimes`; separate calls with identical parameters are counted separately. A branch evaluated under ordinary `CASE` semantics is counted even when its value is not selected. A parent call's time includes waiting for nested calls, so times across nested levels should not be added together as the SQL statement's total time.
+
+To verify whether a query uses the JOIN rewrite or whether `NO_DECORRELATE()` took effect, compare the `EXPLAIN` plans with and without the hint. For example, assuming the `k` columns in both `alarms` and `readings` are `INT`:
+
+```sql
+-- Default path: rewritten to GroupAggregate + Left Join
+EXPLAIN SELECT a.ts, (SELECT r.v FROM readings r WHERE r.k = a.k) FROM alarms a;
+
+-- Rewrite disabled: falls back to per-row evaluation
+EXPLAIN SELECT a.ts, (SELECT /*+ NO_DECORRELATE() */ r.v FROM readings r WHERE r.k = a.k) FROM alarms a;
+```
+
+Comparing the two execution plans:
+
+- The first query uses the default JOIN rewrite. Its plan shows `GroupAggregate` grouping `readings` by `k` and `Left Join` joining it to `alarms`. Because this example selects the data column `r.v` directly, the plan also includes `Scalar Row Check`. If the subquery returned an aggregate such as `SELECT AVG(r.v) ...`, `Scalar Row Check` would not appear.
+- The second query disables the rewrite with `NO_DECORRELATE()`. The grouping and `Left Join` disappear, and the plan instead shows `Correlated Scalar Subquery` and its `Subquery Plan` under the outer operator.
+
+For rewrite eligibility and hint usage, see [NO_DECORRELATE](./01-query.md#no_decorrelate).
 
 ## Examples
 

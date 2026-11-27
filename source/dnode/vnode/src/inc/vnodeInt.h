@@ -368,6 +368,8 @@ int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, int32_t destDnodeId, void* pRanges,
                            STsdbSnapReader** ppReader);
+int32_t tsdbBackupSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, void* pRanges,
+                                 STsdbSnapReader** ppReader, char** fileSetsJson);
 void    tsdbSnapReaderClose(STsdbSnapReader** ppReader);
 int32_t tsdbSnapRead(STsdbSnapReader* pReader, uint8_t** ppData);
 // STsdbSnapWriter ========================================
@@ -379,6 +381,7 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback);
 int32_t tsdbSnapRAWReaderOpen(STsdb* pTsdb, int64_t ever, int8_t type, int32_t destDnodeId, STsdbSnapRAWReader** ppReader);
 void    tsdbSnapRAWReaderClose(STsdbSnapRAWReader** ppReader);
 int32_t tsdbSnapRAWRead(STsdbSnapRAWReader* pReader, uint8_t** ppData);
+int32_t tsdbSnapRAWReaderFileSetsJson(STsdbSnapRAWReader* pReader, char** json);
 // STsdbSnapRAWWriter ========================================
 int32_t tsdbSnapRAWWriterOpen(STsdb* pTsdb, int64_t ever, STsdbSnapRAWWriter** ppWriter);
 int32_t tsdbSnapRAWWrite(STsdbSnapRAWWriter* pWriter, SSnapDataHdr* pHdr);
@@ -605,6 +608,7 @@ struct SVnode {
   int64_t       backupSnapBackupId;
   int64_t       backupSnapIndex;
   int64_t       backupSnapLastActivityMs;
+  bool          backupSnapIncremental;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

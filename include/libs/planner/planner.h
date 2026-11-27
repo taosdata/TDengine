@@ -139,6 +139,9 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 
 // Convert to subplan to msg for the scheduler to send to the executor
+int32_t qSubPlanBuildInvariantBody(const SSubplan* pPlan, char** ppBody, int32_t* pLen);
+int32_t qSubPlanAssembleMsg(const SSubplan* pPlan, const char* body, int32_t bodyLen, const SSubplanTarget* target,
+                                char** ppMsg, int32_t* pLen);
 int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 

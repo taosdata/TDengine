@@ -35,8 +35,17 @@ target_link_libraries(
   PUBLIC common
 )
 
-if (NOT ${TD_WINDOWS})
+# Enterprise builds compile the OpenSSL-backed TLS implementation on Windows
+# too.  Community Windows builds keep the stub and do not build OpenSSL.
+# With USE_CONAN, DEP_ext_ssl links the OpenSSL::SSL/OpenSSL::Crypto targets
+# generated from the unconditional openssl requirement in conanfile.py, so the
+# same condition holds on Windows.
+if (TD_ENTERPRISE OR NOT ${TD_WINDOWS})
   DEP_ext_ssl(transport)
+  if (${TD_WINDOWS})
+    # Static libssl/libcrypto leave their system dependencies to the consumer.
+    target_link_libraries(transport PRIVATE ws2_32 crypt32 advapi32 user32 bcrypt)
+  endif()
 endif()
 
 

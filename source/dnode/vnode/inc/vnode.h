@@ -348,6 +348,8 @@ void    vnodeSnapReaderClose(SVSnapReader *pReader);
 int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData);
 // SVSnapWriter
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapWriter **ppWriter);
+int32_t vnodeBackupSnapWriterOpen(SVnode *pVnode, SSnapshotParam *pParam, const char *baseFileSets,
+                                  SVSnapWriter **ppWriter);
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 

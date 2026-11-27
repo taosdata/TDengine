@@ -65,9 +65,8 @@ class TestClusterBackupRestoreDnodeMismatch(ClusterBackupRestoreCase):
         if "map source and target dnodes" not in out and "Invalid data format" not in out:
             tdLog.info(f"restore failed as expected (unexpected message): {out[-500:]}")
 
-        # the failed restore already cleared the data dirs, so do not restart
-        # the cluster; only stop the extra dnode process. The next test
-        # rebuilds its own environment.
+        # Mapping validation now fails before data directories are cleared.
+        # The next test rebuilds its own environment.
         self._kill_extra_dnode(4)
         tdLog.info("dnode mismatch 3->4 restore failed as expected")
 
@@ -114,7 +113,7 @@ class TestClusterBackupRestoreDnodeMismatch(ClusterBackupRestoreCase):
         if "map source and target dnodes" not in out and "Invalid data format" not in out:
             tdLog.info(f"restore failed as expected (unexpected message): {out[-500:]}")
 
-        # the failed restore already cleared the data dirs; no cluster restart.
+        # Mapping validation failed before data directories were cleared.
         # The next test rebuilds its own environment.
         tdLog.info("dnode mismatch 4->3 restore failed as expected")
 

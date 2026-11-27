@@ -186,10 +186,14 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
              "tid:0x%" PRIx64 ", vgId:%d, task:%p",
              __func__, __LINE__, code, tstrerror(code), pPlan->id.queryId,
              taskId, vgId, *pTaskInfo);
-    nodesDestroyNode((SNode*)pPlan);
+    if (!pHandle->localExec) {
+      nodesDestroyNode((SNode*)pPlan);
+    }
     return code;
   }
 
+  // A local plan is borrowed from the scheduler, including while creating its operators.
+  (*pTaskInfo)->localFetch.localExec = pHandle->localExec;
   (*pTaskInfo)->pSubplan = pPlan;
   (*pTaskInfo)->charsetCxt = pPlan->charsetName[0] ? taosConvInit(pPlan->charsetName) : NULL;
 

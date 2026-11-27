@@ -51,6 +51,10 @@ typedef struct STsdbSnapRAWReader {
   int32_t destDnodeId;  // target follower dnodeId served by this reader, used for per-target bucketed progress stats
 } STsdbSnapRAWReader;
 
+int32_t tsdbSnapRAWReaderFileSetsJson(STsdbSnapRAWReader* reader, char** json) {
+  return tsdbFSetSnapshotToJson(reader->fsetArr, json);
+}
+
 int32_t tsdbSnapRAWReaderOpen(STsdb* tsdb, int64_t ever, int8_t type, int32_t destDnodeId, STsdbSnapRAWReader** reader) {
   int32_t code = 0;
   int32_t lino = 0;
