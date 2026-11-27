@@ -100,6 +100,12 @@ do
 done
 
 
+if [ "$cloudBuild" != "y" ]; then
+  echo "Legacy TSDB Docker builds are retired. Use packaging/docker/v3/tsdb/README.md." >&2
+  exit 1
+fi
+
+
 # Check_version()
 # {
 # }
@@ -140,9 +146,6 @@ if [ "$cloudBuild" == "y" ]; then
   else
     Dockerfile=${communityDir}/packaging/docker/DockerfileCloud
   fi
-else
-  communityArchiveDir=/nas/TDengine/v$version/community
-  Dockerfile=${communityDir}/packaging/docker/Dockerfile
 fi
 cd ${scriptDir}
 cp -f ${communityArchiveDir}/${pkgFile}  .

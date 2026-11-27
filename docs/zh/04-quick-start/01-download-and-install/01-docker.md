@@ -93,3 +93,14 @@ docker exec -it tdengine-tsdb bash
 import Getstarted from './resource/_get_started.mdx'
 
 <Getstarted />
+
+## 停止并删除容器
+
+完成体验后，先执行 `exit` 退出容器内的 shell，再在宿主机执行以下命令，停止并删除容器：
+
+```shell
+docker stop tdengine-tsdb
+docker rm tdengine-tsdb
+```
+
+上述命令会保留启动示例中挂载的宿主机目录 `~/data/taos/dnode/data` 和 `~/data/taos/dnode/log` 中的数据与日志，删除容器不会删除这些目录。如果使用同一数据目录重新创建容器，请按前文说明保留原节点 FQDN。
